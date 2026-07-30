@@ -286,6 +286,11 @@ main{max-width:1500px;margin:0 auto;padding:18px 16px 80px}
 .panel h2{font-size:14px;font-weight:700;color:var(--txt);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:9px;letter-spacing:-.012em}
 .panel h2 .r{margin-left:auto;font-size:12px;font-weight:500;color:var(--muted)}
 .grid{display:grid;gap:16px}
+/* v199 · Los items de un grid tienen min-width:auto y no se encogen por debajo de
+   su contenido: en móvil, una tabla ancha empujaba el panel a 975px sobre un
+   viewport de 390 y generaba scroll horizontal en toda la página. Con min-width:0
+   el panel se ajusta y el .wrap-x interno hace su propio scroll. */
+.grid>*{min-width:0}
 .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g23{grid-template-columns:2fr 1fr}
 @media(max-width:900px){.g2,.g3,.g23{grid-template-columns:1fr}}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
@@ -514,7 +519,11 @@ html[data-theme="dark"] .club-plate{border-color:rgba(255,255,255,.14);box-shado
 .lockup .hp-light{display:none}
 html[data-theme="dark"] .lockup .hp-dark{display:none}
 html[data-theme="dark"] .lockup .hp-light{display:block}
-.hub{margin-left:auto;display:flex;align-items:center;gap:13px}
+.hub{margin-left:auto;display:flex;align-items:center;gap:13px;flex-wrap:wrap;justify-content:flex-end;min-width:0}
+/* v199 · La barra superior no cabía en 1440px con el menú desplegado y sobresalía
+   91px por la derecha: ese era el scroll horizontal residual que arrastraba la app
+   desde v188, presente por igual en todas las vistas. Con flex-wrap la fila baja a
+   dos líneas en anchos justos en lugar de desbordar. */
 .hub .actions{margin-left:0}
 .vsep{width:1px;height:30px;background:var(--line);flex:0 0 auto}
 .status{margin-left:0}
@@ -1751,7 +1760,7 @@ html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-s
 <aside id="sidebar">
   <div class="sb-brand"><div class="sb-brand-t">BM NAVA<small>Control de cargas</small></div></div>
   <div class="sb-nav" id="sb-nav"></div>
-  <div class="sb-foot"><button class="sb-collapse" onclick="sbToggle()" title="Plegar/desplegar menú"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg><span>Plegar menú</span></button><div class="sb-ver" id="sb-ver">v198</div></div>
+  <div class="sb-foot"><button class="sb-collapse" onclick="sbToggle()" title="Plegar/desplegar menú"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg><span>Plegar menú</span></button><div class="sb-ver" id="sb-ver">v199</div></div>
 </aside>
 <div id="sb-scrim" onclick="sbToggleMobile(false)"></div>
 <header>
@@ -2174,7 +2183,7 @@ html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-s
   <section class="view" id="v-tests">
     <div class="ctrlrow" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div><h2 style="margin:0">Perfil físico · z-scores y TSA <span class="tag" id="tests-badge">datos de ejemplo</span></h2><div class="small muted">Estandarización dentro de la plantilla (Turner 2019) · condición, fuerza y explosividad</div></div>
-      <div style="display:flex;align-items:center;gap:8px"><span class="tag">Jugador</span><select id="tests-player" onchange="renderTestsProfile()"></select><button class="btn" onclick="openFicha(document.getElementById('tests-player').value)">Ficha / exportar</button></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0"><span class="tag">Jugador</span><select id="tests-player" onchange="renderTestsProfile()" style="max-width:190px;min-width:0"></select><button class="btn" onclick="openFicha(document.getElementById('tests-player').value)">Ficha / exportar</button></div>
     </div>
     <details class="panel" style="padding:14px 18px">
       <summary style="cursor:pointer;font-weight:700">Cargar / editar datos de tests</summary>
@@ -2296,11 +2305,9 @@ html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-s
       <label>Wellness · URL CSV publicada</label><input id="url-wellness" placeholder="https://docs.google.com/.../pub?gid=...&single=true&output=csv">
       <label>RPE / Carga · URL CSV publicada (log de sesiones)</label><input id="url-rpe" placeholder="https://docs.google.com/.../pub?gid=...&single=true&output=csv">
       <label>Plantilla · URL CSV publicada (datos básicos de jugadores)</label><input id="url-roster" placeholder="https://docs.google.com/.../pub?output=csv">
+      <label>Valoraciones físicas · URL CSV publicada (pestaña Datos)</label><input id="url-valoraciones" placeholder="https://docs.google.com/.../pub?gid=...&amp;single=true&amp;output=csv">
       <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
         <button class="btn" onclick="connect()">Conectar y cargar</button>
-        <button class="btn ghost" onclick="loadDemo()">Cargar modo demo</button>
-        <button class="btn ghost" onclick="loadRealTeam()">Equipo real (pretemporada)</button>
-        <button class="btn ghost" onclick="loadReal()">Solo Asaph (histórico)</button>
       </div>
       <p id="conn-msg" class="hint" style="margin-top:12px"></p>
     </div>
@@ -2429,21 +2436,55 @@ function squadNames(){
   return SQUAD_CACHE;
 }
 function inSquad(name){
-  if(name in SQUAD_MATCH_CACHE)return SQUAD_MATCH_CACHE[name];
-  const at=normH(name).split(/\s+/).filter(Boolean);
-  let bestS=0,bestLong=false;
+  return canonicalName(name)!==null;
+}
+/* v199 · Devuelve el nombre TAL COMO figura en la plantilla, o null si no
+   corresponde a nadie.
+   Antes solo se comprobaba la pertenencia (inSquad) y el registro se guardaba con
+   el nombre que trajera la hoja. Como wellness y RPE usan a veces el nombre
+   completo ("Josu Arzoz Azofra") y otras el corto ("Josu Arzoz"), el mismo jugador
+   acababa partido en dos tarjetas con estadísticas separadas.
+   Si la coincidencia es ambigua —una celda con varios nombres, como la de una
+   sesión grupal— se devuelve null: es preferible descartar el registro a
+   atribuírselo al jugador equivocado. */
+const CANON_CACHE={};
+/* Tokeniza partiendo por cualquier carácter no alfanumérico. normH conserva la
+   puntuación, y con ella "Ugalde," no casaba con "Ugalde": en una celda con varios
+   nombres separados por comas solo puntuaba el último, y el registro acababa
+   atribuido a ese jugador. */
+function canonTokens(x){return normH(x).split(/[^a-z0-9]+/).filter(Boolean);}
+function canonicalName(name){
+  if(name in CANON_CACHE)return CANON_CACHE[name];
+  const at=canonTokens(name);
+  let best=null,bestS=0,bestLong=false,ties=0;
   squadNames().forEach(sn=>{
-    const st=normH(sn).split(/\s+/).filter(Boolean);let sc=0,lng=false;
+    const st=canonTokens(sn);
+    let sc=0,lng=false;
     at.forEach(a=>{if(st.includes(a)){sc++;if(a.length>=5)lng=true;}});
-    if(sc>bestS){bestS=sc;bestLong=lng;}
+    if(sc>bestS){bestS=sc;bestLong=lng;best=sn;ties=1;}
+    else if(sc===bestS&&sc>0)ties++;
   });
   const ok=(bestS>=2)||(bestS>=1&&bestLong);
-  SQUAD_MATCH_CACHE[name]=ok;
-  return ok;
+  const res=(ok&&ties===1)?best:null;
+  CANON_CACHE[name]=res;
+  return res;
 }
 function filterToSquad(){
   if(!squadNames().length)return;
-  const f=arr=>Array.isArray(arr)?arr.filter(x=>x&&x.name&&inSquad(x.name)):arr;
+  /* Además de filtrar, REESCRIBE el nombre al de la plantilla para que todos los
+     registros de un jugador se agrupen bajo una sola ficha. */
+  const f=arr=>{
+    if(!Array.isArray(arr))return arr;
+    const out=[];
+    arr.forEach(x=>{
+      if(!x||!x.name)return;
+      const c=canonicalName(x.name);
+      if(!c)return;
+      if(c!==x.name)x.name=c;
+      out.push(x);
+    });
+    return out;
+  };
   if(STATE.wellness)STATE.wellness=f(STATE.wellness);
   if(STATE.rpe)STATE.rpe=f(STATE.rpe);
   if(STATE.hr)STATE.hr=f(STATE.hr);
@@ -5379,7 +5420,18 @@ function renderAll(){applyHist();
 
 /* ===================== CONEXIÓN ===================== */
 async function fetchCSV(url){const res=await fetch(url);if(!res.ok)throw new Error("HTTP "+res.status);const txt=await res.text();return new Promise(r=>Papa.parse(txt,{header:true,skipEmptyLines:true,complete:c=>r(c.data)}));}
-async function connect(){const wu=document.getElementById('url-wellness').value.trim()||CONFIG.sources.wellness;const ru=document.getElementById('url-rpe').value.trim()||CONFIG.sources.rpe;const msg=document.getElementById('conn-msg');if(!wu&&!ru){msg.textContent="Pega al menos una URL CSV, o usa el modo demo.";return;}msg.textContent="Cargando…";try{if(wu)STATE.wellness=ingestWellness(await fetchCSV(wu));if(ru)STATE.rpe=ingestRPE(await fetchCSV(ru));if(!STATE.wellness.length&&!STATE.rpe.length)throw new Error("0 registros leídos");STATE.mode="live";STATE.refDate=null;document.getElementById('fallback-banner').style.display='none';renderAll();syncDatePicker();let rosterMsg='';try{const rou=(document.getElementById('url-roster')||{}).value||CONFIG.sources.roster;if(rou){const rn=applyRosterLive(ingestRoster(await fetchCSV(rou)));if(rn){rosterMsg=` · Plantilla: ${rn} jugadores`;if(STATE.curPlayer&&document.getElementById('v-jugador').classList.contains('on'))renderPlayer(STATE.curPlayer);}}}catch(re){rosterMsg=' · Plantilla no leída (hoja privada o CORS)';}go('equipo');msg.textContent=`Conectado a tu hoja. Wellness: ${STATE.wellness.length} · RPE: ${STATE.rpe.length} registros. Jugadores: ${Object.keys(STATE.players).length}.${rosterMsg}`;}catch(e){loadRealTeam();msg.innerHTML=`No se pudo leer la hoja en vivo en este entorno (${e.message}). Suele ser CORS de la vista previa: <b>descarga este archivo y ábrelo en tu navegador</b> (doble clic) para el dato actual de toda la plantilla. Mientras tanto te muestro los datos reales del equipo de pretemporada.`;}}
+async function connect(){const wu=document.getElementById('url-wellness').value.trim()||CONFIG.sources.wellness;const ru=document.getElementById('url-rpe').value.trim()||CONFIG.sources.rpe;const msg=document.getElementById('conn-msg');if(!wu&&!ru){msg.textContent="Pega al menos una URL CSV, o usa el modo demo.";return;}msg.textContent="Cargando…";try{if(wu)STATE.wellness=ingestWellness(await fetchCSV(wu));if(ru)STATE.rpe=ingestRPE(await fetchCSV(ru));if(!STATE.wellness.length&&!STATE.rpe.length)throw new Error("0 registros leídos");STATE.mode="live";STATE.refDate=null;document.getElementById('fallback-banner').style.display='none';renderAll();syncDatePicker();let rosterMsg='';try{const rou=(document.getElementById('url-roster')||{}).value||CONFIG.sources.roster;if(rou){const rn=applyRosterLive(ingestRoster(await fetchCSV(rou)));if(rn){rosterMsg=` · Plantilla: ${rn} jugadores`;if(STATE.curPlayer&&document.getElementById('v-jugador').classList.contains('on'))renderPlayer(STATE.curPlayer);}}}catch(re){rosterMsg=' · Plantilla no leída (hoja privada o CORS)';}let vhMsg='';
+try{
+  /* v199 · las valoraciones físicas se cargan aquí, junto a las demás fuentes,
+     para que "Conectar y cargar" deje el sistema entero listo de una vez. */
+  const vu=((document.getElementById('url-valoraciones')||{}).value||'').trim()||((CONFIG.sources||{}).valoraciones||'');
+  if(vu&&typeof vhLoadURLQuiet==='function'){
+    const vr=await vhLoadURLQuiet(vu);
+    if(vr&&vr.ok){vhMsg=` · Valoraciones: ${vr.ok} mediciones de ${vr.players} jugadores`;}
+    else vhMsg=' · Valoraciones no leídas';
+  }
+}catch(ve){vhMsg=' · Valoraciones no leídas ('+ve.message+')';}
+go('equipo');msg.textContent=`Conectado a tu hoja. Wellness: ${STATE.wellness.length} · RPE: ${STATE.rpe.length} registros. Jugadores: ${Object.keys(STATE.players).length}.${rosterMsg}${vhMsg}`;}catch(e){loadRealTeam();msg.innerHTML=`No se pudo leer la hoja en vivo en este entorno (${e.message}). Suele ser CORS de la vista previa: <b>descarga este archivo y ábrelo en tu navegador</b> (doble clic) para el dato actual de toda la plantilla. Mientras tanto te muestro los datos reales del equipo de pretemporada.`;}}
 
 /* ===================== DEMO ===================== */
 function loadDemo(){
@@ -10648,6 +10700,27 @@ function vhReport(r,set){
 const VH_LS='bmnava_vhurl';
 function vhSavedUrl(){try{return localStorage.getItem(VH_LS)||'';}catch(e){return '';}}
 function vhSaveUrl(u){try{u?localStorage.setItem(VH_LS,u):localStorage.removeItem(VH_LS);}catch(e){}}
+/* Carga sin escribir en el panel de Perfil físico: la usa la pantalla de Conexión,
+   que muestra su propio mensaje conjunto con el resto de fuentes. */
+window.vhLoadURLQuiet=async function(url){
+  if(!url)return null;
+  vhResetNameCache();
+  const res=await fetch(url);
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const txt=await res.text();
+  const r=await new Promise(resolve=>{
+    Papa.parse(txt,{header:true,skipEmptyLines:true,complete:c=>{
+      let out=vhIngestAuto(c.data);
+      if(!out.ok&&out.error){
+        const alt=vhReheader(txt,1);
+        if(alt){const c2=Papa.parse(alt,{header:true,skipEmptyLines:true});const o2=vhIngestAuto(c2.data);if(o2.ok){o2.reheadered=true;out=o2;}}
+      }
+      resolve(out);
+    }});
+  });
+  if(r&&r.ok){vhSaveUrl(url);vhRerender();}
+  return r;
+};
 window.vhLoadFromInput=async function(){
   const url=((document.getElementById('vh-url')||{}).value||'').trim();
   const msg=document.getElementById('vh-msg');
@@ -10666,6 +10739,7 @@ async function vhAutoload(){
   const u=vhSavedUrl()||((CONFIG.sources||{}).valoraciones||'');
   if(!u)return;
   const i=document.getElementById('vh-url');if(i&&!i.value)i.value=u;
+  const j=document.getElementById('url-valoraciones');if(j&&!j.value)j.value=u;
   try{
     const r=await vhLoadURL(u,document.getElementById('vh-msg'));
     if(r&&r.ok)vhRerender();
