@@ -1752,6 +1752,35 @@ html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-s
   header{background:rgba(255,255,255,.93)!important}
   #sidebar{background:linear-gradient(180deg,#141d2e,#1e2a42 55%,#33415d)!important}
 }
+
+/* ===== v216 · Modo ligero =====
+   El acabado de vidrio pone más de 130 elementos con backdrop-filter en pantalla
+   a la vez, sobre un fondo a pantalla completa con blur(52px) animado en bucle.
+   En gráficos integrados (los MacBook Intel de la plantilla) eso satura el
+   compositor: la web va a tirones y el portátil se calienta. En Apple Silicon no
+   se nota, por eso el problema solo lo sufren algunos.
+   El modo ligero quita esos efectos y deja superficies opacas. Se ve casi igual
+   —mismos colores, sombras y radios— pero deja de repintar sin parar. */
+body.perf-lite::before{animation:none!important;filter:none!important;opacity:.55}
+body.perf-lite .panel,body.perf-lite .kpi,body.perf-lite .card-pro,body.perf-lite .zc,
+body.perf-lite .pcard,body.perf-lite .add-menu,body.perf-lite .drawer,body.perf-lite header,
+body.perf-lite #sidebar,body.perf-lite .drawer-ov,body.perf-lite .dp-pop,body.perf-lite .dp-trigger,
+body.perf-lite .datepick input,body.perf-lite .datepick button,body.perf-lite .datepick .dp-nav,
+body.perf-lite .datepick .dp-today,body.perf-lite .iconbtn,body.perf-lite .estado-seg,
+body.perf-lite .med-modal,body.perf-lite .info-modal{
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+body.perf-lite .panel,body.perf-lite .kpi,body.perf-lite .card-pro,
+body.perf-lite .zc,body.perf-lite .pcard,body.perf-lite .add-menu,body.perf-lite .drawer{
+  background:rgba(255,255,255,.94)!important}
+body.perf-lite header{background:rgba(255,255,255,.93)!important}
+body.perf-lite .dp-pop{background:rgba(255,255,255,.97)!important}
+body.perf-lite .dp-trigger,body.perf-lite .datepick .dp-nav,
+body.perf-lite .datepick .dp-today,body.perf-lite .iconbtn:not(.primary){
+  background:rgba(255,255,255,.95)!important}
+html[data-theme="dark"] body.perf-lite .panel,html[data-theme="dark"] body.perf-lite .kpi,
+html[data-theme="dark"] body.perf-lite .card-pro,html[data-theme="dark"] body.perf-lite .drawer{
+  background:rgba(28,34,46,.96)!important}
+html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!important}
 </style>
 </head>
 <body>
@@ -2413,7 +2442,7 @@ const SY_TABLE='bmnava_state';
 const SY_PREFIX=/^bmnava_/;
 /* Claves que NO se comparten: son preferencias de cada persona, no datos del
    equipo. Sincronizarlas haría que el tema oscuro de uno cambiara el del otro. */
-const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_'];
+const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_'];
 
 /* URL y clave pública (anon) fijas en el código: son datos públicos por diseño
    (protegidos por RLS en Supabase), así que cada persona ya no tiene que
@@ -8343,6 +8372,50 @@ function calDelEvent(dk,id){const arr=(STATE.calendar[dk]||[]);const i=arr.findI
 function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);}t.textContent=msg;requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';});clearTimeout(_toastT);_toastT=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(10px)';},2200);}
 
 /* --- Tema --- */
+/* ===== v216 · Modo ligero =====
+   Preferencia POR EQUIPO (va en SY_LOCAL_ONLY, no se sincroniza): el portátil de
+   Virginia puede ir en ligero sin cambiarle nada a nadie más.
+   'auto' mide los fps reales y decide; 'lite'/'full' lo fuerza a mano. */
+const PERF_LS='bmnava_perf';
+function perfGet(){try{return localStorage.getItem(PERF_LS)||'auto';}catch(e){return 'auto';}}
+function perfApply(){
+  const m=perfGet();
+  document.body.classList.toggle('perf-lite',m==='lite');
+  const s=document.getElementById('cf-perf');if(s&&s.value!==m)s.value=m;
+}
+function perfSet(v){
+  try{localStorage.setItem(PERF_LS,v);}catch(e){}
+  perfApply();
+  if(v==='auto')perfProbe();
+  else toast(v==='lite'?'Modo ligero activado':'Efectos visuales completos activados');
+}
+/* Mide fps reales. Se hace tarde (la carga inicial siempre va a tirones) y se
+   confirma con una segunda medición, para no marcar como lento un equipo rápido
+   que tuvo un pico puntual. */
+function perfProbe(){
+  if(perfGet()!=='auto')return;
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  const medir=()=>new Promise(res=>{
+    let n=0,t0=null;
+    requestAnimationFrame(t=>{t0=t;(function tick(t2){
+      n++;
+      if(t2-t0<700)requestAnimationFrame(tick);else res(n/((t2-t0)/1000));
+    })(t0);});
+  });
+  setTimeout(async()=>{
+    try{
+      const a=await medir();
+      if(a>=45)return;                       // va bien: se queda como está
+      await new Promise(r=>setTimeout(r,600));
+      const b=await medir();
+      if(b>=45)return;                       // era un pico puntual
+      try{localStorage.setItem(PERF_LS,'lite');}catch(e){}
+      perfApply();
+      if(window.toast)toast('Modo ligero activado: este equipo iba justo con los efectos visuales. Se cambia en Ajustes ⚙');
+    }catch(e){}
+  },3000);
+}
+window.perfSet=perfSet;window.perfApply=perfApply;
 function applyTheme(t){const dark=t==='dark';document.documentElement.setAttribute('data-theme',dark?'dark':'light');lsSet('bmnava-theme',dark?'dark':'light');buildChartTheme();const b=document.getElementById('btn-theme');if(b){b.innerHTML=(dark?'☀️':'🌙')+'<span class="t">'+(dark?'Claro':'Oscuro')+'</span>';}}
 function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';applyTheme(cur==='dark'?'light':'dark');rerenderCurrent();}
 function rerenderCurrent(){try{renderTeam();renderPos&&renderPos();renderAlerts&&renderAlerts();}catch(e){}const on=id=>document.getElementById(id)&&document.getElementById(id).classList.contains('on');if(on('v-carga'))renderLoad();if(on('v-hr'))renderHR();if(on('v-unif'))renderUnif();if(on('v-jugador')&&STATE.curPlayer)renderPlayer(STATE.curPlayer);}
@@ -8427,9 +8500,17 @@ function buildDrawer(){if(document.getElementById('drawer'))return;const ov=docu
      ${numF('acwr_lo','Banda baja',0.05)}${numF('acwr_hi','Amarillo alto',0.05)}${numF('acwr_red','Rojo alto',0.05)}</div>
    <div class="grp"><div class="gl">Pesos wellness</div>
      ${numF('w_fatiga','Fatiga',0.1)}${numF('w_sueno','Sueño',0.1)}${numF('w_doms','DOMS',0.1)}${numF('w_stress','Estrés',0.1)}${numF('w_mood','Ánimo',0.1)}${numF('w_horas','Horas sueño',0.1)}</div>
+   <div class="grp"><div class="gl">Rendimiento de este equipo</div>
+     <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px">Efectos visuales</label>
+     <select id="cf-perf" onchange="perfSet(this.value)" style="width:100%">
+       <option value="auto">Automático (recomendado)</option>
+       <option value="lite">Modo ligero · sin transparencias</option>
+       <option value="full">Completos</option>
+     </select>
+     <p class="hint" style="margin-top:6px">Si el portátil se calienta o va a tirones, el modo ligero quita el desenfoque de las superficies y el fondo animado. Solo afecta a este ordenador.</p></div>
    <div class="row-btn"><button class="btn" style="flex:1" onclick="applyDrawer()">Aplicar</button><button class="btn ghost" onclick="resetDrawer()">Restaurar</button></div>`;
   document.body.appendChild(ov);document.body.appendChild(d);fillDrawer();}
-function fillDrawer(){const set=(id,v)=>{const el=document.getElementById('cf-'+id);if(el)el.value=v;};set('z_yellow',CONFIG.z.yellow);set('z_red',CONFIG.z.red);set('z_min',CONFIG.z.minRecords);set('acwr_lo',CONFIG.load.acwrYellowLo);set('acwr_hi',CONFIG.load.acwrYellowHi);set('acwr_red',CONFIG.load.acwrRedHi);const w=CONFIG.wellnessVars;set('w_fatiga',w.fatiga.w);set('w_sueno',w.sueno.w);set('w_doms',w.doms.w);set('w_stress',w.stress.w);set('w_mood',w.mood.w);set('w_horas',w.horas_sueno.w);}
+function fillDrawer(){const set=(id,v)=>{const el=document.getElementById('cf-'+id);if(el)el.value=v;};set('z_yellow',CONFIG.z.yellow);set('z_red',CONFIG.z.red);set('z_min',CONFIG.z.minRecords);set('acwr_lo',CONFIG.load.acwrYellowLo);set('acwr_hi',CONFIG.load.acwrYellowHi);set('acwr_red',CONFIG.load.acwrRedHi);const w=CONFIG.wellnessVars;set('w_fatiga',w.fatiga.w);set('w_sueno',w.sueno.w);set('w_doms',w.doms.w);set('w_stress',w.stress.w);set('w_mood',w.mood.w);set('w_horas',w.horas_sueno.w);try{perfApply();}catch(e){}}
 function openDrawer(){buildDrawer();fillDrawer();document.getElementById('drawer-ov').classList.add('on');document.getElementById('drawer').classList.add('on');}
 function closeDrawer(){const o=document.getElementById('drawer-ov'),d=document.getElementById('drawer');if(o)o.classList.remove('on');if(d)d.classList.remove('on');}
 function applyDrawer(){const g=id=>{const el=document.getElementById('cf-'+id);return el?parseFloat(el.value):NaN;};const v=(x,f)=>isNaN(x)?f:x;
@@ -8447,6 +8528,7 @@ function restoreFromHash(){const h=readHash();if(!h)return;if(h.date){const inp=
 
 /* aplica el tema guardado antes del primer render */
 applyTheme(lsGet('bmnava-theme')==='dark'?'dark':'light');
+try{perfApply();perfProbe();}catch(e){}
 
 
 document.getElementById('seg-window').addEventListener('click',e=>{if(e.target.dataset.w){FILTER.window=+e.target.dataset.w;document.querySelectorAll('#seg-window button').forEach(b=>b.classList.toggle('on',b===e.target));renderLoad();}});
