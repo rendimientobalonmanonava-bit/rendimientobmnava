@@ -6799,6 +6799,19 @@ function rfIdle(){
     +(last?(' \u00b7 \u00faltima: '+new Date(+last).toLocaleTimeString()):'');
 }
 window.rfIdle=rfIdle;
+/* v214 · Médico, Calendario, Cuadrantes, fotos, tests, disponibilidad y demás
+   cachean su lectura de localStorage en STATE (o en una variable de módulo,
+   caso de las fotos) la primera vez y no la repiten. Sin esto, lo que trae un
+   compañero al pulsar "Actualizar" quedaba en localStorage pero no se veía en
+   pantalla hasta recargar la página entera. */
+function syInvalidateAppCaches(){
+  STATE.med=null;STATE.medInfo=null;STATE.medLog=null;
+  STATE.calendar=null;STATE.calMeta=null;STATE.calTpl=null;STATE.sessDur=null;STATE.asist=null;
+  STATE.quadrants=null;STATE.testLog=null;STATE.physioDict=null;STATE.physioUser=null;
+  if(window.phResetCache)phResetCache();
+  if(window.lbResetBias)lbResetBias();
+  try{hrLoadSaved();}catch(e){}
+}
 window.refreshAll=async function(){
   const b=document.getElementById('rf-btn');
   if(b&&b.disabled)return;
@@ -6816,9 +6829,14 @@ window.refreshAll=async function(){
   let syTxt='';
   try{
     const st=window.syState?syState():null;
-    if(st&&st.on&&window.syRefreshShared){syTxt=await syRefreshShared();}
+    if(st&&st.on&&window.syRefreshShared){
+      syTxt=await syRefreshShared();
+      syInvalidateAppCaches();
+    }
   }catch(e){syTxt=' \u00b7 sincronizaci\u00f3n pendiente';}
-  try{if(vista&&vista!==STATE.view)go(vista);}catch(e){}
+  /* v214 \u00b7 se repinta la vista actual siempre (no solo si connect() cambi\u00f3 de
+     vista), para que lo reci\u00e9n sincronizado se vea sin tener que navegar. */
+  try{if(vista)go(vista);}catch(e){}
   try{localStorage.setItem(RF_LS,String(Date.now()));}catch(e){}
   if(ok){rfSet('ok','Actualizado');if(window.toast)toast('Datos actualizados \u00b7 '+msgTxt+syTxt);}
   else{rfSet('err','Sin conexi\u00f3n');if(window.toast)toast('No se pudieron leer las hojas: '+msgTxt);}
@@ -8542,7 +8560,12 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
  };
  window.closeHeroForm=function(){document.getElementById('ph-overlay').style.display='none';};
  const g=id=>(document.getElementById(id)||{}).value;
- window.heroSaveMed=function(name){const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}STATE.medLog=STATE.medLog||{};(STATE.medLog[name]=STATE.medLog[name]||[]).push({id:'m_'+Date.now(),type:ty,dk,title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()});try{localStorage.setItem('bmnava_medlog',JSON.stringify(STATE.medLog));}catch(e){}if(window.medRenderPlayer)medRenderPlayer(name);closeHeroForm();};
+ /* v214 · usaba STATE.medLog=STATE.medLog||{} en vez de load(): si esta pestaña
+    aún no había cargado el log médico (p. ej. se usa el formulario rápido nada
+    más entrar, sin haber visitado Médico antes), STATE.medLog estaba vacío y
+    se guardaba solo el registro de este jugador, borrando el bmnava_medlog de
+    todos los demás. load() asegura que se parte de lo que ya hay guardado. */
+ window.heroSaveMed=function(name){const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}const ML=load();(ML[name]=ML[name]||[]).push({id:'m_'+Date.now(),type:ty,dk,title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()});persist();if(window.medRenderPlayer)medRenderPlayer(name);closeHeroForm();};
  window.heroSavePart=function(name){const dk=g('mh-pdate');if(!dk){alert('Indica la fecha.');return;}STATE.physioUser=STATE.physioUser||{};(STATE.physioUser[name]=STATE.physioUser[name]||[]).push({_id:'u_'+Date.now(),dk,status:g('mh-pstatus')||'trat',zone:(g('mh-pzone')||'').trim(),side:g('mh-pside')||'',sev:'',mech:'',pain:(g('mh-ppain')!==''&&g('mh-ppain')!=null)?+g('mh-ppain'):null,rtp:g('mh-prtp')||'',treat:'',note:(g('mh-pnote')||'').trim()});if(window.physioPersist)physioPersist();if(window.renderPlayer)renderPlayer(name);closeHeroForm();};
  window.heroSaveNote=function(name){const txt=(g('mh-ntext')||'').trim();if(!txt){alert('Escribe un comentario.');return;}STATE.notes=STATE.notes||{};(STATE.notes[name]=STATE.notes[name]||[]).push({date:new Date().toISOString().slice(0,10),area:g('mh-narea')||'General',text:txt});if(window.renderPlayerNotes)renderPlayerNotes(name);closeHeroForm();};
  var _o=document.getElementById('ph-overlay');if(_o)_o.addEventListener('click',function(e){if(e.target===this)closeHeroForm();});
@@ -12670,6 +12693,9 @@ function phLoad(){
   try{PH_MEM=JSON.parse(localStorage.getItem(PH_LS)||'{}')||{};}catch(e){PH_MEM={};}
   return PH_MEM;
 }
+/* v214 · invalida la caché en memoria para que la próxima phLoad() relea
+   localStorage (usado tras un pull de sincronización). */
+window.phResetCache=function(){PH_MEM=null;};
 function phPersist(){
   try{localStorage.setItem(PH_LS,JSON.stringify(phLoad()));return true;}
   catch(e){
