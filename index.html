@@ -996,6 +996,19 @@ body.sb-min .sb-ver{display:none}
 .med-al-nt{max-width:220px;white-space:normal;word-break:break-word}
 .med-note{background:var(--panel2);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:7px;line-height:1.45}
 .med-note .small{color:var(--muted2);font-weight:700}
+/* v216 · selector único de registro de fisioterapia */
+.fr-pl{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:12px}
+.fr-pl select{width:100%;margin-top:4px}
+.fr-list{display:flex;flex-direction:column;gap:8px}
+.fr-it{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  font:inherit;color:var(--txt);transition:border-color .12s,box-shadow .12s}
+.fr-it:hover{border-color:var(--accent);box-shadow:0 4px 14px rgba(20,29,46,.09)}
+.fr-ic{font-size:21px;flex:none;line-height:1}
+.fr-tx{flex:1;min-width:0}
+.fr-tx b{display:block;font-size:13.5px;font-weight:700}
+.fr-tx small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.fr-ar{color:var(--muted2);font-size:19px;flex:none}
 /* v215 · resumen médico para el entrenador */
 .mcx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px;margin-top:12px}
 .mcx-card{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--sem);
@@ -8426,8 +8439,9 @@ function buildHeaderActions(){const host=document.getElementById('hdr-actions');
     <button class="iconbtn primary" id="btn-adddata" title="Añadir datos" aria-haspopup="true" aria-expanded="false" onclick="toggleAddData(event)">＋<span class="t">Añadir datos</span></button>
     <div class="add-menu" id="add-menu" role="menu">
       <div class="add-h">Registrar datos</div>
-      <button class="add-item" role="menuitem" onclick="addDataQuickPhysio()"><span class="ic">🩺</span><span class="tx"><b>Disponibilidad / lesión</b><small>Marca dolor, baja o tratamiento. Persiste hasta el alta.</small></span></button>
-      <button class="add-item" role="menuitem" onclick="addDataQuickTreatment()"><span class="ic">👐</span><span class="tx"><b>Tratamiento fisio</b><small>Registrar lo que Virginia ha hecho hoy con un jugador.</small></span></button>
+      <!-- v216 · una sola entrada para todo lo de fisio: el selector pregunta qué
+           se quiere registrar y lleva al formulario correspondiente. -->
+      <button class="add-item" role="menuitem" onclick="addDataFisio()"><span class="ic">🩺</span><span class="tx"><b>Fisioterapia y parte médico</b><small>Tratamiento, cómo está hoy, cita o documento, lesión nueva.</small></span></button>
       <button class="add-item" role="menuitem" onclick="addDataGoHR()"><span class="ic">❤️</span><span class="tx"><b>Datos de pulsómetros</b><small>Importar sesión Polar (FC, kcal, tiempo en zonas).</small></span></button>
       <button class="add-item" role="menuitem" onclick="addDataGoTests()"><span class="ic">📏</span><span class="tx"><b>Valoración física</b><small>Cargar tests para el perfil físico (CMJ, 1RM, velocidad…).</small></span></button>
       <div class="add-sep"></div>
@@ -8448,6 +8462,9 @@ function addDataGoHR(){closeAddData();go('hr');setTimeout(()=>scrollFocus('hr-pa
 function addDataGoTests(){closeAddData();openQuickTest();}
 function addDataGoAvailPlan(){closeAddData();go('avail');setTimeout(()=>scrollFocus('avail-plan-player'),80);}
 function addDataGoConfig(){closeAddData();go('config');}
+/* v216 · el menú ＋ ahora abre el selector único de fisioterapia. Las funciones
+   específicas se conservan porque las usan otros botones dentro de la app. */
+function addDataFisio(){closeAddData();if(window.openFisioReg)openFisioReg();}
 function addDataQuickPhysio(){closeAddData();
   const roster=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
   const ov=ensureInfoOverlay();const title=document.getElementById('info-mtitle'),body=document.getElementById('info-mbody');
@@ -8741,7 +8758,10 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
      '<div><div class="phero-name">'+name+'</div><div class="phero-sub">'+(p.pos||'—')+'</div>'+
      '<div class="phero-tags"><span class="phero-tag" style="color:'+col+';border-color:'+col+'">ACWR '+acwr+'</span>'+(c7!=null?'<span class="phero-tag">Carga 7d '+c7+' UA</span>':'')+'</div></div></div>'+
      '<div class="phero-rd"><div class="phero-ring" style="background:'+ring+'"><div class="phero-rdn">'+rd+'</div></div><div class="phero-rdl">READINESS</div><div class="phero-rds" style="color:'+col+'">'+estado+'</div></div>'+
-     '<div class="phero-btns"><button class="btn phero-add" onclick="openHeroForm(\'med\',\''+q(name)+'\')">+ Dato médico</button><button class="btn phero-add" onclick="openHeroForm(\'parte\',\''+q(name)+'\')">+ Parte del día</button><button class="btn phero-add" onclick="openHeroForm(\'coment\',\''+q(name)+'\')">+ Comentario</button><button class="btn phero-add" onclick="openQuickTest(\''+q(name)+'\')">+ Valoración</button></div></div>';
+     /* v216 · «Dato médico» y «Parte del día» eran dos botones distintos que
+        guardaban en almacenes distintos y no estaba claro cuál tocaba. Ahora
+        hay uno solo que pregunta qué se quiere registrar. */
+     '<div class="phero-btns"><button class="btn phero-add" onclick="openFisioReg(\''+q(name)+'\')">+ Fisio / médico</button><button class="btn phero-add" onclick="openHeroForm(\'coment\',\''+q(name)+'\')">+ Comentario</button><button class="btn phero-add" onclick="openQuickTest(\''+q(name)+'\')">+ Valoración</button></div></div>';
  };
  const today=()=>dkey(new Date());
  window.openHeroForm=function(type,name){let h='';
@@ -8777,6 +8797,42 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
    document.getElementById('ph-body').innerHTML=h;document.getElementById('ph-overlay').style.display='flex';
  };
  window.closeHeroForm=function(){document.getElementById('ph-overlay').style.display='none';};
+
+ /* ---------- v216 · un solo sitio para registrar ----------
+    Había siete formas de meter datos de fisio (menú ＋, Disponibilidad, ficha del
+    jugador, Médico, el panel de fisio de hoy…) y escribían en tres almacenes
+    distintos, así que costaba saber cuál usar y dónde iba a aparecer lo escrito.
+    Esto no cambia dónde se guarda nada: pregunta primero QUÉ se quiere registrar,
+    en lenguaje de fisio, y lleva al formulario que ya existía. */
+ window.openFisioReg=function(name){
+  var names=Object.keys(STATE.players||{}).sort(function(a,b){return a.localeCompare(b,'es');});
+  var opts=names.map(function(n){return '<option'+(n===name?' selected':'')+'>'+String(n).replace(/</g,'&lt;')+'</option>';}).join('');
+  var item=function(ic,tit,sub,kind){
+   return '<button type="button" class="fr-it" onclick="fisioRegGo(\''+kind+'\')">'
+    +'<span class="fr-ic">'+ic+'</span>'
+    +'<span class="fr-tx"><b>'+tit+'</b><small>'+sub+'</small></span>'
+    +'<span class="fr-ar">›</span></button>';
+  };
+  var h='<h2 style="margin-top:0">¿Qué quieres registrar? <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+   +'<div class="ph-f">'
+   +'<label class="fr-pl">Jugador<select id="fr-name">'+opts+'</select></label>'
+   +'<div class="fr-list">'
+   +item('👐','Tratamiento de hoy','Lo que le has hecho: camilla, ejercicios, electroterapia…','trat')
+   +item('🩺','Cómo está hoy','Dolor, no entrena o baja. Marca su disponibilidad.','parte')
+   +item('📄','Cita o documento médico','Informe, alta laboral, prueba diagnóstica, próxima cita.','med')
+   +item('🩹','Lesión nueva','Abre un episodio con plan de readaptación por fases.','lesion')
+   +'</div></div>';
+  document.getElementById('ph-body').innerHTML=h;
+  document.getElementById('ph-overlay').style.display='flex';
+ };
+ window.fisioRegGo=function(kind){
+  var n=(document.getElementById('fr-name')||{}).value||'';
+  closeHeroForm();
+  if(kind==='trat'){if(window.openMedTreatQuick)openMedTreatQuick(n);return;}
+  if(kind==='parte'){openHeroForm('parte',n);return;}
+  if(kind==='med'){openHeroForm('med',n);return;}
+  if(kind==='lesion'){try{if(window.go)go('medico');}catch(e){}if(window.openMedInjury)openMedInjury(n);}
+ };
  const g=id=>(document.getElementById(id)||{}).value;
  /* v216 · Antes de añadir hay que cargar lo que ya está guardado: si esta pestaña
     no había abierto Médico todavía, STATE.medLog estaba vacío y se guardaba solo
