@@ -8696,12 +8696,16 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
  };
  window.closeHeroForm=function(){document.getElementById('ph-overlay').style.display='none';};
  const g=id=>(document.getElementById(id)||{}).value;
- /* v214 · usaba STATE.medLog=STATE.medLog||{} en vez de load(): si esta pestaña
-    aún no había cargado el log médico (p. ej. se usa el formulario rápido nada
-    más entrar, sin haber visitado Médico antes), STATE.medLog estaba vacío y
-    se guardaba solo el registro de este jugador, borrando el bmnava_medlog de
-    todos los demás. load() asegura que se parte de lo que ya hay guardado. */
- window.heroSaveMed=function(name){const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}const ML=load();(ML[name]=ML[name]||[]).push({id:'m_'+Date.now(),type:ty,dk,title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()});persist();if(window.medRenderPlayer)medRenderPlayer(name);closeHeroForm();};
+ /* v216 · Antes de añadir hay que cargar lo que ya está guardado: si esta pestaña
+    no había abierto Médico todavía, STATE.medLog estaba vacío y se guardaba solo
+    el registro de este jugador, borrando el bmnava_medlog de todos los demás.
+    La carga se hace aquí y no con el load() del módulo de agenda médica, que vive
+    en otro IIFE y no está en este ámbito. */
+ function medLogRW(){
+  if(!STATE.medLog){try{STATE.medLog=JSON.parse(localStorage.getItem('bmnava_medlog')||'{}')||{};}catch(e){STATE.medLog={};}}
+  return STATE.medLog;
+ }
+ window.heroSaveMed=function(name){const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}const ML=medLogRW();(ML[name]=ML[name]||[]).push({id:'m_'+Date.now(),type:ty,dk,title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()});try{localStorage.setItem('bmnava_medlog',JSON.stringify(ML));}catch(e){}if(window.medRenderPlayer)medRenderPlayer(name);closeHeroForm();};
  window.heroSavePart=function(name){const dk=g('mh-pdate');if(!dk){alert('Indica la fecha.');return;}STATE.physioUser=STATE.physioUser||{};(STATE.physioUser[name]=STATE.physioUser[name]||[]).push({_id:'u_'+Date.now(),dk,status:g('mh-pstatus')||'trat',zone:(g('mh-pzone')||'').trim(),side:g('mh-pside')||'',sev:'',mech:'',pain:(g('mh-ppain')!==''&&g('mh-ppain')!=null)?+g('mh-ppain'):null,rtp:g('mh-prtp')||'',treat:'',note:(g('mh-pnote')||'').trim()});if(window.physioPersist)physioPersist();if(window.renderPlayer)renderPlayer(name);closeHeroForm();};
  window.heroSaveNote=function(name){const txt=(g('mh-ntext')||'').trim();if(!txt){alert('Escribe un comentario.');return;}STATE.notes=STATE.notes||{};(STATE.notes[name]=STATE.notes[name]||[]).push({date:new Date().toISOString().slice(0,10),area:g('mh-narea')||'General',text:txt});if(window.renderPlayerNotes)renderPlayerNotes(name);closeHeroForm();};
  var _o=document.getElementById('ph-overlay');if(_o)_o.addEventListener('click',function(e){if(e.target===this)closeHeroForm();});
