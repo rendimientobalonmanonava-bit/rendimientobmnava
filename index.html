@@ -996,6 +996,19 @@ body.sb-min .sb-ver{display:none}
 .med-al-nt{max-width:220px;white-space:normal;word-break:break-word}
 .med-note{background:var(--panel2);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:7px;line-height:1.45}
 .med-note .small{color:var(--muted2);font-weight:700}
+/* v215 · editor de fechas de las fases */
+.rh-pd-auto{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.rh-pd-auto label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:var(--muted)}
+.rh-pd-auto input{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px}
+.rh-pd-wrap{max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.rh-pd-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.rh-pd-tbl th{position:sticky;top:0;background:var(--panel2);text-align:left;font-size:10px;
+  text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 9px}
+.rh-pd-tbl td{padding:6px 9px;border-top:1px solid var(--hair);vertical-align:middle}
+.rh-pd-tbl input[type=date]{padding:5px 7px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:12px}
+.rh-pd-n{color:var(--muted2);font-weight:800;width:22px}
+.rh-pd-du{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted);font-size:11.5px}
+.rh-pd-du.bad{color:var(--bad);font-weight:700}
 .med-chipbtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer}
 .med-chipbtn:hover{border-color:var(--accent);color:var(--txt)}
 .med-stat-dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
@@ -4191,7 +4204,12 @@ function medDetailHtml(e){if(!e)return '';
       :'<button class="btn" style="padding:6px 14px;font-size:12px" onclick="medClose(\''+e.id+'\')">🏁 Alta · RTP completado</button>')
     +'</div>';
   }
-  phasesHtml='<div class="med-sec">Plan de readaptación</div>'+stepper+cur;
+  /* v215 · el botón de fechas va fuera del bloque de la fase actual: en un
+     episodio cerrado o ya en RTP no hay fase actual, y aun así hace falta poder
+     corregir la línea de tiempo (lesiones de temporadas pasadas). */
+  phasesHtml='<div class="med-sec">Plan de readaptación'
+   +'<span class="r"><button class="med-chipbtn" onclick="medPhaseDates(\''+e.id+'\')">🗓 Fechas de las fases</button></span>'
+   +'</div>'+stepper+cur;
  } else if(e.kind==='lesion'){
   phasesHtml='<div class="med-sec">Plan de readaptación</div><button class="med-chipbtn" onclick="medPhaseAdd(\''+e.id+'\')">＋ Añadir primera fase</button>';
  }
@@ -9016,6 +9034,91 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var f={id:uid('ph'),key:'custom',nom:(g('rh-pa-nom')||'Fase').trim(),sub:(g('rh-pa-sub')||'').trim(),type:g('rh-pa-type')||'fase',color:g('rh-pa-color')||'#3056c4',avail:g('rh-pa-avail')||'',permits:[],durDays:parseInt(g('rh-pa-dur'))||0,obj:[],prescription:{},entry:[],crit:[],restrictions:[],alerts:[],status:'pending',startDk:null,startedAt:null,completedAt:null};
   e.phases=e.phases||[];e.phases.push(f);if(e.phases.length===1){e.phases[0].startDk=today();e.phaseIdx=0;e.phases[0].status='current';}
   medPersist();closeInfoEdit();renderMedico();toast('Fase añadida');
+ };
+
+ /* ---------- v215 · fechas de las fases ----------
+    Hasta ahora startDk solo se ponía al avanzar de fase (siempre "hoy") y la
+    primera heredaba la fecha de la lesión. Una lesión de la temporada pasada
+    metida ahora quedaba con la fase 1 abarcando todos los meses transcurridos.
+    Aquí se puede fijar la fecha de inicio de cada fase, a mano o repartiendo
+    el periodo entre la lesión y el alta según la duración prevista de cada una. */
+ function addDk(dk,n){var d=dkToDate(dk);d.setDate(d.getDate()+n);return dkey(d);}
+ function pdVal(id){var el=document.getElementById(id);return el?el.value:'';}
+
+ window.medPhaseDates=function(injId){
+  var e=medInj(injId);
+  if(!e||!e.phases||!e.phases.length){if(window.toast)toast('Este episodio todavía no tiene plan de fases.');return;}
+  var fin=e.closeDk||e.competitiveDischargeReal||e.rtp||today();
+  var rows=e.phases.map(function(f,i){
+   return '<tr><td class="rh-pd-n">'+(i+1)+'</td>'
+    +'<td><b>'+esc(f.nom)+'</b>'+(f.sub?'<div class="small muted">'+esc(f.sub)+'</div>':'')+'</td>'
+    +'<td><input type="date" id="rh-pd-'+i+'" value="'+(f.startDk||'')+'" oninput="medPhaseDatesCalc(\''+injId+'\')"></td>'
+    +'<td class="rh-pd-du" id="rh-pd-du-'+i+'">—</td></tr>';
+  }).join('');
+  var body='<div class="med-form" style="max-width:660px">'
+   +'<div class="small muted" style="margin-bottom:10px">Cuándo empezó cada fase. De aquí salen «semana en fase» y «días en fase», así que sirve tanto para registrar una lesión de una temporada pasada como para corregir un episodio que se metió tarde.</div>'
+   +'<div class="rh-pd-auto">'
+   +'<label>Fecha de lesión<input type="date" id="rh-pd-ini" value="'+(e.dk||'')+'"></label>'
+   +'<label>Fin / alta<input type="date" id="rh-pd-fin" value="'+fin+'" oninput="medPhaseDatesCalc(\''+injId+'\')"></label>'
+   +'<button class="med-chipbtn" type="button" onclick="medPhaseDatesAuto(\''+injId+'\')">↔ Repartir automáticamente</button></div>'
+   +'<div class="small muted" style="margin:6px 0 10px">Repartir coloca las '+e.phases.length+' fases entre esas dos fechas según la duración prevista de cada una en la plantilla. Después ajusta a mano las que no cuadren.</div>'
+   +'<div class="rh-pd-wrap"><table class="rh-pd-tbl"><thead><tr><th></th><th>Fase</th><th>Empieza</th><th>Dura</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+   +'<div style="margin-top:12px"><button class="btn" onclick="medPhaseDatesSave(\''+injId+'\')">Guardar fechas</button></div></div>';
+  rhModal('Fechas de las fases · '+esc(e.name),body);
+  medPhaseDatesCalc(injId);
+ };
+
+ /* Duración de cada fase = hasta el inicio de la siguiente fase con fecha; la
+    última, hasta la fecha de fin. Marca en rojo las que van hacia atrás. */
+ window.medPhaseDatesCalc=function(injId){
+  var e=medInj(injId);if(!e)return;
+  var fin=pdVal('rh-pd-fin')||today();
+  var vals=e.phases.map(function(f,i){return pdVal('rh-pd-'+i);});
+  e.phases.forEach(function(f,i){
+   var cell=document.getElementById('rh-pd-du-'+i);if(!cell)return;
+   var a=vals[i];
+   if(!a){cell.textContent='—';cell.className='rh-pd-du';return;}
+   var b='';
+   for(var j=i+1;j<vals.length;j++){if(vals[j]){b=vals[j];break;}}
+   if(!b)b=fin;
+   var d=b?dB(a,b):null;
+   if(d==null){cell.textContent='—';cell.className='rh-pd-du';return;}
+   cell.textContent=d+' d'+(f.durDays?' · prev. '+f.durDays:'');
+   cell.className='rh-pd-du'+(d<0?' bad':'');
+  });
+ };
+
+ window.medPhaseDatesAuto=function(injId){
+  var e=medInj(injId);if(!e)return;
+  var ini=pdVal('rh-pd-ini')||e.dk,fin=pdVal('rh-pd-fin')||today();
+  var total=dB(ini,fin);
+  if(!(total>0)){if(window.toast)toast('El fin tiene que ser posterior a la fecha de lesión.');return;}
+  var w=e.phases.map(function(f){return Math.max(0,parseInt(f.durDays)||0);});
+  var sw=w.reduce(function(a,b){return a+b;},0);
+  var acc=0;
+  e.phases.forEach(function(f,i){
+   var el=document.getElementById('rh-pd-'+i);
+   if(el)el.value=addDk(ini,Math.round(acc));
+   acc+=(sw>0?(w[i]/sw):(1/e.phases.length))*total;
+  });
+  medPhaseDatesCalc(injId);
+ };
+
+ window.medPhaseDatesSave=function(injId){
+  var e=medInj(injId);if(!e)return;
+  var ini=pdVal('rh-pd-ini'),fin=pdVal('rh-pd-fin');
+  var prev='',desorden=false;
+  e.phases.forEach(function(f,i){
+   var v=pdVal('rh-pd-'+i);
+   if(v&&prev&&dB(prev,v)<0)desorden=true;
+   if(v)prev=v;
+   f.startDk=v||null;f.startedAt=v||null;
+  });
+  if(desorden&&!confirm('Hay fases que empiezan antes que la anterior. ¿Guardar de todas formas?'))return;
+  if(ini)e.dk=ini;
+  if(fin&&!e.open)e.closeDk=fin;
+  medPersist();closeInfoEdit();renderMedico();
+  if(window.toast)toast('Fechas de las fases guardadas');
  };
  window.medCritNew=function(injId){var e=medInj(injId);var f=e&&e.phases[e.phaseIdx];if(!f)return;
   var body='<div class="med-form" style="max-width:520px">'
