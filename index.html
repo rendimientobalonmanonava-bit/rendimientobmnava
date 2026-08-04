@@ -1330,12 +1330,17 @@ body.sb-min .sb-ver{display:none}
 /* v207 · agrupación por estado en Disponibilidad */
 /* v208 · elementos visuales de Estado del equipo */
 .ev-phase{margin:8px 0 4px}
-.ev-steps{display:flex;align-items:center;margin-bottom:6px}
-.ev-step{display:flex;align-items:center;flex:0 0 auto}
+/* v215 · los conectores encogen para que el stepper quepa siempre en la tarjeta.
+   Con 9 fases, los puntos fijos (22px) más los conectores fijos (26px) sumaban
+   ~454px y se salían del ancho de .medcard, cortando la última fase. */
+.ev-steps{display:flex;align-items:center;margin-bottom:6px;overflow-x:auto;scrollbar-width:none}
+.ev-steps::-webkit-scrollbar{display:none}
+.ev-step{display:flex;align-items:center;flex:1 1 auto;min-width:0}
+.ev-step:last-child{flex:0 0 auto}
 .ev-step .ev-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;
   justify-content:center;font-size:10.5px;font-weight:800;border:2px solid var(--line);
   background:var(--panel);color:var(--muted);flex:0 0 auto}
-.ev-step .ev-line{width:26px;height:2px;background:var(--line);margin:0 3px}
+.ev-step .ev-line{flex:1 1 26px;width:auto;min-width:4px;height:2px;background:var(--line);margin:0 3px}
 .ev-done .ev-dot{background:var(--ok);border-color:var(--ok);color:#fff}
 .ev-done .ev-line{background:var(--ok)}
 .ev-cur .ev-dot{background:var(--accent);border-color:var(--accent);color:#fff;
@@ -1363,7 +1368,7 @@ body.sb-min .sb-ver{display:none}
 @media(max-width:520px){
   .ev-rtp{grid-template-columns:minmax(0,1fr) auto}
   .ev-rtp-bar{display:none}
-  .ev-step .ev-line{width:16px}
+  .ev-step .ev-line{flex-basis:16px}
 }
 .estado-grp{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--panel);overflow:hidden}
 .estado-grp>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:9px;
@@ -3460,7 +3465,11 @@ window.evPhaseBar=function(e){
   const n=e.phases.length, idx=Math.max(0,Math.min(n-1,e.phaseIdx||0));
   const f=e.phases[idx]||{};
   const crit=f.crit||[];
-  const ok=crit.filter(c=>c&&c.ok).length;
+  /* v215 · los criterios no tienen campo `ok`: quien decide si está cumplido es
+     medCritOk() (mide el último valor contra el objetivo, o el check manual).
+     Leer c.ok daba siempre 0 cumplidos, por muchos que se marcaran. */
+  const critOk=c=>(typeof medCritOk==='function')?medCritOk(c):!!c.done;
+  const ok=crit.filter(c=>c&&critOk(c)).length;
   const pct=crit.length?Math.round(ok/crit.length*100):0;
   const pasos=e.phases.map((p,i)=>{
     const st=i<idx?'done':(i===idx?'cur':'todo');
