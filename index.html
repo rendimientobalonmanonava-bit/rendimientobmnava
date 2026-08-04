@@ -804,6 +804,11 @@ main{padding:13px 16px 70px}
   text-transform:uppercase;padding:1px 5px;border-radius:4px;background:var(--panel2);
   color:var(--warn);border:1px solid var(--warn);vertical-align:middle}
 .row-sinreg{background:rgba(221,133,0,.05)}
+/* v213 · convocatoria/asistencia por bloque */
+.cal-asist-btn{border:1px dashed var(--line);background:transparent;border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:.12s}
+.cal-asist-btn:hover{border-color:var(--accent);border-style:solid;color:var(--accent)}
+.est-mark[onclick]{cursor:pointer}
+.est-mark[onclick]:hover{background:var(--warn);color:#fff}
 .lbc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
 .lbc-kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:center}
 .lbc-kpi b{display:block;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
@@ -2807,6 +2812,14 @@ window.lbBias=lbBias;window.lbResetBias=lbResetBias;
 */
 let LB_CACHE={};
 function lbDayKey(dk){return dk;}
+/* v213 · ¿existe este bloque (pista/gym) ese día? Se usa tanto para decidir si
+   toca imputar como, desde fuera del módulo, para saber si mostrar el botón
+   de convocatoria en una celda vacía. */
+function lbBlockExists(dk,b){
+  if(lbDur(dk,'__x',b)!=null)return true;
+  return (STATE.rpe||[]).some(r=>r&&r.dk===dk&&(lbBucket(r.tipo)===b||lbBucket(r.tipo)==='both'));
+}
+window.lbBlockExists=lbBlockExists;
 function lbDayAll(dk){
   if(LB_CACHE[dk])return LB_CACHE[dk];
   const recs=(STATE.rpe||[]).filter(r=>r&&r.dk===dk);
@@ -2838,8 +2851,8 @@ function lbDayAll(dk){
   const bias=lbBias();
   /* 3 · ¿qué bloques existen ese día? Un bloque solo cuenta si tiene minutos
         introducidos o si alguien lo declaró. */
-  const hayP=lbDur(dk,'__x','pista')!=null||Object.keys(decl).some(n=>decl[n].pista.length);
-  const hayG=lbDur(dk,'__x','gym')!=null||Object.keys(decl).some(n=>decl[n].gym.length);
+  const hayP=lbBlockExists(dk,'pista');
+  const hayG=lbBlockExists(dk,'gym');
   const CF=CONFIG.contactFactor||{};
   const ctOf=arr=>{
     if(!arr.length)return null;
@@ -2861,6 +2874,9 @@ function lbDayAll(dk){
       let rpe=wavg(d[b]),est=false;
       if(rpe==null||!(rpe>0)){
         if(team==null)return null;             // nadie declaró: no hay de dónde estimar
+        /* v213 · sin convocatoria explícita no se imputa: el jugador se trata
+           como si no hubiera entrenado ese bloque, en vez de fabricarle carga. */
+        if(!(window.asistHas?asistHas(dk,b,n):true))return null;
         const bi=bias[n]&&bias[n].fiable?bias[n].b:0;
         rpe=Math.max(1,Math.min(10,team+bi));
         est=true;
@@ -7730,7 +7746,7 @@ const CAL_INT=[null,{lab:'Baja',col:'#1ea863'},{lab:'Media',col:'#e0a800'},{lab:
 const CAL_RPE=[0,4,6,8];
 const CAL_MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let CALVIEW=null, CAL_CUR=null, CAL_EDIT=null, CAL_FORM={intens:2,dur:75,contacto:3}, CALMODE='mes', CALWEEK=null, CAL_CLIP=null;
-function calLoad(){if(!STATE.calendar){try{STATE.calendar=JSON.parse(localStorage.getItem('bmnava_cal')||'{}')||{};}catch(e){STATE.calendar={};}}if(!STATE.calMeta){try{STATE.calMeta=JSON.parse(localStorage.getItem('bmnava_calmeta')||'{}')||{};}catch(e){STATE.calMeta={};}}if(!STATE.calTpl){try{STATE.calTpl=JSON.parse(localStorage.getItem('bmnava_caltpl')||'[]')||[];}catch(e){STATE.calTpl=[];}}if(!STATE.sessDur){try{STATE.sessDur=JSON.parse(localStorage.getItem('bmnava_sessdur')||'{}')||{};}catch(e){STATE.sessDur={};}}}
+function calLoad(){if(!STATE.calendar){try{STATE.calendar=JSON.parse(localStorage.getItem('bmnava_cal')||'{}')||{};}catch(e){STATE.calendar={};}}if(!STATE.calMeta){try{STATE.calMeta=JSON.parse(localStorage.getItem('bmnava_calmeta')||'{}')||{};}catch(e){STATE.calMeta={};}}if(!STATE.calTpl){try{STATE.calTpl=JSON.parse(localStorage.getItem('bmnava_caltpl')||'[]')||[];}catch(e){STATE.calTpl=[];}}if(!STATE.sessDur){try{STATE.sessDur=JSON.parse(localStorage.getItem('bmnava_sessdur')||'{}')||{};}catch(e){STATE.sessDur={};}}if(!STATE.asist){try{STATE.asist=JSON.parse(localStorage.getItem('bmnava_asist')||'{}')||{};}catch(e){STATE.asist={};}}}
 function calPersist(){try{localStorage.setItem('bmnava_cal',JSON.stringify(STATE.calendar||{}));}catch(e){}}
 function calMetaPersist(){try{localStorage.setItem('bmnava_calmeta',JSON.stringify(STATE.calMeta||{}));}catch(e){}}
 function calTplPersist(){try{localStorage.setItem('bmnava_caltpl',JSON.stringify(STATE.calTpl||[]));}catch(e){}}
@@ -7745,6 +7761,50 @@ function calRealMap(){const m={};try{teamDayAgg().forEach(d=>{m[d.dk]=Math.round
 function sessDurGet(){if(!STATE.sessDur)STATE.sessDur={};return STATE.sessDur;}
 function sessDurPersist(){try{localStorage.setItem('bmnava_sessdur',JSON.stringify(STATE.sessDur||{}));}catch(e){}}
 function sessDurForName(dk,name){const m=sessDurGet()[dk];if(!m)return null;if(m[name]!=null&&m[name]!=='')return +m[name];if(m.__group!=null&&m.__group!=='')return +m.__group;return null;}
+/* v213 · convocatoria/asistencia por bloque (pista/gym). Sin esto, LB imputaba
+   RPE a toda la plantilla aunque solo hubiera entrenado una parte. Ahora solo
+   se imputa a quien respondió el cuestionario o a quien está en esta lista. */
+function asistGet(){if(!STATE.asist)STATE.asist={};return STATE.asist;}
+function asistPersist(){try{localStorage.setItem('bmnava_asist',JSON.stringify(STATE.asist||{}));}catch(e){}}
+function asistKey(name,block){return name+'::'+block;}
+function asistHas(dk,block,name){const m=asistGet()[dk];return !!(m&&m[asistKey(name,block)]);}
+function asistToggle(dk,block,name,val){
+  const A=asistGet();A[dk]=A[dk]||{};
+  const k=asistKey(name,block);
+  if(val)A[dk][k]=true;else delete A[dk][k];
+  if(!Object.keys(A[dk]).length)delete A[dk];
+  asistPersist();sessDurRecalc(dk);
+}
+/* ¿Este jugador está pendiente de convocatoria para este bloque? No respondió,
+   no está ya convocado, pero el bloque existe ese día (alguien más lo hizo o
+   hay duración configurada). Se usa para pintar el botón "Convocar". */
+function asistPending(dk,block,name){
+  if(asistHas(dk,block,name))return false;
+  const answered=(STATE.rpe||[]).some(r=>r&&r.dk===dk&&r.name===name&&!r.estimado&&(lbBucket(r.tipo)===block||lbBucket(r.tipo)==='both'));
+  if(answered)return false;
+  return !!(window.lbBlockExists&&lbBlockExists(dk,block));
+}
+/* Convoca de un click a todo jugador disponible (excluye bajas/no entrena)
+   que no haya respondido, para los bloques que existan ese día. */
+function asistSetAllPending(dk){
+  const A=asistGet();A[dk]=A[dk]||{};
+  const bajas=new Set((window.calBajas?calBajas(dk):[]).map(b=>b.name));
+  let n=0;
+  ['pista','gym'].forEach(b=>{
+    if(!(window.lbBlockExists&&lbBlockExists(dk,b)))return;
+    Object.keys(STATE.players||{}).forEach(nm=>{
+      if(bajas.has(nm))return;
+      const answered=(STATE.rpe||[]).some(r=>r&&r.dk===dk&&r.name===nm&&!r.estimado&&(lbBucket(r.tipo)===b||lbBucket(r.tipo)==='both'));
+      if(answered)return;
+      const k=asistKey(nm,b);
+      if(!A[dk][k]){A[dk][k]=true;n++;}
+    });
+  });
+  if(!Object.keys(A[dk]).length)delete A[dk];
+  asistPersist();sessDurRecalc(dk);
+  if(window.toast)toast(n?('Convocados '+n+' jugadores más'):'No había nadie más que convocar');
+}
+window.asistHas=asistHas;window.asistToggle=asistToggle;window.asistPending=asistPending;window.asistSetAllPending=asistSetAllPending;
 /* v203 · La carga la calcula ahora el módulo LB, separando pista y gimnasio con
    duración propia cada uno (ver lbDayAll). Aquí solo se vuelca el resultado sobre
    los registros de RPE para que el resto de la app —ACWR, monotonía, readiness,
@@ -8019,7 +8079,11 @@ function calDayBody(dk){
     const isMatch=((STATE.calendar||{})[dk]||[]).some(e=>e.type==='partido');
     const durQuick=[45,60,75,90,120].map(d=>`<button type="button" class="cal-durq" onclick="calDurAll('${dk}',${d})">${d}′</button>`).join('');
     const lbAll=(window.lbDayAll?lbDayAll(dk):{})||{};
-    const nombres=[...new Set(Object.keys(byName).concat(Object.keys(lbAll)))].sort((a,b)=>a.localeCompare(b));
+    /* v213 · el gate de convocatoria hace que lbDayAll ya no traiga entrada
+       para quien no respondió y no está convocado, pero su fila debe seguir
+       apareciendo (con el botón "Convocar"), así que se incluye toda la
+       plantilla en la lista de nombres, no solo quien ya tiene datos. */
+    const nombres=[...new Set(Object.keys(byName).concat(Object.keys(lbAll)).concat(Object.keys(STATE.players||{})))].sort((a,b)=>a.localeCompare(b));
     const rows=nombres.map(nm=>{
       const recs=byName[nm];
       /* v203 · una fila por jugador con los dos bloques separados. Los minutos
@@ -8030,8 +8094,15 @@ function calDayBody(dk){
       const mm=sessDurGet()[dk]||{};
       const cell=(b,lab)=>{
         const x=d?d[b]:null;
-        if(!x)return '<td class="muted">—</td>';
-        return '<td class="cal-du-rpe'+(x.est?' est':'')+'" title="'+(x.est?'No rellenó el cuestionario: valor estimado desde la media del equipo ajustada a su percepción habitual':'Declarado por el jugador')+'">'+x.rpe+(x.est?'<span class="est-mark">est</span>':'')+'</td>';
+        if(!x){
+          /* v213 · sin dato: si el bloque existe ese día y nadie lo convocó
+             todavía, se ofrece convocarlo aquí mismo en vez de fabricar carga. */
+          if(window.asistPending&&asistPending(dk,b,nm))
+            return '<td><button type="button" class="cal-asist-btn" title="No respondió el cuestionario. Márcalo si entrenó este bloque, para imputarle un RPE estimado." onclick="asistToggle(\''+dk+'\',\''+b+'\',\''+safe+'\',true)">Convocar</button></td>';
+          return '<td class="muted">—</td>';
+        }
+        const estTag=x.est?'<span class="est-mark" onclick="asistToggle(\''+dk+'\',\''+b+'\',\''+safe+'\',false)" title="Convocado sin respuesta: valor estimado. Toca para desconvocar">est</span>':'';
+        return '<td class="cal-du-rpe'+(x.est?' est':'')+'" title="'+(x.est?'Convocado, no respondió el cuestionario: valor estimado desde la media del equipo ajustada a su percepción habitual':'Declarado por el jugador')+'">'+x.rpe+estTag+'</td>';
       };
       const durCell=b=>{
         const x=d?d[b]:null;
@@ -8055,6 +8126,7 @@ function calDayBody(dk){
         <span class="cal-blk cal-blk-g">Gimnasio</span><input type="number" min="0" step="5" id="cal-dur-gym" class="cal-durin" value="${(sessDurGet()[dk]||{}).__gym!=null?(sessDurGet()[dk]||{}).__gym:''}" placeholder="min" onchange="calDurBlock('${dk}','gym',this.value)">
         <span class="muted small">o total conjunto:</span><input type="number" min="0" step="5" id="cal-dur-all" class="cal-durin" value="${grp!=null?grp:''}" placeholder="min"><button type="button" class="btn ghost" onclick="calDurAll('${dk}',document.getElementById('cal-dur-all').value)">Aplicar a todos</button>${durQuick}</div>
       ${isMatch?'<div class="small muted" style="margin:2px 0 8px">Día de partido: pon en cada fila los <b>minutos jugados</b> (0 si no jugó).</div>':''}
+      <div class="small muted" style="margin-bottom:8px">Solo se calcula carga para quien respondió el cuestionario o está convocado · <button type="button" class="btn ghost" style="padding:3px 9px;font-size:12px" onclick="asistSetAllPending('${dk}')">Convocar a todo el equipo disponible</button></div>
       <table class="cal-dur-tbl cal-dur-tbl2"><thead><tr><th>Jugador</th><th>RPE pista</th><th>RPE gym</th><th>${isMatch?'Min jugados':'Min pista'}</th><th>Min gym</th><th>Carga</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="small muted" style="margin-top:6px">La carga (RPE × min), el ACWR y la monotonía se recalculan al instante. Se guarda en este dispositivo. Si un jugador rellenó varios cuestionarios el mismo día, se muestra un <b>único RPE</b>: la media ponderada por la duración de cada sesión, aplicada a los minutos totales que indiques.</div>
     </div>`;
