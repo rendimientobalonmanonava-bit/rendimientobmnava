@@ -4050,9 +4050,26 @@ function openMedInjury(name){medDbLoad();const ov=ensureInfoOverlay();const t=do
  +'<label>Descripción<textarea id="mi-desc" rows="2" placeholder="Mecanismo, sensaciones, pruebas…"></textarea></label>'
  +'<div class="mf3"><label>Dolor inicial (0–10)<input type="number" id="mi-pain" min="0" max="10" step="1"></label><label>RTP estimado<input type="date" id="mi-rtp"></label><label>Estado en la app<select id="mi-status">'+stOpts+'</select></label></div>'
  +'<div class="mf2" id="mi-planrow"><label>Plan de readaptación<select id="mi-tpl">'+(window.medRehabTplOptions?medRehabTplOptions():'<option value="lca">Plantilla completa (4 fases · guía LCA)</option><option value="corta">Plantilla corta (2 fases · lesión menor)</option><option value="cero">Desde cero (fases en blanco)</option>')+'</select></label><div></div></div>'
+ /* v215 · lesiones de temporadas pasadas: se registran ya cerradas, con su
+    fecha de alta, y las fases se reparten por el periodo en vez de arrancar
+    todas hoy. No tocan la disponibilidad actual del jugador. */
+ +'<div class="mf2"><label>Estado del episodio<select id="mi-hist" onchange="medInjHistToggle()"><option value="open">En curso</option><option value="closed">Ya finalizada · histórico</option></select></label><label>Fecha de alta<input type="date" id="mi-closedk" disabled></label></div>'
+ +'<div class="small muted" id="mi-histnote" style="display:none;margin:-4px 0 6px">Se guardará como episodio cerrado y las fases se repartirán entre la fecha de lesión y la de alta según su duración prevista. Ajústalas luego en <b>Fechas de las fases</b>. No cambia la disponibilidad de hoy.</div>'
  +'<button class="btn" style="margin-top:6px" onclick="medInjurySave()">Guardar registro</button>'
  +'</div><div>'+medBodyPicker()+'</div></div>';
  ov.style.display='flex';}
+/* v215 · al marcar el episodio como histórico se habilita la fecha de alta y se
+   desactiva el estado de disponibilidad: una lesión ya cerrada no puede dejar al
+   jugador marcado como no disponible hoy. */
+function medInjHistToggle(){
+ const hist=(document.getElementById('mi-hist')||{}).value==='closed';
+ const cd=document.getElementById('mi-closedk');
+ if(cd){cd.disabled=!hist;if(hist&&!cd.value)cd.value=medToday();}
+ const st=document.getElementById('mi-status');
+ if(st){st.disabled=hist;if(hist)st.value='nochange';}
+ const nt=document.getElementById('mi-histnote');
+ if(nt)nt.style.display=hist?'':'none';
+}
 function medInjurySave(){const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
  const name=g('mi-name'),title=(g('mi-title')||'').trim(),zona=(g('mi-zona')||'').trim();
  if(!name){toast('Selecciona un jugador');return;}
@@ -4062,7 +4079,20 @@ function medInjurySave(){const g=id=>{const el=document.getElementById(id);retur
  const inj={id,name,dk:g('mi-dk')||medToday(),by:(g('mi-by')||'').trim(),kind,title,tipo:g('mi-tipo'),clasif:g('mi-clasif'),tejido:(g('mi-tejido')||'').trim(),act:g('mi-act'),accion:(g('mi-accion')||'').trim(),mom:g('mi-mom'),desc:(g('mi-desc')||'').trim(),zona,lado:g('mi-lado'),rtp:g('mi-rtp')||null,open:true,closeDk:null,pain:[],notes:[],phaseIdx:0,phases:[]};
  const p0=parseFloat(g('mi-pain'));if(!isNaN(p0))inj.pain.push({dk:inj.dk,v:p0,src:'manual'});
  if(kind==='lesion'){if(window.medRehabAssignPlan){medRehabAssignPlan(inj,g('mi-tpl'));}else{inj.phases=medTpl(g('mi-tpl'));inj.phases[0].startDk=inj.dk;}}
- const st=g('mi-status');if(st&&st!=='nochange'){inj.status=st;medPhysioOpen(name,st,zona,inj.lado,title,id);}
+ /* v215 · episodio histórico: se cierra en el acto, se deja en la última fase y
+    las fases se reparten por el periodo real en vez de arrancar todas hoy. */
+ const hist=g('mi-hist')==='closed',closeDk=g('mi-closedk')||'';
+ if(hist&&closeDk){
+  if(medDaysBetween(inj.dk,closeDk)<0){toast('El alta no puede ser anterior a la lesión');return;}
+  inj.open=false;inj.closeDk=closeDk;
+  if(inj.phases&&inj.phases.length){
+   if(window.medPhaseSpread)medPhaseSpread(inj,inj.dk,closeDk);
+   else inj.phases[0].startDk=inj.dk;
+   inj.phaseIdx=inj.phases.length-1;
+   inj.phases.forEach(f=>{f.status='completed';f.completedAt=f.completedAt||closeDk;});
+  }
+ }
+ const st=g('mi-status');if(!hist&&st&&st!=='nochange'){inj.status=st;medPhysioOpen(name,st,zona,inj.lado,title,id);}
  STATE.med.inj.push(inj);medPersist();MED_SEL=id;closeInfoEdit();toast('Registro guardado · '+title);
  try{renderMedico();}catch(e){}try{renderAvail&&document.getElementById('v-avail').classList.contains('on')&&renderAvail();}catch(e){}}
 /* ---------- Modal: Tratamiento ---------- */
@@ -9044,6 +9074,29 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
     el periodo entre la lesión y el alta según la duración prevista de cada una. */
  function addDk(dk,n){var d=dkToDate(dk);d.setDate(d.getDate()+n);return dkey(d);}
  function pdVal(id){var el=document.getElementById(id);return el?el.value:'';}
+ /* Reparte n fases entre dos fechas en proporción a su duración prevista.
+    Devuelve las fechas de inicio, sin tocar el modelo, para poder usarlo tanto
+    desde el editor (rellena inputs) como al registrar una lesión histórica. */
+ function spreadDks(phases,ini,fin){
+  var total=dB(ini,fin);
+  if(!(total>0))return null;
+  var w=phases.map(function(f){return Math.max(0,parseInt(f.durDays)||0);});
+  var sw=w.reduce(function(a,b){return a+b;},0);
+  var out=[],acc=0;
+  phases.forEach(function(f,i){
+   out.push(addDk(ini,Math.round(acc)));
+   acc+=(sw>0?(w[i]/sw):(1/phases.length))*total;
+  });
+  return out;
+ }
+ /* Aplica el reparto directamente sobre el episodio. */
+ window.medPhaseSpread=function(e,ini,fin){
+  if(!e||!e.phases||!e.phases.length)return false;
+  var dks=spreadDks(e.phases,ini,fin);
+  if(!dks)return false;
+  e.phases.forEach(function(f,i){f.startDk=dks[i];f.startedAt=dks[i];});
+  return true;
+ };
 
  window.medPhaseDates=function(injId){
   var e=medInj(injId);
@@ -9091,16 +9144,9 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
  window.medPhaseDatesAuto=function(injId){
   var e=medInj(injId);if(!e)return;
   var ini=pdVal('rh-pd-ini')||e.dk,fin=pdVal('rh-pd-fin')||today();
-  var total=dB(ini,fin);
-  if(!(total>0)){if(window.toast)toast('El fin tiene que ser posterior a la fecha de lesión.');return;}
-  var w=e.phases.map(function(f){return Math.max(0,parseInt(f.durDays)||0);});
-  var sw=w.reduce(function(a,b){return a+b;},0);
-  var acc=0;
-  e.phases.forEach(function(f,i){
-   var el=document.getElementById('rh-pd-'+i);
-   if(el)el.value=addDk(ini,Math.round(acc));
-   acc+=(sw>0?(w[i]/sw):(1/e.phases.length))*total;
-  });
+  var dks=spreadDks(e.phases,ini,fin);
+  if(!dks){if(window.toast)toast('El fin tiene que ser posterior a la fecha de lesión.');return;}
+  dks.forEach(function(dk,i){var el=document.getElementById('rh-pd-'+i);if(el)el.value=dk;});
   medPhaseDatesCalc(injId);
  };
 
