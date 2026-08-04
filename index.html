@@ -996,6 +996,35 @@ body.sb-min .sb-ver{display:none}
 .med-al-nt{max-width:220px;white-space:normal;word-break:break-word}
 .med-note{background:var(--panel2);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:7px;line-height:1.45}
 .med-note .small{color:var(--muted2);font-weight:700}
+/* v215 · resumen médico para el entrenador */
+.mcx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px;margin-top:12px}
+.mcx-card{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--sem);
+  border-radius:13px;padding:13px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.mcx-card:hover{box-shadow:0 6px 18px rgba(20,29,46,.10)}
+.mcx-head{display:flex;align-items:center;gap:12px}
+.mcx-head .ath-ph{flex:none}
+.mcx-rd{position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);background:var(--panel);
+  border:1px solid var(--hair);border-radius:9px;font-size:9.5px;font-weight:800;padding:0 6px;line-height:15px;z-index:3}
+.mcx-id{min-width:0;flex:1}
+.mcx-nm{font-weight:800;font-size:13.5px;line-height:1.2}
+.mcx-ti{font-size:11.5px;color:var(--muted);margin:2px 0 5px;line-height:1.3}
+.mcx-sem{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:var(--muted)}
+.mcx-sem i{width:7px;height:7px;border-radius:50%;flex:none}
+.mcx-phase{font-size:11.5px;margin-top:11px}
+.mcx-bar{height:5px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-top:5px}
+.mcx-bar i{display:block;height:100%;border-radius:99px;transition:width .3s}
+.mcx-perms{margin-top:11px}
+.mcx-plab{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.mcx-prow{display:flex;flex-wrap:wrap;gap:4px}
+.mcx-prow.mcx-no{margin-top:4px;opacity:.5}
+.mcx-perm{font-size:10px;font-weight:700;border-radius:6px;padding:3px 7px;border:1px solid var(--line);color:var(--muted)}
+.mcx-perm.ok{border-color:transparent;background:var(--ok-bg);color:var(--ok-text)}
+.mcx-prow.mcx-no .mcx-perm{text-decoration:line-through}
+.mcx-none{font-size:10.5px;color:var(--muted);font-style:italic}
+.mcx-foot{display:flex;align-items:baseline;gap:6px;margin-top:11px;padding-top:9px;border-top:1px dashed var(--hair);font-size:11px;color:var(--muted)}
+.mcx-foot b{font-size:12.5px;color:var(--txt);margin-left:auto}
+.mcx-foot i{font-style:normal;font-size:10px}
+.mcx-ok{color:var(--ok-text);background:var(--ok-bg);border-radius:10px;padding:12px 14px;font-size:12.5px;font-weight:600;margin-top:10px}
 /* v215 · editor de fechas de las fases */
 .rh-pd-auto{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
 .rh-pd-auto label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:var(--muted)}
@@ -2174,6 +2203,9 @@ html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-s
       <div id="parte-wrap"></div>
     </div>
     <div id="estado-medico" class="estado-pane" style="display:none">
+      <!-- v215 · lo primero es el resumen para el entrenador: quién está tocado,
+           qué puede hacer hoy y cuándo vuelve. El detalle clínico va debajo. -->
+      <div id="med-coach"></div>
       <div id="med-dashboard"></div>
       <div class="ctrlrow">
       <span class="tag">Jugador</span><select id="med-fplayer" onchange="MED_SEL=null;renderMedico()"><option value="">Todos</option></select>
@@ -9329,7 +9361,67 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
  // ---- reasignación segura de funciones base ----
  var _medDbLoad=window.medDbLoad;window.medDbLoad=function(){_medDbLoad();try{medRehabEnsureState();medRehabMigrate();}catch(e){}};
  var _medDetailHtml=window.medDetailHtml;window.medDetailHtml=function(e){if(!e)return '';var extra='';try{extra=medRehabPanel(e);}catch(err){extra='';}return extra+_medDetailHtml(e);};
- var _renderMedico=window.renderMedico;window.renderMedico=function(){_renderMedico();try{medRehabRenderDashboard();}catch(e){}try{medRehabRenderTemplateConfig();}catch(e){}};
+ /* ---------- v215 · resumen para el entrenador ----------
+    Carlos mira esto desde el móvil y no necesita la ficha clínica: necesita
+    saber quién está tocado, QUÉ PUEDE HACER HOY y cuándo vuelve. Los permisos
+    por fase ya estaban en el modelo (f.permits) pero enterrados en un
+    desplegable dentro del detalle. Aquí salen como lo primero que se ve. */
+ var PERM_ORDER=['gimnasio','individual','grupo_parcial','grupo_completo','competicion'];
+ function fechaCorta(dk){try{return dkToDate(dk).toLocaleDateString('es',{day:'numeric',month:'short'});}catch(err){return dk;}}
+ function medCoachCard(e){
+  var sem=semaforo(e);
+  var phs=e.phases||[],n=phs.length;
+  var idx=Math.max(0,Math.min(e.phaseIdx||0,n-1));
+  var f=phs[idx];
+  var pct=n>1?Math.round(idx/(n-1)*100):0;
+  var real=window.photoFor?photoFor(e.name):null;
+  var isReal=!!real;
+  var ph=real||((STATE.players[e.name]||{}).avatar)||(window.phPlaceholder?phPlaceholder(e.name):'');
+  var ring=window.ringSVG?ringSVG(pct,sem.c,74,5):'';
+  var st=e.status&&PHYSTAT[e.status]?PHYSTAT[e.status]:null;
+  var perms=(f&&f.permits)||[];
+  var chip=function(k,ok){return '<span class="mcx-perm'+(ok?' ok':'')+'">'+(PERMLAB[k]||k)+'</span>';};
+  var can=PERM_ORDER.filter(function(k){return perms.indexOf(k)>=0;});
+  var no=PERM_ORDER.filter(function(k){return perms.indexOf(k)<0;});
+  var rtp=e.competitiveDischargeEstimated||e.rtp||'';
+  var rtpTxt='—',rtpSub='';
+  if(rtp){var d=dB(today(),rtp);rtpTxt=fechaCorta(rtp);rtpSub=d>0?('en '+d+' d'):(d===0?'hoy':('hace '+(-d)+' d'));}
+  var zona=[e.zona,e.lado==='I'?'izq.':e.lado==='D'?'der.':(e.lado==='B'?'bilateral':'')].filter(Boolean).join(' ');
+  return '<div class="mcx-card" style="--sem:'+sem.c+'" onclick="MED_SEL=\''+e.id+'\';renderMedico();" title="Ver ficha de '+esc(e.name)+'">'
+   +'<div class="mcx-head">'
+    +'<div class="ath-ph'+(isReal?' ath-ph--photo':'')+'">'+ring+'<img src="'+ph+'" class="ath-img'+(isReal?' ath-img--photo':'')+'">'
+    +'<span class="mcx-rd" style="color:'+sem.c+'">'+(n>1?('F'+(idx+1)):'—')+'</span></div>'
+    +'<div class="mcx-id"><div class="mcx-nm">'+esc(e.name)+'</div>'
+     +'<div class="mcx-ti">'+esc(e.title)+(zona?' <span class="muted">· '+esc(zona)+'</span>':'')+'</div>'
+     +'<span class="mcx-sem"><i style="background:'+sem.c+'"></i>'+sem.t+(st?' · '+esc(st.lab):'')+'</span>'
+    +'</div>'
+   +'</div>'
+   +(n?'<div class="mcx-phase"><b>'+esc(f?f.nom:'—')+'</b><span class="muted"> · fase '+(idx+1)+' de '+n+'</span></div>'
+     +'<div class="mcx-bar"><i style="width:'+pct+'%;background:'+sem.c+'"></i></div>':'')
+   +'<div class="mcx-perms"><div class="mcx-plab">Puede hacer hoy</div>'
+    +'<div class="mcx-prow">'+(can.length?can.map(function(k){return chip(k,true);}).join(''):'<span class="mcx-none">Solo tratamiento</span>')+'</div>'
+    +(no.length?'<div class="mcx-prow mcx-no">'+no.map(function(k){return chip(k,false);}).join('')+'</div>':'')
+   +'</div>'
+   +'<div class="mcx-foot"><span>Vuelta prevista</span><b>'+rtpTxt+'</b>'+(rtpSub?'<i>'+rtpSub+'</i>':'')+'</div>'
+   +'</div>';
+ }
+ window.medCoachRender=function(){
+  var box=document.getElementById('med-coach');if(!box)return;
+  medRehabEnsureState();
+  var abiertos=(STATE.med.inj||[]).filter(function(e){return e.open;});
+  if(!abiertos.length){
+   box.innerHTML='<div class="panel"><h2>Disponibilidad médica · de un vistazo</h2>'
+    +'<div class="mcx-ok">✓ Ningún jugador con episodio abierto ahora mismo.</div></div>';
+   return;
+  }
+  var sev=function(e){var t=semaforo(e).t;return t==='Riesgo / retraso'?0:(t==='Vigilancia'?1:2);};
+  abiertos.sort(function(a,b){return sev(a)-sev(b)||dB(b.dk,today())-dB(a.dk,today());});
+  box.innerHTML='<div class="panel"><h2>Disponibilidad médica · de un vistazo '
+   +'<span class="r muted">'+abiertos.length+(abiertos.length===1?' jugador':' jugadores')+'</span></h2>'
+   +'<div class="mcx-grid">'+abiertos.map(medCoachCard).join('')+'</div></div>';
+ };
+
+ var _renderMedico=window.renderMedico;window.renderMedico=function(){_renderMedico();try{medCoachRender();}catch(e){}try{medRehabRenderDashboard();}catch(e){}try{medRehabRenderTemplateConfig();}catch(e){}};
  // primera carga si ya hay datos
  try{if(STATE&&STATE.med){medRehabEnsureState();medRehabMigrate();}}catch(e){}
 })();
