@@ -1504,7 +1504,22 @@ body.sb-min .sb-ver{display:none}
 .pt-col-row{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
 .pt-pl{width:58px;text-align:center}
 .pt-pl-ring{position:relative;width:56px;height:56px;margin:0 auto}
-.pt-pl-ring img{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;object-fit:cover;background:#222}
+.pt-pl-ring img{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--panel2)}
+/* v215 · foto real sin fondo, misma estética que «A vigilar y destacados» del
+   Resumen (.ath-ph--photo) pero a la escala de cada anillo del parte. */
+.pt-pl-ring--photo{overflow:visible}
+.pt-pl-ring--photo .ring{position:relative;z-index:1}
+.pt-pl-ring--photo img{width:58px;height:auto;max-height:78px;border-radius:0;background:none;
+  object-fit:contain;object-position:bottom center;top:auto;bottom:2px;left:50%;
+  transform:translateX(-50%);z-index:2;pointer-events:none;
+  filter:drop-shadow(0 3px 5px rgba(20,29,46,.18))}
+.pt-pl-ring--photo .pt-pl-rd{z-index:3}
+.pt-dring--photo{overflow:visible}
+.pt-dring--photo .ring{position:relative;z-index:1}
+.pt-dring--photo img{width:42px;height:auto;max-height:56px;border-radius:0;background:none;
+  object-fit:contain;object-position:bottom center;top:auto;bottom:1px;left:50%;
+  transform:translateX(-50%);z-index:2;pointer-events:none;
+  filter:drop-shadow(0 2px 4px rgba(20,29,46,.18))}
 .pt-pl-rd{position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--hair);border-radius:9px;font-size:9px;font-weight:800;padding:0 5px;line-height:14px}
 .pt-pl-nm{font-size:9.5px;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
 .pt-foot{display:flex;justify-content:space-between;padding:8px 16px;font-size:9.5px;color:var(--muted);background:var(--panel);border-top:1px solid var(--hair)}
@@ -6614,15 +6629,16 @@ function renderParte(){
   const tl=l=>{const lamp=(c,on)=>`<span class="tl-l" style="background:${c};${on?'box-shadow:0 0 8px '+c:'opacity:.16'}"></span>`;return `<div class="tl">${lamp('#dc2626',l==='bad')}${lamp('#e0a800',l==='warn')}${lamp('#16a34a',l==='ok')}</div>`;};
   const domsL=(()=>{let x=lvl(todayT.doms);if(anyPain&&x==='ok')x='warn';return x;})();
   const ranked=Object.values(STATE.players).filter(p=>p.readiness!=null).sort((a,b)=>b.readiness-a.readiness);
-  const av=p=>(p&&p.avatar)||window.__AVATAR__||'';
+  const av=p=>{const real=(p&&window.photoFor)?photoFor(p.name):null;return real||(p&&p.avatar)||window.__AVATAR__||'';};
+  const avReal=p=>!!(p&&window.photoFor&&photoFor(p.name));
   const colf=p=>p&&p.sev?({ok:'#16a34a',warn:'#d4a017',bad:'#dc2626',na:'#9aa3ad'})[p.sev]||'#9aa3ad':'#9aa3ad';
   const goods=ranked.slice(0,3);const bads=ranked.slice(-3).reverse().filter(p=>!goods.includes(p)).slice(0,3);
-  const dRow=(p,kind)=>{const col=kind==='good'?'#16a34a':'#dc2626';const pct=Math.max(4,Math.min(100,p.readiness||0));const tail=kind==='bad'?`<span class="pt-dnote">${parteNote(p)}</span>`:`<span class="pt-dbar"><span style="width:${pct}%;background:${col}"></span></span>`;return `<div class="pt-drow"><span class="pt-dring">${ringSVG(p.readiness,col,40,4)}<img src="${av(p)}"></span><span class="pt-dn">${p.name.split(' ')[0]}</span><span class="pt-dr" style="color:${col}">${p.readiness}</span>${tail}</div>`;};
+  const dRow=(p,kind)=>{const col=kind==='good'?'#16a34a':'#dc2626';const pct=Math.max(4,Math.min(100,p.readiness||0));const tail=kind==='bad'?`<span class="pt-dnote">${parteNote(p)}</span>`:`<span class="pt-dbar"><span style="width:${pct}%;background:${col}"></span></span>`;return `<div class="pt-drow"><span class="pt-dring${avReal(p)?' pt-dring--photo':''}">${ringSVG(p.readiness,col,40,4)}<img src="${av(p)}"></span><span class="pt-dn">${p.name.split(' ')[0]}</span><span class="pt-dr" style="color:${col}">${p.readiness}</span>${tail}</div>`;};
   const pains=[];Object.keys(STATE.players).sort().forEach(n=>{const ev=effectiveStatus(n,refdk);if(ev&&['dolor','baja','trat','noentto'].includes(ev.status)&&ev.zone)pains.push(`<span class="pt-pain">${ev.zone}${ev.side?' '+ev.side:''} · ${n.split(' ')[0]}</span>`);});
   const painsBar=`<div class="pt-nopasar-bar"><b>No pasarnos con</b>${pains.length?pains.slice(0,8).join(''):'<span class="pt-pain pt-pain-ok">sin dolores activos</span>'}</div>`;
   const bucket=p=>{const t=(p.pos||'').toLowerCase();if(t.includes('porter'))return'Porteros';if(t.includes('pivot'))return'Pivotes';if(t.includes('extrem'))return'Extremos';return '1ª Línea';};
   const groups={'Extremos':[],'Porteros':[],'Pivotes':[],'1ª Línea':[]};Object.values(STATE.players).forEach(p=>{groups[bucket(p)].push(p);});
-  const ringFicha=p=>`<div class="pt-pl" title="${p.name} · readiness ${p.readiness!=null?p.readiness:'—'}"><div class="pt-pl-ring">${ringSVG(p.readiness,colf(p),56,4)}<img src="${av(p)}"><span class="pt-pl-rd" style="color:${colf(p)}">${p.readiness!=null?p.readiness:'—'}</span></div><div class="pt-pl-nm">${p.name.split(' ')[0]}</div></div>`;
+  const ringFicha=p=>`<div class="pt-pl" title="${p.name} · readiness ${p.readiness!=null?p.readiness:'—'}"><div class="pt-pl-ring${avReal(p)?' pt-pl-ring--photo':''}">${ringSVG(p.readiness,colf(p),56,4)}<img src="${av(p)}"><span class="pt-pl-rd" style="color:${colf(p)}">${p.readiness!=null?p.readiness:'—'}</span></div><div class="pt-pl-nm">${p.name.split(' ')[0]}</div></div>`;
   const strip=Object.keys(groups).map(g=>{const arr=groups[g];if(!arr.length)return'';return `<div class="pt-col" style="flex:${Math.max(2,arr.length)}"><div class="pt-col-h">${g} · ${arr.length}</div><div class="pt-col-row">${arr.sort((a,b)=>(b.readiness||0)-(a.readiness||0)).map(ringFicha).join('')}</div></div>`;}).join('');
   const clubLogo=window.__LOGO_CLUB__?`<img src="${window.__LOGO_CLUB__}">`:`BM NAVA`;
   const hpLogo=window.__LOGO_HP__?`<img src="${window.__LOGO_HP__}">`:`Handball Performance`;
