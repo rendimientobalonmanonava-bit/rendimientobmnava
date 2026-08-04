@@ -1423,15 +1423,11 @@ body.sb-min .sb-ver{display:none}
   border:1px solid var(--line);border-radius:999px;padding:1px 9px}
 .estado-grp-body{padding:2px 6px 8px}
 /* v207 · bloque de configuración del módulo médico */
-.med-cfg{margin-top:18px;border:1px dashed var(--line);border-radius:14px;background:transparent;padding:0}
-.med-cfg>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;
-  padding:13px 16px;flex-wrap:wrap;user-select:none}
-.med-cfg>summary::-webkit-details-marker{display:none}
-.med-cfg>summary::after{content:'▾';margin-left:auto;color:var(--muted);transition:transform .15s}
-.med-cfg[open]>summary::after{transform:rotate(180deg)}
-.med-cfg>summary:hover{background:var(--panel2);border-radius:14px}
-.med-cfg-ico{font-size:15px;color:var(--muted)}
+/* v215 · la configuración era un <details> al final de la vista; ahora es su
+   propia pestaña, así que sobran las reglas del plegable. */
 .med-cfg-body{padding:0 4px 8px}
+.med-seg{margin-bottom:14px}
+.med-seg button{white-space:nowrap}
 .estado-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--hair);font-size:13px}
 .estado-dot{width:10px;height:10px;border-radius:50%;flex:none}
 .estado-name{cursor:pointer;min-width:120px}
@@ -2203,10 +2199,20 @@ html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-s
       <div id="parte-wrap"></div>
     </div>
     <div id="estado-medico" class="estado-pane" style="display:none">
-      <!-- v215 · lo primero es el resumen para el entrenador: quién está tocado,
-           qué puede hacer hoy y cuándo vuelve. El detalle clínico va debajo. -->
+      <!-- v215 · el módulo apilaba en una sola columna el resumen, la lista, la
+           ficha, el registro de fisio y toda la configuración. Se separa en tres
+           pestañas por a quién sirve cada cosa: el entrenador se queda en
+           Resumen, Daniel y Virginia trabajan en Ficha clínica. -->
+      <div class="seg med-seg" id="med-seg">
+        <button data-mt="resumen" onclick="medTab('resumen')">Resumen</button>
+        <button data-mt="clinica" onclick="medTab('clinica')">Ficha clínica</button>
+        <button data-mt="config" onclick="medTab('config')">Configuración</button>
+      </div>
+      <div class="med-pane" id="medpane-resumen">
       <div id="med-coach"></div>
       <div id="med-dashboard"></div>
+      </div>
+      <div class="med-pane" id="medpane-clinica" style="display:none">
       <div class="ctrlrow">
       <span class="tag">Jugador</span><select id="med-fplayer" onchange="MED_SEL=null;renderMedico()"><option value="">Todos</option></select>
       <label class="small" style="display:flex;align-items:center;gap:5px;color:var(--muted)"><input type="checkbox" id="med-showclosed" onchange="renderMedico()"> ver episodios cerrados</label>
@@ -2220,12 +2226,11 @@ html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-s
       <div id="med-list"></div>
       <div id="med-detail" class="panel"></div>
     </div>
+    </div>
     <!-- v207 · La configuración ocupaba el 70% de la vista (1.614 px de 2.290) y se
          toca dos veces por temporada, mientras el trabajo diario quedaba enterrado.
-         Pasa a un bloque plegado al final, que recuerda si lo dejaste abierto. -->
-    <details class="panel med-cfg" id="med-cfg-wrap">
-      <summary><span class="med-cfg-ico">⚙</span><b>Configuración del módulo médico</b>
-        <span class="muted small">catálogo de valoraciones · estados y tratamientos · registro de fisioterapia · modelo de readaptación</span></summary>
+         v215 · pasa a ser su propia pestaña, ya sin plegar. -->
+    <div class="med-pane" id="medpane-config" style="display:none">
       <div class="med-cfg-body">
         <div class="grid g2" style="margin-top:14px">
           <div class="panel"><h2>Valoraciones y cuestionarios <span class="r"><button class="btn ghost" style="padding:4px 12px;font-size:11px" onclick="openMedCat()">Gestionar catálogo</button></span></h2><div id="med-assess"></div></div>
@@ -2234,7 +2239,7 @@ html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-s
         </div>
         <div class="panel"><h2>Modelo de readaptación <span class="r muted">plantillas por tejido · fases · hitos</span></h2><div id="med-rehab-config"></div></div>
       </div>
-    </details>
+    </div>
     </div>
   </section>
 
@@ -4186,6 +4191,24 @@ function medCatDel(id){STATE.med.cat=STATE.med.cat.filter(c=>c.id!==id);STATE.me
 var ESTADO_TAB='dispo';
 function estadoPanes(k){document.querySelectorAll('.estado-seg button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));document.getElementById('estado-dispo').style.display=(k==='dispo')?'':'none';document.getElementById('estado-medico').style.display=(k==='medico')?'':'none';const p=document.getElementById('estado-parte');if(p)p.style.display=(k==='parte')?'':'none';if(k==='dispo'){try{renderAvail();}catch(e){}try{renderAlerts();}catch(e){}}else if(k==='parte'){try{renderParte();}catch(e){}}else{try{renderMedico();}catch(e){}}}
 function estadoTab(k){ESTADO_TAB=k;estadoPanes(k);window.scrollTo(0,0);}
+/* v215 · pestañas dentro de Médico. Se recuerda la elegida, como en Cargas
+   (bmnava_cargatab): cada uno vuelve a donde trabaja sin volver a buscarlo. */
+const MED_TAB_LS='bmnava_medtab';
+let MED_TAB=(function(){try{return localStorage.getItem(MED_TAB_LS)||'resumen';}catch(e){return 'resumen';}})();
+function medTab(k){
+ if(!['resumen','clinica','config'].includes(k))k='resumen';
+ MED_TAB=k;
+ try{localStorage.setItem(MED_TAB_LS,k);}catch(e){}
+ medTabPanes();window.scrollTo(0,0);
+}
+function medTabPanes(){
+ ['resumen','clinica','config'].forEach(k=>{
+  const p=document.getElementById('medpane-'+k);
+  if(p)p.style.display=(k===MED_TAB)?'':'none';
+ });
+ document.querySelectorAll('#med-seg button').forEach(b=>b.classList.toggle('on',b.dataset.mt===MED_TAB));
+}
+window.medTab=medTab;window.medTabPanes=medTabPanes;
 function renderEstado(){estadoPanes(ESTADO_TAB||'dispo');}
 function renderMedico(){medDbLoad();
  const fsel=document.getElementById('med-fplayer');
@@ -9421,7 +9444,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    +'<div class="mcx-grid">'+abiertos.map(medCoachCard).join('')+'</div></div>';
  };
 
- var _renderMedico=window.renderMedico;window.renderMedico=function(){_renderMedico();try{medCoachRender();}catch(e){}try{medRehabRenderDashboard();}catch(e){}try{medRehabRenderTemplateConfig();}catch(e){}};
+ var _renderMedico=window.renderMedico;window.renderMedico=function(){_renderMedico();try{medCoachRender();}catch(e){}try{medRehabRenderDashboard();}catch(e){}try{medRehabRenderTemplateConfig();}catch(e){}try{medTabPanes();}catch(e){}};
  // primera carga si ya hay datos
  try{if(STATE&&STATE.med){medRehabEnsureState();medRehabMigrate();}}catch(e){}
 })();
