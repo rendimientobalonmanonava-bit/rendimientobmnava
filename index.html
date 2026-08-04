@@ -3446,8 +3446,9 @@ function evDays(a,b){const x=evParse(a),y=evParse(b);return (x&&y)?Math.round((y
    Reconstruye, semana a semana, cuántos jugadores estaban no disponibles según
    los episodios registrados. Da la lectura que faltaba: si el equipo está mejor
    o peor que hace un mes, no solo cómo está hoy. */
-const NOAV_ST=['baja','noentto','enfermo','seleccion','sancion'];
-const CARE_ST=['trat','dolor'];
+/* v216 · NOAV_FIS_ST / NOFIS_ST / NOAV_ST / CARE_ST se declaran junto a PHYSTAT,
+   fuera de este IIFE, porque también los usa la vista de Disponibilidad. Aquí
+   solo se leen dentro de funciones, que corren cuando ya están inicializados. */
 function evWeeklyAvail(nWeeks){
   const W=nWeeks||14;
   const roster=Object.keys(STATE.players||{});
@@ -3470,8 +3471,9 @@ function evWeeklyAvail(nWeeks){
         if(d1<ini||d0>fin)return;                     // el episodio no toca esta semana
         const sev=NOAV_ST.includes(e.status)?2:(CARE_ST.includes(e.status)?1:0);
         if(sev>peor)peor=sev;
-        if(sev===2){
-          /* días-jugador perdidos: solo la parte del episodio dentro de la semana */
+        if(sev===2&&NOAV_FIS_ST.includes(e.status)){
+          /* días-jugador perdidos: solo la parte del episodio dentro de la semana,
+             y solo por motivos físicos — una convocatoria o una cita no son baja. */
           const a=d0>ini?d0:ini, b=d1<fin?d1:fin;
           perdidos+=Math.max(0,Math.round((b-a)/864e5)+1);
         }
@@ -6275,8 +6277,25 @@ const PHYSTAT={
   seleccion:{lab:'Selección',c:'#5aa9e6'},
   sancion:{lab:'Sanción',c:'#6b7280'},
   filial:{lab:'2ª Nacional',c:'#94a3b5'},
+  /* v216 · motivos NO físicos. Antes, para un jugador que faltaba por una cita
+     médica o por un asunto personal, el único hueco era «No entrena», que la app
+     trata como indicador físico: sumaba días-jugador perdidos por lesión, entraba
+     en el mapa de zonas y lo dejaba en el grupo de tocados. Estos dos estados
+     dicen que no entrena sin decir que esté tocado. */
+  cita:{lab:'Cita médica',c:'#7c9cbf'},
+  personal:{lab:'Motivo personal',c:'#9b8ec4'},
   partido:{lab:'Partido',c:'var(--c-ink,#2b3543)'}
 };
+/* v216 · Se separa «no está disponible» de «está tocado». Faltar por una cita
+   médica o por un asunto personal deja al jugador fuera de la sesión, pero no es
+   una baja física: no debe sumar días-jugador perdidos por lesión, ni entrar en
+   el mapa de zonas, ni pintarlo como tocado. Por eso hay dos listas y no una.
+   Se declaran aquí, en ámbito global, porque las usan tanto la evolución semanal
+   (evWeeklyAvail) como la vista de Disponibilidad. */
+const NOAV_FIS_ST=['baja','noentto','enfermo'];                     // fuera por lo físico
+const NOFIS_ST=['seleccion','sancion','filial','cita','personal'];  // fuera por otro motivo
+const NOAV_ST=NOAV_FIS_ST.concat(NOFIS_ST);                         // fuera, sea cual sea
+const CARE_ST=['trat','dolor'];
 // Datos de EJEMPLO (patrón extraído del PDF de la fisio). Sustituibles al vincular la hoja.
 const PHYS_EX={
   'Gonzalo Carró':[['2025-09-25','trat','rodilla','D','descarga cuádriceps/isquio','+',''],['2025-10-16','noentto','rodilla','I','dolor posterior','++',''],['2025-12-02','baja','rodilla','I','IQx menisco externo','+++','Cirugía menisco'],['2026-01-12','trat','rodilla','I','alta médica · carga progresiva','+','RTP'],['2026-02-13','disp','','','',''],['2026-03-19','trat','rodilla','D','recaída · descarga','++','Reincidencia rodilla']],
@@ -6302,7 +6321,7 @@ function physioEvents(name){const ex=(STATE.physioEx||{})[name]||[];const us=((S
 function physioPoints(name){return physioEvents(name).filter(e=>!e.ep);}
 function physioEpisodes(name){const all=physioEvents(name).filter(e=>e.ep);const closed=new Set(all.filter(e=>e._closesEx).map(e=>e._closesEx));return all.filter(e=>!closed.has(e._id)).map(e=>({...e,fromDate:dkToDate(e.dk),toDate:e.to?dkToDate(e.to):null}));}
 var MED_SEV={};
-function physioSev(s){if(MED_SEV[s]!=null)return MED_SEV[s];return {baja:5,noentto:4,readapt:3,enfermo:3,trat:2,dolor:2,seleccion:1,filial:1,sancion:1,partido:1,disp:0}[s]||0;}
+function physioSev(s){if(MED_SEV[s]!=null)return MED_SEV[s];return {baja:5,noentto:4,readapt:3,enfermo:3,trat:2,dolor:2,seleccion:1,filial:1,sancion:1,cita:1,personal:1,partido:1,disp:0}[s]||0;}
 function effectiveStatus(name,dk){
   const td=dkey(new Date());
   const eps=physioEpisodes(name).filter(e=>e.dk<=dk&&(e.to?dk<e.to:dk<=td));
@@ -6632,13 +6651,18 @@ function renderAvail(){
   const box=document.getElementById('avail-body');if(!box)return;buildPhysio();
   const today=new Date();const tdk=dkey(today);const roster=Object.keys(STATE.players).sort();
   if(!roster.length){box.innerHTML='<div class="panel"><p class="muted">Sin jugadores cargados.</p></div>';return;}
-  const NOAV=['baja','noentto','enfermo','seleccion','sancion'];const CARE=['trat','dolor'];
+  /* v216 · NOAV_FIS = fuera por lo físico · NOFIS = fuera por otro motivo (cita
+     médica, asunto personal, selección, sanción, filial). Los dos cuentan como
+     no disponible para entrenar, pero solo el primero es problema médico. */
+  const NOAV_FIS=NOAV_FIS_ST,NOFIS=NOFIS_ST;
+  const NOAV=NOAV_ST;const CARE=['trat','dolor'];
   const cur={};roster.forEach(n=>{const ev=effectiveStatus(n,tdk);cur[n]={status:ev?ev.status:'disp',ev:ev?{...ev,date:ev.date||dkToDate(ev.dk)}:null};});
   const stOf=n=>cur[n].status;
-  const noav=roster.filter(n=>NOAV.includes(stOf(n)));
+  const noav=roster.filter(n=>NOAV_FIS.includes(stOf(n)));
+  const fuera=roster.filter(n=>NOFIS.includes(stOf(n)));
   const care=roster.filter(n=>CARE.includes(stOf(n)));
   const dispo=roster.filter(n=>!NOAV.includes(stOf(n))&&!CARE.includes(stOf(n)));
-  const dispCount=roster.length-noav.length;const pct=Math.round(dispCount/roster.length*100);
+  const dispCount=roster.length-noav.length-fuera.length;const pct=Math.round(dispCount/roster.length*100);
   let lost=0;roster.forEach(n=>{physioEpisodes(n).filter(e=>['baja','noentto'].includes(e.status)).forEach(e=>{const end=e.toDate?(e.toDate<today?e.toDate:today):today;lost+=Math.max(1,Math.round((end-e.fromDate)/864e5));});physioPoints(n).filter(e=>['baja','noentto'].includes(e.status)&&e.dk<=tdk).forEach(()=>lost++);});
   const plans=[];roster.forEach(n=>{physioEvents(n).filter(e=>!e.ep&&e.dk>tdk).forEach(e=>plans.push({n,e}));});plans.sort((a,b)=>a.e.dk<b.e.dk?-1:1);
   // zona agregada (episodios + puntuales)
@@ -6654,12 +6678,12 @@ function renderAvail(){
   // ---- ESTADO ACTUAL (marcar / alta) ----
   const qbar=`<div class="estado-add">
     <select id="est-player">${roster.map(n=>`<option>${n}</option>`).join('')}</select>
-    <select id="est-status"><option value="dolor">Con dolor</option><option value="trat">En tratamiento</option><option value="noentto">No entrena</option><option value="baja">Baja</option></select>
+    <select id="est-status" onchange="availStatusChanged()"><optgroup label="Motivo físico"><option value="dolor">Con dolor</option><option value="trat">En tratamiento</option><option value="noentto">No entrena · físico</option><option value="baja">Baja</option><option value="enfermo">Enfermedad</option></optgroup><optgroup label="No entrena · otro motivo"><option value="cita">Cita médica</option><option value="personal">Motivo personal</option><option value="seleccion">Selección</option><option value="sancion">Sanción</option><option value="filial">2ª Nacional</option></optgroup></select>
     <input id="est-zone" placeholder="zona (rodilla, gemelo…)">
     <select id="est-side"><option value="">—</option><option value="I">Izq</option><option value="D">Der</option></select>
     <button class="btn" onclick="availMark()">Marcar</button>
     <button class="btn ghost" style="font-size:12px" onclick="estadoTab('medico');openMedInjury()">＋ Lesión (Médico)</button>
-    <div class="small muted" style="flex-basis:100%;margin-top:2px">Para lesiones usa el módulo Médico (fases y criterios). Aquí, estados puntuales no médicos.</div></div>`;
+    <div class="small muted" style="flex-basis:100%;margin-top:2px" id="est-hint">Para lesiones usa el módulo Médico (fases y criterios). Aquí, estados puntuales no médicos.</div></div>`;
   const estItems=roster.slice().sort((a,b)=>physioSev(stOf(b))-physioSev(stOf(a))||a.localeCompare(b,'es')).map(n=>{const ev=cur[n].ev;const st=stOf(n);const sM=PHYSTAT[st]||{lab:'Disponible',c:'var(--ok)'};const zone=ev&&ev.zone?ev.zone+(ev.side?' '+ev.side:''):'';const since=ev&&ev.date?ev.date.toLocaleDateString('es',{day:'2-digit',month:'short'}):'';const days=ev&&ev.date?Math.max(0,Math.round((today-ev.date)/864e5)):0;const rtpI=medRTPinfo(n);const openEp=(ev&&ev.ep&&!ev.to)?ev:null;const isMed=openEp&&String(openEp._id||'').indexOf('med_')===0;const injId=isMed?String(openEp._id).slice(4):'';const act=isMed?`<button class="estado-alta" style="border-color:var(--line);color:var(--muted)" onclick="event.stopPropagation();estadoGoMedico('${injId}')" title="Estado gestionado desde la ficha médica">Ver en Médico ↗</button>`:(openEp?`<button class="estado-alta" onclick="event.stopPropagation();availClose('${esc(n)}','${openEp._id}')">✓ Alta</button>`:'');return {n,st,sev:physioSev(st),html:`<div class="estado-row"><span class="estado-dot" style="background:${sM.c}"></span><b class="estado-name" onclick="openPlayer('${esc(n)}')">${n}</b><span class="tag" style="border-color:${sM.c};color:${sM.c}">${sM.lab}</span>${isMed?'<span class="estado-lock">🔒 desde Médico</span>':''}<span class="estado-meta small muted">${[zone,since?'desde '+since+(days?' ('+days+'d)':''):'',rtpI?('alta ~'+(rtpI.days<0?('+'+(-rtpI.days)+'d'):(rtpI.days+'d'))):''].filter(Boolean).join(' · ')}</span>${act}</div>`};});
   /* v207 · Los 19 jugadores en una lista plana obligaban a leerla entera para
      saber quién está fuera. Se agrupan por estado, con el grupo problemático
@@ -6669,8 +6693,11 @@ function renderAvail(){
      KPIs, para que el recuento de cada grupo cuadre exactamente con las cifras de
      arriba y no haya dos criterios distintos conviviendo. */
   const GRUPOS=[
-    {k:'fuera', lab:'No disponibles', col:'var(--bad)',  test:o=>NOAV.includes(o.st)},
+    {k:'fuera', lab:'No disponibles · motivo físico', col:'var(--bad)',  test:o=>NOAV_FIS.includes(o.st)},
     {k:'tocado',lab:'Con molestia o en tratamiento', col:'var(--warn)', test:o=>CARE.includes(o.st)},
+    /* v216 · fuera de la sesión pero sano: no es asunto médico y no debe leerse
+       como tal, así que va en su propio grupo y en color neutro. */
+    {k:'nofis', lab:'Fuera por otros motivos · no físico', col:'#7c9cbf', test:o=>NOFIS.includes(o.st)},
     {k:'ok',    lab:'Disponibles', col:'var(--ok)', test:o=>!NOAV.includes(o.st)&&!CARE.includes(o.st)}
   ];
   const estRows=GRUPOS.map(g=>{
@@ -6698,13 +6725,16 @@ function renderAvail(){
   const planForm=`<div class="plan-form">
     <label class="small muted">Jugador<select id="avail-plan-player">${psel}</select></label>
     <label class="small muted">Fecha<input type="date" id="avail-plan-date" value="${tmrk}"></label>
-    <label class="small muted">Estado<select id="avail-plan-status"><option value="noentto">No entrenará</option><option value="baja">Baja</option><option value="trat">Con tratamiento</option><option value="dolor">Con dolor</option></select></label>
+    <label class="small muted">Estado<select id="avail-plan-status"><optgroup label="Motivo físico"><option value="noentto">No entrenará · físico</option><option value="baja">Baja</option><option value="trat">Con tratamiento</option><option value="dolor">Con dolor</option></optgroup><optgroup label="No entrena · otro motivo"><option value="cita">Cita médica</option><option value="personal">Motivo personal</option><option value="seleccion">Selección</option><option value="sancion">Sanción</option></optgroup></select></label>
     <label class="small muted">Zona/motivo<input id="avail-plan-note" placeholder="rodilla, gestión carga…"></label>
     <div class="wide"><button class="btn ghost" onclick="availAddPlan()">Registrar previsión</button></div></div>`;
   const av=n=>{const real=window.photoFor?photoFor(n):null;return real||(STATE.players[n]&&STATE.players[n].avatar)||window.__AVATAR__||'';};
   const avReal=n=>!!(window.photoFor&&photoFor(n));
   const attn=[];const seenA=new Set();
-  roster.slice().sort((a,b)=>physioSev(stOf(b))-physioSev(stOf(a))).forEach(n=>{const st=stOf(n);if(!(NOAV.includes(st)||CARE.includes(st)))return;if(seenA.has(n))return;seenA.add(n);const ev=cur[n].ev;const z=ev&&ev.zone?ev.zone+(ev.side?' '+ev.side:''):'';const days=ev&&ev.date?Math.round((today-ev.date)/864e5):null;const s=PHYSTAT[st]||{lab:st,c:'#9aa3ad'};attn.push({n,lab:s.lab,col:s.c,meta:[z,days!=null?'hace '+days+'d':''].filter(Boolean).join(' · ')});});
+  /* v216 · «Atención hoy» es seguimiento médico: entran las bajas físicas y las
+     molestias, no quien falta por una cita o un asunto personal. Esos salen en su
+     propio grupo de la lista, sin contarse como caso a seguir. */
+  roster.slice().sort((a,b)=>physioSev(stOf(b))-physioSev(stOf(a))).forEach(n=>{const st=stOf(n);if(!(NOAV_FIS.includes(st)||CARE.includes(st)))return;if(seenA.has(n))return;seenA.add(n);const ev=cur[n].ev;const z=ev&&ev.zone?ev.zone+(ev.side?' '+ev.side:''):'';const days=ev&&ev.date?Math.round((today-ev.date)/864e5):null;const s=PHYSTAT[st]||{lab:st,c:'#9aa3ad'};attn.push({n,lab:s.lab,col:s.c,meta:[z,days!=null?'hace '+days+'d':''].filter(Boolean).join(' · ')});});
   roster.forEach(n=>{const p=STATE.players[n];if(p&&p.sev==='bad'&&!seenA.has(n)){seenA.add(n);attn.push({n,lab:'Riesgo',col:'#e23b32',meta:'readiness '+(p.readiness!=null?p.readiness:'—')});}});
   const ring=(pct,col,size,stroke)=>{const r=(size-stroke)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,pct||0))/100);return `<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;};
   const pillT=(lab,col)=>`<span class="pillT" style="color:${col};background:color-mix(in srgb,${col} 15%,transparent)"><span class="pillT-dot" style="background:${col}"></span><span class="pillT-tx">${lab}</span></span>`;
@@ -6719,7 +6749,8 @@ function renderAvail(){
   <div class="kpi-grid">
     ${kpi(dispCount+'/'+roster.length,'Disponibles hoy','var(--ok)')}
     ${kpi(care.length,'Con dolor / tto','var(--warn)')}
-    ${kpi(noav.length,'No disponibles','var(--bad)')}
+    ${kpi(noav.length,'Baja física','var(--bad)')}
+    ${kpi(fuera.length,'Fuera · no físico','#7c9cbf')}
     ${kpi(pct+'%','Plantilla disponible')}
     ${kpi(lost,'Días-jugador perdidos')}
     ${kpi(topZone,'Zona más afectada',null,true)}
@@ -6739,6 +6770,20 @@ function renderAvail(){
 function medOpenEpisodeOf(name){const arr=(STATE.physioUser||{})[name]||[];return arr.find(x=>String(x._id||'').indexOf('med_')===0&&!x.to)||null;}
 function estadoGoMedico(injId){try{estadoTab('medico');}catch(e){}try{if(injId){MED_SEL=injId;renderMedico();}}catch(e){}}
 function availMark(){const g=id=>(document.getElementById(id)||{}).value;const n=g('est-player');if(!n)return;if(medOpenEpisodeOf(n)){toast('Ese jugador tiene una lesión abierta · gestiona su estado en Médico');return;}physioOpenEpisode(n,g('est-status'),g('est-zone'),g('est-side'),'');renderAvail();}
+/* v216 · con un motivo no físico la zona y el lado no pintan nada: el campo pasa
+   a pedir el motivo concreto («revisión mutua», «asuntos propios») y se avisa de
+   que no contará como lesión. */
+function availStatusChanged(){
+  const st=(document.getElementById('est-status')||{}).value;
+  const noFis=NOFIS_ST.includes(st);
+  const z=document.getElementById('est-zone'),s=document.getElementById('est-side'),h=document.getElementById('est-hint');
+  if(z)z.placeholder=noFis?'motivo (opcional): revisión mutua, asuntos propios…':'zona (rodilla, gemelo…)';
+  if(s){s.style.display=noFis?'none':'';if(noFis)s.value='';}
+  if(h)h.textContent=noFis
+    ?'No entrena, pero no es un problema físico: no cuenta como lesión ni suma días perdidos.'
+    :'Para lesiones usa el módulo Médico (fases y criterios). Aquí, estados puntuales no médicos.';
+}
+window.availStatusChanged=availStatusChanged;
 function availClose(n,id){physioCloseEpisode(n,id);renderAvail();}
 function availMatrix(roster){
   const today=new Date();const W=16;const monday=new Date(today);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));const weeks=[];for(let i=W-1;i>=0;i--){const ws=new Date(monday);ws.setDate(ws.getDate()-i*7);weeks.push(ws);}
