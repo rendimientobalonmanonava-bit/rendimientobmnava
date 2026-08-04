@@ -2470,24 +2470,58 @@ async function syPushKeys(keys){
 }
 /* Agrupa las escrituras: al rellenar una tabla se disparan muchas seguidas y no
    tiene sentido una petición por tecla. */
+/* Sube ya mismo lo que esté pendiente, sin esperar al debounce de 1200ms.
+   Con opts.keepalive=true (pestaña ocultándose o cerrándose) no hay margen
+   para reintentos ni para esperar la respuesta: se usa fetch keepalive, que
+   el navegador termina de enviar aunque la página ya se haya descargado.
+   Sin esto, un cambio hecho justo antes de cerrar se queda solo en este
+   navegador, y el próximo arranque lo borra al descargar el estado remoto
+   (el pull de boot pisa el local sin comprobar si hay algo más reciente). */
+function syFlushPending(opts){
+  const keys=Object.keys(SY.pending);
+  if(!keys.length)return;
+  SY.pending={};
+  clearTimeout(SY.timer);
+  if(opts&&opts.keepalive){
+    const payload=keys.map(k=>{
+      let v=null;
+      try{v=JSON.parse(localStorage.getItem(k)||'null');}catch(e){v=localStorage.getItem(k);}
+      return {k,v,updated_at:new Date().toISOString(),updated_by:SY.email||'staff'};
+    });
+    try{
+      fetch(SY.url+'/rest/v1/'+SY_TABLE+'?on_conflict=k',{
+        method:'POST',keepalive:true,
+        headers:Object.assign(syHeaders(true),{'Prefer':'resolution=merge-duplicates'}),
+        body:JSON.stringify(payload)
+      });
+    }catch(e){}
+    return;
+  }
+  syPushKeys(keys).then(n=>{
+    syStatus('ok','Guardado · '+n+(n===1?' bloque':' bloques'));
+  }).catch(()=>{});
+}
 function syQueue(k){
   if(!SY.on||!syIsShared(k))return;
   SY.pending[k]=1;
   syStatus('sync','Guardando…');
   clearTimeout(SY.timer);
-  SY.timer=setTimeout(async()=>{
-    const keys=Object.keys(SY.pending);SY.pending={};
-    if(!keys.length)return;
-    try{
-      const n=await syPushKeys(keys);
-      syStatus('ok','Guardado · '+n+(n===1?' bloque':' bloques'));
-    }catch(e){}
-  },1200);
+  SY.timer=setTimeout(()=>syFlushPending(),1200);
 }
 Storage.prototype.setItem=function(k,v){
   _setItem.call(this,k,v);
   try{syQueue(k);}catch(e){}
 };
+/* v212 · Si la pestaña se oculta (cambio de app, bloqueo de pantalla, cierre)
+   con algo pendiente de subir, se fuerza el envío inmediato en vez de confiar
+   en el debounce. Cubre sobre todo el caso móvil: Carlos rellena algo y
+   cambia de app o bloquea el teléfono antes de que pasen los 1200ms. */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'&&SY.on&&Object.keys(SY.pending).length)syFlushPending({keepalive:true});
+});
+window.addEventListener('pagehide',()=>{
+  if(SY.on&&Object.keys(SY.pending).length)syFlushPending({keepalive:true});
+});
 
 /* ---------- ciclo ---------- */
 window.syConnect=async function(silent){
