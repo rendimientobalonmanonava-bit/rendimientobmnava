@@ -1204,6 +1204,23 @@ body.sb-min .sb-ver{display:none}
 .cw-load-row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
 .cw-load-row b{font-weight:800;font-variant-numeric:tabular-nums}
 .cw-dev{text-align:center;font-size:11px;font-weight:800;color:var(--vc);background:color-mix(in srgb,var(--vc) 12%,transparent);border-radius:6px;padding:2px 0;margin-top:2px}
+/* v219 · citas y pruebas dentro de la ficha clínica del episodio */
+.med-cita-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.med-cita{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--hair);
+  border-left:3px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12px}
+.med-cita.fut{background:color-mix(in srgb,var(--accent) 5%,var(--panel))}
+.mc-when{display:flex;flex-direction:column;min-width:56px;flex:none;line-height:1.25}
+.mc-when b{font-variant-numeric:tabular-nums;font-size:12.5px}
+.mc-when span{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mc-when i{font-style:normal;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--accent)}
+.mc-what{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.mc-what b{font-size:12.5px;font-weight:700}
+.mc-what span{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-af{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border:1px solid;
+  border-radius:999px;padding:1px 7px;white-space:nowrap;flex:none}
+.mc-lk{flex:none;text-decoration:none;font-size:14px;opacity:.75}
+.mc-lk:hover{opacity:1}
+@media(max-width:560px){.med-cita{flex-wrap:wrap}.mc-what span{white-space:normal}}
 .cal-citasbox{background:var(--panel2);border:1px solid var(--hair);border-radius:12px;padding:10px 12px;margin:4px 0 6px}
 .cal-cb-h{font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:7px}
 .cal-cb-ic{font-size:14px}
@@ -4418,6 +4435,34 @@ function medDetailHtml(e){if(!e)return '';
   +medPainSvg(e)
   +'<div style="display:flex;gap:8px;margin-top:8px;align-items:center"><input type="number" id="mp-v-'+e.id+'" min="0" max="10" step="1" placeholder="0–10" style="width:80px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px"><button class="med-chipbtn" onclick="medPainAdd(\''+e.id+'\')">Registrar dolor hoy</button></div>';
  const treatHtml=(window.medTreatTimeline)?medTreatTimeline(e.name,e.id,{episode:true}):(function(){var trs=(STATE.med.treat||[]).filter(t=>t.injId===e.id||(t.name===e.name&&!t.injId&&t.dk>=e.dk&&(!e.closeDk||t.dk<=e.closeDk))).sort((a,b)=>b.dk<a.dk?-1:1);return '<div class="med-sec">Tratamientos <span class="r"><button class="med-chipbtn" onclick="openMedTreat(\''+medEsc(e.name)+'\',\''+e.id+'\')">＋ Añadir</button></span></div>'+(trs.length?'<table class="med-ttable"><tbody>'+trs.map(t=>'<tr><td>'+t.dk+'</td><td>'+medEsc(t.tipo)+'</td><td>'+(t.dur?t.dur+"'":'—')+'</td><td><button class="med-chipbtn" onclick="medTreatDel(\''+t.id+'\')">✕</button></td></tr>').join('')+'</tbody></table>':'<p class="small muted">Sin tratamientos registrados.</p>');})();
+ /* v219 · Citas, revisiones y pruebas del jugador dentro de este episodio. Al
+    revisar una readaptación interesa ver la resonancia, la revisión de la mutua
+    o la próxima cita en el mismo sitio, sin salir a la ficha del jugador.
+    Ventana: desde la lesión hasta el alta si está cerrado, o abierta si sigue en
+    curso, para que se vean también las citas ya agendadas por delante. */
+ const citasEp=(window.citasOfPlayer?citasOfPlayer(e.name,e.dk,e.open?null:e.closeDk):[]);
+ const AFC={no:['No afecta','#1ea863'],parcial:['Entrena parcial','#e08a00'],pierde:['Pierde el entreno','#7c9cbf']};
+ const hoyDk=medToday();
+ const citasHtml='<div class="med-sec">Citas y pruebas'
+  +' <span class="r"><button class="med-chipbtn" onclick="openHeroForm(\'med\',\''+medEsc(e.name)+'\')">＋ Agendar</button></span></div>'
+  +(citasEp.length
+    ? '<div class="med-cita-list">'+citasEp.map(c=>{
+        const col=(window.medLogTypeCol?medLogTypeCol(c.type):'#888');
+        const lab=(window.medLogTypeLab?medLogTypeLab(c.type):'')||'Cita';
+        const af=AFC[c.afecta];
+        const fut=c.dk>hoyDk;
+        return '<div class="med-cita'+(fut?' fut':'')+'" style="border-left-color:'+col+'">'
+          +'<div class="mc-when"><b>'+c.dk.split('-').reverse().slice(0,2).join('/')+'</b>'
+            +(c.time?'<span>'+medEsc(c.time)+'</span>':'')
+            +(fut?'<i>próxima</i>':'')+'</div>'
+          +'<div class="mc-what"><b>'+(medEsc(c.title)||lab)+'</b>'
+            +'<span>'+lab+(c.who?' · '+medEsc(c.who):'')+(c.status?' · '+medEsc(c.status):'')+'</span>'
+            +(c.note?'<span>'+medEsc(c.note)+'</span>':'')+'</div>'
+          +(af&&c.afecta&&c.afecta!=='no'?'<span class="mc-af" style="color:'+af[1]+';border-color:'+af[1]+'">'+af[0]+'</span>':'')
+          +(c.link?'<a class="mc-lk" href="'+medEsc(c.link)+'" target="_blank" rel="noopener" title="Ver documento">📎</a>':'')
+          +'</div>';
+      }).join('')+'</div>'
+    : '<p class="small muted">Sin citas ni pruebas registradas en este episodio.</p>');
  const notes=(e.notes||[]).slice().sort((a,b)=>b.dk<a.dk?-1:1);
  const notesHtml='<div class="med-sec">Guía semanal <span class="r"><span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">qué hacemos y qué cambia cada semana</span></span></div>'
   +notes.map((n,i)=>{
@@ -4431,7 +4476,7 @@ function medDetailHtml(e){if(!e)return '';
        +'<div class="med-note-txt">'+medEsc(n.txt)+'</div></div>';
    }).join('')
   +'<div style="display:flex;gap:8px;margin-top:6px"><input type="text" id="mn-t-'+e.id+'" placeholder="p. ej. Introducimos carrera asistida y plyo bajo impacto" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12.5px"><button class="med-chipbtn" onclick="medNoteAdd(\''+e.id+'\')">＋ Nota</button></div>';
- return head+phasesHtml+painHtml+treatHtml+notesHtml;}
+ return head+phasesHtml+painHtml+citasHtml+treatHtml+notesHtml;}
 /* ---------- Criterios ---------- */
 function medCritOk(c){if(c.tipo==='num'){if(!c.med.length)return c.done;const last=c.med[c.med.length-1].v;return c.low?last<=c.obj:last>=c.obj;}return c.done;}
 function medCritHtml(injId,c){
@@ -8917,6 +8962,15 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
  window.citaSync=citaSync;window.citaUnsync=citaUnsync;window.MEDLOG_AF=AF;
  /* Citas de todo el equipo en un día, para el calendario. */
  window.medLogTypeLab=function(t){return (TY[t]||{}).l||'';};
+ window.medLogTypeCol=function(t){return (TY[t]||{}).c||'#888';};
+ /* v219 · Citas de un jugador dentro de una ventana de fechas, para poder
+    mostrarlas en la ficha clínica del episodio de readaptación. Se excluye
+    «trat» porque los tratamientos ya tienen su propia sección allí. */
+ window.citasOfPlayer=function(name,fromDk,toDk){
+   return ((STATE.medLog||{})[name]||[])
+     .filter(e=>e&&e.dk&&e.type!=='trat'&&(!fromDk||e.dk>=fromDk)&&(!toDk||e.dk<=toDk))
+     .slice().sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+ };
  window.citasOfDay=function(dk){
    const out=[];const ML=(STATE.medLog||{});
    Object.keys(ML).forEach(nm=>{(ML[nm]||[]).forEach(e=>{
