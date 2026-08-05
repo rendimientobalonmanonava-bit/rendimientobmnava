@@ -1439,6 +1439,9 @@ body.sb-min .sb-ver{display:none}
 /* v215 · la configuración era un <details> al final de la vista; ahora es su
    propia pestaña, así que sobran las reglas del plegable. */
 .med-cfg-body{padding:0 4px 8px}
+/* v217 · con un modal abierto, el fondo no se mueve con la rueda. */
+body.modal-open{overflow:hidden}
+body.modal-open #sidebar{overflow:hidden}
 .med-seg{margin-bottom:14px}
 .med-seg button{white-space:nowrap}
 .estado-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--hair);font-size:13px}
@@ -6214,7 +6217,7 @@ function infoFieldHTML(k,lab,type,d){
   if(type==='date')return `<label>${lab}<input type="date" data-k="${k}" value="${v}"></label>`;
   return `<label>${lab}<input type="${type||'text'}" data-k="${k}" value="${v.replace(/"/g,'&quot;')}"></label>`;
 }
-function ensureInfoOverlay(){let ov=document.getElementById('info-overlay');if(!ov){ov=document.createElement('div');ov.id='info-overlay';ov.className='info-overlay';ov.style.display='none';ov.innerHTML='<div class="info-modal"><div class="info-mhead"><b id="info-mtitle"></b><div><button class="btn" onclick="infoSaveModal()">Guardar</button> <button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button></div></div><div id="info-mbody"></div></div>';document.body.appendChild(ov);ov.addEventListener('click',e=>{if(e.target===ov)closeInfoEdit();});}return ov;}
+function ensureInfoOverlay(){let ov=document.getElementById('info-overlay');if(!ov){ov=document.createElement('div');ov.id='info-overlay';ov.className='info-overlay';ov.style.display='none';ov.innerHTML='<div class="info-modal"><div class="info-mhead"><b id="info-mtitle"></b><div><button class="btn" onclick="infoSaveModal()">Guardar</button> <button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button></div></div><div id="info-mbody"></div></div>';document.body.appendChild(ov);ov.addEventListener('click',e=>{if(e.target===ov)closeInfoEdit();});try{modalWatch(ov);}catch(e){}}return ov;}
 function openInfoEdit(name){infoLoad();const d=STATE.info[name]||{};const _ov=ensureInfoOverlay();const _hd=_ov.querySelector('.info-mhead > div');if(_hd)_hd.innerHTML='<button class="btn" onclick="infoSaveModal()">Guardar</button> <button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
   document.getElementById('info-mtitle').textContent='Ficha · '+name;
   const body=INFO_SECTIONS.map((sec,si)=>`<div class="info-sec">${sec[0]}</div><div class="info-fgrid ${si===INFO_SECTIONS.length-1?'pad-b':''}">${sec[1].map(fd=>infoFieldHTML(fd[0],fd[1],fd[2],d)).join('')}</div>`).join('');
@@ -6223,6 +6226,47 @@ function openInfoEdit(name){infoLoad();const d=STATE.info[name]||{};const _ov=en
 }
 function infoSaveModal(){const mb=document.getElementById('info-mbody');if(!mb)return;const name=mb.getAttribute('data-player');const o={};mb.querySelectorAll('[data-k]').forEach(el=>{const val=(el.value||'').trim();if(val&&val!=='—')o[el.getAttribute('data-k')]=val;});STATE.info=STATE.info||{};STATE.info[name]=o;infoPersist();closeInfoEdit();renderPlayerFichas();}
 function closeInfoEdit(){const ov=document.getElementById('info-overlay');if(ov)ov.style.display='none';}
+
+/* ---------- v217 · bloquear el fondo con un modal abierto ----------
+   Con una ventana abierta (planificar entrenamiento, ficha, tratamiento…), la
+   rueda del ratón seguía moviendo la página de detrás: se perdía el sitio donde
+   estabas trabajando. Los overlays se abren desde ~15 puntos distintos, así que
+   en vez de tocarlos uno a uno se vigila el atributo de los seis contenedores
+   —observadores acotados, sin recorrer el DOM ni sondear con temporizadores. */
+const MODAL_IDS=['info-overlay','ph-overlay','med-overlay','ficha-overlay','drawer-ov','sy-gate'];
+/* El cajón de ajustes no se oculta con display sino con opacidad + la clase .on,
+   así que su display siempre es block: mirar el display lo daría por abierto
+   siempre y el fondo se quedaría bloqueado para todo. */
+const MODAL_BY_CLASS=['drawer-ov'];
+function modalAnyOpen(){
+  return MODAL_IDS.some(id=>{
+    const el=document.getElementById(id);
+    if(!el)return false;
+    if(MODAL_BY_CLASS.indexOf(id)>=0)return el.classList.contains('on');
+    return getComputedStyle(el).display!=='none';
+  });
+}
+function modalLockSync(){
+  const abierto=modalAnyOpen();
+  if(abierto===document.body.classList.contains('modal-open'))return;
+  document.body.classList.toggle('modal-open',abierto);
+}
+function modalWatch(el){
+  if(!el||el.__mw)return;
+  el.__mw=1;
+  new MutationObserver(modalLockSync).observe(el,{attributes:true,attributeFilter:['style','class']});
+  modalLockSync();
+}
+function modalWatchAll(){MODAL_IDS.forEach(id=>modalWatch(document.getElementById(id)));}
+/* Varios overlays (el de login, el genérico) se crean después del arranque y se
+   cuelgan directamente de <body>. Se vigila solo la lista de hijos directos —sin
+   subtree— para engancharlos en cuanto aparecen. */
+function modalWatchBody(){
+  if(document.body.__mwb)return;
+  document.body.__mwb=1;
+  new MutationObserver(()=>{modalWatchAll();modalLockSync();}).observe(document.body,{childList:true});
+}
+window.modalWatch=modalWatch;window.modalWatchAll=modalWatchAll;window.modalLockSync=modalLockSync;
 
 function renderPlayersGrid(){const box=document.getElementById('players-grid');if(!box)return;buildTests();const rows=tsaRows();const n=rows.length;const byName={};rows.forEach(r=>byName[r.name]=r);
   box.innerHTML=sortedPlayerNames().map(name=>{const p=STATE.players[name];const r=byName[name]||{};const tier=r.rank?tsaTier(r.rank,n):'na';let cr=null;try{cr=loadCorridorRow(p);}catch(e){}
@@ -8587,7 +8631,7 @@ function buildDrawer(){if(document.getElementById('drawer'))return;const ov=docu
      </select>
      <p class="hint" style="margin-top:6px">Si el portátil se calienta o va a tirones, el modo ligero quita el desenfoque de las superficies y el fondo animado. Solo afecta a este ordenador.</p></div>
    <div class="row-btn"><button class="btn" style="flex:1" onclick="applyDrawer()">Aplicar</button><button class="btn ghost" onclick="resetDrawer()">Restaurar</button></div>`;
-  document.body.appendChild(ov);document.body.appendChild(d);fillDrawer();}
+  document.body.appendChild(ov);document.body.appendChild(d);try{modalWatch(ov);}catch(e){}fillDrawer();}
 function fillDrawer(){const set=(id,v)=>{const el=document.getElementById('cf-'+id);if(el)el.value=v;};set('z_yellow',CONFIG.z.yellow);set('z_red',CONFIG.z.red);set('z_min',CONFIG.z.minRecords);set('acwr_lo',CONFIG.load.acwrYellowLo);set('acwr_hi',CONFIG.load.acwrYellowHi);set('acwr_red',CONFIG.load.acwrRedHi);const w=CONFIG.wellnessVars;set('w_fatiga',w.fatiga.w);set('w_sueno',w.sueno.w);set('w_doms',w.doms.w);set('w_stress',w.stress.w);set('w_mood',w.mood.w);set('w_horas',w.horas_sueno.w);try{perfApply();}catch(e){}}
 function openDrawer(){buildDrawer();fillDrawer();document.getElementById('drawer-ov').classList.add('on');document.getElementById('drawer').classList.add('on');}
 function closeDrawer(){const o=document.getElementById('drawer-ov'),d=document.getElementById('drawer');if(o)o.classList.remove('on');if(d)d.classList.remove('on');}
@@ -8607,6 +8651,7 @@ function restoreFromHash(){const h=readHash();if(!h)return;if(h.date){const inp=
 /* aplica el tema guardado antes del primer render */
 applyTheme(lsGet('bmnava-theme')==='dark'?'dark':'light');
 try{perfApply();perfProbe();}catch(e){}
+try{modalWatchAll();modalWatchBody();}catch(e){}
 
 
 document.getElementById('seg-window').addEventListener('click',e=>{if(e.target.dataset.w){FILTER.window=+e.target.dataset.w;document.querySelectorAll('#seg-window button').forEach(b=>b.classList.toggle('on',b===e.target));renderLoad();}});
