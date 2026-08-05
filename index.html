@@ -4468,6 +4468,11 @@ function medDetailHtml(e){if(!e)return '';
     Ventana: desde la lesión hasta el alta si está cerrado, o abierta si sigue en
     curso, para que se vean también las citas ya agendadas por delante. */
  const citasEp=(window.citasOfPlayer?citasOfPlayer(e.name,e.dk,e.open?null:e.closeDk):[]);
+ /* v221 · Nunca ocultar en silencio: si el jugador tiene citas fuera de la
+    ventana de este episodio, se dice y se ofrece ir a su ficha, en vez de
+    dejar un «sin citas» que parece un fallo. */
+ const citasTot=(window.citasOfPlayer?citasOfPlayer(e.name):[]).length;
+ const citasFuera=Math.max(0,citasTot-citasEp.length);
  const AFC={no:['No afecta','#1ea863'],parcial:['Entrena parcial','#e08a00'],pierde:['Pierde el entreno','#7c9cbf']};
  const hoyDk=medToday();
  const citasHtml='<div class="med-sec">Citas y pruebas'
@@ -4489,7 +4494,8 @@ function medDetailHtml(e){if(!e)return '';
           +(c.link?'<a class="mc-lk" href="'+medEsc(c.link)+'" target="_blank" rel="noopener" title="Ver documento">📎</a>':'')
           +'</div>';
       }).join('')+'</div>'
-    : '<p class="small muted">Sin citas ni pruebas registradas en este episodio.</p>');
+    : '<p class="small muted">Sin citas ni pruebas dentro de este episodio.</p>')
+  +(citasFuera?'<p class="small muted" style="margin-top:6px">'+citasFuera+(citasFuera===1?' cita más':' citas más')+' fuera de las fechas de este episodio · <a onclick="openPlayer(\''+medEsc(e.name)+'\')" style="cursor:pointer;color:var(--accent);font-weight:600">ver ficha del jugador</a></p>':'');
  const notes=(e.notes||[]).slice().sort((a,b)=>b.dk<a.dk?-1:1);
  const notesHtml='<div class="med-sec">Guía semanal <span class="r"><span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">qué hacemos y qué cambia cada semana</span></span></div>'
   +notes.map((n,i)=>{
@@ -8995,11 +9001,13 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
     mostrarlas en la ficha clínica del episodio de readaptación. Se excluye
     «trat» porque los tratamientos ya tienen su propia sección allí. */
  window.citasOfPlayer=function(name,fromDk,toDk){
+   load();                       /* v221 · sin esto, entrar directo a Médico dejaba STATE.medLog vacío */
    return ((STATE.medLog||{})[name]||[])
      .filter(e=>e&&e.dk&&e.type!=='trat'&&(!fromDk||e.dk>=fromDk)&&(!toDk||e.dk<=toDk))
      .slice().sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
  };
  window.citasOfDay=function(dk){
+   load();                       /* idem: el calendario también se abre sin pasar por Médico */
    const out=[];const ML=(STATE.medLog||{});
    Object.keys(ML).forEach(nm=>{(ML[nm]||[]).forEach(e=>{
      if(e&&e.dk===dk&&e.type!=='trat')out.push({name:nm,e:e});
