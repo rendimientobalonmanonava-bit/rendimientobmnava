@@ -6236,8 +6236,21 @@ function renderPlayersGrid(){const box=document.getElementById('players-grid');i
     const forma=r.rank?(tier==='ok'?'Alto':tier==='warn'?'Medio':'Bajo'):'—';
     const ini=name.split(' ').slice(0,2).map(s=>s[0]||'').join('');
     let pst='disp';try{const ev=effectiveStatus(name,dkey(REF()));if(ev&&ev.status)pst=ev.status;}catch(e){}
-    const PBST={baja:['Baja','#e23b32'],noentto:['Tocado','#e08a00']};
-    const pb=PBST[pst];
+    /* v217 · esta rejilla tenía su propia tabla de etiquetas, que traducía
+       «noentto» por la palabra «Tocado» y no contemplaba el resto de estados:
+       quien faltaba por un trámite salía como tocado, y quien estaba con la
+       selección o en una cita no salía marcado de ninguna forma. Ahora la
+       etiqueta sale de PHYSTAT y el color del tipo de motivo, así que cualquier
+       estado nuevo queda cubierto sin tocar esto otra vez. */
+    const pb=(function(){
+      if(!pst||pst==='disp'||pst==='partido')return null;
+      const lab=(PHYSTAT[pst]||{}).lab;if(!lab)return null;
+      const col=pst==='baja'?'#e23b32'
+        :NOAV_FIS_ST.includes(pst)?'#e08a00'
+        :CARE_ST.includes(pst)?'#e08a00'
+        :'#7c9cbf';                         // motivo no físico: neutro, no alarma
+      return [lab,col];
+    })();
     return `<div class="pcard pcard-pro" style="--sv:var(--${p.sev||'ok'})" onclick="openPlayer('${name.replace(/'/g,"\\'")}')">
       ${pb?`<span class="pcp-badge" style="background:${pb[1]}">${pb[0]}</span>`:''}
       <div class="pcp-head">
@@ -6270,7 +6283,9 @@ const PHYSTAT={
   dolor:{lab:'Con dolor',c:'#eab308'},
   trat:{lab:'En tratamiento',c:'var(--warn)'},
   modif:{lab:'Entto. modificado',c:'#0ea5a4'},
-  noentto:{lab:'No entrena',c:'#c2410c'},
+  /* v217 · se nombra el motivo, no solo el hecho: «No entrena» a secas invitaba a
+     usarlo para cualquier ausencia y luego contaba como problema físico. */
+  noentto:{lab:'No entrena · físico',c:'#c2410c'},
   readapt:{lab:'Readaptación en pista',c:'#0ea5e9'},
   baja:{lab:'Baja / lesión',c:'var(--bad)'},
   enfermo:{lab:'Enfermedad',c:'#8e7cc3'},
@@ -6283,6 +6298,7 @@ const PHYSTAT={
      en el mapa de zonas y lo dejaba en el grupo de tocados. Estos dos estados
      dicen que no entrena sin decir que esté tocado. */
   cita:{lab:'Cita médica',c:'#7c9cbf'},
+  tramite:{lab:'Trámite / gestión',c:'#8aa4c8'},
   personal:{lab:'Motivo personal',c:'#9b8ec4'},
   partido:{lab:'Partido',c:'var(--c-ink,#2b3543)'}
 };
@@ -6293,7 +6309,7 @@ const PHYSTAT={
    Se declaran aquí, en ámbito global, porque las usan tanto la evolución semanal
    (evWeeklyAvail) como la vista de Disponibilidad. */
 const NOAV_FIS_ST=['baja','noentto','enfermo'];                     // fuera por lo físico
-const NOFIS_ST=['seleccion','sancion','filial','cita','personal'];  // fuera por otro motivo
+const NOFIS_ST=['seleccion','sancion','filial','cita','tramite','personal']; // fuera por otro motivo
 const NOAV_ST=NOAV_FIS_ST.concat(NOFIS_ST);                         // fuera, sea cual sea
 const CARE_ST=['trat','dolor'];
 // Datos de EJEMPLO (patrón extraído del PDF de la fisio). Sustituibles al vincular la hoja.
@@ -6321,7 +6337,7 @@ function physioEvents(name){const ex=(STATE.physioEx||{})[name]||[];const us=((S
 function physioPoints(name){return physioEvents(name).filter(e=>!e.ep);}
 function physioEpisodes(name){const all=physioEvents(name).filter(e=>e.ep);const closed=new Set(all.filter(e=>e._closesEx).map(e=>e._closesEx));return all.filter(e=>!closed.has(e._id)).map(e=>({...e,fromDate:dkToDate(e.dk),toDate:e.to?dkToDate(e.to):null}));}
 var MED_SEV={};
-function physioSev(s){if(MED_SEV[s]!=null)return MED_SEV[s];return {baja:5,noentto:4,readapt:3,enfermo:3,trat:2,dolor:2,seleccion:1,filial:1,sancion:1,cita:1,personal:1,partido:1,disp:0}[s]||0;}
+function physioSev(s){if(MED_SEV[s]!=null)return MED_SEV[s];return {baja:5,noentto:4,readapt:3,enfermo:3,trat:2,dolor:2,seleccion:1,filial:1,sancion:1,cita:1,tramite:1,personal:1,partido:1,disp:0}[s]||0;}
 function effectiveStatus(name,dk){
   const td=dkey(new Date());
   const eps=physioEpisodes(name).filter(e=>e.dk<=dk&&(e.to?dk<e.to:dk<=td));
@@ -6678,7 +6694,7 @@ function renderAvail(){
   // ---- ESTADO ACTUAL (marcar / alta) ----
   const qbar=`<div class="estado-add">
     <select id="est-player">${roster.map(n=>`<option>${n}</option>`).join('')}</select>
-    <select id="est-status" onchange="availStatusChanged()"><optgroup label="Motivo físico"><option value="dolor">Con dolor</option><option value="trat">En tratamiento</option><option value="noentto">No entrena · físico</option><option value="baja">Baja</option><option value="enfermo">Enfermedad</option></optgroup><optgroup label="No entrena · otro motivo"><option value="cita">Cita médica</option><option value="personal">Motivo personal</option><option value="seleccion">Selección</option><option value="sancion">Sanción</option><option value="filial">2ª Nacional</option></optgroup></select>
+    <select id="est-status" onchange="availStatusChanged()"><optgroup label="Motivo físico"><option value="dolor">Con dolor</option><option value="trat">En tratamiento</option><option value="noentto">No entrena · físico</option><option value="baja">Baja</option><option value="enfermo">Enfermedad</option></optgroup><optgroup label="No entrena · otro motivo"><option value="cita">Cita médica</option><option value="tramite">Trámite / gestión (extranjería, papeleo…)</option><option value="personal">Motivo personal</option><option value="seleccion">Selección</option><option value="sancion">Sanción</option><option value="filial">2ª Nacional</option></optgroup></select>
     <input id="est-zone" placeholder="zona (rodilla, gemelo…)">
     <select id="est-side"><option value="">—</option><option value="I">Izq</option><option value="D">Der</option></select>
     <button class="btn" onclick="availMark()">Marcar</button>
@@ -6725,7 +6741,7 @@ function renderAvail(){
   const planForm=`<div class="plan-form">
     <label class="small muted">Jugador<select id="avail-plan-player">${psel}</select></label>
     <label class="small muted">Fecha<input type="date" id="avail-plan-date" value="${tmrk}"></label>
-    <label class="small muted">Estado<select id="avail-plan-status"><optgroup label="Motivo físico"><option value="noentto">No entrenará · físico</option><option value="baja">Baja</option><option value="trat">Con tratamiento</option><option value="dolor">Con dolor</option></optgroup><optgroup label="No entrena · otro motivo"><option value="cita">Cita médica</option><option value="personal">Motivo personal</option><option value="seleccion">Selección</option><option value="sancion">Sanción</option></optgroup></select></label>
+    <label class="small muted">Estado<select id="avail-plan-status"><optgroup label="Motivo físico"><option value="noentto">No entrenará · físico</option><option value="baja">Baja</option><option value="trat">Con tratamiento</option><option value="dolor">Con dolor</option></optgroup><optgroup label="No entrena · otro motivo"><option value="cita">Cita médica</option><option value="tramite">Trámite / gestión</option><option value="personal">Motivo personal</option><option value="seleccion">Selección</option><option value="sancion">Sanción</option></optgroup></select></label>
     <label class="small muted">Zona/motivo<input id="avail-plan-note" placeholder="rodilla, gestión carga…"></label>
     <div class="wide"><button class="btn ghost" onclick="availAddPlan()">Registrar previsión</button></div></div>`;
   const av=n=>{const real=window.photoFor?photoFor(n):null;return real||(STATE.players[n]&&STATE.players[n].avatar)||window.__AVATAR__||'';};
