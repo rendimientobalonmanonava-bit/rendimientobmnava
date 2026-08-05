@@ -3788,8 +3788,8 @@ function pick(row,keys){const map={};for(const k in row)map[norm(k)]=row[k];
   return undefined;}
 
 /* ===================== INGESTA ===================== */
-function ingestWellness(rows){const v15=x=>{const n=+x;return(n>=1&&n<=5)?n:NaN;};const out=[];for(const r of rows){const name=pick(r,["atleta","jugador","nombre"]);if(!name)continue;const d=parseDate(pick(r,["marca temporal","timestamp","fecha"]));if(!d)continue;const _zona=(pick(r,["zona de dolor","zona"])||"").toString().trim();const _golpe=["si","yes","true","1"].includes(norm(pick(r,["golpe"])));out.push({name:name.toString().trim(),date:d,dk:dkey(d),fatiga:v15(pick(r,["fatiga"])),sueno:v15(pick(r,["sueño","sueno","descanso"])),doms:v15(pick(r,["doms"])),stress:v15(pick(r,["stress","estres"])),mood:v15(pick(r,["mood","animo","ánimo"])),horas_sueno:parseSleep(pick(r,["horas de sueño","horas sueno","horas"])),dolor:(_zona!==""||_golpe),zona:_zona,golpe:_golpe,mdx:canonMDx(pick(r,["ubicacion temporal","match","mdx","md"]))});}return out.filter(x=>!isNaN(x.fatiga));}
-function ingestRPE(rows){const out=[];for(const r of rows){const name=pick(r,["nombre","atleta","jugador"]);if(!name)continue;const d=parseDate(pick(r,["marca temporal","timestamp","fecha"]));if(!d)continue;const rpe=+pick(r,["rpes","rpe","dura o intensa","intensa"]);const dur=+pick(r,["dur sesion","dur sesión","duracion","duración"]);let ua=+pick(r,["ua"]);if(isNaN(ua))ua=rpe*dur;const cont=+pick(r,["nivel de contacto","contacto"]);out.push({name:name.toString().trim(),date:d,dk:dkey(d),pos:pick(r,["posicion","posición"])||"",rpe,dur,ua:isNaN(ua)?0:ua,contacto:isNaN(cont)?null:cont,cal:(isNaN(cont)?ua:ua*(CONFIG.contactFactor[cont]||1)),tipo:pick(r,["sesion tipo","sesión tipo","que sesion","has realizado","tipo"])||"Sesión",mdx:canonMDx(pick(r,["match ±","match±","match","mdx"]))});}return out.filter(x=>x.ua>=0&&(x.rpe||x.ua));}
+function ingestWellness(rows){const v15=x=>{const n=+x;return(n>=1&&n<=5)?n:NaN;};const out=[];for(const r of rows){const name=pick(r,["atleta","jugador","nombre"]);if(!name)continue;const _ts=pick(r,["marca temporal","timestamp","fecha"]);const d=parseDate(_ts);if(!d)continue;const _zona=(pick(r,["zona de dolor","zona"])||"").toString().trim();const _golpe=["si","yes","true","1"].includes(norm(pick(r,["golpe"])));out.push({ts:(_ts||'').toString().trim(),name:name.toString().trim(),date:d,dk:dkey(d),fatiga:v15(pick(r,["fatiga"])),sueno:v15(pick(r,["sueño","sueno","descanso"])),doms:v15(pick(r,["doms"])),stress:v15(pick(r,["stress","estres"])),mood:v15(pick(r,["mood","animo","ánimo"])),horas_sueno:parseSleep(pick(r,["horas de sueño","horas sueno","horas"])),dolor:(_zona!==""||_golpe),zona:_zona,golpe:_golpe,mdx:canonMDx(pick(r,["ubicacion temporal","match","mdx","md"]))});}return out.filter(x=>!isNaN(x.fatiga));}
+function ingestRPE(rows){const out=[];for(const r of rows){const name=pick(r,["nombre","atleta","jugador"]);if(!name)continue;const _ts=pick(r,["marca temporal","timestamp","fecha"]);const d=parseDate(_ts);if(!d)continue;const rpe=+pick(r,["rpes","rpe","dura o intensa","intensa"]);const dur=+pick(r,["dur sesion","dur sesión","duracion","duración"]);let ua=+pick(r,["ua"]);if(isNaN(ua))ua=rpe*dur;const cont=+pick(r,["nivel de contacto","contacto"]);out.push({ts:(_ts||'').toString().trim(),name:name.toString().trim(),date:d,dk:dkey(d),pos:pick(r,["posicion","posición"])||"",rpe,dur,ua:isNaN(ua)?0:ua,contacto:isNaN(cont)?null:cont,cal:(isNaN(cont)?ua:ua*(CONFIG.contactFactor[cont]||1)),tipo:pick(r,["sesion tipo","sesión tipo","que sesion","has realizado","tipo"])||"Sesión",mdx:canonMDx(pick(r,["match ±","match±","match","mdx"]))});}return out.filter(x=>x.ua>=0&&(x.rpe||x.ua));}
 /* Ingesta de la hoja de datos básicos de plantilla (Candidato,Fecha Nacimiento,Edad,Dorsal,DNI,Posición,Estado actual,Correo,Teléfono,Estatus club,Notas,Fecha de Llegada).
    Devuelve {nombreCompleto: {campos...}} para fusionar en STATE.info sin pisar datos ricos ya presentes (peso/talla/nac/pasaporte/pos específica). */
 function ingestRoster(rows){
@@ -7228,7 +7228,7 @@ try{
     else vhMsg=' · Valoraciones no leídas';
   }
 }catch(ve){vhMsg=' · Valoraciones no leídas ('+ve.message+')';}
-go('equipo');msg.textContent=`Conectado a tu hoja. Wellness: ${STATE.wellness.length} · RPE: ${STATE.rpe.length} registros. Jugadores: ${Object.keys(STATE.players).length}.${rosterMsg}${vhMsg}`;}catch(e){loadRealTeam();msg.innerHTML=`No se pudo leer la hoja en vivo en este entorno (${e.message}). Suele ser CORS de la vista previa: <b>descarga este archivo y ábrelo en tu navegador</b> (doble clic) para el dato actual de toda la plantilla. Mientras tanto te muestro los datos reales del equipo de pretemporada.`;}}
+go('equipo');msg.textContent=`Conectado a tu hoja. Wellness: ${STATE.wellness.length} · RPE: ${STATE.rpe.length} registros. Jugadores: ${Object.keys(STATE.players).length}.${rosterMsg}${vhMsg} · ${frescuraTxt()}`;}catch(e){loadRealTeam();msg.innerHTML=`No se pudo leer la hoja en vivo en este entorno (${e.message}). Suele ser CORS de la vista previa: <b>descarga este archivo y ábrelo en tu navegador</b> (doble clic) para el dato actual de toda la plantilla. Mientras tanto te muestro los datos reales del equipo de pretemporada.`;}}
 
 /* ============================================================
    RF · Botón de actualización (v204)
@@ -7278,6 +7278,24 @@ function syInvalidateAppCaches(){
   if(window.lbResetBias)lbResetBias();
   try{hrLoadSaved();}catch(e){}
 }
+/* v223 · Saber si lo que se acaba de leer incluye el último envío. La app leía
+   la fecha pero descartaba la hora, así que era imposible distinguir «Google
+   todavía no ha publicado la respuesta» de «la app no la está leyendo». Ahora se
+   informa de la marca temporal del registro más reciente de cada hoja. */
+function ultimoRegistro(arr){
+  let mejor=null;
+  (arr||[]).forEach(x=>{
+    if(!x||!x.date)return;
+    if(!mejor||x.date>mejor.date||(x.date.getTime()===mejor.date.getTime()&&(x.ts||'')>(mejor.ts||'')))mejor=x;
+  });
+  return mejor;
+}
+function frescuraTxt(){
+  const w=ultimoRegistro(STATE.wellness),r=ultimoRegistro(STATE.rpe);
+  const f=x=>x?(x.ts||dkey(x.date)):'—';
+  return 'último wellness: '+f(w)+' · último RPE: '+f(r);
+}
+window.frescuraTxt=frescuraTxt;
 window.refreshAll=async function(){
   const b=document.getElementById('rf-btn');
   if(b&&b.disabled)return;
@@ -7304,7 +7322,7 @@ window.refreshAll=async function(){
      vista), para que lo reci\u00e9n sincronizado se vea sin tener que navegar. */
   try{if(vista)go(vista);}catch(e){}
   try{localStorage.setItem(RF_LS,String(Date.now()));}catch(e){}
-  if(ok){rfSet('ok','Actualizado');if(window.toast)toast('Datos actualizados \u00b7 '+msgTxt+syTxt);}
+  if(ok){rfSet('ok','Actualizado');if(window.toast)toast('Datos actualizados \u00b7 '+msgTxt+syTxt+' \u00b7 '+frescuraTxt());}
   else{rfSet('err','Sin conexi\u00f3n');if(window.toast)toast('No se pudieron leer las hojas: '+msgTxt);}
 };
 
