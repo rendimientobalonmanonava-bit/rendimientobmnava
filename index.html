@@ -7119,7 +7119,11 @@ function exportNodePNG(id,filename){
   if(!window.html2canvas){alert('El exportador no está disponible en este entorno (sin conexión). Alternativa: Imprimir → Guardar como PDF.');return;}
   html2canvas(el,{scale:2,useCORS:true,backgroundColor:cssVar('--bg')||'#ffffff',logging:false,
     onclone:(doc)=>{try{const c=doc.getElementById(id);if(!c)return;
-      c.querySelectorAll('img').forEach(im=>{const s=im.getAttribute('src')||'';if(!s||s==='about:blank')im.remove();});
+      /* v222 · El emparejado original↔copia es por índice, así que la copia debe
+         tener exactamente la misma estructura mientras se copian los estilos. Antes
+         se borraban aquí las imágenes sin foto: a partir de la primera borrada todo
+         se desplazaba una posición y cada elemento heredaba el color de otro, que es
+         lo que rompía el PNG de media tabla para abajo. Ahora se borran al final. */
       const _cv=document.createElement('canvas');_cv.width=_cv.height=1;const _cx=_cv.getContext('2d');
       const MOD=/\b(color|oklch|oklab|lab|lch|hwb|color-mix)\(/;
       const toRGB=(col)=>{if(!col||!MOD.test(col))return col;try{_cx.fillStyle='#000';_cx.fillStyle=col;_cx.fillRect(0,0,1,1);const d=_cx.getImageData(0,0,1,1).data;return 'rgba('+d[0]+','+d[1]+','+d[2]+','+(d[3]/255)+')';}catch(_){return col;}};
@@ -7134,7 +7138,12 @@ function exportNodePNG(id,filename){
         ['border-top-color','border-right-color','border-bottom-color','border-left-color'].forEach(p=>d.style.setProperty(p,toRGB(cs.getPropertyValue(p)),'important'));
         if(cs.fill&&MOD.test(cs.fill))d.style.setProperty('fill',toRGB(cs.fill),'important');
         if(cs.stroke&&MOD.test(cs.stroke))d.style.setProperty('stroke',toRGB(cs.stroke),'important');};
-      ap(el,c);for(let i=0;i<src.length&&i<cl.length;i++)ap(src[i],cl[i]);
+      ap(el,c);
+      const n=Math.min(src.length,cl.length);
+      for(let i=0;i<n;i++)ap(src[i],cl[i]);
+      /* ya copiados los estilos, se pueden quitar las imágenes vacías sin
+         descuadrar nada */
+      c.querySelectorAll('img').forEach(im=>{const v=im.getAttribute('src')||'';if(!v||v==='about:blank')im.remove();});
     }catch(e){}}
   }).then(cv=>{const a=document.createElement('a');a.download=filename;a.href=cv.toDataURL('image/png');a.click();})
    .catch(e=>{alert('No se pudo generar el PNG ('+((e&&e.message)||e)+'). Como alternativa, usa Imprimir → Guardar como PDF.');});
@@ -7562,7 +7571,7 @@ function seedHR(force){
   };
   const media=mk(2026,5,29,"Entrenamiento técnico-táctico · 29/05",[0.35,0.30,0.22,0.11,0.02],62,64,84,520);
   const alta=mk(2026,5,28,"Partido amistoso · 28/05",[0.23,0.28,0.26,0.17,0.06],60,72,93,650);
-  STATE.hr=[...rReal,...media.recs,...alta.recs];
+  STATE.hr=(window.hrDedupe?hrDedupe([...rReal,...media.recs,...alta.recs]):[...rReal,...media.recs,...alta.recs]);
   /* v200 · lo que el staff haya importado de Polar se restaura encima de los
      registros de ejemplo, para que no se pierda al recargar la página. */
   try{hrLoadSaved();}catch(e){}
@@ -7787,7 +7796,7 @@ function importHR(){
     recs.push({name:c[0],date:d,dk,session:lab,hrAvg:Math.round(num(c[1])),hrMax:Math.round(num(c[2])),kcal:Math.round(num(c[3])),z,dur:z.reduce((x,y)=>x+y,0)/60});});
   if(!recs.length){msg.textContent='No pude leer filas. Revisa el formato (Nombre; media; max; kcal; z1..z5).';return;}
   const key=dk+'|'+lab;recs.forEach(r=>r.manual=true);
-  STATE.hr=STATE.hr.filter(x=>hrKey(x)!==key).concat(recs);
+  STATE.hr=hrDedupe(STATE.hr.filter(x=>hrKey(x)!==key).concat(recs));
   const okp=hrPersist();
   msg.textContent=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp?' · guardado':'')+'.';
   document.getElementById('hr-paste').value='';renderHR();
@@ -7827,6 +7836,7 @@ function hrLoadSaved(){
     STATE.hr=STATE.hr.filter(x=>!(hrKey(x)===k&&x.name===rec.name));
     STATE.hr.push(rec);n++;
   });
+  if(window.hrDedupe)STATE.hr=hrDedupe(STATE.hr);
   return n;
 }
 window.hrPersist=hrPersist;window.hrLoadSaved=hrLoadSaved;
@@ -7840,7 +7850,7 @@ function importHRGrid(){const dval=document.getElementById('hr-date').value;cons
   const recs=[];Object.keys(map).forEach(n=>{const m=map[n];const hasZone=['z0','z1','z2','z3','z4'].some(k=>m[k]>0);if(!(m.hrAvg||hasZone))return;const z=['z0','z1','z2','z3','z4'].map(k=>(m[k]||0)*60);recs.push({name:n,date:d,dk,session:lab,hrAvg:Math.round(m.hrAvg||0),hrMax:Math.round(m.hrMax||0),kcal:Math.round(m.kcal||0),z,dur:z.reduce((x,y)=>x+y,0)/60});});
   if(!recs.length){msg.textContent='Rellena al menos un jugador (FC media o minutos en zonas).';return;}
   const key=dk+'|'+lab;recs.forEach(r=>r.manual=true);
-  STATE.hr=STATE.hr.filter(x=>hrKey(x)!==key).concat(recs);
+  STATE.hr=hrDedupe(STATE.hr.filter(x=>hrKey(x)!==key).concat(recs));
   const okp2=hrPersist();
   msg.textContent=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp2?' · guardado':'')+'.';renderHR();}
 /* ===================== CARGA INTEGRADA (interna × externa) ===================== */
@@ -8884,6 +8894,26 @@ function histBuild(){
   const hr=HIST_HR.map(a=>{const z=[a[5],a[6],a[7],a[8],a[9]];return{name:a[1],date:dOf(a[0]),dk:a[0],session:'Temporada 25/26',hrAvg:a[2],hrMax:a[3],kcal:a[4],z:z,dur:z.reduce((x,y)=>x+y,0)/60,hist:true};});
   HIST_CACHE={w:w,r:r,hr:hr};return HIST_CACHE;
 }
+/* v222 · Un jugador no puede tener dos lecturas de pulsómetro en la misma
+   sesión: si aparecen, la vista «Sesión vs perfil individual» pinta una fila por
+   cada una (se vieron tres filas idénticas del mismo jugador) y además el
+   histórico con el que se calcula su percentil queda inflado. En vez de tapar el
+   síntoma al pintar, se garantiza la invariante al ensamblar los datos: se
+   deduplica por día + sesión + jugador, dando prioridad a lo que ha cargado el
+   staff (manual) sobre lo simulado o histórico. */
+function hrDedupe(arr){
+  const seen=new Map();
+  (arr||[]).forEach(r=>{
+    if(!r||!r.name)return;
+    const k=(r.dk||'')+'|'+(r.session||'Sesión')+'|'+r.name;
+    const prev=seen.get(k);
+    if(!prev){seen.set(k,r);return;}
+    const score=x=>(x.manual?2:0)+(x.hist?0:1);   // manual > actual > histórico
+    if(score(r)>score(prev))seen.set(k,r);
+  });
+  return [...seen.values()];
+}
+window.hrDedupe=hrDedupe;
 function applyHist(){
   try{
     const h=histBuild();
@@ -8894,9 +8924,13 @@ function applyHist(){
     const wk=new Set(STATE.wellness.map(x=>x.dk+'|'+x.name));
     const rk=new Set(STATE.rpe.map(x=>x.dk+'|'+x.name+'|'+x.tipo));
     const hk=new Set(STATE.hr.map(x=>x.dk+'|'+x.name));
-    STATE.wellness=h.w.filter(x=>!wk.has(x.dk+'|'+x.name)).concat(STATE.wellness);
-    STATE.rpe=h.r.filter(x=>!rk.has(x.dk+'|'+x.name+'|'+x.tipo)).concat(STATE.rpe);
-    STATE.hr=h.hr.filter(x=>!hk.has(x.dk+'|'+x.name)).concat(STATE.hr);
+    /* El alias de nombres (p. ej. Marquinhos → Marcos Da Silva) se aplicaba solo
+       a los registros actuales, no a los históricos, así que el mismo jugador
+       quedaba partido en dos entradas con historiales distintos. */
+    const fixH=x=>(HIST_ALIAS[x.name]?{...x,name:HIST_ALIAS[x.name]}:x);
+    STATE.wellness=h.w.map(fixH).filter(x=>!wk.has(x.dk+'|'+x.name)).concat(STATE.wellness);
+    STATE.rpe=h.r.map(fixH).filter(x=>!rk.has(x.dk+'|'+x.name+'|'+x.tipo)).concat(STATE.rpe);
+    STATE.hr=hrDedupe(h.hr.map(fixH).filter(x=>!hk.has(x.dk+'|'+x.name)).concat(STATE.hr));
   }catch(e){console.error('applyHist',e);}
 }
 
