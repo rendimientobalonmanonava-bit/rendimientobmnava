@@ -3771,6 +3771,12 @@ const CONFIG = {
        falta para que el ACWR entre en el readiness.
        Las ventanas 7/21 y las alfas EWMA NO se tocan. */
     gapReset:14, minBlockDays:28},
+  /* v225 · Peso de cada posición en la MEDIA GRUPAL de contacto del cuestionario.
+     El portero no compite por el contacto que mide esta escala, así que queda
+     fuera (peso 0), y el extremo recibe menos contacto que pivote y primera
+     línea. Ojo: esto NO es contactFactor —que sigue bloqueado y convierte el
+     contacto en carga—, solo pondera la media del equipo. */
+  contactPosW:{'Portero':0,'Extremo':0.5,'1ª Línea':1,'Pivote':1},
   loadContext:{highRatio:1.3, lowRatio:0.5, modHigh:0.70, modLow:1.15, modRest:1.25, minDays:3},
   contactFactor:{1:1.00,2:1.05,3:1.10,4:1.20,5:1.30},
   wellnessVars:{
@@ -4000,6 +4006,28 @@ function posGroup(pos){
   return k;
 }
 /* Etiqueta de subdivisión (extremo izq./der., lateral izq./der., central…) para mostrar el detalle. */
+/* v225 · Peso de un jugador en la media grupal de contacto. Se prefiere la
+   posición ya normalizada en STATE.players; si no está, se normaliza la del
+   propio registro. Sin posición reconocida, cuenta como 1 para no perder el dato. */
+function contactWeightOf(name,posRaw){
+  const p=(STATE.players||{})[name];
+  let g=p&&p.pos?p.pos:'';
+  if(!g&&posRaw)g=posGroup(posRaw);
+  const W=CONFIG.contactPosW||{};
+  return (W[g]!=null)?W[g]:1;
+}
+/* Media de contacto ponderada por posición sobre registros de RPE. */
+function meanContactoPos(recs){
+  let sw=0,sv=0;
+  (recs||[]).forEach(x=>{
+    if(!x||x.contacto==null||isNaN(x.contacto))return;
+    const w=contactWeightOf(x.name,x.pos);
+    if(!(w>0))return;                 // porteros fuera
+    sw+=w;sv+=x.contacto*w;
+  });
+  return sw>0?sv/sw:NaN;
+}
+window.contactWeightOf=contactWeightOf;window.meanContactoPos=meanContactoPos;
 function posDetailOf(name){
   try{
     const code=rosterPos(name);
@@ -5375,8 +5403,8 @@ function renderCargaResumen(){
   const teamA=mean(ps.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
   const monoM=mean(ps.map(p=>{const wk=weekly(p.name,'ua',REF());return wk.length?wk[wk.length-1].mono:NaN;}).filter(x=>!isNaN(x)));
   const rdyM=mean(ps.map(p=>p.readiness).filter(x=>x!=null));
-  const conts=STATE.rpe.filter(x=>x.contacto!=null).map(x=>x.contacto);
-  const meanC=conts.length?mean(conts):NaN;const clab=isNaN(meanC)?'—':(meanC>=2.5?'Alto':meanC>=1.5?'Medio':'Bajo');
+  /* v225 · media ponderada por posición: porteros fuera, extremos al 0,5 */
+  const meanC=meanContactoPos(STATE.rpe);const clab=isNaN(meanC)?'—':(meanC>=2.5?'Alto':meanC>=1.5?'Medio':'Bajo');
   const acwrs=ps.map(p=>p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null).filter(x=>x!=null);
   const zlow=acwrs.filter(r=>r<0.8).length,zopt=acwrs.filter(r=>r>=0.8&&r<=1.3).length,zhigh=acwrs.filter(r=>r>1.3&&r<1.5).length,zrisk=acwrs.filter(r=>r>=1.5).length;
   const seg=(n,c,lab)=>n?`<span style="flex:${n};background:${c}" title="${lab}: ${n}">${n}</span>`:'';
@@ -7257,7 +7285,7 @@ function renderAll(){applyHist();
   const dks=[...new Set([...STATE.wellness.map(x=>x.dk),...STATE.rpe.map(x=>x.dk)])].sort();
   if(dks.length){const a=dks[dks.length-1].split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);}
   buildPlayers();buildTests();buildPhysio();syncDatePicker();renderDayCtx();renderTeam();renderPosBand();renderAlerts();
-  document.getElementById('cfg-dump').innerHTML=`Ventana aguda/crónica: ${CONFIG.load.acute}/${CONFIG.load.chronic} d · ACWR coupled · EWMA α ${CONFIG.load.ewmaAcute}/${CONFIG.load.ewmaChronic} · z amarillo/rojo: ±${CONFIG.z.yellow}/±${CONFIG.z.red} · mín. registros z: ${CONFIG.z.minRecords} · z contextual MDx ≥${CONFIG.z.minContext} · factor contacto: ${Object.entries(CONFIG.contactFactor).map(([k,v])=>k+'→'+v).join(', ')}`;
+  document.getElementById('cfg-dump').innerHTML=`Ventana aguda/crónica: ${CONFIG.load.acute}/${CONFIG.load.chronic} d · ACWR coupled · EWMA α ${CONFIG.load.ewmaAcute}/${CONFIG.load.ewmaChronic} · z amarillo/rojo: ±${CONFIG.z.yellow}/±${CONFIG.z.red} · mín. registros z: ${CONFIG.z.minRecords} · z contextual MDx ≥${CONFIG.z.minContext} · factor contacto: ${Object.entries(CONFIG.contactFactor).map(([k,v])=>k+'→'+v).join(', ')} · peso posición en media de contacto: ${Object.entries(CONFIG.contactPosW||{}).map(([k,v])=>k+'→'+v).join(', ')}`;
   document.getElementById('src-dot').className="dot "+(STATE.mode||"");
   document.getElementById('src-txt').textContent=STATE.mode==="demo"?"MODO DEMO":STATE.mode==="live"?"DATOS REALES":"sin datos";}
 
@@ -7499,9 +7527,20 @@ function pctZones(rows){const p=rows.map(r=>{const t=r.z.reduce((a,b)=>a+b,0)||1
 function sessMeta(key,dk){
   if(STATE.hrMeta&&STATE.hrMeta[key])return STATE.hrMeta[key];
   const rp=STATE.rpe.filter(x=>x.dk===dk);if(!rp.length)return null;
-  const byp={};rp.forEach(x=>{const o=byp[x.name]=byp[x.name]||{ua:0,rpe:[],c:[]};o.ua+=x.ua||0;if(x.rpe)o.rpe.push(x.rpe);if(x.contacto)o.c.push(x.contacto);});
+  const byp={};rp.forEach(x=>{const o=byp[x.name]=byp[x.name]||{name:x.name,pos:x.pos,ua:0,rpe:[],c:[]};o.ua+=x.ua||0;if(x.rpe)o.rpe.push(x.rpe);if(x.contacto)o.c.push(x.contacto);});
   const arr=Object.values(byp);const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
-  return {ua:mean(arr.map(a=>a.ua)),rpe:mean(arr.flatMap(a=>a.rpe)),contacto:mean(arr.flatMap(a=>a.c))};
+  /* v225 · el contacto medio de la sesión sigue el mismo criterio que el
+     indicador de Cargas: portero fuera, extremo al 0,5. Se pondera entre
+     jugadores, no entre registros, para que quien rellena dos cuestionarios el
+     mismo día no pese el doble. */
+  let sw=0,sv=0;
+  arr.forEach(a=>{
+    if(!a.c.length)return;
+    const w=(window.contactWeightOf?contactWeightOf(a.name,a.pos):1);
+    if(!(w>0))return;
+    sw+=w;sv+=(a.c.reduce((x,y)=>x+y,0)/a.c.length)*w;
+  });
+  return {ua:mean(arr.map(a=>a.ua)),rpe:mean(arr.flatMap(a=>a.rpe)),contacto:sw>0?sv/sw:null};
 }
 /* v200 · El nivel sale de TODOS los criterios, no solo de las zonas.
    Antes se devolvía `zoneLevel` sin más: la interfaz decía "se confirma con ≥1
