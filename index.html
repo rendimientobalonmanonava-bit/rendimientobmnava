@@ -1232,6 +1232,9 @@ body.sb-min .sb-ver{display:none}
 .ag-lk:hover{opacity:1}
 .ag-empty{color:var(--muted);font-size:12.5px;padding:26px 4px;text-align:center}
 @media(max-width:560px){.ag-head{flex-wrap:wrap}.ag-head h2{flex-basis:100%}.ag-row{flex-wrap:wrap;gap:6px}.ag-tx{flex-basis:100%;white-space:normal;padding-left:52px}}
+/* v224 · ACWR sin volumen acumulado: se ve, pero apagado */
+.ath-dim{opacity:.55}
+.ath-dim:hover{opacity:.85}
 .med-cita-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .med-cita{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--hair);
   border-left:3px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12px}
@@ -3757,7 +3760,17 @@ const CONFIG = {
        defecto para que todo el staff cargue la misma hoja sin pegarla cada uno. */
     valoraciones:"https://docs.google.com/spreadsheets/d/e/2PACX-1vRSWhzaEbjIs5-_PC_1YCsmUyDJ-Gjechwx8XYn6Q7oalAaqInfRLJZodjUftFTDja4ZM0DPvfGKMFy/pub?gid=587880081&single=true&output=csv"},
   z:{yellow:0.8, red:1.6, minRecords:14, minContext:6},
-  load:{acute:7, chronic:21, acwrYellowHi:1.3, acwrRedHi:1.5, acwrYellowLo:0.8, ewmaAcute:0.25, ewmaChronic:0.0909, monoHi:1.5, weekJump:0.15},
+  load:{acute:7, chronic:21, acwrYellowHi:1.3, acwrRedHi:1.5, acwrYellowLo:0.8, ewmaAcute:0.25, ewmaChronic:0.0909, monoHi:1.5, weekJump:0.15,
+    /* v224 · El ACWR no vale nada sin volumen acumulado detrás. Tras un parón
+       (verano, lesión larga) la ventana crónica se llena de ceros: el denominador
+       se hunde y el ratio se dispara aunque el jugador esté entrenando poco. Le
+       pasaba a Roca y Carrión, los dos con más histórico, porque su serie arrancaba
+       en febrero y pasaba de sobra el filtro anterior de 11 días.
+       gapReset: días seguidos sin carga que se consideran un parón y reinician el
+       cómputo · minBlockDays: días de carga acumulada del bloque nuevo que hacen
+       falta para que el ACWR entre en el readiness.
+       Las ventanas 7/21 y las alfas EWMA NO se tocan. */
+    gapReset:14, minBlockDays:28},
   loadContext:{highRatio:1.3, lowRatio:0.5, modHigh:0.70, modLow:1.15, modRest:1.25, minDays:3},
   contactFactor:{1:1.00,2:1.05,3:1.10,4:1.20,5:1.30},
   wellnessVars:{
@@ -3847,7 +3860,31 @@ function applyRosterLive(rosterObj){
 function REF(){return STATE.refDate||lastDate();}
 function modeOf(arr){const c={};let best=null,bn=0;arr.forEach(x=>{c[x]=(c[x]||0)+1;if(c[x]>bn){bn=c[x];best=x;}});return best;}
 function contDailyTo(name,ref){const ag=dailyAgg(name).filter(a=>a.date<=ref);if(!ag.length)return[];const start=ag[0].date,map={};ag.forEach(a=>map[a.dk]=a);const out=[];for(let dd=new Date(start);dd<=ref;dd.setDate(dd.getDate()+1)){const k=dkey(dd);out.push({date:new Date(dd),dk:k,ua:map[k]?map[k].ua:0,cal:map[k]?map[k].cal:0});}return out;}
-function acwrToDate(name,ref,field="ua"){const cont=contDailyTo(name,ref);if(!cont.length)return{ratio:NaN,acute:NaN,chronic:NaN,ewma:NaN,rel:false};const idx=cont.length-1;const r=acwrAt(cont,idx,field);let ea=0,ec=0;for(let k=0;k<=idx;k++){ea=cont[k][field]*CONFIG.load.ewmaAcute+ea*(1-CONFIG.load.ewmaAcute);ec=cont[k][field]*CONFIG.load.ewmaChronic+ec*(1-CONFIG.load.ewmaChronic);}return{ratio:r.ratio,acute:r.acute,chronic:r.chronic,ewma:ec>0?ea/ec:NaN,rel:cont.length>=CONFIG.load.chronic*0.5};}
+/* v224 · Índice donde empieza el bloque de carga vigente: el primer día con carga
+   tras el último parón de gapReset días o más. Todo lo anterior pertenece a otra
+   etapa y no debe alimentar la crónica de hoy. */
+function loadBlockFrom(cont,field){
+  const f=field||'ua';const G=CONFIG.load.gapReset||14;
+  let gap=0,start=0;
+  for(let i=0;i<cont.length;i++){
+    if((cont[i][f]||0)>0){if(gap>=G)start=i;gap=0;}
+    else gap++;
+  }
+  return start;
+}
+function acwrToDate(name,ref,field="ua"){
+  const full=contDailyTo(name,ref);
+  if(!full.length)return{ratio:NaN,acute:NaN,chronic:NaN,ewma:NaN,rel:false,dias:0,minDias:CONFIG.load.minBlockDays};
+  /* La EWMA se recalcula desde el inicio del bloque, no desde el primer registro
+     histórico del jugador: así la crónica refleja lo acumulado de verdad. */
+  const cont=full.slice(loadBlockFrom(full,field));
+  const idx=cont.length-1;const r=acwrAt(cont,idx,field);
+  let ea=0,ec=0;
+  for(let k=0;k<=idx;k++){ea=cont[k][field]*CONFIG.load.ewmaAcute+ea*(1-CONFIG.load.ewmaAcute);ec=cont[k][field]*CONFIG.load.ewmaChronic+ec*(1-CONFIG.load.ewmaChronic);}
+  const dias=cont.length,minD=CONFIG.load.minBlockDays;
+  return{ratio:r.ratio,acute:r.acute,chronic:r.chronic,ewma:ec>0?ea/ec:NaN,
+         rel:dias>=minD,dias,minDias:minD};
+}
 function dayContext(ref){const k=dkey(ref);const wT=STATE.wellness.filter(x=>x.dk===k);const rT=STATE.rpe.filter(x=>x.dk===k);const mdxs=[...wT.map(x=>x.mdx),...rT.map(x=>x.mdx)].filter(m=>m&&m!=="—");const mode=modeOf(mdxs)||"—";const isMatch=mode==="MD"||rT.some(s=>norm(s.tipo).includes("partido"));return{dk:k,mdx:mode,isMatch,trained:rT.length>0,nWell:wT.length,nSes:rT.length};}
 function fmtDayLabel(dk){const a=dk.split('-').map(Number);const dt=new Date(a[0],a[1]-1,a[2]);const wd=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][dt.getDay()];const c=dayContext(dt);return `${a[2]}/${a[1]} (${wd})`+(c.mdx!=='—'?' · '+c.mdx:'')+(c.isMatch?' ★':'');}
 /* ===================== FILTRO DE PLANTILLA ACTUAL (26/27) =====================
@@ -4061,7 +4098,7 @@ function buildPlayers(){
     const histAll=last?wAll.filter(x=>x!==last):wAll;
     const ser=acwrToDate(name,ref);
     const p={name,pos,last,stale,w:wAll,z:{},readiness:null,factors:[],mdx:last?last.mdx:"—"};
-    p.acwr={ratio:ser.ratio,acute:ser.acute,ewma:ser.ewma,rel:ser.rel};
+    p.acwr={ratio:ser.ratio,acute:ser.acute,ewma:ser.ewma,rel:ser.rel,dias:ser.dias,minDias:ser.minDias};
     p.load14=sum(contDailyTo(name,ref).slice(-14).map(d=>d.ua));
     if(last){
       let Pw=0,Pd=0,Pa=0,reds=0,factors=[];
@@ -5257,14 +5294,23 @@ function buildCargaRanking(){const box=document.getElementById('carga-ranking');
     </tr>`;}).join('');
   box.innerHTML=`<table class="rktbl"><thead><tr><th>Jugador</th><th>Readiness</th><th>Carga aguda</th><th>ACWR</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
-function buildAcwrFichas(){const box=document.getElementById('acwr-fichas');if(!box)return;const ps=Object.values(STATE.players).filter(p=>p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio)).sort((a,b)=>b.acwr.ratio-a.acwr.ratio);
+function buildAcwrFichas(){const box=document.getElementById('acwr-fichas');if(!box)return;
+  /* v224 · Los jugadores sin volumen acumulado ya no desaparecen de la vista: se
+     muestran al final, apagados y diciendo cuántos días llevan, para que se vea
+     que el dato existe pero todavía no cuenta. */
+  const ps=Object.values(STATE.players).filter(p=>p.acwr&&!isNaN(p.acwr.ratio))
+    .sort((a,b)=>(b.acwr.rel?1:0)-(a.acwr.rel?1:0)||b.acwr.ratio-a.acwr.ratio);
   if(!ps.length){box.innerHTML='<p class="hint">Sin datos de ACWR suficientes.</p>';return;}
   /* v214 · misma foto sin fondo que "A vigilar y destacados" en Resumen
      (teamRingItem): con foto real, el recorte circular se pinta por encima
      del anillo en vez de dentro de una caja con fondo oscuro. */
-  box.innerHTML=ps.map(p=>{const v=p.acwr.ratio;const z=acwrZone(v);const pct=Math.min(100,v/2*100);
+  box.innerHTML=ps.map(p=>{const v=p.acwr.ratio;const fiable=!!p.acwr.rel;
+    const z=fiable?acwrZone(v):{c:'#9aa3ae',t:'Sin volumen'};
+    const pct=Math.min(100,v/2*100);
     const real=window.photoFor?photoFor(p.name):null;const ph=real||p.avatar||window.__AVATAR__||'';const isReal=!!real;
-    return `<div class="ath" title="${p.name} · ACWR ${fmt(v,2)}" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')"><div class="ath-ph${isReal?' ath-ph--photo':''}">${ringSVG(pct,z.c,74,5)}<img src="${ph}" class="ath-img${isReal?' ath-img--photo':''}"><span class="ath-rd" style="color:${z.c}">${fmt(v,2)}</span></div><div class="ath-nm">${p.name.split(' ')[0]}</div><div class="ath-pillwrap"><span class="pillT" style="color:${z.c};background:color-mix(in srgb,${z.c} 15%,transparent)"><span class="pillT-dot" style="background:${z.c}"></span>${z.t}</span></div></div>`;}).join('');}
+    const tip=fiable?`${p.name} · ACWR ${fmt(v,2)}`
+      :`${p.name} · ACWR ${fmt(v,2)} · sin volumen acumulado: ${p.acwr.dias||0} de ${p.acwr.minDias||28} días desde la vuelta a entrenar. No cuenta para el readiness.`;
+    return `<div class="ath${fiable?'':' ath-dim'}" title="${tip.replace(/"/g,'&quot;')}" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')"><div class="ath-ph${isReal?' ath-ph--photo':''}">${ringSVG(fiable?pct:0,z.c,74,5)}<img src="${ph}" class="ath-img${isReal?' ath-img--photo':''}"><span class="ath-rd" style="color:${z.c}">${fmt(v,2)}</span></div><div class="ath-nm">${p.name.split(' ')[0]}</div><div class="ath-pillwrap"><span class="pillT" style="color:${z.c};background:color-mix(in srgb,${z.c} 15%,transparent)"><span class="pillT-dot" style="background:${z.c}"></span>${fiable?z.t:`${p.acwr.dias||0}/${p.acwr.minDias||28} d`}</span></div></div>`;}).join('');}
 function renderCorridor(){
   const box=document.getElementById('corridor-tbl');if(!box)return;
   const rows=corridorRows();if(!rows.length){box.innerHTML='<p class="hint">Sin datos de carga suficientes.</p>';return;}
