@@ -1205,6 +1205,33 @@ body.sb-min .sb-ver{display:none}
 .cw-load-row b{font-weight:800;font-variant-numeric:tabular-nums}
 .cw-dev{text-align:center;font-size:11px;font-weight:800;color:var(--vc);background:color-mix(in srgb,var(--vc) 12%,transparent);border-radius:6px;padding:2px 0;margin-top:2px}
 /* v219 · citas y pruebas dentro de la ficha clínica del episodio */
+/* v220 · agenda médica del equipo · lista limpia agrupada por día */
+.ag-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.ag-head h2{margin:0;font-size:17px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ag-x{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:5px 10px;font:inherit;
+  font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;flex:none}
+.ag-x:hover{border-color:var(--accent);color:var(--txt)}
+.ag-seg{display:inline-flex;background:var(--panel2);border:1px solid var(--hair);border-radius:9px;padding:3px;gap:3px;flex:none}
+.ag-seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;cursor:pointer}
+.ag-seg button.on{background:var(--accent);color:#fff}
+.ag-list{display:flex;flex-direction:column;gap:16px;max-height:64vh;overflow:auto}
+.ag-day{display:flex;flex-direction:column;gap:4px}
+.ag-dh{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+  padding-bottom:5px;border-bottom:1px solid var(--hair);margin-bottom:3px}
+.ag-dh.hoy{color:var(--accent)}
+.ag-row{display:flex;align-items:center;gap:10px;padding:8px 4px;font-size:12.5px;cursor:pointer;
+  border-radius:8px;transition:background .12s}
+.ag-row:hover{background:var(--panel2)}
+.ag-h{font-variant-numeric:tabular-nums;font-weight:800;color:var(--muted);min-width:42px;flex:none}
+.ag-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.ag-nm{font-weight:700;white-space:nowrap;flex:none}
+.ag-tx{color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag-af{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border:1px solid;
+  border-radius:999px;padding:1px 7px;white-space:nowrap;flex:none}
+.ag-lk{flex:none;text-decoration:none;font-size:13px;opacity:.7}
+.ag-lk:hover{opacity:1}
+.ag-empty{color:var(--muted);font-size:12.5px;padding:26px 4px;text-align:center}
+@media(max-width:560px){.ag-head{flex-wrap:wrap}.ag-head h2{flex-basis:100%}.ag-row{flex-wrap:wrap;gap:6px}.ag-tx{flex-basis:100%;white-space:normal;padding-left:52px}}
 .med-cita-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .med-cita{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--hair);
   border-left:3px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12px}
@@ -8704,6 +8731,7 @@ function buildHeaderActions(){const host=document.getElementById('hdr-actions');
       <button class="add-item" role="menuitem" onclick="addDataGoConfig()"><span class="ic">🔗</span><span class="tx"><b>Wellness y RPE (hojas)</b><small>Se sincronizan desde Google Sheets · ir a Conexión.</small></span></button>
     </div>
   </div>
+  <button class="iconbtn" id="btn-agenda" title="Agenda médica · citas, revisiones y pruebas" onclick="openMedAgenda()">🩺</button>
   <button class="iconbtn" title="Buscar jugador ( / )" onclick="focusSearch()">🔍<span class="t">Buscar</span></button>
   <button class="iconbtn" title="Imprimir / Guardar PDF" onclick="window.print()">🖨️<span class="t">PDF</span></button>
   <button class="iconbtn" id="btn-settings" title="Ajustes de cálculo ( ⚙ )" onclick="openDrawer()">⚙️<span class="t">Ajustes</span></button>
@@ -9034,14 +9062,67 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
    '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">'+chips+'</div>'+
    '<div class="med-time">'+tl+'</div>';
  };
- window.openMedAgenda=function(){load();const today=dkey(new Date());const rows=[];
-   Object.keys(STATE.medLog||{}).forEach(nm=>{(STATE.medLog[nm]||[]).forEach(e=>{
-     if(e.next&&e.next>=today)rows.push({nm:nm,dk:e.next,t:e.type,title:e.title});
-     else if((e.type==='cita'||e.type==='recon')&&e.dk>=today)rows.push({nm:nm,dk:e.dk,t:e.type,title:e.title});});});
-   rows.sort((a,b)=>a.dk.localeCompare(b.dk));
-   const list=rows.length?rows.map(r=>{const t=TY[r.t]||{l:r.t,c:'#888'};return '<div class="med-it" style="border-left-color:'+t.c+'"><div class="bd"><div class="tt">'+esc(r.nm)+'</div><div class="mt">'+t.l+' \u00b7 '+fmt(r.dk)+(r.title?' \u00b7 '+esc(r.title):'')+'</div></div></div>';}).join(''):'<p class="small muted">No hay citas ni reconocimientos próximos registrados.</p>';
-   document.getElementById('med-modal-body').innerHTML='<h2 style="margin-top:0">Agenda médica del equipo <span class="r"><button class="btn ghost" onclick="closeMedAgenda()">Cerrar \u2715</button></span></h2><p class="small muted" style="margin:2px 0 0">Citas y reconocimientos pendientes o con próxima fecha, ordenados.</p><div class="med-time" style="margin-top:8px">'+list+'</div>';
-   document.getElementById('med-overlay').style.display='flex';};
+ /* v220 · Agenda médica del equipo, accesible desde el 🩺 de la cabecera.
+    La anterior era una lista plana de «próximas» sin hora ni efecto sobre el
+    entrenamiento. Ahora se agrupa por día, con el mismo lenguaje que el resto:
+    quién, a qué hora, dónde y si pierde la sesión. Sin filtros ni adornos: solo
+    un interruptor entre lo que viene y todo el histórico. */
+ var AG_ALL=false;
+ function agRows(){
+   var out=[],ML=(STATE.medLog||{});
+   Object.keys(ML).forEach(function(nm){(ML[nm]||[]).forEach(function(e){
+     if(e&&e.dk&&e.type!=='trat')out.push({nm:nm,e:e});
+   });});
+   return out;
+ }
+ function agDayLab(dk,today){
+   var d=dkToDate(dk),t=dkToDate(today);
+   var diff=Math.round((d-t)/86400000);
+   if(diff===0)return 'Hoy';
+   if(diff===1)return 'Mañana';
+   if(diff===-1)return 'Ayer';
+   var lab=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});
+   return lab.charAt(0).toUpperCase()+lab.slice(1);
+ }
+ window.medAgendaToggle=function(v){AG_ALL=!!v;openMedAgenda();};
+ window.openMedAgenda=function(){
+   load();
+   var today=dkey(new Date());
+   var rows=agRows();
+   var vis=AG_ALL?rows.slice():rows.filter(function(r){return r.e.dk>=today;});
+   vis.sort(function(a,b){
+     var c=String(a.e.dk).localeCompare(String(b.e.dk));
+     if(c)return AG_ALL?-c:c;                       // histórico: lo más reciente arriba
+     return String(a.e.time||'99:99').localeCompare(String(b.e.time||'99:99'));
+   });
+   var pend=rows.filter(function(r){return r.e.dk>=today;}).length;
+   var dias=[],byDia={};
+   vis.forEach(function(r){if(!byDia[r.e.dk]){byDia[r.e.dk]=[];dias.push(r.e.dk);}byDia[r.e.dk].push(r);});
+   var AFA={no:['',''],parcial:['Parcial','#e08a00'],pierde:['Pierde entreno','#7c9cbf']};
+   var lista=dias.length?dias.map(function(dk){
+     var af=byDia[dk];
+     return '<div class="ag-day"><div class="ag-dh'+(dk===today?' hoy':'')+'">'+agDayLab(dk,today)+'</div>'
+       +af.map(function(r){
+         var e=r.e,t=TY[e.type]||{l:e.type,c:'#888'};
+         var a=AFA[e.afecta]||AFA.no;
+         return '<div class="ag-row" onclick="closeMedAgenda();openPlayer(\''+q(r.nm)+'\')">'
+           +'<span class="ag-h">'+(e.time?esc(e.time):'—')+'</span>'
+           +'<span class="ag-dot" style="background:'+t.c+'"></span>'
+           +'<span class="ag-nm">'+esc(r.nm)+'</span>'
+           +'<span class="ag-tx">'+t.l+(e.title?' · '+esc(e.title):'')+(e.who?' · '+esc(e.who):'')+'</span>'
+           +(a[0]?'<span class="ag-af" style="color:'+a[1]+';border-color:'+a[1]+'">'+a[0]+'</span>':'')
+           +(e.link?'<a class="ag-lk" href="'+esc(e.link)+'" target="_blank" rel="noopener" title="Ver documento" onclick="event.stopPropagation()">📎</a>':'')
+           +'</div>';
+       }).join('')+'</div>';
+   }).join(''):'<div class="ag-empty">'+(AG_ALL?'No hay ninguna cita registrada todavía.':'No hay citas próximas. Cambia a «Todas» para ver el histórico.')+'</div>';
+   document.getElementById('med-modal-body').innerHTML=
+     '<div class="ag-head"><h2>🩺 Agenda médica</h2>'
+     +'<div class="ag-seg"><button class="'+(AG_ALL?'':'on')+'" onclick="medAgendaToggle(false)">Próximas'+(pend?' ('+pend+')':'')+'</button>'
+     +'<button class="'+(AG_ALL?'on':'')+'" onclick="medAgendaToggle(true)">Todas</button></div>'
+     +'<button class="ag-x" onclick="closeMedAgenda()" title="Cerrar">✕</button></div>'
+     +'<div class="ag-list">'+lista+'</div>';
+   document.getElementById('med-overlay').style.display='flex';
+ };
  window.closeMedAgenda=function(){document.getElementById('med-overlay').style.display='none';};
  var _ov=document.getElementById('med-overlay');if(_ov)_ov.addEventListener('click',function(e){if(e.target===this)closeMedAgenda();});
 })();
