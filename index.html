@@ -3759,7 +3759,11 @@ const CONFIG = {
        físico, localStorage) tiene prioridad sobre esta; esta es el valor por
        defecto para que todo el staff cargue la misma hoja sin pegarla cada uno. */
     valoraciones:"https://docs.google.com/spreadsheets/d/e/2PACX-1vRSWhzaEbjIs5-_PC_1YCsmUyDJ-Gjechwx8XYn6Q7oalAaqInfRLJZodjUftFTDja4ZM0DPvfGKMFy/pub?gid=587880081&single=true&output=csv"},
-  z:{yellow:0.8, red:1.6, minRecords:14, minContext:6},
+  /* wellnessMaxShare: tope de cuánto puede mandar el wellness sobre el readiness
+     cuando falta el ACWR. Sin él, su 28% se repartía y el wellness subía del 50%
+     al 69%, con lo que en pretemporada el semáforo era casi solo wellness. Con el
+     ACWR presente los pesos W50/A28/R10/D12 quedan EXACTAMENTE igual. */
+  z:{yellow:0.8, red:1.6, minRecords:14, minContext:6, wellnessMaxShare:0.60},
   load:{acute:7, chronic:21, acwrYellowHi:1.3, acwrRedHi:1.5, acwrYellowLo:0.8, ewmaAcute:0.25, ewmaChronic:0.0909, monoHi:1.5, weekJump:0.15,
     /* v224 · El ACWR no vale nada sin volumen acumulado detrás. Tras un parón
        (verano, lesión larga) la ventana crónica se llena de ceros: el denominador
@@ -3779,10 +3783,18 @@ const CONFIG = {
   contactPosW:{'Portero':0,'Extremo':0.5,'1ª Línea':1,'Pivote':1},
   loadContext:{highRatio:1.3, lowRatio:0.5, modHigh:0.70, modLow:1.15, modRest:1.25, minDays:3},
   contactFactor:{1:1.00,2:1.05,3:1.10,4:1.20,5:1.30},
+  /* v226 · SUELO DE DESVIACIÓN. El z divide por la sd del propio jugador, y quien
+     responde casi igual todos los días —que es señal de regularidad, no de nada
+     malo— acaba con una sd diminuta: a Roca, subir el sueño de 2 a 3 (un punto de
+     cinco) le daba z=+2,67 y más de la mitad de la penalización del día. Peor aún,
+     una variable que nunca había variado (sd=0) se descartaba entera, así que el
+     mismo cambio de un punto en ánimo contaba CERO. Con suelo, un punto de cambio
+     vale lo mismo venga de donde venga. Mismo criterio que ya usan las
+     valoraciones físicas (escalado robusto con suelo). */
   wellnessVars:{
-    fatiga:{dir:"high_bad",w:1.3,label:"Fatiga"}, sueno:{dir:"high_bad",w:1.2,label:"Sueño"},
-    doms:{dir:"high_bad",w:1.3,label:"DOMS"}, stress:{dir:"high_bad",w:0.9,label:"Estrés"},
-    mood:{dir:"high_bad",w:0.9,label:"Ánimo"}, horas_sueno:{dir:"low_bad",w:1.0,label:"Horas sueño"}
+    fatiga:{dir:"high_bad",w:1.3,label:"Fatiga",sdMin:0.7}, sueno:{dir:"high_bad",w:1.2,label:"Sueño",sdMin:0.7},
+    doms:{dir:"high_bad",w:1.3,label:"DOMS",sdMin:0.7}, stress:{dir:"high_bad",w:0.9,label:"Estrés",sdMin:0.7},
+    mood:{dir:"high_bad",w:0.9,label:"Ánimo",sdMin:0.7}, horas_sueno:{dir:"low_bad",w:1.0,label:"Horas sueño",sdMin:0.8}
   }
 };
 const STATE={mode:null, wellness:[], rpe:[], hr:[], players:{}, alerts:[]};
@@ -4089,7 +4101,15 @@ function stepDay(delta){const inp=document.getElementById('ref-date');const cur=
 function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)return;const ref=REF();const c=dayContext(ref);const a=c.dk.split('-').map(Number);const wd=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(a[0],a[1]-1,a[2]).getDay()];const matchChip=c.isMatch?'<span class="chip bad">Día de partido</span>':(c.trained?'<span class="chip ok">Entrenamiento</span>':'<span class="chip warn">Descanso · sin sesión</span>');el.innerHTML=`<span class="tag">${wd} ${a[2]}/${a[1]}</span> <span class="chip">${c.mdx}</span> ${matchChip} <span class="muted small">${c.nWell} wellness · ${c.nSes} sesiones</span>`;}
 
 /* ===================== MOTOR ===================== */
-function zIntra(value,history){const h=history.filter(v=>!isNaN(v));const m=mean(h),s=sd(h);if(isNaN(s)||s===0)return{z:NaN,n:h.length,rel:false};return{z:(value-m)/s,n:h.length,rel:h.length>=CONFIG.z.minRecords};}
+function zIntra(value,history,sdMin){
+  const h=history.filter(v=>!isNaN(v));
+  if(!h.length||isNaN(value))return{z:NaN,n:h.length,rel:false};
+  const m=mean(h);let s=sd(h);const piso=sdMin||0;
+  const sReal=isNaN(s)?0:s;
+  if(sReal<piso)s=piso; else s=sReal;
+  if(!(s>0))return{z:NaN,n:h.length,rel:false};
+  return{z:(value-m)/s,n:h.length,rel:h.length>=CONFIG.z.minRecords,sdReal:sReal,sdUsada:s,conSuelo:sReal<piso};
+}
 function penalty(z){if(isNaN(z))return 0;if(z<=CONFIG.z.yellow)return Math.max(0,z*0.15);if(z<=CONFIG.z.red)return 0.12+(z-CONFIG.z.yellow)*0.55;return 0.56+(z-CONFIG.z.red)*1.1;}
 function dailyAgg(name){const s=STATE.rpe.filter(x=>x.name===name);const m={};s.forEach(x=>{if(!m[x.dk])m[x.dk]={dk:x.dk,date:x.date,ua:0,cal:0,n:0};m[x.dk].ua+=x.ua;m[x.dk].cal+=(x.cal||x.ua);m[x.dk].n++;});return Object.values(m).sort((a,b)=>a.date-b.date);}
 function contDaily(name){const ag=dailyAgg(name);if(!ag.length)return[];const start=ag[0].date,end=ag[ag.length-1].date,map={};ag.forEach(a=>map[a.dk]=a);const out=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){const k=dkey(d);out.push({date:new Date(d),dk:k,ua:map[k]?map[k].ua:0,cal:map[k]?map[k].cal:0});}return out;}
@@ -4133,7 +4153,7 @@ function buildPlayers(){
       for(const key in CONFIG.wellnessVars){const cfg=CONFIG.wellnessVars[key];
         let hist=histAll.map(x=>x[key]),ctx=false;
         if(last.mdx&&last.mdx!=="—"){const c=histAll.filter(x=>x.mdx===last.mdx).map(x=>x[key]).filter(v=>!isNaN(v));if(c.length>=CONFIG.z.minContext){hist=c;ctx=true;}}
-        const r=zIntra(last[key],hist);let zS=cfg.dir==="low_bad"?-r.z:r.z;
+        const r=zIntra(last[key],hist,cfg.sdMin);let zS=cfg.dir==="low_bad"?-r.z:r.z;
         const absGood = isNaN(last[key])?true:(cfg.dir==="low_bad"?last[key]>=7:last[key]<=2);
         const aSev = (absGood||isNaN(zS))?null:(zS>CONFIG.z.red?"bad":zS>CONFIG.z.yellow?"warn":null);
         p.z[key]={...r,zSigned:zS,val:last[key],cfg,ctx,alertSev:aSev,absGood};
@@ -4174,12 +4194,25 @@ function buildPlayers(){
       let Rc=null;const lastSes=STATE.rpe.filter(x=>x.name===name&&x.date<=ref).sort((a,b)=>a.date-b.date);
       if(lastSes.length){const rp=lastSes[lastSes.length-1].rpe;if(!isNaN(rp))Rc=clamp(Math.round(100-Math.max(0,rp-5)*12),0,100);}
       const Dc=last.dolor?(last.golpe?30:55):100;
-      const parts=[{w:0.50,v:Wc}];
-      if(Ac!=null)parts.push({w:0.28,v:Ac});
-      if(Rc!=null)parts.push({w:0.10,v:Rc});
-      parts.push({w:0.12,v:Dc});
-      const tw=parts.reduce((s,x)=>s+x.w,0);
-      p.readiness=clamp(Math.round(parts.reduce((s,x)=>s+x.v*x.w,0)/tw),0,100);
+      const wW=0.50;
+      const otros=[];
+      if(Ac!=null)otros.push({k:'acwr',w:0.28,v:Ac});
+      if(Rc!=null)otros.push({k:'rpe',w:0.10,v:Rc});
+      otros.push({k:'dolor',w:0.12,v:Dc});
+      let sumO=otros.reduce((s,x)=>s+x.w,0);
+      /* v226 · Tope al peso del wellness. Al faltar el ACWR su 28% se repartía y el
+         wellness pasaba de mandar el 50% a mandar el 69%: en pretemporada el
+         semáforo era prácticamente solo wellness, y un día regular tirando a malo
+         bastaba para pintar a alguien de rojo. En vez de recortar el wellness se
+         reescala lo presente, que es información real (RPE y dolor).
+         Con el ACWR presente sumO=0.50 > mínimo, así que NO se toca nada y los
+         pesos siguen siendo exactamente W50/A28/R10/D12. */
+      const maxShare=(CONFIG.z.wellnessMaxShare||0.60);
+      const minSumO=wW*(1-maxShare)/maxShare;
+      if(sumO>0&&sumO<minSumO){const k=minSumO/sumO;otros.forEach(x=>x.w*=k);sumO=minSumO;}
+      const tw=wW+sumO;
+      p.readiness=clamp(Math.round((wW*Wc+otros.reduce((s,x)=>s+x.v*x.w,0))/tw),0,100);
+      p.rdShare={wellness:+(wW/tw).toFixed(3),acwrPresente:Ac!=null};
       p.rdComp={wellness:Wc,acwr:Ac,rpe:Rc,dolor:Dc};
       p.factors=factors.sort((a,b)=>b.pen-a.pen).slice(0,6);
       p.sev=p.readiness>=75?"ok":p.readiness>=55?"warn":"bad";
