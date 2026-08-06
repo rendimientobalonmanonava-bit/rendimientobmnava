@@ -2045,11 +2045,9 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div><h2 style="margin:0">Jugadores</h2><div class="small muted">Estado actual · pulsa una ficha para el perfil completo</div></div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <label class="jug-sort"><span>Ordenar</span><select id="jug-sort" onchange="jugSort(this.value)"><option value="nombre">Nombre (A–Z)</option><option value="pos">Posición</option><option value="forma_best">Mejor estado</option><option value="forma_worst">Peor estado</option></select></label>
-        <div class="seg" id="jug-seg"><button class="on" onclick="jugMode('estado',this)">Estado</button><button onclick="jugMode('ficha',this)">Ficha individual</button></div>
       </div>
     </div>
     <div id="players-grid"></div>
-    <div id="players-fichas" style="display:none"></div>
   </section>
 
   <!-- CARGA -->
@@ -6549,12 +6547,12 @@ function sortedPlayerNames(){
   if(JUG_SORT==='forma_worst')return names.sort((a,b)=>{const ra=rd(a),rb=rd(b);if(ra==null&&rb==null)return byName(a,b);if(ra==null)return 1;if(rb==null)return -1;return (ra-rb)||byName(a,b);});
   return names.sort(byName);
 }
-function jugSort(v){JUG_SORT=v;const fi=document.getElementById('players-fichas');if(fi&&fi.style.display!=='none')renderPlayerFichas();else renderPlayersGrid();}
-function jugMode(m,btn){const seg=document.getElementById('jug-seg');if(seg&&btn){[...seg.children].forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
-  const g=document.getElementById('players-grid'),fi=document.getElementById('players-fichas');
-  if(m==='ficha'){if(g)g.style.display='none';if(fi){fi.style.display='grid';renderPlayerFichas();}}
-  else{if(fi)fi.style.display='none';if(g){g.style.display='';renderPlayersGrid();}}
-}
+function jugSort(v){JUG_SORT=v;renderPlayersGrid();}
+/* v227 · renderPlayerFichas() y su interruptor Estado/Ficha individual
+   desaparecieron de la rejilla: los datos que mostraba ("Ficha individual")
+   ahora viven dentro de la propia ficha del jugador, en el panel "Datos
+   personales" (renderPlayerPersonal). La función se deja sin borrar por si
+   hiciera falta reutilizar su HTML, pero ya no la llama nada. */
 function renderPlayerFichas(){
   const box=document.getElementById('players-fichas');if(!box)return;infoLoad();
   const names=sortedPlayerNames();
@@ -6595,7 +6593,6 @@ function infoSaveModal(){const mb=document.getElementById('info-mbody');if(!mb)r
   /* v227 · "Datos personales" ahora vive dentro de la ficha del jugador, no
      solo en el modo "Ficha individual" de la rejilla (que desaparece). */
   try{if(window.renderPlayerPersonal&&document.getElementById('pl-personal'))renderPlayerPersonal(name);}catch(e){}
-  try{if(window.renderPlayerFichas&&document.getElementById('players-fichas')&&document.getElementById('players-fichas').style.display!=='none')renderPlayerFichas();}catch(e){}
 }
 function closeInfoEdit(){const ov=document.getElementById('info-overlay');if(ov)ov.style.display='none';}
 
