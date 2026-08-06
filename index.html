@@ -9195,10 +9195,15 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 @media(max-width:860px){.pl-cols{grid-template-columns:1fr}}
 .med-it{display:flex;gap:10px;padding:10px 12px;border:1px solid var(--line);border-left:4px solid;border-radius:10px;background:var(--panel2)}
 .med-it .bd{min-width:0;flex:1}
-.med-it .tt{font-weight:700;font-size:13.5px}
-.med-it .mt{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:pre-wrap}
+.med-it .tt{font-weight:700;font-size:13.5px;margin-top:2px}
+.med-it .mt{font-size:11.5px;color:var(--muted);margin-top:4px;white-space:pre-wrap}
 .med-it .lk a{font-size:12px}
 .med-it .dl{cursor:pointer;color:var(--muted);font-size:14px;flex:0 0 auto;border:none;background:none}
+.med-it .mi-ic{flex:0 0 auto;font-size:16px;line-height:1.2;padding-top:1px}
+.med-it .mi-top{display:flex;align-items:center;gap:8px}
+.med-it .mi-date{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.med-it .mi-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.med-it .mi-chip{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
 .med-chip{font-size:11.5px;padding:4px 11px;border-radius:20px;border:1px solid var(--line);background:var(--panel);cursor:pointer;color:var(--ink)}
 .med-chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .med-form .med-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
@@ -9211,6 +9216,8 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 <script>
 (function(){
  const TY={lesion:{l:'Lesión',c:'#e23b32'},cita:{l:'Cita médica',c:'#2563eb'},recon:{l:'Reconocimiento',c:'#7c3aed'},prueba:{l:'Prueba diagnóstica',c:'#0e7490'},trat:{l:'Tratamiento/fisio',c:'#1ea863'}};
+ const TY_ICON={lesion:'🩹',cita:'📅',recon:'🩺',prueba:'🧪',trat:'👐'};
+ function miDateShort(dk){if(!dk)return '';const a=dk.split('-').map(Number);const m=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][a[1]-1];return a[2]+' '+m;}
  /* v218 · Cómo afecta la cita al entrenamiento de ese día. Una cita por la mañana
     con entreno por la tarde no debe hacer perder la sesión, así que no basta con
     un sí/no. «pierde» va en tono neutro a propósito: es una ausencia prevista,
@@ -9294,12 +9301,16 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
    const chips=['all'].concat(Object.keys(TY)).map(k=>'<button class="med-chip '+(FILT===k?'on':'')+'" onclick="medFilt(\''+q(name)+'\',\''+k+'\')">'+(k==='all'?'Todo':TY[k].l)+(k!=='all'&&cnt[k]?' ('+cnt[k]+')':'')+'</button>').join('');
    const items=arr.filter(e=>FILT==='all'||e.type===FILT);
    const tl=items.length?items.map(e=>{const t=TY[e.type]||{l:e.type,c:'#888'};
-     const meta=[t.l,fmt(e.dk)+(e.time?' · '+esc(e.time)+'h':''),e.who?esc(e.who):'',e.status?esc(e.status):'',e.next?'próxima: '+fmt(e.next):''].filter(Boolean).join(' · ');
+     /* v227 · antes todo el meta (tipo, fecha, quien, estado, proxima) iba en
+        una sola linea unida por «·»: dificil de escanear. Ahora la fecha va
+        destacada arriba y el resto son chips sueltos, con un icono de tipo a
+        la izquierda para identificar de un vistazo sin leer. */
+     const chips=[t.l,e.who?esc(e.who):'',e.status?esc(e.status):'',e.next?'próxima '+fmt(e.next):''].filter(Boolean).map(c=>'<span class="mi-chip">'+c+'</span>').join('');
      /* v218 · si la cita afecta al entrenamiento se dice aquí mismo: es el dato
         que busca el cuerpo técnico al abrir la ficha. */
      const af=AF[e.afecta];
      const afTag=(af&&e.afecta&&e.afecta!=='no')?'<span class="med-af" style="color:'+af.c+';border-color:'+af.c+'">'+af.l+'</span>':'';
-     return '<div class="med-it" style="border-left-color:'+t.c+'"><div class="bd"><div class="tt">'+(esc(e.title)||t.l)+afTag+'</div><div class="mt">'+meta+'</div>'+(e.note?'<div class="mt">'+esc(e.note)+'</div>':'')+(e.link?'<div class="lk"><a href="'+esc(e.link)+'" target="_blank" rel="noopener">Ver documento adjunto \u2197</a></div>':'')+'</div><button class="dl" title="Eliminar" onclick="medDel(\''+q(name)+'\',\''+e.id+'\')">\u2715</button></div>';}).join(''):'<p class="small muted" style="padding:6px 0">Sin registros médicos todavía.</p>';
+     return '<div class="med-it" style="border-left-color:'+t.c+'"><div class="mi-ic" style="color:'+t.c+'">'+(TY_ICON[e.type]||'•')+'</div><div class="bd"><div class="mi-top"><span class="mi-date">'+miDateShort(e.dk)+(e.time?' · '+esc(e.time)+'h':'')+'</span>'+afTag+'</div><div class="tt">'+(esc(e.title)||t.l)+'</div><div class="mi-chips">'+chips+'</div>'+(e.note?'<div class="mt">'+esc(e.note)+'</div>':'')+(e.link?'<div class="lk"><a href="'+esc(e.link)+'" target="_blank" rel="noopener">Ver documento adjunto \u2197</a></div>':'')+'</div><button class="dl" title="Eliminar" onclick="medDel(\''+q(name)+'\',\''+e.id+'\')">\u2715</button></div>';}).join(''):'<p class="small muted" style="padding:6px 0">Sin registros médicos todavía.</p>';
    const today=dkey(new Date());
    box.innerHTML='<h2>Historial médico <span class="r"><button class="btn ghost" onclick="openMedAgenda()">Agenda del equipo</button></span></h2>'+
    '<details class="med-form" style="margin-top:6px"><summary style="cursor:pointer;font-weight:600;font-size:13px">＋ Añadir registro</summary>'+
