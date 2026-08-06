@@ -1039,6 +1039,8 @@ body.sb-min .sb-ver{display:none}
 .fr-tx small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
 .fr-ar{color:var(--muted2);font-size:19px;flex:none}
 /* v215 · resumen médico para el entrenador */
+/* v227 · botón directo de parte del día en el resumen de Médico */
+.mcx-quick{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px dashed var(--hair)}
 .mcx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px;margin-top:12px}
 .mcx-card{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--sem);
   border-radius:13px;padding:13px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
@@ -9384,6 +9386,28 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
      '<label>Alta prevista<input type="date" id="mh-prtp"></label>'+
      '<label style="grid-column:1/3">Tratamiento / nota<input id="mh-pnote"></label></div>'+
      '<div style="margin-top:10px"><button class="btn" onclick="heroSavePart(\''+q(name)+'\')">Guardar</button></div></div>';
+   } else if(type==='incidencia'){
+     /* v227 · Parte del día/incidencia: registro deliberadamente ligero para lo
+        que un jugador comenta en el día a día. Solo dos estados, los dos ya
+        clasificados como "molestia" (CARE_ST) y no como baja: es imposible
+        marcar algo grave desde aquí por error. Sin campo de alta prevista,
+        que es lo que más pesa la sensación de "esto es serio". */
+     /* Sin jugador preseleccionado (botón directo desde el resumen de Médico):
+        se pide aquí mismo, en vez de obligar a pasar por el selector general. */
+     const iNames=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+     const iPl=name?'':('<label>Jugador<select id="mh-iname">'+iNames.map(n=>'<option>'+String(n).replace(/</g,'&lt;')+'</option>').join('')+'</select></label>');
+     h='<h2 style="margin-top:0">Parte del día / incidencia'+(name?' · '+String(name).replace(/</g,'&lt;'):'')+' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'+
+     '<p class="small muted" style="margin:-6px 0 12px">No cambia si entrena hoy. Queda registrado para hacer seguimiento.</p>'+
+     '<div class="ph-f"><div class="ph-grid">'+
+     iPl+
+     '<label>Fecha<input type="date" id="mh-idate" value="'+today()+'"></label>'+
+     '<label>Tipo<select id="mh-istatus"><option value="dolor">Molestia</option><option value="trat">A seguir / en tratamiento</option></select></label>'+
+     '<label>Zona<input id="mh-izone" placeholder="hombro, isquio, rodilla…"></label>'+
+     '<label>Lado<select id="mh-iside"><option value="">—</option><option value="D">Derecho</option><option value="I">Izquierdo</option></select></label>'+
+     '<label>Intensidad (0–10) <span class="muted" style="font-weight:400">opcional</span><input type="number" min="0" max="10" id="mh-ipain"></label>'+
+     '<label></label>'+
+     '<label style="grid-column:1/3">Qué cuenta el jugador<input id="mh-inote" placeholder="molestia en el gemelo al esprintar, nada limitante…"></label></div>'+
+     '<div style="margin-top:10px"><button class="btn" onclick="heroSaveIncidencia(\''+q(name)+'\')">Guardar</button></div></div>';
    } else {h='<h2 style="margin-top:0">Añadir comentario · '+name+' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'+
      '<div class="ph-f"><div class="ph-grid">'+
      '<label>Área<select id="mh-narea"><option>General</option><option>Técnico</option><option>Físico</option><option>Fisio</option></select></label>'+
@@ -9415,6 +9439,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
    +'<label class="fr-pl">Jugador<select id="fr-name">'+opts+'</select></label>'
    +'<div class="fr-list">'
    +item('👐','Tratamiento de hoy','Lo que le has hecho: camilla, ejercicios, electroterapia…','trat')
+   +item('📋','Parte del día / incidencia','Molestias del día a día, sin que falte al entreno.','incidencia')
    +item('🩺','Cómo está hoy','Dolor, no entrena o baja. Marca su disponibilidad.','parte')
    +item('📄','Cita o documento médico','Informe, alta laboral, prueba diagnóstica, próxima cita.','med')
    +item('🩹','Lesión nueva','Abre un episodio con plan de readaptación por fases.','lesion')
@@ -9426,6 +9451,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   var n=(document.getElementById('fr-name')||{}).value||'';
   closeHeroForm();
   if(kind==='trat'){if(window.openMedTreatQuick)openMedTreatQuick(n);return;}
+  if(kind==='incidencia'){openHeroForm('incidencia',n);return;}
   if(kind==='parte'){openHeroForm('parte',n);return;}
   if(kind==='med'){openHeroForm('med',n);return;}
   if(kind==='lesion'){try{if(window.go)go('medico');}catch(e){}if(window.openMedInjury)openMedInjury(n);}
@@ -9450,6 +9476,29 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   try{if(window.renderCalendar)renderCalendar();}catch(e){}
   if(marcado&&window.toast)toast(ev.afecta==='pierde'?'Cita guardada · marcado como no disponible ese día':'Cita guardada · marcado como entrenamiento modificado');};
  window.heroSavePart=function(name){const dk=g('mh-pdate');if(!dk){alert('Indica la fecha.');return;}STATE.physioUser=STATE.physioUser||{};(STATE.physioUser[name]=STATE.physioUser[name]||[]).push({_id:'u_'+Date.now(),dk,status:g('mh-pstatus')||'trat',zone:(g('mh-pzone')||'').trim(),side:g('mh-pside')||'',sev:'',mech:'',pain:(g('mh-ppain')!==''&&g('mh-ppain')!=null)?+g('mh-ppain'):null,rtp:g('mh-prtp')||'',treat:'',note:(g('mh-pnote')||'').trim()});if(window.physioPersist)physioPersist();if(window.renderPlayer)renderPlayer(name);closeHeroForm();};
+ /* v227 · misma mecánica que heroSavePart, pero acotada a los dos estados no
+    graves (dolor/trat) y sin fecha de alta: es un registro de seguimiento, no
+    una baja. Reutiliza STATE.physioUser tal cual, así que ya persiste, ya
+    sincroniza, y ya cuenta bien en Disponibilidad (CARE_ST) sin tocar nada
+    más — solo cambia la puerta de entrada y qué se pregunta. */
+ window.heroSaveIncidencia=function(name){
+  name=name||g('mh-iname');
+  if(!name){alert('Selecciona un jugador.');return;}
+  const dk=g('mh-idate');if(!dk){alert('Indica la fecha.');return;}
+  const st=g('mh-istatus');const status=(st==='trat')?'trat':'dolor';
+  STATE.physioUser=STATE.physioUser||{};
+  (STATE.physioUser[name]=STATE.physioUser[name]||[]).push({
+    _id:'u_'+Date.now(),dk,status,zone:(g('mh-izone')||'').trim(),side:g('mh-iside')||'',
+    sev:'',mech:'',pain:(g('mh-ipain')!==''&&g('mh-ipain')!=null)?+g('mh-ipain'):null,
+    rtp:'',treat:'',note:(g('mh-inote')||'').trim()
+  });
+  if(window.physioPersist)physioPersist();
+  if(window.medRenderPlayer)medRenderPlayer(name);
+  if(window.renderPlayer)renderPlayer(name);
+  closeHeroForm();
+  try{if(window.renderAvail&&document.getElementById('v-estado'))renderAvail();}catch(e){}
+  if(window.toast)toast('Parte del día guardado · '+name);
+ };
  window.heroSaveNote=function(name){const txt=(g('mh-ntext')||'').trim();if(!txt){alert('Escribe un comentario.');return;}STATE.notes=STATE.notes||{};(STATE.notes[name]=STATE.notes[name]||[]).push({date:new Date().toISOString().slice(0,10),area:g('mh-narea')||'General',text:txt});if(window.renderPlayerNotes)renderPlayerNotes(name);closeHeroForm();};
  var _o=document.getElementById('ph-overlay');if(_o)_o.addEventListener('click',function(e){if(e.target===this)closeHeroForm();});
 })();
@@ -10175,12 +10224,21 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    +'<div class="mcx-foot"><span>Vuelta prevista</span><b>'+rtpTxt+'</b>'+(rtpSub?'<i>'+rtpSub+'</i>':'')+'</div>'
    +'</div>';
  }
+ /* v227 · botón directo de "Parte del día/incidencia" para Virginia: es lo que
+    usará más a menudo, así que va visible aquí sin pasar por el selector
+    general de fisio. Abre el formulario ligero directamente, con su propio
+    desplegable de jugador (openHeroForm ya lo añade cuando no hay nombre). */
+ function medCoachQuickBar(){
+  return '<div class="mcx-quick"><button class="btn" onclick="openHeroForm(\'incidencia\',\'\')">📋 Parte del día / incidencia</button>'
+   +'<span class="small muted">Molestias que cuenta el jugador, sin que falte al entreno.</span></div>';
+ }
  window.medCoachRender=function(){
   var box=document.getElementById('med-coach');if(!box)return;
   medRehabEnsureState();
   var abiertos=(STATE.med.inj||[]).filter(function(e){return e.open;});
   if(!abiertos.length){
    box.innerHTML='<div class="panel"><h2>Disponibilidad médica · de un vistazo</h2>'
+    +medCoachQuickBar()
     +'<div class="mcx-ok">✓ Ningún jugador con episodio abierto ahora mismo.</div></div>';
    return;
   }
@@ -10188,6 +10246,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   abiertos.sort(function(a,b){return sev(a)-sev(b)||dB(b.dk,today())-dB(a.dk,today());});
   box.innerHTML='<div class="panel"><h2>Disponibilidad médica · de un vistazo '
    +'<span class="r muted">'+abiertos.length+(abiertos.length===1?' jugador':' jugadores')+'</span></h2>'
+   +medCoachQuickBar()
    +'<div class="mcx-grid">'+abiertos.map(medCoachCard).join('')+'</div></div>';
  };
 
