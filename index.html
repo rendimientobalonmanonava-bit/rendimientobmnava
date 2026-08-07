@@ -1758,16 +1758,31 @@ body.modal-open #sidebar{overflow:hidden}
 .phys-zone{font-weight:600;text-transform:capitalize;min-width:70px}
 @media(max-width:720px){.phys-si{min-width:33%}.phys-2col{grid-template-columns:1fr}}
 .phys-form{background:var(--panel2);border-radius:10px;padding:10px 12px;margin:8px 0}
-.phys-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
-.phys-form-grid label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px}
-.phys-form-grid input,.phys-form-grid select{font-size:13px;padding:5px 7px}
-.phys-form-grid .phys-wide{grid-column:1/-1}
+/* v228 · Parte del día · un solo formulario. Trae su propio grid y su propio
+   estilo de etiqueta porque se monta en dos contenedores distintos (.phys-form
+   en la ficha, .ph-f en el modal) que tenían rejillas de 4 y 2 columnas: el
+   mismo formulario se veía distinto según por dónde entrases. */
+.parte-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-top:10px}
+.parte-grid label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px;font-weight:600;min-width:0}
+.parte-grid input,.parte-grid select{font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font-family:inherit;width:100%;min-width:0;box-sizing:border-box}
+.parte-grid .parte-wide{grid-column:1/-1}
+.parte-mas{margin-top:10px;border-top:1px dashed var(--hair);padding-top:8px}
+/* El display:grid de arriba gana al ocultado nativo del <details> cerrado, así
+   que el bloque de detalle se veía siempre. Se oculta de forma explícita. */
+.parte-mas:not([open]) .parte-grid{display:none}
+.parte-mas>summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--accent);list-style:none;display:flex;align-items:center;gap:6px}
+.parte-mas>summary::-webkit-details-marker{display:none}
+.parte-mas>summary::before{content:'▸';font-size:11px;transition:transform .15s}
+.parte-mas[open]>summary::before{transform:rotate(90deg)}
+@media(max-width:480px){.parte-grid{grid-template-columns:1fr 1fr}
+  /* el listado de campos del detalle no cabe al lado del título y lo partía en
+     dos líneas: en móvil se deja solo «Más detalle». */
+  .parte-mas>summary .small{display:none}}
 .bm-block rect{transition:filter .12s}
 .bm-block:hover rect{filter:brightness(1.12)}
 .phys-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px;border-radius:6px;flex:none}
 .phys-del:hover{background:rgba(226,59,50,.15);color:var(--bad)}
 .phys-exbadge{font-size:9px;color:var(--muted);border:1px solid var(--hair);border-radius:5px;padding:1px 5px;flex:none}
-@media(max-width:720px){.phys-form-grid{grid-template-columns:repeat(2,1fr)}}
 .phys-form summary{cursor:pointer;font-weight:700;color:var(--accent)}
 .phys-timeband{margin:8px 0 4px}
 .ptb-track{position:relative;height:50px;border-bottom:1px solid var(--hair);margin:0 8px}
@@ -6859,24 +6874,13 @@ function medCardHTML(name,evs){
 function renderPhysio(name){
   const box=document.getElementById('physio-box');if(!box)return;buildPhysio();
   const evs=physioEvents(name);
-  const STATUSOPT=Object.keys(PHYSTAT).map(k=>`<option value="${k}">${PHYSTAT[k].lab}</option>`).join('');
-  const ZONES=['rodilla','tobillo','aquiles','gemelo','sóleo','isquios','cuádriceps','aductor','glúteo','cadera','lumbar','dorsal','abdominal','hombro','codo','antebrazo','muñeca','mano','cuello','pie'];
-  const zoneDL=ZONES.map(z=>`<option value="${z}">`).join('');
-  const today=new Date().toISOString().slice(0,10);
   const esc=name.replace(/'/g,"\\'");
+  /* v228 · el formulario ya no se escribe aquí: es el mismo parteFormHTML que usa
+     el modal, para que pida exactamente lo mismo entre por donde entres. Mantiene
+     el prefijo 'phys-' y el id phys-form-wrap, así que physioPickZone y el mapa
+     corporal siguen apuntando a los mismos campos. */
   const form=`<details class="phys-form" id="phys-form-wrap"><summary>+ Añadir parte del día / incidencia</summary>
-    <div class="phys-form-grid">
-      <label>Fecha<input type="date" id="phys-date" value="${today}"></label>
-      <label>Estado<select id="phys-status">${STATUSOPT}</select></label>
-      <label>Zona<input id="phys-zone" list="phys-zones" placeholder="rodilla, gemelo…"><datalist id="phys-zones">${zoneDL}</datalist></label>
-      <label>Lado<select id="phys-side"><option value="">—</option><option value="I">Izquierdo</option><option value="D">Derecho</option></select></label>
-      <label>Gravedad<select id="phys-sev"><option value="">—</option><option>+</option><option>++</option><option>+++</option></select></label>
-      <label>Tratamiento<input id="phys-treat" placeholder="descarga, US, VF…"></label>
-      <label>Mecanismo<select id="phys-mech"><option value="">—</option><option>Sobrecarga</option><option>Contacto/golpe</option><option>Gesto técnico</option><option>Caída</option><option>Sin contacto</option><option>Recaída</option><option>Enfermedad</option></select></label>
-      <label>Dolor (0–10)<input id="phys-pain" type="number" min="0" max="10" step="1" placeholder="0–10"></label>
-      <label>Alta prevista (RTP)<input id="phys-rtp" type="date"></label>
-      <label class="phys-wide">Nota<input id="phys-note" placeholder="observación, parte médico…"></label>
-    </div>
+    ${parteFormHTML('phys-',{})}
     <div class="ctrlrow" style="margin-top:8px"><button class="btn" onclick="physioAdd('${esc}')">Guardar</button><span class="small muted">Se guarda en este dispositivo · exportable a la hoja.</span></div>
   </details>`;
   const header=`<div class="fsec2" style="display:flex;align-items:center;gap:8px">Disponibilidad y lesiones <span class="tag" style="border-color:var(--accent);color:var(--accent)">entrada directa</span></div>`;
@@ -6930,9 +6934,103 @@ function renderPhysio(name){
      </div>`+physioRTP(name,srt);
 }
 function physioPickZone(zone,side){const z=document.getElementById('phys-zone');const s=document.getElementById('phys-side');const w=document.getElementById('phys-form-wrap');if(w)w.open=true;if(z)z.value=zone;if(s&&side)s.value=side;if(w)w.scrollIntoView({behavior:'smooth',block:'nearest'});if(z)z.focus();}
-function physioAdd(name){const g=id=>(document.getElementById(id)||{}).value;const dk=g('phys-date');if(!dk){alert('Indica la fecha.');return;}
-  STATE.physioUser=STATE.physioUser||{};(STATE.physioUser[name]=STATE.physioUser[name]||[]).push({_id:'u_'+Date.now(),dk,status:g('phys-status')||'trat',zone:(g('phys-zone')||'').trim(),side:g('phys-side')||'',sev:g('phys-sev')||'',mech:g('phys-mech')||'',pain:(g('phys-pain')!==''&&g('phys-pain')!=null)?+g('phys-pain'):null,rtp:g('phys-rtp')||'',treat:(g('phys-treat')||'').trim(),note:(g('phys-note')||'').trim()});
-  physioPersist();renderPhysio(name);}
+/* ============ v228 · PARTE DEL DÍA · un solo formulario en toda la app ============
+   Había tres formularios distintos escribiendo en STATE.physioUser y dos se
+   llamaban casi igual: el de la ficha pedía 10 campos, el del selector 6 y
+   «Cómo está hoy» otros 7, con nombres distintos para el mismo dato («Tipo» vs
+   «Estado», «Intensidad» vs «Dolor»). Según por dónde entrases veías una cosa u
+   otra. Ahora hay un único constructor y un único guardado; los dos puntos de
+   entrada (modal y ficha) los reutilizan con distinto prefijo de id para poder
+   coexistir en el DOM sin pisarse. */
+
+/* Los estados se agrupan para que lo del día a día quede arriba y separado de lo
+   que deja al jugador fuera: mezclados en una lista de 15 era lo que más costaba
+   de rellenar. Se construyen desde las listas ya existentes, así que un estado
+   nuevo entra solo por el grupo que le toque. */
+const PARTE_GRUPOS=[
+  ['Día a día · sigue entrenando',['dolor','trat','modif','readapt','disp','partido']],
+  ['No entrena · físico',NOAV_FIS_ST],
+  ['No entrena · otro motivo',NOFIS_ST]
+];
+/* Estados que mueven la disponibilidad. Con un episodio abierto en Médico no se
+   tocan desde aquí (regla 2.4: los estados de lesión los gobierna Médico y el
+   resto los refleja). Molestia, tratamiento y notas siguen permitidos. */
+const PARTE_ST_DISP=NOAV_ST.concat(['disp']);
+const PARTE_ZONAS=['rodilla','tobillo','aquiles','gemelo','sóleo','isquios','cuádriceps','aductor','glúteo','cadera','lumbar','dorsal','abdominal','hombro','codo','antebrazo','muñeca','mano','cuello','pie'];
+
+function parteStatusOptions(sel){
+  return PARTE_GRUPOS.map(gr=>'<optgroup label="'+gr[0]+'">'+gr[1].map(k=>{
+    const p=PHYSTAT[k];if(!p)return '';
+    return '<option value="'+k+'"'+(k===sel?' selected':'')+'>'+p.lab+'</option>';
+  }).join('')+'</optgroup>').join('');
+}
+/* px = prefijo de id. Con 'phys-' salen los ids que ya usaba la ficha
+   (phys-date, phys-zone…), así que physioPickZone y el mapa corporal siguen
+   funcionando sin tocarlos. Con 'mh-i', los del modal. */
+function parteFormHTML(px,opts){
+  opts=opts||{};
+  const hoy=dkey(new Date());
+  const dl=px+'zones';
+  let pl='';
+  if(opts.player){
+    const nn=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+    pl='<label class="parte-wide">Jugador<select id="'+px+'name">'+nn.map(n=>'<option>'+String(n).replace(/</g,'&lt;')+'</option>').join('')+'</select></label>';
+  }
+  return '<div class="parte-grid">'+pl
+   +'<label>Fecha<input type="date" id="'+px+'date" value="'+hoy+'"></label>'
+   +'<label>Estado<select id="'+px+'status">'+parteStatusOptions('dolor')+'</select></label>'
+   +'<label>Zona<input id="'+px+'zone" list="'+dl+'" placeholder="rodilla, gemelo…"><datalist id="'+dl+'">'+PARTE_ZONAS.map(z=>'<option value="'+z+'">').join('')+'</datalist></label>'
+   +'<label>Lado<select id="'+px+'side"><option value="">—</option><option value="I">Izquierdo</option><option value="D">Derecho</option></select></label>'
+   +'<label>Dolor (0–10)<input type="number" min="0" max="10" step="1" id="'+px+'pain" placeholder="0–10"></label>'
+   +'<label class="parte-wide">Nota<input id="'+px+'note" placeholder="qué cuenta el jugador, observación…"></label>'
+   +'</div>'
+   +'<details class="parte-mas"><summary>Más detalle <span class="small muted">gravedad · mecanismo · tratamiento · alta prevista</span></summary>'
+   +'<div class="parte-grid">'
+   +'<label>Gravedad<select id="'+px+'sev"><option value="">—</option><option>+</option><option>++</option><option>+++</option></select></label>'
+   +'<label>Mecanismo<select id="'+px+'mech"><option value="">—</option><option>Sobrecarga</option><option>Contacto/golpe</option><option>Gesto técnico</option><option>Caída</option><option>Sin contacto</option><option>Recaída</option><option>Enfermedad</option></select></label>'
+   +'<label>Tratamiento<input id="'+px+'treat" placeholder="descarga, US, VF…"></label>'
+   +'<label>Alta prevista<input type="date" id="'+px+'rtp"></label>'
+   +'</div></details>';
+}
+function parteSave(px,name){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  name=name||g(px+'name');
+  if(!name){alert('Selecciona un jugador.');return false;}
+  const dk=g(px+'date');if(!dk){alert('Indica la fecha.');return false;}
+  const status=g(px+'status')||'dolor';
+  if(PARTE_ST_DISP.indexOf(status)>=0&&typeof medOpenEpisodeOf==='function'&&medOpenEpisodeOf(name)){
+    const m='Ese jugador tiene una lesión abierta · su disponibilidad se gestiona en Médico. Aquí puedes registrar molestia, tratamiento o una nota.';
+    if(window.toast)toast(m);else alert(m);
+    return false;
+  }
+  const pain=g(px+'pain');
+  STATE.physioUser=STATE.physioUser||{};
+  (STATE.physioUser[name]=STATE.physioUser[name]||[]).push({
+    _id:'u_'+Date.now(),dk,status,
+    zone:(g(px+'zone')||'').trim(),side:g(px+'side')||'',
+    sev:g(px+'sev')||'',mech:g(px+'mech')||'',
+    pain:(pain!==''&&pain!=null)?+pain:null,
+    rtp:g(px+'rtp')||'',treat:(g(px+'treat')||'').trim(),
+    note:(g(px+'note')||'').trim()
+  });
+  if(window.physioPersist)physioPersist();
+  parteRefresh(name);
+  if(window.toast)toast('Parte del día guardado · '+name);
+  return true;
+}
+/* Un único sitio donde se repinta lo que depende de un parte. Antes cada
+   formulario refrescaba un subconjunto distinto y, según por dónde guardaras,
+   la ficha o Disponibilidad se quedaban con el dato viejo hasta recargar. */
+function parteRefresh(name){
+  try{if(window.renderPhysio&&document.getElementById('physio-box'))renderPhysio(name);}catch(e){}
+  try{if(window.medRenderPlayer&&document.getElementById('player-medical'))medRenderPlayer(name);}catch(e){}
+  try{if(window.renderPlayer&&STATE.curPlayer===name&&STATE.players[name])renderPlayer(name);}catch(e){}
+  try{if(window.renderAvail&&document.getElementById('v-estado'))renderAvail();}catch(e){}
+  try{if(window.renderCalendar&&document.getElementById('v-cal'))renderCalendar();}catch(e){}
+}
+window.parteFormHTML=parteFormHTML;window.parteSave=parteSave;window.parteRefresh=parteRefresh;
+
+function physioAdd(name){parteSave('phys-',name);}
 function physioDel(name,id){const arr=(STATE.physioUser||{})[name]||[];const i=arr.findIndex(e=>e._id===id);if(i>=0){arr.splice(i,1);physioPersist();renderPhysio(name);}}
 function physioExportCSV(name){const evs=physioEvents(name).slice().sort((a,b)=>a.dk<b.dk?-1:1);const head='Jugador;Fecha;Estado;Zona;Lado;Gravedad;Mecanismo;Dolor;AltaPrevista;Tratamiento;Nota';const lines=evs.map(e=>[name,e.dk,(PHYSTAT[e.status]||{}).lab||e.status,e.zone,e.side,e.sev,e.mech||'',e.pain!=null?e.pain:'',e.rtp||'',e.treat,(e.note||'').replace(/;/g,',')].join(';'));const ta=document.getElementById('phys-export');if(ta){ta.style.display='block';ta.value=head+'\n'+lines.join('\n');ta.select();}}
 
@@ -9468,38 +9566,15 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
      '<label style="grid-column:1/3">Enlace al documento (Drive)<input id="mh-link" placeholder="https://drive.google.com/…"></label>'+
      '<label style="grid-column:1/3">Nota<input id="mh-note"></label></div>'+
      '<div style="margin-top:10px"><button class="btn" onclick="heroSaveMed(\''+q(name)+'\')">Guardar</button></div></div>';
-   } else if(type==='parte'){const opts=Object.keys(PHYSTAT).map(k=>'<option value="'+k+'">'+PHYSTAT[k].lab+'</option>').join('');
-     h='<h2 style="margin-top:0">Añadir parte del día · '+name+' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'+
-     '<div class="ph-f"><div class="ph-grid">'+
-     '<label>Fecha<input type="date" id="mh-pdate" value="'+today()+'"></label>'+
-     '<label>Estado<select id="mh-pstatus">'+opts+'</select></label>'+
-     '<label>Zona<input id="mh-pzone" placeholder="hombro, isquio…"></label>'+
-     '<label>Lado<select id="mh-pside"><option value="">—</option><option value="D">Derecho</option><option value="I">Izquierdo</option></select></label>'+
-     '<label>Dolor (0–10)<input type="number" min="0" max="10" id="mh-ppain"></label>'+
-     '<label>Alta prevista<input type="date" id="mh-prtp"></label>'+
-     '<label style="grid-column:1/3">Tratamiento / nota<input id="mh-pnote"></label></div>'+
-     '<div style="margin-top:10px"><button class="btn" onclick="heroSavePart(\''+q(name)+'\')">Guardar</button></div></div>';
    } else if(type==='incidencia'){
-     /* v227 · Parte del día/incidencia: registro deliberadamente ligero para lo
-        que un jugador comenta en el día a día. Solo dos estados, los dos ya
-        clasificados como "molestia" (CARE_ST) y no como baja: es imposible
-        marcar algo grave desde aquí por error. Sin campo de alta prevista,
-        que es lo que más pesa la sensación de "esto es serio". */
-     /* Sin jugador preseleccionado (botón directo desde el resumen de Médico):
-        se pide aquí mismo, en vez de obligar a pasar por el selector general. */
-     const iNames=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
-     const iPl=name?'':('<label>Jugador<select id="mh-iname">'+iNames.map(n=>'<option>'+String(n).replace(/</g,'&lt;')+'</option>').join('')+'</select></label>');
+     /* v228 · «Cómo está hoy» (type 'parte') era un tercer formulario para lo
+        mismo, con otros siete campos. Se fusiona aquí: este ya cubre desde la
+        molestia del día a día hasta la baja, con los estados agrupados y el
+        detalle plegado. El HTML sale de parteFormHTML, el mismo que pinta la
+        ficha, así que los dos sitios piden exactamente lo mismo. */
      h='<h2 style="margin-top:0">Parte del día / incidencia'+(name?' · '+String(name).replace(/</g,'&lt;'):'')+' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'+
-     '<p class="small muted" style="margin:-6px 0 12px">No cambia si entrena hoy. Queda registrado para hacer seguimiento.</p>'+
-     '<div class="ph-f"><div class="ph-grid">'+
-     iPl+
-     '<label>Fecha<input type="date" id="mh-idate" value="'+today()+'"></label>'+
-     '<label>Tipo<select id="mh-istatus"><option value="dolor">Molestia</option><option value="trat">A seguir / en tratamiento</option></select></label>'+
-     '<label>Zona<input id="mh-izone" placeholder="hombro, isquio, rodilla…"></label>'+
-     '<label>Lado<select id="mh-iside"><option value="">—</option><option value="D">Derecho</option><option value="I">Izquierdo</option></select></label>'+
-     '<label>Intensidad (0–10) <span class="muted" style="font-weight:400">opcional</span><input type="number" min="0" max="10" id="mh-ipain"></label>'+
-     '<label></label>'+
-     '<label style="grid-column:1/3">Qué cuenta el jugador<input id="mh-inote" placeholder="molestia en el gemelo al esprintar, nada limitante…"></label></div>'+
+     '<p class="small muted" style="margin:-6px 0 12px">Lo que pasa en el día a día. Con «Con dolor» o «En tratamiento» sigue entrenando con normalidad.</p>'+
+     '<div class="ph-f">'+parteFormHTML('mh-i',{player:!name})+
      '<div style="margin-top:10px"><button class="btn" onclick="heroSaveIncidencia(\''+q(name)+'\')">Guardar</button></div></div>';
    }
    /* v227 · el tipo 'coment' (comentario libre) se retiró: no persistía nunca
@@ -9532,8 +9607,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
    +'<label class="fr-pl">Jugador<select id="fr-name">'+opts+'</select></label>'
    +'<div class="fr-list">'
    +item('👐','Tratamiento de hoy','Lo que le has hecho: camilla, ejercicios, electroterapia…','trat')
-   +item('📋','Parte del día / incidencia','Molestias del día a día, sin que falte al entreno.','incidencia')
-   +item('🩺','Cómo está hoy','Dolor, no entrena o baja. Marca su disponibilidad.','parte')
+   +item('📋','Parte del día / incidencia','Molestia, tratamiento o cómo está hoy. Lo del día a día.','incidencia')
    +item('📄','Cita o documento médico','Informe, alta laboral, prueba diagnóstica, próxima cita.','med')
    +item('🩹','Lesión nueva','Abre un episodio con plan de readaptación por fases.','lesion')
    +'</div></div>';
@@ -9544,8 +9618,9 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   var n=(document.getElementById('fr-name')||{}).value||'';
   closeHeroForm();
   if(kind==='trat'){if(window.openMedTreatQuick)openMedTreatQuick(n);return;}
-  if(kind==='incidencia'){openHeroForm('incidencia',n);return;}
-  if(kind==='parte'){openHeroForm('parte',n);return;}
+  /* v228 · 'parte' («Cómo está hoy») ya no es una opción propia: se fusionó en el
+     parte del día. Se conserva el desvío por si alguna llamada antigua lo pide. */
+  if(kind==='incidencia'||kind==='parte'){openHeroForm('incidencia',n);return;}
   if(kind==='med'){openHeroForm('med',n);return;}
   if(kind==='lesion'){try{if(window.go)go('medico');}catch(e){}if(window.openMedInjury)openMedInjury(n);}
  };
@@ -9568,29 +9643,12 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   try{if(window.renderAvail&&document.getElementById('v-estado'))renderAvail();}catch(e){}
   try{if(window.renderCalendar)renderCalendar();}catch(e){}
   if(marcado&&window.toast)toast(ev.afecta==='pierde'?'Cita guardada · marcado como no disponible ese día':'Cita guardada · marcado como entrenamiento modificado');};
- window.heroSavePart=function(name){const dk=g('mh-pdate');if(!dk){alert('Indica la fecha.');return;}STATE.physioUser=STATE.physioUser||{};(STATE.physioUser[name]=STATE.physioUser[name]||[]).push({_id:'u_'+Date.now(),dk,status:g('mh-pstatus')||'trat',zone:(g('mh-pzone')||'').trim(),side:g('mh-pside')||'',sev:'',mech:'',pain:(g('mh-ppain')!==''&&g('mh-ppain')!=null)?+g('mh-ppain'):null,rtp:g('mh-prtp')||'',treat:'',note:(g('mh-pnote')||'').trim()});if(window.physioPersist)physioPersist();if(window.renderPlayer)renderPlayer(name);closeHeroForm();};
- /* v227 · misma mecánica que heroSavePart, pero acotada a los dos estados no
-    graves (dolor/trat) y sin fecha de alta: es un registro de seguimiento, no
-    una baja. Reutiliza STATE.physioUser tal cual, así que ya persiste, ya
-    sincroniza, y ya cuenta bien en Disponibilidad (CARE_ST) sin tocar nada
-    más — solo cambia la puerta de entrada y qué se pregunta. */
+ /* v228 · heroSavePart se elimina: «Cómo está hoy» era un tercer formulario para
+    lo mismo y ya está fusionado en el parte del día. El guardado y el refresco
+    los hace parteSave/parteRefresh, compartidos con la ficha, así que no hay dos
+    copias de la misma lógica que puedan separarse con el tiempo. */
  window.heroSaveIncidencia=function(name){
-  name=name||g('mh-iname');
-  if(!name){alert('Selecciona un jugador.');return;}
-  const dk=g('mh-idate');if(!dk){alert('Indica la fecha.');return;}
-  const st=g('mh-istatus');const status=(st==='trat')?'trat':'dolor';
-  STATE.physioUser=STATE.physioUser||{};
-  (STATE.physioUser[name]=STATE.physioUser[name]||[]).push({
-    _id:'u_'+Date.now(),dk,status,zone:(g('mh-izone')||'').trim(),side:g('mh-iside')||'',
-    sev:'',mech:'',pain:(g('mh-ipain')!==''&&g('mh-ipain')!=null)?+g('mh-ipain'):null,
-    rtp:'',treat:'',note:(g('mh-inote')||'').trim()
-  });
-  if(window.physioPersist)physioPersist();
-  if(window.medRenderPlayer)medRenderPlayer(name);
-  if(window.renderPlayer)renderPlayer(name);
-  closeHeroForm();
-  try{if(window.renderAvail&&document.getElementById('v-estado'))renderAvail();}catch(e){}
-  if(window.toast)toast('Parte del día guardado · '+name);
+  if(parteSave('mh-i',name))closeHeroForm();
  };
  var _o=document.getElementById('ph-overlay');if(_o)_o.addEventListener('click',function(e){if(e.target===this)closeHeroForm();});
 })();
