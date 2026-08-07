@@ -2006,40 +2006,49 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
   <section class="view" id="v-jugador">
     <button class="back" onclick="go('jugadores')">‹ volver a jugadores</button>
     <div id="player-hero"></div>
+    <!-- v229 · Tira de titulares. Antes había que leer tres paneles distintos
+         para saber si un jugador estaba bien: readiness en uno, ACWR en otro y
+         la disponibilidad enterrada abajo. Aquí van los cinco números que el
+         cuerpo técnico mira primero. -->
+    <div id="pl-strip"></div>
     <div id="pl-advice"></div>
-    <!-- v227 · Se conserva EXACTO el cálculo y el HTML interno de los cinco
-         bloques que Daniel pidió mantener (Z-score, Readiness, "¿De dónde viene
-         el readiness?", Semáforo de carga individual, KPIs ACWR): solo cambia
-         dónde caen en la página y qué los rodea. Recuperación pasa a la misma
-         columna que Readiness, justo debajo, en vez de flotar en la otra
-         columna sin relación visual con ella. -->
-    <div class="pl-cols">
+    <!-- v229 · Tres columnas temáticas en vez de dos genéricas. Cada una
+         responde a una pregunta del cuerpo técnico: ¿cómo está?, ¿cuánto ha
+         cargado?, ¿qué le pasa y qué le han hecho? Se conserva EXACTO el
+         cálculo y el HTML interno de los bloques que Daniel pidió mantener
+         (Z-score, Readiness, "¿De dónde viene el readiness?", Semáforo de carga
+         individual, KPIs ACWR): solo cambia dónde caen y qué los acompaña. -->
+    <div class="pl-cols3">
       <div class="pl-col">
-        <div id="pl-zrow" class="panel"></div>
+        <div class="pl-cab"><span class="pl-cab-p" style="background:var(--ok)"></span>Estado de forma</div>
         <div id="player-readiness" class="panel"></div>
+        <div id="pl-zrow" class="panel"></div>
+        <div id="pl-charts"></div>
         <div id="pl-recov" class="panel"></div>
+        <div class="panel"><h2>Wellness · evolución</h2><div class="pl-ch"><canvas id="ch-well"></canvas></div></div>
       </div>
       <div class="pl-col">
+        <div class="pl-cab"><span class="pl-cab-p" style="background:var(--accent)"></span>Cargas</div>
         <div id="pl-kpisem" class="pg-col"></div>
-        <div id="pl-charts" class="pg-col"></div>
+        <div class="panel"><h2>Carga diaria y media 7d</h2><div class="pl-ch"><canvas id="ch-load"></canvas></div></div>
+        <div class="panel"><h2>ACWR · evolución <span class="r muted">banda 0.8–1.3</span></h2><div class="pl-ch"><canvas id="ch-pacwr"></canvas></div></div>
+      </div>
+      <div class="pl-col">
+        <div class="pl-cab"><span class="pl-cab-p" style="background:var(--warn)"></span>Fisioterapia</div>
+        <div id="pl-fisio" class="panel"></div>
+        <div id="player-physio" class="panel" style="display:none"></div>
+        <div class="pl-cab"><span class="pl-cab-p" style="background:#2563eb"></span>Consultas y pruebas</div>
+        <div id="player-medical" class="panel"></div>
       </div>
     </div>
-    <div id="pl-personal" class="panel"></div>
-    <!-- Los tres gráficos de tendencia (antes sueltos dentro de pl-charts/
-         pl-kpisem) se agrupan aquí, plegados por defecto: el dato sigue a un
-         clic, pero no ocupa la primera pantalla. Chart.js no mide bien un
-         canvas dentro de un <details> cerrado, así que se redibuja al abrir. -->
-    <details class="panel pl-evo" id="pl-evolucion" ontoggle="try{plEvoResize()}catch(e){}">
-      <summary>Evolución <span class="small muted">wellness · carga diaria · ACWR</span></summary>
-      <div class="pl-evo-body">
-        <div class="panel"><h2>Wellness · evolución</h2><div style="height:200px"><canvas id="ch-well"></canvas></div></div>
-        <div class="panel"><h2>Carga diaria y media 7d</h2><div style="height:200px"><canvas id="ch-load"></canvas></div></div>
-        <div class="panel"><h2>ACWR · evolución <span class="r muted">banda 0.8–1.3</span></h2><div style="height:200px"><canvas id="ch-pacwr"></canvas></div></div>
-      </div>
-    </details>
-    <div id="player-medical" class="panel"></div>
-    <div id="player-physio" class="panel" style="display:none"></div>
+    <!-- Lo que no se consulta a diario baja al final y se pliega: el detalle
+         completo de incidencias (mapa corporal, cronología, RTP) y la ficha
+         administrativa. El dato sigue a un clic sin cargar la primera pantalla. -->
     <div id="player-daily" class="panel"></div>
+    <details class="panel pl-evo" id="pl-datos">
+      <summary>Datos personales <span class="small muted">DNI, contacto, talla, gestión</span></summary>
+      <div id="pl-personal"></div>
+    </details>
   </section>
 
   <section class="view" id="v-jugadores">
@@ -5172,23 +5181,17 @@ function renderPlayer(name){
       ${kpi("Carga 14d",fmt(p.load14,0),"UA acumulada")}
     </div>
     ${loadSemaforo}`);
-  /* v227 · los tres gráficos de tendencia (Wellness/Carga diaria/ACWR) ya son
-     markup estático dentro de <details id="pl-evolucion">, fuera de estos dos
-     G(): solo queda aquí el bloque "¿De dónde viene el readiness?", que sí se
-     mantiene igual que antes. */
+  /* v229 · cada gráfico vive ahora en su columna temática (wellness en Estado de
+     forma, carga y ACWR en Cargas) y no dentro de un <details>, así que ya no
+     hace falta redibujarlos al abrir: se crean con el contenedor medido.
+     Aquí solo queda "¿De dónde viene el readiness?", igual que antes. */
   G('pl-charts',`<div class="panel"><h2>¿De dónde viene el readiness?</h2>${factors}</div>`);
   drawPlayerCharts(p);
+  try{renderPlayerStrip(name);}catch(e){}
+  try{renderPlayerFisio(name);}catch(e){}
   try{renderPlayerPersonal(name);}catch(e){}
   try{renderPlayerDaily(name);}catch(e){}
 }
-/* Chart.js mide el canvas al crearlo; dentro de un <details> cerrado su
-   contenedor tiene ancho/alto 0 y el gráfico sale en blanco o mal escalado.
-   drawPlayerCharts() ya destruye y recrea los tres, así que reabrir aquí basta. */
-function plEvoResize(){
-  const d=document.getElementById('pl-evolucion');
-  if(d&&d.open&&STATE.curPlayer&&STATE.players[STATE.curPlayer])drawPlayerCharts(STATE.players[STATE.curPlayer]);
-}
-window.plEvoResize=plEvoResize;
 function drawPlayerCharts(p){
   killCharts(['ch-well','ch-load','ch-pacwr']);
   const w=p.w,labels=w.map(x=>x.dk.slice(5));
@@ -5226,10 +5229,148 @@ function renderPlayerPersonal(name){
     });
   });
   const nsafe=name.replace(/'/g,"\\'");
-  box.innerHTML=`<h2>Datos personales <span class="r"><button class="btn ghost" onclick="openInfoEdit('${nsafe}')">${rows.length?'Editar':'Rellenar'}</button></span></h2>`
+  /* v229 · el título ya lo pone el <summary> del desplegable que lo contiene, así
+     que aquí solo va el contenido y el botón de editar. */
+  box.innerHTML=`<div class="ctrlrow" style="margin:2px 0 8px"><button class="btn ghost" onclick="openInfoEdit('${nsafe}')">${rows.length?'Editar ficha':'Rellenar ficha'}</button></div>`
     +(rows.length?`<div class="pl-pd-grid">${rows.join('')}</div>`:'<p class="small muted">Sin datos rellenados todavía.</p>');
 }
 window.renderPlayerPersonal=renderPlayerPersonal;
+
+/* ============ v229 · Tira de titulares de la ficha ============
+   Cinco preguntas, cinco números: ¿cómo llega hoy?, ¿va cargado?, ¿cuánto ha
+   hecho esta semana?, ¿está disponible?, ¿arrastra algo? Reutiliza los cálculos
+   que ya existen (readiness, ACWR por corredor, effectiveStatus): aquí no se
+   calcula nada nuevo, solo se pone junto lo que estaba repartido. */
+/* addDays y dB existen, pero declaradas dentro de otros IIFE y no se alcanzan
+   desde aquí. Estas dos solo dependen de dkey/dkToDate, que sí son globales. */
+function plAddDk(dk,n){const d=dkToDate(dk);d.setDate(d.getDate()+n);return dkey(d);}
+function plDias(a,b){return Math.round((dkToDate(b)-dkToDate(a))/86400000);}
+function plTile(lab,val,sub,sev,extra){
+  return `<div class="pl-tile"><div class="pl-tile-l">${lab}</div>`
+    +`<div class="pl-tile-v" style="color:var(--${sev||'txt'})">${val}</div>`
+    +`<div class="pl-tile-s">${sub||''}</div>${extra||''}</div>`;
+}
+function renderPlayerStrip(name){
+  const box=document.getElementById('pl-strip');if(!box||!name)return;
+  const p=STATE.players[name];if(!p)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+
+  /* Readiness */
+  const rd=p.readiness!=null?Math.round(p.readiness):null;
+  const rdSev=p.sev||'muted';
+  /* El anillo ya lleva la cifra dentro, así que este azulejo no repite el número
+     arriba: se queda solo con el anillo y el estado debajo. */
+  const anilloTile=`<div class="pl-tile pl-tile-rd"><div class="pl-tile-l">Readiness hoy</div>`
+    +`<div class="pl-tile-ringwrap">${recoveryRing(rd,rdSev,72)}</div>`
+    +`<div class="pl-tile-s">${rd!=null?(rdSev==='ok'?'Óptimo':rdSev==='warn'?'Moderado':'Bajo'):'sin wellness'}</div></div>`;
+
+  /* ACWR + banda de color, mismo criterio que acwrClass.
+     El texto NO puede salir de loadCorridorRow: ese es otro cálculo (agudo y
+     crónico semanales) y discrepa del 7:28, así que se veían cosas como «Bajo
+     suelo» junto a un 0.96 que la banda pintaba en zona. La etiqueta se deriva
+     del mismo valor y de los mismos cortes que la banda. */
+  const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:NaN;
+  const acSev=acwrClass(ac);
+  const acLab=isNaN(ac)?'sin datos':(ac<0.8?'Por debajo de la zona':ac<=1.3?'En zona óptima':ac<=1.5?'Sobre el techo':'Pico de carga');
+  const banda=`<div class="pl-band">`
+    +['0.8','1.0','1.3','1.5+'].map((t,i)=>{
+      const cls=['warn','ok','warn','bad'][i];
+      const on=!isNaN(ac)&&((i===0&&ac<0.8)||(i===1&&ac>=0.8&&ac<=1.3)||(i===2&&ac>1.3&&ac<=1.5)||(i===3&&ac>1.5));
+      return `<span class="pl-band-s ${on?'on':''}" style="background:var(--${cls})"></span>`;
+    }).join('')
+    +`</div><div class="pl-band-t"><span>0.8</span><span>1.0</span><span>1.3</span><span>1.5+</span></div>`;
+
+  /* Carga 7d y variación semana a semana */
+  let wwTxt='sin histórico',wwCls='flat';
+  try{
+    const wk=weekly(name,'ua',REF());
+    if(wk.length>=2){
+      const a=wk[wk.length-1].ua,b=wk[wk.length-2].ua;
+      const d=a-b,pc=b>0?Math.round(d/b*100):null;
+      wwCls=d>0?'up':(d<0?'down':'flat');
+      wwTxt=(d>=0?'+':'')+fmt(d,0)+' UA'+(pc!=null?` (${d>=0?'+':''}${pc}%)`:'');
+    }
+  }catch(e){}
+  const wwPill=`<div class="pl-tile-x"><span class="kpi-delta ${wwCls}">${wwTxt}</span></div>`;
+
+  /* Disponibilidad de hoy: sale de effectiveStatus, igual que Disponibilidad */
+  let stLab='Disponible',stCol='var(--ok)',stSub='sin incidencias abiertas';
+  try{
+    const ev=effectiveStatus(name,dkey(REF()));
+    if(ev&&ev.status&&PHYSTAT[ev.status]){
+      stLab=PHYSTAT[ev.status].lab;stCol=PHYSTAT[ev.status].c;
+      stSub=[ev.zone?esc(ev.zone):'',ev.side||''].filter(Boolean).join(' ')||'—';
+      if(ev.ep)stSub+=' · 🔒 desde Médico';
+    }
+  }catch(e){}
+
+  /* Molestias registradas en los últimos 7 días */
+  let n7=0,ultZona='—';
+  try{
+    const hoy=dkey(REF()),desde=plAddDk(hoy,-6);
+    const pts=physioPoints(name).filter(e=>e.dk>=desde&&e.dk<=hoy);
+    n7=pts.length;
+    const ult=pts.slice().sort((a,b)=>a.dk<b.dk?1:-1)[0];
+    if(ult&&ult.zone)ultZona=esc(ult.zone);
+  }catch(e){}
+
+  box.innerHTML=`<div class="pl-strip">
+    ${anilloTile}
+    ${plTile('ACWR (7:28)',isNaN(ac)?'—':fmt(ac,2),acLab,acSev,banda)}
+    ${plTile('Carga 7d',p.acwr&&p.acwr.acute?fmt(p.acwr.acute,0):'—','UA agudas',null,wwPill)}
+    ${plTile('Disponibilidad','<span style="font-size:19px;color:'+stCol+'">'+stLab+'</span>',stSub,null,'')}
+    ${plTile('Molestias 7d',n7,n7?('última: '+ultZona):'ninguna registrada',n7?'warn':'ok','')}
+  </div>`;
+}
+window.renderPlayerStrip=renderPlayerStrip;
+
+/* ============ v229 · Resumen de fisioterapia (columna 3) ============
+   Responde de un vistazo a «qué le pasa y qué le han hecho», que antes había que
+   deducir bajando hasta la cronología completa. */
+function renderPlayerFisio(name){
+  const box=document.getElementById('pl-fisio');if(!box||!name)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const hoy=dkey(REF());
+  let pts=[];try{pts=physioPoints(name).slice().sort((a,b)=>a.dk<b.dk?1:-1);}catch(e){}
+
+  /* Zonas con registro en los últimos 30 días, de más a menos */
+  const desde=plAddDk(hoy,-29);
+  const zc={};pts.filter(e=>e.dk>=desde&&e.zone).forEach(e=>{const z=String(e.zone).toLowerCase().trim();zc[z]=(zc[z]||0)+1;});
+  const zonas=Object.keys(zc).sort((a,b)=>zc[b]-zc[a]).slice(0,6);
+  const chips=zonas.length
+    ? zonas.map(z=>`<span class="pl-zchip">${esc(z)}<b>${zc[z]}</b></span>`).join('')
+    : '<span class="small muted">Sin zonas registradas en 30 días.</span>';
+
+  /* Días desde el último parte */
+  let dias='—';
+  if(pts.length){try{dias=Math.max(0,plDias(pts[0].dk,hoy));}catch(e){}}
+
+  /* Último tratamiento registrado por la fisio */
+  let trat='<span class="small muted">Sin tratamientos registrados.</span>';
+  try{
+    const ts=(STATE.med&&STATE.med.treat||[]).filter(t=>t.name===name).sort((a,b)=>a.dk<b.dk?1:-1);
+    if(ts.length){
+      const t=ts[0];
+      trat=`<b>${esc(t.tipo||'Tratamiento')}</b> · ${esc(t.dk)}`
+        +(t.dur?` · ${t.dur}'`:'')
+        +(t.response?` <span class="pl-zchip">${esc(t.response)}</span>`:'');
+    }
+  }catch(e){}
+
+  const nsafe=name.replace(/'/g,"\\'");
+  box.innerHTML=`<h2>Resumen de fisioterapia
+      <span class="r"><button class="btn ghost" onclick="openHeroForm('incidencia','${nsafe}')">＋ Parte del día</button></span></h2>
+    <div class="pl-fx">
+      <div><div class="pl-fx-l">Partes registrados</div><div class="pl-fx-v">${pts.length}</div></div>
+      <div><div class="pl-fx-l">Días desde el último</div><div class="pl-fx-v">${dias}</div></div>
+      <div><div class="pl-fx-l">Zonas activas (30d)</div><div class="pl-fx-v">${zonas.length}</div></div>
+    </div>
+    <div class="pl-fx-sec">Zonas más registradas · 30 días</div>
+    <div class="pl-zwrap">${chips}</div>
+    <div class="pl-fx-sec">Último tratamiento</div>
+    <div class="small">${trat}</div>`;
+}
+window.renderPlayerFisio=renderPlayerFisio;
 
 /* ===================== v227 · SEGUIMIENTO DEL DÍA A DÍA ===================== */
 /* Sustituye a "Seguimiento holístico": fuera la tarjeta muerta de "Hoja de
@@ -9291,6 +9432,61 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 .pl-col .pg-col{display:flex;flex-direction:column;gap:14px;min-width:0}
 #pl-advice{margin-top:14px}
 @media(max-width:860px){.pl-cols{grid-template-columns:1fr}}
+
+/* ===== v229 · Ficha de jugador en tres columnas temáticas ===== */
+/* La primera columna carga con el panel más alto (anillo + medidores + radar),
+   así que se le da algo más de ancho: comprime en vertical y las tres columnas
+   acaban a una altura parecida en vez de 1722 / 922 / 839. */
+.pl-cols3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px;align-items:start;margin-top:14px}
+.pl-cols3>.pl-col>.panel,.pl-cols3>.pl-col>div>.panel{margin:0}
+/* Cabecera de columna: dice de qué va la columna sin gastar un panel entero. */
+.pl-cab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:2px 2px 0}
+.pl-col>.pl-cab:not(:first-child){margin-top:6px}
+.pl-cab-p{width:8px;height:8px;border-radius:50%;flex:none}
+/* Altura fija para los gráficos de columna: sin esto Chart.js crece sin freno. */
+.pl-ch{height:170px}
+/* El panel de Readiness reparte anillo y radar en dos columnas y solo colapsa
+   por ancho de ventana. Dentro de la ficha de tres columnas el panel mide ~390px
+   con la ventana a 1440, así que la media query no saltaba y el radar quedaba en
+   86px de ancho por 300 de alto. Aquí se apila siempre; el resto de vistas que
+   usan .rc-panel se quedan como estaban. Se probó devolverle las dos columnas
+   internas al ensanchar la primera, pero el radar se quedaba en 125px: apilado
+   siempre. */
+.pl-cols3 .rc-panel{grid-template-columns:1fr}
+.pl-cols3 .rc-panel canvas{max-height:230px}
+
+/* Tira de titulares */
+.pl-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:14px}
+.pl-tile{background:var(--glass);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:14px;padding:13px 15px;min-width:0;display:flex;flex-direction:column}
+.pl-tile-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.pl-tile-v{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-tile-s{font-size:11px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis}
+.pl-tile-x{margin-top:8px}
+.pl-tile-rd{align-items:center;text-align:center}
+.pl-tile-rd .pl-tile-l{align-self:flex-start}
+.pl-tile-ringwrap{margin:8px 0 4px}
+/* Banda de ACWR: el tramo en el que cae el jugador se enciende, el resto queda
+   atenuado. Mismo criterio de corte que acwrClass, no otro paralelo. */
+.pl-band{display:flex;gap:3px;margin-top:9px}
+.pl-band-s{flex:1;height:5px;border-radius:3px;opacity:.22}
+.pl-band-s.on{opacity:1}
+.pl-band-t{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+
+/* Resumen de fisioterapia */
+.pl-fx{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
+.pl-fx-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+.pl-fx-v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}
+.pl-fx-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 6px;padding-top:9px;border-top:1px solid var(--hair)}
+.pl-zwrap{display:flex;flex-wrap:wrap;gap:5px}
+.pl-zchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--hair);text-transform:capitalize}
+.pl-zchip b{font-variant-numeric:tabular-nums;color:var(--accent)}
+
+@media(max-width:1200px){.pl-cols3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pl-strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:820px){.pl-cols3{grid-template-columns:1fr}
+  .pl-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pl-tile-v{font-size:22px}}
+@media(max-width:420px){.pl-strip{grid-template-columns:1fr 1fr}.pl-fx{grid-template-columns:1fr 1fr}}
 .med-it{display:flex;gap:10px;padding:10px 12px;border:1px solid var(--line);border-left:4px solid;border-radius:10px;background:var(--panel2)}
 .med-it .bd{min-width:0;flex:1}
 .med-it .tt{font-weight:700;font-size:13.5px;margin-top:2px}
