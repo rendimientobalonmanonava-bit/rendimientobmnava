@@ -2476,13 +2476,13 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     <div class="grid g2">
       <div class="panel"><h2>Detalle por categoría <span class="r muted">jugador seleccionado</span></h2><div id="tsa-detail"></div></div>
       <div class="panel"><h2>Tabla de perfiles · TSA por jugador</h2><div id="tsa-tbl"></div>
-        <p class="small muted" style="margin-top:10px;line-height:1.45">z = (valor − media)/DT; tiempos invertidos (arriba = mejor). <b>TSA</b> = media de z (Turner 2019); 0–100 = t = z×10+50 (orientativo, plantilla &lt;30). <i>Datos de ejemplo hasta cargar los reales.</i></p>
+        <p class="small muted" style="margin-top:10px;line-height:1.45">z = (valor − media)/DT; tiempos invertidos (arriba = mejor). <b>TSA</b> = media de z (Turner 2019); 0–100 = t = z×10+50 (orientativo, plantilla &lt;30).</p>
       </div>
     </div>
     <div class="panel"><h2>Histórico por fechas <span class="r muted">evolución y % de mejora</span><span style="float:right"><select id="hist-metric" onchange="renderTestHist(document.getElementById('tests-player').value)"></select></span></h2>
       <div id="hist-chips" style="display:flex;gap:22px;flex-wrap:wrap;margin:4px 0 12px"></div>
       <div style="height:220px"><canvas id="ch-hist"></canvas></div>
-      <p class="small muted" style="margin-top:8px;line-height:1.45">Evolución de la métrica entre valoraciones, con mejor/media/peor/actual y el <b>% de mejora</b> (último vs primero, ajustado a la dirección del test, como tu Athlete Dashboard). <i>Snapshots de ejemplo; con un CSV con columna de fecha se conecta a tus mediciones reales.</i></p>
+      <p class="small muted" style="margin-top:8px;line-height:1.45">Evolución de la métrica entre valoraciones, con mejor/media/peor/actual y el <b>% de mejora</b> (último vs primero, ajustado a la dirección del test, como tu Athlete Dashboard). <i>Con un CSV con columna de fecha se conecta a tus mediciones reales.</i></p>
     </div>
     <div class="panel">
       <h2>Valoración antropométrica · nutrición <span class="r muted" id="anthro-lab"></span></h2>
@@ -6272,34 +6272,42 @@ function renderRTP(name){
 }
 /* ===================== Nutrición · valoración antropométrica (pliegues, composición, somatotipo) ===================== */
 function buildAnthro(){
+  /* v230 · esta función generaba el módulo antropométrico entero a partir del
+     hash del nombre: los ocho pliegues, el somatotipo, cintura y cadera, la
+     variación de masa muscular, e incluso una fecha de medición ('20/05/26')
+     y un comentario nutricional. Todo se presentaba como si fuera una
+     valoración hecha. Ahora solo se recoge lo que existe de verdad en las
+     valoraciones físicas; lo que no se haya medido queda a null y el panel
+     lo muestra como sin dato. */
   STATE.anthro={};
   Object.keys(STATE.players).forEach(n=>{
     const t=(STATE.tests||{})[n]||{};
-    const peso=t.peso!=null?t.peso:80+(hashStr(n+'peso')-0.5)*16;
-    const talla=172+hashStr(n+'talla')*20;
-    const imc=peso/Math.pow(talla/100,2);
-    const grasa=t.grasa!=null?t.grasa:9+hashStr(n+'g')*6;
-    const masa=t.masa!=null?t.masa:45+hashStr(n+'m')*6;
-    const osea=15+hashStr(n+'o')*3, residual=23+hashStr(n+'r')*3;
-    const SK=['Tríceps','Subescapular','Bíceps','Cresta ilíaca','Supraespinal','Abdominal','Muslo','Pierna medial'];
-    const baseSk=[10,10,6,16,11,22,18,11];const sk={},skPrev={};
-    SK.forEach((s,i)=>{const v=baseSk[i]+(hashStr(n+s)-0.5)*baseSk[i]*0.5;sk[s]=Math.round(v*10)/10;skPrev[s]=Math.round(v*(1+(hashStr(n+s+'p')-0.5)*0.14)*10)/10;});
-    const s6=['Tríceps','Subescapular','Supraespinal','Abdominal','Muslo','Pierna medial'].reduce((a,s)=>a+sk[s],0);
-    const s8=Object.values(sk).reduce((a,b)=>a+b,0);
-    const endo=2.6+hashStr(n+'en')*1.0, meso=3.8+hashStr(n+'me')*1.1, ecto=2.2+hashStr(n+'ec')*1.1;
-    const x=ecto-endo, y=2*meso-(endo+ecto);
-    const cintura=78+hashStr(n+'ci')*8, cadera=95+hashStr(n+'ca')*8;
-    STATE.anthro[n]={peso,talla,imc,grasa,masa,osea,residual,sk,skPrev,s6,s8,endo,meso,ecto,x,y,
-      xPrev:x+(hashStr(n+'xp')-0.5)*1.2,yPrev:y+(hashStr(n+'yp')-0.5)*1.4,
-      cintura,cadera,whr:cintura/cadera,varMM:Math.round((hashStr(n+'v')-0.4)*3*100)/100,date:'20/05/26',prev:'15/04/26',
-      coment:grasa<11?'Buen perfil, masa grasa baja. Mantener trabajo de fuerza.':'Margen para reducir masa grasa; ajustar dieta y aeróbico de baja intensidad.'};
+    const info=((STATE.info||{})[n])||{};
+    const num=v=>{const x=parseFloat(String(v==null?'':v).replace(',','.'));return isNaN(x)?null:x;};
+    const peso=t.peso!=null?t.peso:num(info.peso);
+    const talla=num(info.talla);
+    const grasa=t.grasa!=null?t.grasa:null;
+    const masa=t.masa!=null?t.masa:null;
+    const imc=(peso!=null&&talla)?peso/Math.pow(talla/100,2):null;
+    STATE.anthro[n]={peso,talla,imc,grasa,masa,osea:null,residual:null,
+      sk:{},skPrev:{},s6:null,s8:null,
+      endo:null,meso:null,ecto:null,x:null,y:null,xPrev:null,yPrev:null,
+      cintura:null,cadera:null,whr:null,varMM:null,date:null,prev:null,coment:''};
   });
 }
 function renderAnthro(name){
   const a=(STATE.anthro||{})[name];const head=document.getElementById('anthro-head');const lab=document.getElementById('anthro-lab');
   if(lab)lab.textContent=name+(posOf(name)?' · '+posOf(name):'');
   killCharts(['ch-anthro-comp','ch-anthro-skin','ch-anthro-somato']);
-  if(!a){if(head)head.innerHTML='<p class="hint">Sin datos antropométricos.</p>';return;}
+  /* v230 · antes bastaba con que existiera la entrada, porque siempre se
+     generaba una completa. Ahora puede venir vacía: si no hay ni una medida
+     real se dice, en vez de pintar un panel de ceros y guiones. */
+  const hayDato=a&&(a.peso!=null||a.grasa!=null||a.masa!=null||a.talla!=null||Object.keys(a.sk||{}).length);
+  if(!hayDato){
+    if(head)head.innerHTML='<p class="hint">Sin valoración antropométrica registrada. En cuanto haya peso, talla o composición en las valoraciones físicas, aparecerá aquí.</p>';
+    ['anthro-comp','anthro-skin','anthro-somato','anthro-sk-table','anthro-coment'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+    return;
+  }
   const imcCat=a.imc<18.5?'Bajo peso':a.imc<25?'Normopeso':a.imc<30?'Sobrepeso':'Obesidad';
   const riesgo=a.whr>0.95?'alto':a.whr>0.9?'moderado':'bajo';
   const chip=(l,v,s)=>`<div><div class="cm-lab">${l}</div><div class="cm-val" style="font-size:17px">${v}</div>${s?`<div class="small muted">${s}</div>`:''}</div>`;
@@ -6312,7 +6320,17 @@ function renderAnthro(name){
   const so=document.getElementById('ch-anthro-somato');
   if(so)charts['ch-anthro-somato']=new Chart(so,{type:'scatter',data:{datasets:[{label:a.date,data:[{x:a.x,y:a.y}],backgroundColor:PAL.accent,borderColor:PAL.accent,pointRadius:8},{label:a.prev,data:[{x:a.xPrev,y:a.yPrev}],backgroundColor:rgba(PAL.data2,.7),borderColor:PAL.data2,pointRadius:6}]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:9},boxWidth:9}},tooltip:{callbacks:{label:()=>'Endo '+fmt(a.endo,1)+' · Meso '+fmt(a.meso,1)+' · Ecto '+fmt(a.ecto,1)}}},scales:{x:{...AX,min:-8,max:8,title:{display:true,text:'Ecto − Endo',color:mc,font:{size:9}}},y:{...AX,min:-10,max:16,title:{display:true,text:'Mesomorfia',color:mc,font:{size:9}}}}}});
   const cm=document.getElementById('anthro-comment');
-  if(cm)cm.innerHTML=`<b>Somatotipo:</b> Endo ${fmt(a.endo,2)} · Meso ${fmt(a.meso,2)} · Ecto ${fmt(a.ecto,2)} &nbsp;·&nbsp; <b>Variación masa muscular:</b> <span style="color:var(--${a.varMM>=0?'ok':'bad'})">${a.varMM>=0?'+':''}${fmt(a.varMM,2)}%</span> <span class="small muted">(vs ${a.prev})</span><br><span class="muted">Comentario del nutricionista: ${a.coment}</span> <i class="small muted">· datos de ejemplo hasta integrar el informe real</i>`;
+  /* v230 · somatotipo, variación de masa muscular y comentario del
+     nutricionista salían de un hash. Solo se muestran si algún día hay
+     medición real detrás; mientras tanto, el bloque lo dice. */
+  if(cm){
+    const haySoma=a.endo!=null&&a.meso!=null&&a.ecto!=null;
+    cm.innerHTML=haySoma
+      ? `<b>Somatotipo:</b> Endo ${fmt(a.endo,2)} · Meso ${fmt(a.meso,2)} · Ecto ${fmt(a.ecto,2)}`
+        +(a.varMM!=null?` &nbsp;·&nbsp; <b>Variación masa muscular:</b> <span style="color:var(--${a.varMM>=0?'ok':'bad'})">${a.varMM>=0?'+':''}${fmt(a.varMM,2)}%</span>`:'')
+        +(a.coment?`<br><span class="muted">Comentario del nutricionista: ${a.coment}</span>`:'')
+      : '<span class="muted">Sin somatotipo: requiere los pliegues cutáneos de una valoración antropométrica.</span>';
+  }
 }
 /* ===================== FICHA DE JUGADOR EXPORTABLE ===================== */
 let FICHA_NAME=null;
@@ -6388,37 +6406,34 @@ function wRing(val,color,size,cap){
       <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="${Math.round(size*0.34)}" font-weight="800" fill="${color}" font-family="'Inter',sans-serif">${Math.round(v)}</text>
     </svg></div>`;
 }
-function lvProfile(name){
-  let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;
-  const t=STATE.tests[name]||{};
-  const lifts=[{name:'Press banca',mvt:0.17,true1rm:Math.round(t.bench||90),col:PAL.accent},{name:'Sentadilla',mvt:0.30,true1rm:Math.round(t.bench?t.bench*1.45:130),col:PAL.warn}];
-  lifts.forEach((L,li)=>{
-    const slope=(L.mvt-1.0)/(1.0-0.30);
-    const loads=[0.45,0.6,0.75,0.9].map(p=>Math.round(L.true1rm*p));
-    const pts=loads.map((ld,i)=>{const frac=ld/L.true1rm;const v=1.0+slope*(frac-0.30);const noise=Math.sin(h+li*13+i*2.1)*0.018;return {x:ld,y:+(v+noise).toFixed(3)};});
-    const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);const xm=mean(xs),ym=mean(ys);let num=0,den=0;xs.forEach((x,i)=>{num+=(x-xm)*(ys[i]-ym);den+=(x-xm)*(x-xm);});const b=num/den,a=ym-b*xm;
-    L.pts=pts;L.a=a;L.b=b;L.est1rm=Math.round((L.mvt-a)/b);
-  });
-  return lifts;
-}
+/* v230 · lvProfile fabricaba la curva carga-velocidad entera a partir de un
+   hash del nombre del jugador: los puntos, el ajuste y el 1RM estimado eran
+   inventados y se presentaban como medición. No hay encoder conectado, así
+   que devuelve vacío y el bloque muestra su estado sin datos. */
+function lvProfile(name){return [];}
 function drawLV(elId,capId,name,mc,gc){
   const lifts=lvProfile(name);const cap=document.getElementById(capId);
-  if(cap)cap.innerHTML='1RM estimado por velocidad: '+lifts.map(L=>`<b>${L.name}: ${L.est1rm} kg</b>`).join(' · ')+'. <i>Datos de ejemplo</i> · conectar encoder/VBT. Zonas: &gt;0,75 velocidad · 0,5–0,75 potencia · 0,3–0,5 fuerza · &lt;0,3 fuerza máx.';
   const el=document.getElementById(elId);if(!el)return;if(charts[elId]){charts[elId].destroy();delete charts[elId];}
+  if(!lifts.length){
+    if(cap)cap.innerHTML='Requiere encoder o dispositivo VBT. Cuando registres repeticiones con carga y velocidad, aquí saldrá la curva y el 1RM estimado.';
+    if(el.parentElement)el.parentElement.innerHTML='<div class="small muted" style="padding:20px 0">Sin mediciones de velocidad.</div>';
+    return;
+  }
+  if(cap)cap.innerHTML='1RM estimado por velocidad: '+lifts.map(L=>`<b>${L.name}: ${L.est1rm} kg</b>`).join(' · ')+'. Zonas: &gt;0,75 velocidad · 0,5–0,75 potencia · 0,3–0,5 fuerza · &lt;0,3 fuerza máx.';
   const ds=[];lifts.forEach(L=>{ds.push({type:'scatter',label:L.name,data:L.pts,backgroundColor:L.col,borderColor:L.col,pointRadius:5});const xmin=Math.min(...L.pts.map(p=>p.x));ds.push({type:'line',label:L.name+' ajuste',data:[{x:xmin,y:L.a+L.b*xmin},{x:L.est1rm,y:L.mvt}],borderColor:L.col,borderDash:[5,4],borderWidth:1.5,pointRadius:0,showLine:true});});
   charts[elId]=new Chart(el,{data:{datasets:ds},options:{...BASE,animation:false,plugins:{legend:{display:true,labels:{color:mc,font:{size:9},boxWidth:9,filter:i=>!/ajuste/.test(i.text)}},tooltip:{callbacks:{label:c=>c.parsed.x+' kg · '+fmt(c.parsed.y,2)+' m/s'}}},scales:{x:{type:'linear',...AX,grid:{color:gc},ticks:{color:mc},title:{display:true,text:'Carga (kg)',color:mc,font:{size:9}}},y:{...AX,grid:{color:gc},ticks:{color:mc},title:{display:true,text:'Velocidad media (m/s)',color:mc,font:{size:9}}}}}});
 }
 function nmHash(x){let h=0;for(let i=0;i<x.length;i++)h=(h*31+x.charCodeAt(i))>>>0;return h;}
 function cmjSeries(name){
-  let snaps=((STATE.testHist||{})[name]||[]).map(o=>({d:String(o.date).slice(5),v:o.vals?o.vals.cmj:null})).filter(o=>o.v!=null);let example=false;
-  if(snaps.length<4){example=true;const base=(STATE.tests[name]||{}).cmj||34;const h=nmHash(name);snaps=[];for(let i=0;i<10;i++)snaps.push({d:'S'+(i+1),v:+(base+Math.sin(h+i*1.7)*1.4+(i===7?-3.8:0)).toFixed(1)});}
-  return {snaps,example};
+  /* v230 · antes, con menos de 4 registros reales, se generaban 10 puntos
+     sintéticos con un seno sobre el hash del nombre y se pintaban como si
+     fueran saltos medidos. Ahora solo sale lo que hay. */
+  const snaps=((STATE.testHist||{})[name]||[]).map(o=>({d:String(o.date).slice(5),v:o.vals?o.vals.cmj:null})).filter(o=>o.v!=null);
+  return {snaps,example:false};
 }
-function benchVelSeries(name){
-  const r1=(STATE.tests[name]||{}).bench||90;const load=Math.round(r1*0.6/2.5)*2.5;const h=nmHash(name+'b');const snaps=[];const v0=0.62;
-  for(let i=0;i<10;i++)snaps.push({d:'S'+(i+1),v:+(v0+Math.sin(h+i*1.9)*0.03+(i===8?-0.07:0)).toFixed(3)});
-  return {snaps,example:true,load};
-}
+/* v230 · benchVelSeries devolvía SIEMPRE una serie inventada (example:true).
+   Sin encoder no hay velocidad de banca que mostrar. */
+function benchVelSeries(name){return {snaps:[],example:false,load:null};}
 function nmStats(snaps){
   const vals=snaps.map(o=>o.v);const baseArr=vals.length>3?vals.slice(0,-1):vals;
   const m=mean(baseArr),SDv=baseArr.length>1?sd(baseArr):0;const cv=m?SDv/m*100:0;
@@ -6442,8 +6457,25 @@ function drawNeuroMonitor(elId,kpiId,d,unit,note,mc,gc){
     {type:'line',label:'val',data:d.vals,borderColor:PAL.accent,borderWidth:2,pointRadius:4,pointBackgroundColor:d.vals.map(v=>{const z=d.sd>0?(v-d.m)/d.sd:0;return z<=-1.5?'#e23b32':z<=-0.5?'#e0a800':PAL.accent;})}
   ]},options:{...BASE,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw,2)+' '+unit}}},scales:{x:{...AX,grid:{color:gc},ticks:{color:mc,font:{size:9}}},y:{...AX,grid:{color:gc},ticks:{color:mc},title:{display:true,text:unit,color:mc,font:{size:9}}}}}});
 }
-function drawCmjMonitor(elId,kpiId,name,mc,gc){const ser=cmjSeries(name);const d=nmStats(ser.snaps);drawNeuroMonitor(elId,kpiId,d,'cm',ser.example?'CMJ semanal de ejemplo — sustituir por tus registros reales. Banda gris = ±1 DT · banda azul = ±SWC · cambio real si supera el error típico (Turner).':'Banda gris = ±1 DT · banda azul = ±SWC · un cambio es real si supera el error típico y relevante si supera el SWC (Turner).',mc,gc);}
-function drawBenchVel(elId,kpiId,name,mc,gc){const ser=benchVelSeries(name);const d=nmStats(ser.snaps);drawNeuroMonitor(elId,kpiId,d,'m/s','Velocidad media propulsiva a carga fija (~'+ser.load+' kg). Caída de velocidad a la misma carga = fatiga/pérdida de fuerza del tren superior. <i>Datos de ejemplo del encoder.</i>',mc,gc);}
+/* v230 · con menos de 3 registros reales no se dibuja nada: la baseline, el
+   SWC y el error típico no significan nada con dos puntos, y antes el hueco
+   se rellenaba con serie inventada. */
+function nmVacio(elId,kpiId,msg){
+  const k=document.getElementById(kpiId);if(k)k.innerHTML='';
+  const el=document.getElementById(elId);if(!el)return;
+  if(charts[elId]){charts[elId].destroy();delete charts[elId];}
+  if(el.parentElement)el.parentElement.innerHTML='<div class="small muted" style="padding:20px 0">'+msg+'</div>';
+}
+function drawCmjMonitor(elId,kpiId,name,mc,gc){
+  const ser=cmjSeries(name);
+  if(ser.snaps.length<3){nmVacio(elId,kpiId,'Hacen falta al menos 3 valoraciones de CMJ para la baseline y el SWC.');return;}
+  drawNeuroMonitor(elId,kpiId,nmStats(ser.snaps),'cm','Banda gris = ±1 DT · banda azul = ±SWC · un cambio es real si supera el error típico y relevante si supera el SWC (Turner).',mc,gc);
+}
+function drawBenchVel(elId,kpiId,name,mc,gc){
+  const ser=benchVelSeries(name);
+  if(ser.snaps.length<3){nmVacio(elId,kpiId,'Requiere encoder o dispositivo VBT: sin mediciones de velocidad en press banca.');return;}
+  drawNeuroMonitor(elId,kpiId,nmStats(ser.snaps),'m/s','Velocidad media propulsiva a carga fija (~'+ser.load+' kg). Caída de velocidad a la misma carga = fatiga del tren superior.',mc,gc);
+}
 function drawWaterfall(elId,name,mc,gc){
   const el=document.getElementById(elId);if(!el)return;if(charts[elId]){charts[elId].destroy();delete charts[elId];}
   const hist=((STATE.testHist||{})[name]||[]).map(o=>({d:String(o.date).slice(5),v:o.vals?o.vals.cmj:null})).filter(o=>o.v!=null);
@@ -6455,12 +6487,27 @@ function drawWaterfall(elId,name,mc,gc){
 }
 function drawNMindex(boxId,name){
   const box=document.getElementById(boxId);if(!box)return;
-  const zc=nmStats(cmjSeries(name).snaps).z;const zb=nmStats(benchVelSeries(name).snaps).z;
+  /* v230 · el índice combinaba CMJ y velocidad de banca, pero ambas series
+     eran sintéticas cuando no había registro real, así que salía un número
+     con aspecto de medición para todo el mundo. Ahora se calcula solo con lo
+     que existe y se dice de qué se ha compuesto; sin nada neuromuscular real
+     no se muestra índice. */
+  const sc=cmjSeries(name).snaps, sb=benchVelSeries(name).snaps;
+  const zc=sc.length>=3?nmStats(sc).z:null;
+  const zb=sb.length>=3?nmStats(sb).z:null;
   const p=STATE.players[name]||{};const rd=p.readiness;
-  const nmZ=clamp(50+12.5*((zc+zb)/2),0,100);const idx=Math.round(rd!=null?0.6*nmZ+0.4*rd:nmZ);
+  const zs=[zc,zb].filter(v=>v!=null&&!isNaN(v));
+  if(!zs.length){
+    box.innerHTML='<div class="small muted" style="padding:16px 0">Sin datos neuromusculares suficientes. Hacen falta al menos 3 valoraciones de CMJ (o mediciones de velocidad) para calcular la disponibilidad neuromuscular.</div>';
+    return;
+  }
+  const nmZ=clamp(50+12.5*(zs.reduce((a,b)=>a+b,0)/zs.length),0,100);
+  const idx=Math.round(rd!=null?0.6*nmZ+0.4*rd:nmZ);
   const big=arcGauge('Disponibilidad NM',idx,100,[{to:45,color:'#e23b32'},{to:66,color:'#e0a800'},{to:100,color:'#1ea863'}],idx,'0–100',150);
   const comp=(lab,val)=>`<div class="cmj-kpi"><div class="v" style="font-size:16px">${val}</div><div class="l">${lab}</div></div>`;
-  box.innerHTML=`<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap"><div>${big}</div><div style="flex:1;min-width:210px"><div class="cmj-kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">${comp('CMJ (z)',(zc>=0?'+':'')+fmt(zc,2))}${comp('Banca (z)',(zb>=0?'+':'')+fmt(zb,2))}${comp('Wellness',rd!=null?Math.round(rd):'—')}</div><div class="small muted" style="margin-top:8px">Índice = 60% neuromuscular (CMJ + velocidad de banca, en z) + 40% readiness de wellness, escalado 0–100. <i>Incluye datos de ejemplo donde aún no haya registro real.</i></div></div></div>`;
+  const fz=v=>v==null||isNaN(v)?'—':((v>=0?'+':'')+fmt(v,2));
+  const base=rd!=null?'60% neuromuscular + 40% readiness de wellness':'solo componente neuromuscular (sin wellness)';
+  box.innerHTML=`<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap"><div>${big}</div><div style="flex:1;min-width:210px"><div class="cmj-kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">${comp('CMJ (z)',fz(zc))}${comp('Banca (z)',fz(zb))}${comp('Wellness',rd!=null?Math.round(rd):'—')}</div><div class="small muted" style="margin-top:8px">Índice = ${base}, escalado 0–100. Calculado con ${zs.length===2?'CMJ y velocidad de banca':'CMJ'}.</div></div></div>`;
 }
 function swCard(name){
   const st=testStats();const r=testZ(name,st);
@@ -6492,13 +6539,12 @@ function fichaPercentiles(name){
   }).join('');
   return bars?`<div class="fband-h"><span class="t">Percentil dentro de su posición</span><span class="l"></span></div><div class="pct-wrap">${bars}<div class="small muted" style="margin-top:4px">0% = peor de la posición · 100% = mejor · el marcador es el valor del jugador.</div></div>`:'';
 }
-function bilatExample(name){
-  let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;
-  const rnd=seed=>{const x=Math.sin(h+seed*97)*10000;return x-Math.floor(x);};
-  const t=STATE.tests[name]||{};
-  const mk=(lab,base,unit,seed)=>{if(base==null||isNaN(base))return null;const asym=(rnd(seed)-0.5)*0.24;const l=base*(1-asym/2),r=base*(1+asym/2);return {lab,unit,l:+l.toFixed(1),r:+r.toFixed(1)};};
-  return [mk('Salto unilateral',t.cmj?t.cmj*0.62:22,'cm',1),mk('Fuerza isométrica',t.bench?t.bench*2.4:260,'N',2),mk('Hop test',t.cmj?t.cmj*1.08:34,'cm',3)].filter(Boolean);
-}
+/* v230 · bilatExample inventaba la asimetría izquierda/derecha con un seno
+   sobre el hash del nombre y el bloque marcaba alerta por encima del 10%.
+   Es decir, generaba avisos de asimetría clínica sobre jugadores que nunca
+   han hecho la prueba. Sin test bilateral registrado no hay nada que pintar,
+   y fichaButterfly ya devuelve vacío con una lista vacía. */
+function bilatExample(name){return [];}
 function fichaButterfly(name){
   const data=bilatExample(name);if(!data.length)return '';
   const rows=data.map(o=>{const max=Math.max(o.l,o.r)||1;const lp=o.l/max*100,rp=o.r/max*100;const def=Math.abs(o.l-o.r)/max*100;const alert=def>10;const colR=alert?'#e23b32':'#3f5572';const colDef=alert?'#e23b32':'#1ea863';
@@ -6879,25 +6925,18 @@ const NOAV_FIS_ST=['baja','noentto','enfermo'];                     // fuera por
 const NOFIS_ST=['seleccion','sancion','filial','cita','tramite','personal']; // fuera por otro motivo
 const NOAV_ST=NOAV_FIS_ST.concat(NOFIS_ST);                         // fuera, sea cual sea
 const CARE_ST=['trat','dolor'];
-// Datos de EJEMPLO (patrón extraído del PDF de la fisio). Sustituibles al vincular la hoja.
-const PHYS_EX={
-  'Gonzalo Carró':[['2025-09-25','trat','rodilla','D','descarga cuádriceps/isquio','+',''],['2025-10-16','noentto','rodilla','I','dolor posterior','++',''],['2025-12-02','baja','rodilla','I','IQx menisco externo','+++','Cirugía menisco'],['2026-01-12','trat','rodilla','I','alta médica · carga progresiva','+','RTP'],['2026-02-13','disp','','','',''],['2026-03-19','trat','rodilla','D','recaída · descarga','++','Reincidencia rodilla']],
-  'Nicolás Bonanno':[['2025-09-04','trat','hombro','D','descompresión hombro','+',''],['2025-11-10','trat','hombro','I','rotadores','+',''],['2026-02-17','trat','hombro','D','cadena posterior','++','']],
-  'Brais González':[['2025-08-06','trat','pierna','D','bursitis calcánea · US','+',''],['2025-11-03','trat','pierna','I','fascia gemelo','+',''],['2026-04-08','trat','pierna','D','peroneos','+','']],
-  'Javier Carrión':[['2025-10-22','trat','tronco','','descarga lumbar','+',''],['2025-11-26','trat','tronco','','lumbar','+++','Lumbalgia intensa'],['2026-01-20','disp','','','','']],
-  'Pablo Herranz':[['2026-04-22','baja','pie','I','esguince grado II','+++','Esguince tobillo'],['2026-05-11','trat','pie','I','rehabilitación','+','RTP']],
-  'Edu Reig':[['2026-01-20','trat','pierna','','gemelos','+++',''],['2026-02-27','trat','pie','I','tobillo · falso esguince','+','']]
-};
+/* v230 · Se eliminan PHYS_EX y EX_EP, los historiales de fisioterapia de
+   ejemplo. El emparejado con la plantilla era por coincidencia parcial del
+   primer nombre, así que acababa colgando lesiones inventadas de jugadores
+   reales: una tendinopatía de aquiles a Brais González Blanco, una lumbalgia
+   intensa a Javier Carrión Ortiz y un esguince de grado II con baja a Pablo
+   Herranz García. Eso alimentaba el mapa corporal, los días perdidos y el
+   informe de temporada como si fuera real, y no dependía del modo demo.
+   El historial de fisioterapia sale ahora solo de lo que registra el staff. */
 function buildPhysio(){
   if(!STATE.physioUser){try{STATE.physioUser=JSON.parse(localStorage.getItem('bmnava_physio')||'{}')||{};}catch(e){STATE.physioUser={};}}
   if(STATE.physioEx)return;
-  const out={};const roster=Object.keys(STATE.players);
-  const match=k=>roster.find(n=>n===k)||roster.find(n=>n.toLowerCase().includes(k.toLowerCase().split(' ')[0].toLowerCase()));
-  Object.keys(PHYS_EX).forEach(k=>{const nm=match(k);if(!nm)return;out[nm]=PHYS_EX[k].map((e,i)=>({_id:'ex_'+nm+'_'+i,user:false,dk:e[0],date:dkToDate(e[0]),status:e[1],zone:e[2]||'',side:e[3]||'',treat:e[4]||'',sev:e[5]||'',note:e[6]||''}));});
-  // episodios de ejemplo (abiertos/cerrados) [from,to|null,status,zone,side,note]
-  const EX_EP={'Gonzalo Carró':[['2026-05-26',null,'dolor','rodilla','D','molestia tras partido']],'Edu Reig':[['2026-06-02',null,'noentto','gemelo','I','sobrecarga, gestión']],'Brais González':[['2026-05-18','2026-05-29','trat','aquiles','D','tendinopatía']]};
-  Object.keys(EX_EP).forEach(k=>{const nm=match(k);if(!nm)return;out[nm]=(out[nm]||[]).concat(EX_EP[k].map((e,i)=>({_id:'exep_'+nm+'_'+i,user:false,ep:true,dk:e[0],to:e[1],date:dkToDate(e[0]),status:e[2],zone:e[3]||'',side:e[4]||'',note:e[5]||''})));});
-  STATE.physioEx=out;
+  STATE.physioEx={};
 }
 function dkToDate(dk){const a=dk.split('-').map(Number);return new Date(a[0],a[1]-1,a[2]);}
 function physioEvents(name){const ex=(STATE.physioEx||{})[name]||[];const us=((STATE.physioUser||{})[name]||[]).map(e=>({...e,user:true,date:dkToDate(e.dk)}));return ex.concat(us);}
@@ -6970,9 +7009,11 @@ function physioStats(evs){
    tratamientos, altas— guardaban la ficha del jugador en lugar del episodio, así
    que nada de eso se persistía y se perdía al recargar. */
 function medInfoPersist(){try{localStorage.setItem('bmnava_med',JSON.stringify(STATE.medInfo||{}));}catch(e){}}
-function medLoad(){if(!STATE.medInfo){try{STATE.medInfo=JSON.parse(localStorage.getItem('bmnava_med')||'{}')||{};}catch(e){STATE.medInfo={};}
-    const EX={'Gonzalo Carró':{antecedentes:'IQx menisco externo (dic 2025)',alergias:'—',medicacion:'—'},'Pablo Herranz':{antecedentes:'Esguince tobillo grado II (abr 2026)',alergias:'Polen (estacional)',medicacion:'—'}};
-    Object.keys(EX).forEach(k=>{const nm=Object.keys(STATE.players||{}).find(p=>p===k);if(nm&&!STATE.medInfo[nm])STATE.medInfo[nm]={...EX[k],_ex:true};});}
+/* v230 · Se retira el EX con alergias y antecedentes de ejemplo. Solo se
+   aplicaba por nombre exacto, así que con la plantilla actual no llegaba a
+   activarse, pero seguía vivo: bastaba con que alguien se llamase igual para
+   colgarle un historial médico que no es suyo. */
+function medLoad(){if(!STATE.medInfo){try{STATE.medInfo=JSON.parse(localStorage.getItem('bmnava_med')||'{}')||{};}catch(e){STATE.medInfo={};}}
   return STATE.medInfo;}
 function medSave(name){const g=id=>((document.getElementById(id)||{}).value||'').trim();STATE.medInfo=STATE.medInfo||{};STATE.medInfo[name]={alergias:g('med-alergias'),antecedentes:g('med-antecedentes'),medicacion:g('med-medicacion'),grupo:g('med-grupo'),obs:g('med-obs')};medInfoPersist();renderPhysio(name);}
 function medRTPinfo(name){const evs=physioEvents(name).filter(e=>e.rtp&&e.status!=='disp');if(!evs.length)return null;const e=evs.slice().sort((a,b)=>a.dk<b.dk?-1:1)[evs.length-1];const d=Math.round((dkToDate(e.rtp)-new Date(new Date().toISOString().slice(0,10)))/864e5);return {e,days:d};}
@@ -7408,7 +7449,7 @@ function renderAvail(){
   const kpi=(val,lab,col,small)=>`<div class="kpi"><div class="kpi-v${small?' sm':''}"${col?` style="color:${col}"`:''}>${val}</div><div class="kpi-l">${lab}</div></div>`;
   box.innerHTML=`
   <div class="card-pro">
-    <div class="pro-head"><div><div class="eyebrow">Disponibilidad · datos de ejemplo</div><div class="pro-title">Atención hoy</div></div>${pillT(attn.length+' a seguir','var(--bad)')}</div>
+    <div class="pro-head"><div><div class="eyebrow">Disponibilidad</div><div class="pro-title">Atención hoy</div></div>${pillT(attn.length+' a seguir','var(--bad)')}</div>
     <div class="ath-row">${attn.length?attn.map(athFicha).join(''):'<div class="attn-ok">✓ Plantilla al completo — sin bajas, dolores ni riesgos registrados hoy.</div>'}</div>
   </div>
   <div id="ev-slot"></div>
@@ -7535,7 +7576,7 @@ function renderParte(){
       ${painsBar}
       <div class="card-pro pt-stripb"><div class="mini-h">Plantilla · readiness por puesto</div><div class="pt-strip">${strip}</div></div>
     </div>
-    <div class="pt-foot"><span>Generado automáticamente · datos y fotos de ejemplo</span><span>BM Nava · Control de cargas</span></div>
+    <div class="pt-foot"><span>Generado automáticamente</span><span>BM Nava · Control de cargas</span></div>
   </div>`;
   const idxOf=d=>{const ms=['fatiga','sueno','doms','stress','mood'].map(k=>d[k]).filter(x=>!isNaN(x));if(!ms.length)return null;return Math.round(Math.max(0,Math.min(100,(5-mean(ms))/4*100)));};
   const idx=last14.map(idxOf);const blabels=last14.map(d=>{const a=d.dk.split('-');return a[2]+'/'+a[1];});
@@ -8004,19 +8045,12 @@ function seedHR(force){
   ];
   const d30=new Date(2026,4,30),dk30=dkey(d30),lab30="Recuperación · 30/05 (Polar, real)";
   const rReal=real.map(r=>({name:r[0],date:d30,dk:dk30,session:lab30,hrAvg:r[1],hrMax:r[2],kcal:r[3],z:[r[4],r[5],r[6],r[7],r[8]],dur:(r[4]+r[5]+r[6]+r[7]+r[8])/60}));
-  // Generador de sesiones de ejemplo
-  const names=["Adrián Nolasco","Alfredo Otero","Brais González","David Roca","Davide Boro","Edu Reig","Gonzalo Carró","Javier Carrión","Lilian Pasquet","Nicolás Bonanno","Óscar Marugán","Pablo Herranz","Pancho Ahumada","Rui Baptista"];
-  const mk=(y,mo,dd,label,frac,durMin,avg,max,kcal)=>{
-    const dt=new Date(y,mo-1,dd),dk=dkey(dt);
-    const recs=names.map(nm=>{const total=durMin*60*(0.92+0.16*rnd());
-      const f=frac.map(x=>Math.max(0,x*(0.7+0.6*rnd())));const sum=f.reduce((a,b)=>a+b,0)||1;
-      const z=f.map(x=>Math.round(x/sum*total));
-      return {name:nm,date:dt,dk,session:label,hrAvg:Math.round(avg+(rnd()*2-1)*6),hrMax:Math.round(max+(rnd()*2-1)*5),kcal:Math.round(kcal+(rnd()*2-1)*120),z,dur:z.reduce((a,b)=>a+b,0)/60};});
-    return {dk,label,recs};
-  };
-  const media=mk(2026,5,29,"Entrenamiento técnico-táctico · 29/05",[0.35,0.30,0.22,0.11,0.02],62,64,84,520);
-  const alta=mk(2026,5,28,"Partido amistoso · 28/05",[0.23,0.28,0.26,0.17,0.06],60,72,93,650);
-  STATE.hr=(window.hrDedupe?hrDedupe([...rReal,...media.recs,...alta.recs]):[...rReal,...media.recs,...alta.recs]);
+  /* v230 · se elimina el generador de sesiones de ejemplo. Fabricaba dos
+     sesiones (un técnico-táctico del 29/05 y un amistoso del 28/05) para una
+     lista de nombres que en su mayoría no existen en la plantilla: Adrián
+     Nolasco, Davide Boro, Edu Reig, Gonzalo Carró, Lilian Pasquet y Nicolás
+     Bonanno. Se conserva únicamente la captura Polar real del 30/05. */
+  STATE.hr=(window.hrDedupe?hrDedupe(rReal.slice()):rReal.slice());
   /* v200 · lo que el staff haya importado de Polar se restaura encima de los
      registros de ejemplo, para que no se pierda al recargar la página. */
   try{hrLoadSaved();}catch(e){}
