@@ -1399,6 +1399,28 @@ body.sb-min .sb-ver{display:none}
 .posband-chip:hover{border-color:var(--line);color:var(--accent)}
 .posband-chip b{font-family:var(--mono,monospace);font-weight:700}
 .posband-dot{width:7px;height:7px;border-radius:50%;flex:none}
+/* ===== v230 · Cargas › Resumen ===== */
+.crs-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.crs-tile{background:var(--glass);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:14px;padding:13px 15px;min-width:0}
+.crs-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.crs-v{font-size:25px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crs-v small{font-size:12px;font-weight:600;color:var(--muted)}
+.crs-s{font-size:11px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Carga por posición */
+.crs-pos{margin-bottom:11px}
+.crs-pos-h{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:4px}
+.crs-pos-h b{font-variant-numeric:tabular-nums}
+.crs-pos-bar{height:9px;border-radius:5px;background:var(--panel2);overflow:hidden}
+.crs-pos-bar>span{display:block;height:100%;border-radius:5px;background:var(--accent)}
+/* Tabla de últimas sesiones */
+.crs-tw{overflow-x:auto}
+.crs-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px}
+.crs-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:6px 10px;border-bottom:1px solid var(--hair);white-space:nowrap}
+.crs-table td{padding:8px 10px;border-bottom:1px solid var(--hair);white-space:nowrap}
+.crs-table tr:last-child td{border-bottom:0}
+.crs-table .n{text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:1200px){.crs-strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:820px){.crs-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.crs-v{font-size:21px}}
 .watch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:4px}
 .watch-card{border:1px solid var(--line);border-left:4px solid var(--line);border-radius:13px;padding:12px 13px;background:var(--panel);cursor:pointer;box-shadow:var(--shadow);transition:transform .1s ease,box-shadow .1s ease}
 .watch-card:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(11,13,18,.12)}
@@ -2281,74 +2303,8 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     </div>
   </section>
 
-  <section class="view" id="v-unif">
-    <div class="cargas-tabwrap"></div>
-    <div class="ctrlrow">
-      <span class="tag">Rango</span>
-      <select id="unif-range" onchange="renderUnif()" style="min-width:200px">
-        <option value="all">Toda la temporada</option>
-        <option value="12">Últimas 12 semanas</option>
-        <option value="6">Últimas 6 semanas</option>
-      </select>
-      <span class="tag">Vista serie</span>
-      <select id="unif-agg" onchange="renderUnif()" style="min-width:130px">
-        <option value="session">Sesión a sesión</option>
-        <option value="week">Por semana</option>
-      </select>
-      <span class="tag">Métrica heatmap</span>
-      <select id="unif-hm" onchange="renderUnif()" style="min-width:160px">
-        <option value="ratio">Eficiencia (TRIMP/sRPE)</option>
-        <option value="trimp">Carga interna (TRIMP)</option>
-        <option value="srpe">Carga externa (sRPE)</option>
-      </select>
-      <span class="tag">Orden</span>
-      <select id="unif-order" onchange="renderUnif()" style="min-width:140px">
-        <option value="pos">Por posición</option>
-        <option value="eff">Por eficiencia</option>
-        <option value="abc">Alfabético</option>
-      </select>
-      <span class="badge-sim" id="unif-simbadge">datos simulados</span>
-    </div>
-    <div class="kpis" id="unif-kpis"></div>
-    <div class="panel">
-      <h2>Carga interna vs externa · temporada <span class="r muted" id="unif-ts-sub"></span></h2>
-      <div style="height:330px"><canvas id="ch-unif-ts"></canvas></div>
-      <div id="unif-effband"></div>
-      <div class="legend">
-        <span><i class="led" style="background:var(--accent)"></i>TRIMP (interna)</span>
-        <span><i class="led" style="background:var(--txt)"></i>sRPE (externa)</span>
-        <span><i class="led" style="background:var(--bad)"></i>partido</span>
-        <span><i class="led" style="background:#c2702e"></i>semana actual</span>
-        <span class="muted">banda inferior = eficiencia semanal (TRIMP/sRPE)</span>
-      </div>
-    </div>
-    <div class="panel">
-      <h2>Carga aguda y rango equilibrado <span class="r muted">aguda 7d · banda = crónica ×0,8–1,3 · partidos en rojo</span></h2>
-      <div style="height:320px"><canvas id="ch-unif-band"></canvas></div>
-      <div class="legend">
-        <span><i class="led" style="background:var(--ink)"></i>carga aguda</span>
-        <span><i class="led" style="background:#cbd2db"></i>rango equilibrado</span>
-        <span><i class="led" style="background:var(--bad)"></i>partido</span>
-        <span><i class="led" style="background:#c2a36b"></i>TRIMP sesión</span>
-      </div>
-    </div>
-    <div class="grid g23">
-      <div class="panel"><h2>Correlación interna × externa <span class="r muted">cada punto = una sesión</span></h2>
-        <div style="height:300px"><canvas id="ch-unif"></canvas></div>
-        <div class="legend"><span><i class="led" style="background:var(--accent)"></i>sesión</span><span><i class="led" style="background:var(--muted2)"></i>tendencia</span><span id="unif-r2" class="muted"></span></div>
-      </div>
-      <div class="panel"><h2>Lectura de la temporada</h2><div id="unif-read"></div></div>
-    </div>
-    <div class="panel">
-      <h2>Mapa de calor · jugador × mes <span class="r muted" id="unif-hm-sub"></span></h2>
-      <div class="wrap-x" id="unif-heatmap"></div>
-      <div class="legend" id="unif-hm-legend"></div>
-    </div>
-    <div class="panel">
-      <h2>Análisis por posición <span class="r muted">perfil comparado · demandas Polar · tabla por rol</span></h2>
-      <div id="unif-pos-body"></div>
-    </div>
-  </section>
+  <!-- v230 · Vista «Datos unificados» retirada: era inalcanzable desde el menú
+       y todo su contenido salía de la temporada simulada. -->
 
   <section class="view" id="v-alertas">
     <div class="panel"><h2>Alertas activas</h2><div id="alerts-body"></div></div>
@@ -4897,7 +4853,7 @@ function go(v){const ESUB={dispo:1,medico:1,parte:1};const realV=ESUB[v]?'estado
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'||v==='unif'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
-  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='unif')renderUnif();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config')renderPosMap();if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
+  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config')renderPosMap();if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
 function writeHash(){const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){history.replaceState(null,'',h);}}
 function readHash(){const h=decodeURIComponent(location.hash.replace(/^#/,''));if(!h)return null;const p=h.split('/');const v=p[0];if(!TABS.some(t=>t[0]===v))return null;return{view:v,date:p[1]||null};}
 const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["unif","Carga integrada"],["avail","Disponibilidad"],["parte","Parte wellness"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
@@ -5660,11 +5616,18 @@ function renderCargaResumen(){
   const box=document.getElementById('carga-resumen');if(!box)return;
   const ps=Object.values(STATE.players);
   if(!ps.length){box.innerHTML='<div class="panel"><p class="muted">Sin datos de carga todavía.</p></div>';return;}
-  seedSeason();
-  const okc='#1ea863',wc='#e08a00',bc='#e23b32',nc='#3f5572';
-  const win=FILTER.window;const end=REF();const lim=new Date(end);lim.setDate(lim.getDate()-win);
+  /* v230 · Se retira seedSeason(): STATE.season no tenía ninguna fuente real,
+     su único escritor era el generador, así que los paneles de TRIMP, zonas de
+     FC, gasto y "carga integrada" nunca podían mostrar un dato de nadie. En su
+     sitio entran paneles construidos sobre lo que sí existe: sRPE, ACWR,
+     wellness, posiciones y disponibilidad. */
+  const okc='#1ea863',wc='#e08a00',bc='#e23b32';
+  const win=FILTER.window;const end=REF();
   const av=p=>(p.avatar)||window.__AVATAR__||'';
-  // REAL · UA de la ÚLTIMA sesión (entrenamiento o partido)
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const cell=(v,d)=>(v==null||isNaN(v))?'—':fmt(v,d);
+
+  // ---- última sesión registrada (real) ----
   const rpeDks=[...new Set(STATE.rpe.map(x=>x.dk))].sort();
   const lastDk=rpeDks[rpeDks.length-1];
   const lastRows=lastDk?STATE.rpe.filter(x=>x.dk===lastDk):[];
@@ -5672,120 +5635,173 @@ function renderCargaResumen(){
   const lastUA=Object.values(byp).length?mean(Object.values(byp)):NaN;
   const lastTipo=(lastRows.find(r=>r.tipo)||{}).tipo||'Sesión';
   const lastFecha=lastDk?lastDk.split('-').reverse().join('/'):'—';
-  // REAL · métricas equipo
+
+  // ---- métricas de equipo (real) ----
   const teamA=mean(ps.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
-  const monoM=mean(ps.map(p=>{const wk=weekly(p.name,'ua',REF());return wk.length?wk[wk.length-1].mono:NaN;}).filter(x=>!isNaN(x)));
+  const wkLast={};ps.forEach(p=>{const wk=weekly(p.name,'ua',REF());wkLast[p.name]=wk.length?wk[wk.length-1]:null;});
+  const monoM=mean(ps.map(p=>{const w=wkLast[p.name];return w?w.mono:NaN;}).filter(x=>!isNaN(x)));
   const rdyM=mean(ps.map(p=>p.readiness).filter(x=>x!=null));
-  /* v225 · media ponderada por posición: porteros fuera, extremos al 0,5 */
   const meanC=meanContactoPos(STATE.rpe);const clab=isNaN(meanC)?'—':(meanC>=2.5?'Alto':meanC>=1.5?'Medio':'Bajo');
   const acwrs=ps.map(p=>p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null).filter(x=>x!=null);
-  const zlow=acwrs.filter(r=>r<0.8).length,zopt=acwrs.filter(r=>r>=0.8&&r<=1.3).length,zhigh=acwrs.filter(r=>r>1.3&&r<1.5).length,zrisk=acwrs.filter(r=>r>=1.5).length;
+  const zlow=acwrs.filter(r=>r<0.8).length,zopt=acwrs.filter(r=>r>=0.8&&r<=1.3).length,
+        zhigh=acwrs.filter(r=>r>1.3&&r<1.5).length,zrisk=acwrs.filter(r=>r>=1.5).length;
   const seg=(n,c,lab)=>n?`<span style="flex:${n};background:${c}" title="${lab}: ${n}">${n}</span>`:'';
-  // REAL · reparto de carga sugerido
+
+  // ---- disponibilidad de hoy (real, de effectiveStatus) ----
+  let dispo={disp:0,care:0,fuera:0};
+  try{const dk=dkey(end);ps.forEach(p=>{const ev=effectiveStatus(p.name,dk);const st=ev&&ev.status;
+    if(!st||st==='disp'||st==='partido')dispo.disp++;
+    else if(NOAV_ST.indexOf(st)>=0)dispo.fuera++;
+    else dispo.care++;});}catch(e){}
+
+  // ---- cumplimiento del parte wellness, últimos 7 días (real) ----
+  let cumpl=NaN,cumplDias=[];
+  try{
+    const plantilla=ps.length;
+    for(let i=6;i>=0;i--){const d=new Date(end);d.setDate(d.getDate()-i);const dk=dkey(d);
+      const n=new Set(STATE.wellness.filter(w=>w.dk===dk).map(w=>w.name)).size;
+      cumplDias.push({dk,n,pct:plantilla?Math.round(n/plantilla*100):0});}
+    const conAlgo=cumplDias.filter(d=>d.n>0);
+    cumpl=conAlgo.length?mean(conAlgo.map(d=>d.pct)):NaN;
+  }catch(e){}
+
+  // ---- reparto de carga sugerido (real) ----
   const withRdy=ps.filter(p=>p.readiness!=null);
-  const canMore=withRdy.filter(p=>{const ac=p.acwr?p.acwr.ratio:null;return p.readiness>=70&&(ac==null||ac<1.1);}).sort((a,b)=>b.readiness-a.readiness).slice(0,2);
-  const lessLoad=withRdy.map(p=>{const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:1;let r=0;if(ac>=1.5)r+=3;else if(ac>=1.3)r+=2;if(p.readiness<55)r+=3;else if(p.readiness<70)r+=1;if(p.sev==='bad')r+=1;return{p,ac,r};}).filter(o=>o.r>0).sort((a,b)=>b.r-a.r).slice(0,2);
-  const loadRow=(p,right)=>`<div class="loadrow" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')"><img class="avatar-sm" src="${av(p)}" alt=""><span class="lr-name">${p.name}<span class="lr-pos"> · ${p.pos||'—'}</span></span><span class="lr-val">${right}</span></div>`;
-  // SIMULADO
-  const Sall=STATE.season.slice();
-  const nSess=win>500?Sall.length:Math.max(8,Math.round(win/7*4.5));
-  const S=Sall.slice(-nSess);
-  const trimpM=mean(S.map(s=>s.trimp));const kcalM=mean(S.map(s=>s.kcal));
-  let hiM=NaN;if(STATE.hr&&STATE.hr.length){hiM=mean(STATE.hr.map(r=>{const tot=r.z.reduce((a,b)=>a+b,0)||1;return (r.z[3]+r.z[4])/tot*100;}));}
-  // a vigilar
-  const wkLast={};ps.forEach(p=>{const wk=weekly(p.name,'ua',REF());wkLast[p.name]=wk.length?wk[wk.length-1]:null;});
-  const watch=ps.map(p=>{const w=wkLast[p.name];const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:NaN;const mo=w?w.mono:NaN;const dl=w?w.delta:NaN;
-    let score=0;if(!isNaN(ac)){if(ac>=1.5)score+=3;else if(ac>=1.3)score+=2;else if(ac<0.8)score+=0.5;}if(!isNaN(mo)&&mo>2)score+=1;if(!isNaN(dl)&&dl>20)score+=1.5;else if(!isNaN(dl)&&dl>10)score+=0.5;
+  const canMore=withRdy.filter(p=>{const ac=p.acwr?p.acwr.ratio:null;return p.readiness>=70&&(ac==null||ac<1.1);}).sort((a,b)=>b.readiness-a.readiness).slice(0,3);
+  const lessLoad=withRdy.map(p=>{const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:1;let r=0;
+    if(ac>=1.5)r+=3;else if(ac>=1.3)r+=2;
+    if(p.readiness<55)r+=3;else if(p.readiness<70)r+=1;
+    if(p.sev==='bad')r+=1;return{p,ac,r};}).filter(o=>o.r>0).sort((a,b)=>b.r-a.r).slice(0,3);
+  const loadRow=(p,right)=>`<div class="loadrow" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')"><img class="avatar-sm" src="${av(p)}" alt=""><span class="lr-name">${esc(p.name)}<span class="lr-pos"> · ${esc(p.pos||'')}</span></span><span class="lr-val">${right}</span></div>`;
+
+  // ---- a vigilar por carga (real) ----
+  const watch=ps.map(p=>{const w=wkLast[p.name];const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:NaN;
+    const mo=w?w.mono:NaN;const dl=w?w.delta:NaN;
+    let score=0;if(!isNaN(ac)){if(ac>=1.5)score+=3;else if(ac>=1.3)score+=2;else if(ac<0.8)score+=0.5;}
+    if(!isNaN(mo)&&mo>2)score+=1;
+    if(!isNaN(dl)&&dl>20)score+=1.5;else if(!isNaN(dl)&&dl>10)score+=0.5;
     return{p,ac,mo,dl,aguda:p.acwr?p.acwr.acute:NaN,score};}).filter(o=>o.score>0).sort((a,b)=>b.score-a.score).slice(0,8);
-  const cell=(v,d)=>(v==null||isNaN(v))?'—':fmt(v,d);
-  // aros
-  const big=arcGauge('Carga general · sRPE',lastUA||0,700,[{to:250,color:okc},{to:450,color:wc},{to:700,color:bc}],isNaN(lastUA)?'—':Math.round(lastUA),'UA',164);
+
+  // ---- carga por posición, ventana activa (real) ----
+  const lim=new Date(end);lim.setDate(lim.getDate()-win);
+  const porPos={};
+  STATE.rpe.filter(x=>x.date>=lim&&x.date<=end).forEach(x=>{
+    const p=STATE.players[x.name];if(!p)return;
+    const g=posGroup(p.pos)||'—';
+    const o=porPos[g]=porPos[g]||{ua:0,set:new Set()};
+    o.ua+=(x.ua||0);o.set.add(x.name);});
+  const posRows=Object.keys(porPos).map(g=>({g,media:porPos[g].set.size?porPos[g].ua/porPos[g].set.size:0,n:porPos[g].set.size}))
+    .sort((a,b)=>b.media-a.media);
+  const posMax=Math.max(...posRows.map(r=>r.media),1);
+
+  // ---- últimas sesiones (real) ----
+  const tda=teamDayAgg();
+  const sesiones=tda.slice(-8).reverse().map(d=>{
+    const rows=STATE.rpe.filter(x=>x.dk===d.dk);
+    const nJug=new Set(rows.map(x=>x.name)).size;
+    const uas=Object.values(rows.reduce((m,x)=>{m[x.name]=(m[x.name]||0)+(x.ua||0);return m;},{}));
+    return {dk:d.dk,tipo:d.tipo||'—',mdx:d.mdx||'',rpe:d.rpe,dur:d.dur,ua:mean(uas),max:Math.max(...uas,0),n:nJug};
+  });
+
+  // ---- arcos ----
+  const big=arcGauge('Carga última sesión · sRPE',lastUA||0,700,[{to:250,color:okc},{to:450,color:wc},{to:700,color:bc}],isNaN(lastUA)?'—':Math.round(lastUA),'UA',164);
   const gACWR=arcGauge('ACWR medio',isNaN(teamA)?0:teamA,2,[{to:0.8,color:wc},{to:1.3,color:okc},{to:1.5,color:wc},{to:2,color:bc}],isNaN(teamA)?'—':teamA.toFixed(2),'0,8–1,3',104);
   const gMono=arcGauge('Monotonía',isNaN(monoM)?0:monoM,3,[{to:1.5,color:okc},{to:2,color:wc},{to:3,color:bc}],isNaN(monoM)?'—':monoM.toFixed(2),'media',104);
   const gRdy=arcGauge('Readiness',isNaN(rdyM)?0:rdyM,100,[{to:55,color:bc},{to:75,color:wc},{to:100,color:okc}],isNaN(rdyM)?'—':Math.round(rdyM),'media',104);
-  const gCont=arcGauge('Contacto',isNaN(meanC)?0:meanC,3,[{to:1.5,color:okc},{to:2.5,color:wc},{to:3,color:bc}],clab,'medio',104);
-  const gTrimp=arcGauge('TRIMP medio',isNaN(trimpM)?0:trimpM,300,[{to:120,color:okc},{to:220,color:wc},{to:300,color:bc}],isNaN(trimpM)?'—':Math.round(trimpM),'Edwards',118);
-  const gHi=arcGauge('Alta intensidad',isNaN(hiM)?0:hiM,50,[{to:20,color:okc},{to:35,color:wc},{to:50,color:bc}],isNaN(hiM)?'—':fmt(hiM,0)+'%','Z4–Z5',118);
-  const gKcal=arcGauge('Gasto medio',isNaN(kcalM)?0:kcalM,900,[{to:900,color:nc}],isNaN(kcalM)?'—':Math.round(kcalM),'kcal',118);
-  box.innerHTML=`
-    <div class="grid g3" style="align-items:stretch">
+
+  // ---- tira de titulares ----
+  const tile=(lab,val,sub,sev,extra)=>`<div class="crs-tile"><div class="crs-l">${lab}</div><div class="crs-v" style="color:var(--${sev||'txt'})">${val}</div><div class="crs-s">${sub||''}</div>${extra||''}</div>`;
+  const acSev=isNaN(teamA)?'muted':(teamA>1.5||teamA<0.8?'bad':teamA>1.3?'warn':'ok');
+  const strip=`<div class="crs-strip">
+    ${tile('Última sesión',isNaN(lastUA)?'—':Math.round(lastUA)+' <small>UA</small>',lastFecha+' · '+esc(lastTipo))}
+    ${tile('ACWR medio',isNaN(teamA)?'—':teamA.toFixed(2),zrisk?zrisk+' en riesgo':'ninguno en riesgo',acSev)}
+    ${tile('Monotonía',isNaN(monoM)?'—':monoM.toFixed(2),monoM>2?'poca variación':'variación correcta',isNaN(monoM)?'muted':(monoM>2?'warn':'ok'))}
+    ${tile('Readiness medio',isNaN(rdyM)?'—':Math.round(rdyM),'del equipo',isNaN(rdyM)?'muted':(rdyM>=75?'ok':rdyM>=55?'warn':'bad'))}
+    ${tile('Contacto',clab,'media ponderada',isNaN(meanC)?'muted':(meanC>=2.5?'warn':'ok'))}
+    ${tile('Disponibles',dispo.disp+' <small>/ '+ps.length+'</small>',dispo.care+' con molestia · '+dispo.fuera+' fuera',dispo.fuera?'warn':'ok')}
+  </div>`;
+
+  box.innerHTML=strip+`
+    <div class="grid g3" style="align-items:stretch;margin-top:14px">
       <div class="panel" style="display:flex;flex-direction:column">
-        <h2>Carga · de un vistazo <span class="r muted">real</span></h2>
-        <div style="display:flex;flex-direction:column;align-items:center;margin:6px 0 2px">${big}<div class="small muted" style="margin-top:-2px">Último: ${lastFecha} · ${lastTipo}</div></div>
-        <div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:8px">${gACWR}${gCont}${gRdy}</div>
+        <h2>Carga · de un vistazo</h2>
+        <div style="display:flex;flex-direction:column;align-items:center;margin:6px 0 2px">${big}<div class="small muted" style="margin-top:-2px">Último: ${lastFecha} · ${esc(lastTipo)}</div></div>
+        <div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:8px">${gACWR}${gMono}${gRdy}</div>
         <div style="margin-top:auto;padding-top:18px">
           <div class="small muted" style="margin-bottom:5px">Reparto ACWR · ${acwrs.length} con datos</div>
           <div class="zonebar">${seg(zlow,'#e0a800','Baja')}${seg(zopt,okc,'Óptimo')}${seg(zhigh,wc,'Sobrecarga')}${seg(zrisk,bc,'Riesgo')}</div>
-          <div class="zone-legend"><span><i style="background:#e0a800"></i>Baja · ${zlow}</span><span><i style="background:${okc}"></i>Óptimo · ${zopt}</span><span><i style="background:${wc}"></i>Sobrec. · ${zhigh}</span><span><i style="background:${bc}"></i>Riesgo · ${zrisk}</span></div>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:16px;height:100%">
-        <div class="panel">
-          <h2>Pulsómetros · carga interna <span class="r muted">Polar</span><span class="badge-sim">simulado</span></h2>
-          <div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:8px">${gTrimp}${gHi}${gKcal}</div>
-        </div>
-        <div class="panel" style="flex:1;display:flex;flex-direction:column">
-          <h2>Reparto de carga sugerido <span class="r muted">por readiness y ACWR · real</span></h2>
-          <div class="load-sug" style="margin-top:6px;flex:1;justify-content:space-between">
-            <div>
-            <div class="load-h"><span class="ld" style="background:${okc}"></span>Pueden asumir más carga</div>
-            ${canMore.length?canMore.map(p=>loadRow(p,`Rdy <b style="color:${okc}">${p.readiness}</b> · ACWR <b>${p.acwr?p.acwr.ratio.toFixed(2):'—'}</b>`)).join(''):'<div class="small muted" style="padding:2px 6px">Sin candidatos claros ahora.</div>'}
-            </div>
-            <div>
-            <div class="load-h" style="margin-top:8px"><span class="ld" style="background:${bc}"></span>Conviene bajar carga</div>
-            ${lessLoad.length?lessLoad.map(o=>loadRow(o.p,`Rdy <b style="color:${o.p.readiness<55?bc:wc}">${o.p.readiness}</b> · ACWR <b style="color:${o.ac>=1.5?bc:o.ac>=1.3?wc:'inherit'}">${o.p.acwr?o.p.acwr.ratio.toFixed(2):'—'}</b>`)).join(''):'<div class="small muted" style="padding:2px 6px">Nadie a descargar ahora mismo.</div>'}
-            </div>
-          </div>
+          <div class="zone-legend"><span><i style="background:#e0a800"></i>Baja · ${zlow}</span><span><i style="background:${okc}"></i>Óptimo · ${zopt}</span><span><i style="background:${wc}"></i>Sobrecarga · ${zhigh}</span><span><i style="background:${bc}"></i>Riesgo · ${zrisk}</span></div>
         </div>
       </div>
       <div class="panel">
-        <h2>Evolución · últimos 7 días <span class="r muted">carga y pulso</span></h2>
-        <div class="res-evolab">Carga · sRPE <span class="tag tag-real">real</span></div>
-        <div style="height:118px"><canvas id="ch-res-ev-rpe"></canvas></div>
-        <div class="res-evolab" style="margin-top:10px">Pulsómetros · TRIMP <span class="tag tag-sim">simulado</span></div>
-        <div style="height:118px"><canvas id="ch-res-ev-trimp"></canvas></div>
-        <div class="res-evolab" style="margin-top:10px">% Zonas de frec. cardíaca <span class="tag tag-sim">simulado</span></div>
-        <div style="height:196px"><canvas id="ch-res-ev-zones"></canvas></div>
+        <h2>Carga del equipo · 14 días <span class="r muted">UA media por sesión</span></h2>
+        <div style="height:172px"><canvas id="ch-res-ev14"></canvas></div>
+        <div class="res-evolab" style="margin-top:12px">Cumplimiento del parte wellness · 7 días</div>
+        <div style="height:104px"><canvas id="ch-res-cumpl"></canvas></div>
+        <div class="small muted" style="margin-top:6px">${isNaN(cumpl)?'Sin cuestionarios en la última semana.':'Media de respuesta: <b>'+Math.round(cumpl)+'%</b> de la plantilla en los días con parte.'}</div>
+      </div>
+      <div class="panel">
+        <h2>Reparto de carga sugerido <span class="r muted">readiness y ACWR</span></h2>
+        <div class="load-sug" style="margin-top:6px">
+          <div class="load-h"><span class="ld" style="background:${okc}"></span>Pueden asumir más carga</div>
+          ${canMore.length?canMore.map(p=>loadRow(p,`Rdy <b style="color:${okc}">${Math.round(p.readiness)}</b> · ACWR <b>${p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio.toFixed(2):'—'}</b>`)).join(''):'<div class="small muted" style="padding:6px 8px">Nadie con margen claro hoy.</div>'}
+          <div class="load-h" style="margin-top:10px"><span class="ld" style="background:${bc}"></span>Conviene bajar carga</div>
+          ${lessLoad.length?lessLoad.map(o=>loadRow(o.p,`Rdy <b style="color:${o.p.readiness<55?bc:wc}">${Math.round(o.p.readiness)}</b> · ACWR <b style="color:${o.ac>=1.5?bc:o.ac>=1.3?wc:'inherit'}">${cell(o.ac,2)}</b>`)).join(''):'<div class="small muted" style="padding:6px 8px">Nadie en zona de bajar carga.</div>'}
+        </div>
       </div>
     </div>
-    <div class="grid g2">
-      <div class="panel"><h2>Carga integrada · interna vs externa <span class="r muted">sRPE (barras) · TRIMP (línea)</span><span class="badge-sim">simulado</span></h2><div style="height:330px"><canvas id="ch-res-int"></canvas></div></div>
-      <div class="panel"><h2>A vigilar por carga <span class="r muted">por riesgo combinado</span></h2>
+
+    <div class="grid g23" style="margin-top:14px;align-items:start">
+      <div class="panel">
+        <h2>A vigilar por carga <span class="r muted">riesgo combinado</span></h2>
         ${watch.length?`<div class="watch-grid">
         ${watch.map(o=>{const lvl=(!isNaN(o.ac)&&o.ac>=1.5)?'bad':((!isNaN(o.ac)&&o.ac>=1.3)||(!isNaN(o.mo)&&o.mo>2)||(!isNaN(o.dl)&&o.dl>20))?'warn':'ok';const col='var(--'+lvl+')';
           const dchip=isNaN(o.dl)?'':`<span class="wm-chip">Salto<b style="color:${o.dl>20?'var(--bad)':o.dl>10?'var(--warn)':'var(--txt)'}">${o.dl>0?'+':''}${fmt(o.dl,0)}%</b></span>`;
           return `<div class="watch-card" style="border-left-color:${col}" onclick="openPlayer('${o.p.name.replace(/'/g,"\\'")}')">
-            <div class="watch-top"><div><div class="watch-name"><i class="posband-dot" style="background:var(--${o.p.sev||'muted2'})"></i>${o.p.name}</div><div class="watch-pos">${o.p.pos||'—'}</div></div>
+            <div class="watch-top"><div><div class="watch-name"><i class="posband-dot" style="background:var(--${o.p.sev||'muted2'})"></i>${esc(o.p.name)}</div><div class="watch-pos">${esc(o.p.pos||'')}</div></div>
               <div style="text-align:right"><div class="watch-big" style="color:${col}">${cell(o.ac,2)}</div><div class="watch-meta">ACWR</div></div></div>
             <div class="watch-chips"><span class="wm-chip">Monot<b style="color:${!isNaN(o.mo)&&o.mo>2?'var(--warn)':'var(--txt)'}">${cell(o.mo,2)}</b></span>${dchip}<span class="wm-chip">Aguda<b>${cell(o.aguda,0)}</b></span></div>
           </div>`;}).join('')}
         </div>`:'<p class="muted" style="padding:14px 0">Ningún jugador en zona de vigilancia por carga ahora mismo.</p>'}
       </div>
+      <div class="panel">
+        <h2>Carga por posición <span class="r muted">acumulada por jugador · ${win} días</span></h2>
+        ${posRows.length?posRows.map(r=>`<div class="crs-pos">
+            <div class="crs-pos-h"><span>${esc(r.g)} <span class="muted">· ${r.n}</span></span><b>${Math.round(r.media)} UA</b></div>
+            <div class="crs-pos-bar"><span style="width:${Math.round(r.media/posMax*100)}%"></span></div>
+          </div>`).join(''):'<p class="small muted" style="padding:10px 0">Sin sRPE en la ventana seleccionada.</p>'}
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Últimas sesiones <span class="r muted">sRPE registrado</span></h2>
+      ${sesiones.length?`<div class="crs-tw"><table class="crs-table"><thead><tr>
+        <th>Fecha</th><th>Tipo</th><th>MD</th><th class="n">Jugadores</th><th class="n">Duración</th><th class="n">RPE medio</th><th class="n">UA media</th><th class="n">UA máx</th></tr></thead><tbody>
+        ${sesiones.map(s=>`<tr><td><b>${s.dk.split('-').reverse().slice(0,2).join('/')}</b></td><td>${esc(s.tipo)}</td><td>${esc(s.mdx)}</td>
+          <td class="n">${s.n}</td><td class="n">${cell(s.dur,0)}'</td><td class="n">${cell(s.rpe,1)}</td>
+          <td class="n"><b>${cell(s.ua,0)}</b></td><td class="n">${cell(s.max,0)}</td></tr>`).join('')}
+      </tbody></table></div>`:'<p class="small muted" style="padding:10px 0">Sin sesiones registradas.</p>'}
     </div>`;
-  const mc=cssVar('--muted')||'#8a93a0';const leg={display:false};
-  killCharts(['ch-res-int','ch-res-ev-rpe','ch-res-ev-trimp','ch-res-ev-zones']);
-  // sRPE 7d real
-  const tda=teamDayAgg();const ev=tda.slice(-7);
-  const elR=document.getElementById('ch-res-ev-rpe');
-  if(elR&&ev.length)charts['ch-res-ev-rpe']=new Chart(elR,{data:{labels:ev.map(d=>d.dk.slice(5)),datasets:[{type:'bar',label:'UA',data:ev.map(d=>Math.round(d.ua)),backgroundColor:ev.map(d=>d.mdx==='MD'?rgba(PAL.matchday,.55):rgba(PAL.accent,.45)),borderColor:ev.map(d=>d.mdx==='MD'?PAL.matchday:PAL.accent),borderWidth:1,borderRadius:4}]},options:{...BASE,plugins:{legend:leg},scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,ticks:{...AX.ticks,maxTicksLimit:4}}}}});
-  // TRIMP 7d sim
-  const ev2=S.slice(-7);
-  const elT=document.getElementById('ch-res-ev-trimp');
-  if(elT&&ev2.length)charts['ch-res-ev-trimp']=new Chart(elT,{data:{labels:ev2.map(s=>s.dk.slice(5)),datasets:[{type:'bar',label:'TRIMP',data:ev2.map(s=>s.trimp),backgroundColor:ev2.map(s=>s.isMatch?rgba(PAL.matchday,.5):rgba(PAL.data,.45)),borderColor:ev2.map(s=>s.isMatch?PAL.matchday:PAL.data),borderWidth:1,borderRadius:4}]},options:{...BASE,plugins:{legend:leg},scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,ticks:{...AX.ticks,maxTicksLimit:4}}}}});
-  // % zonas FC 7d (apiladas)
-  const elZ=document.getElementById('ch-res-ev-zones');
-  if(elZ&&STATE.hr&&STATE.hr.length){
-    const hrSess=[...new Set(STATE.hr.map(hrKey))].sort();
-    const last7=hrSess.slice(-7).map(k=>{const rs=STATE.hr.filter(r=>hrKey(r)===k);const z=[0,0,0,0,0];rs.forEach(r=>r.z.forEach((m,i)=>z[i]+=m));const tot=z.reduce((a,b)=>a+b,0)||1;return{dk:k.split('|')[0],pct:z.map(m=>+fmt(m/tot*100,0))};});
-    charts['ch-res-ev-zones']=new Chart(elZ,{type:'bar',data:{labels:last7.map(s=>s.dk.slice(5)),datasets:HRZ.map((zz,i)=>({label:zz[0],data:last7.map(s=>s.pct[i]),backgroundColor:zz[1],borderWidth:0,stack:'z'}))},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:9},boxWidth:9,padding:6}}},scales:{x:{...AX,stacked:true,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,stacked:true,max:100,ticks:{...AX.ticks,callback:v=>v+'%',maxTicksLimit:5}}}}});
+
+  // ---- gráficos (todos sobre dato real) ----
+  const mc=cssVar('--muted')||'#8a93a0';
+  killCharts(['ch-res-ev14','ch-res-cumpl']);
+  const ev=tda.slice(-14);
+  const elR=document.getElementById('ch-res-ev14');
+  if(elR&&ev.length){
+    const uas=ev.map(d=>Math.round(d.ua));
+    const roll=uas.map((_,i)=>{const s=uas.slice(Math.max(0,i-6),i+1);return Math.round(mean(s));});
+    charts['ch-res-ev14']=new Chart(elR,{data:{labels:ev.map(d=>d.dk.slice(5)),datasets:[
+      {type:'bar',label:'UA media',data:uas,backgroundColor:ev.map(d=>/partido/i.test(d.tipo||'')?rgba(PAL.matchday,.55):rgba(PAL.accent,.38)),borderRadius:3},
+      {type:'line',label:'Media 7d',data:roll,borderColor:PAL.warn,borderWidth:2,pointRadius:0,tension:.35}
+    ]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10}}},scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,beginAtZero:true}}}});
   }
-  // Carga integrada
-  const labels=S.map(s=>s.dk.slice(5));
-  const elI=document.getElementById('ch-res-int');
-  if(elI&&S.length)charts['ch-res-int']=new Chart(elI,{data:{labels,datasets:[
-    {type:'bar',label:'sRPE (externa)',data:S.map(s=>s.srpe),backgroundColor:S.map(s=>s.isMatch?rgba(PAL.matchday,.45):rgba(PAL.accent,.35)),borderColor:S.map(s=>s.isMatch?PAL.matchday:PAL.accent),borderWidth:1,borderRadius:3,yAxisID:'y'},
-    {type:'line',label:'TRIMP (interna)',data:S.map(s=>s.trimp),borderColor:PAL.data,backgroundColor:'transparent',tension:.35,pointRadius:0,borderWidth:2.4,yAxisID:'y1'}]},
-    options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10}}},scales:{x:{...AX,ticks:{...AX.ticks,maxTicksLimit:10,font:{size:9}}},y:{...AX,position:'left',title:{display:true,text:'sRPE',color:mc,font:{size:9}}},y1:{...AX,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'TRIMP',color:mc,font:{size:9}}}}}});
+  const elC=document.getElementById('ch-res-cumpl');
+  if(elC&&cumplDias.length){
+    charts['ch-res-cumpl']=new Chart(elC,{type:'bar',data:{labels:cumplDias.map(d=>d.dk.slice(5)),datasets:[
+      {label:'% plantilla',data:cumplDias.map(d=>d.pct),backgroundColor:cumplDias.map(d=>d.pct>=80?rgba(PAL.ok,.6):d.pct>=50?rgba(PAL.warn,.6):rgba(PAL.bad,.5)),borderRadius:3}
+    ]},options:{...BASE,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'% de la plantilla'}}},scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,beginAtZero:true,max:100,ticks:{...AX.ticks,callback:v=>v+'%'}}}}});
+  }
 }
 function renderCargaGrupal(){
   const ps=Object.values(STATE.players);const win=FILTER.window;
@@ -8344,212 +8360,12 @@ function effBand(r){if(r==null||isNaN(r))return{c:'var(--muted2)',t:'—'};
   if(r<=0.52)return{c:PAL.ok,t:'equilibrio'};
   return{c:PAL.data,t:'demanda cardíaca'};}
 // Genera una temporada simulada pero coherente: microciclos con partido semanal, gimnasio, activación.
-function seedSeason(force){
-  if(STATE.season&&STATE.season.length&&!force)return;
-  let _s=20260531;const rnd=()=>{_s=(_s*1103515245+12345)&0x7fffffff;return _s/0x7fffffff;};
-  const j=(a,b)=>a+(b-a)*rnd();
-  const roster=Object.keys(STATE.players).length?Object.keys(STATE.players):
-    ["Adrián Nolasco","Alfredo Otero","Brais González","David Roca","Davide Boro","Dzmitry Patotski","Edu Reig","Gonzalo Carró","Javier Carrión","Joao Bandeira","Lilian Pasquet","Mateus M. Buda","Nicolás Bonanno","Óscar Marugán","Pablo Herranz","Pancho Ahumada","Rui Baptista","Josu Arzoz"];
-  // factor cardiovascular individual estable (porteros menos TRIMP; algunos "motores" más)
-  const pf={};roster.forEach((n,i)=>{const pos=(STATE.players[n]||{}).pos||'';let base=1;if(/portero/i.test(pos))base=0.72;else if(/pivote/i.test(pos))base=0.92;else if(/extremo/i.test(pos))base=1.12;pf[n]=base*(0.85+0.30*((i*7%10)/10));});
-  // plantillas de sesión del microciclo: [offsetDía, mdx, tipo, durMin, rpe, pesoMedioZona]
-  const tpl=[
-    [1,"MD-3","Entrenamiento",[70,90],[6,8],[2.9,3.6]],
-    [2,"MD-2","Entrenamiento + Fuerza",[110,150],[6,8],[2.0,2.6]],
-    [3,"MD-1","Activación",[45,60],[4,6],[2.2,2.9]],
-    [4,"MD+2","Fuerza - Gimnasio",[55,70],[5,7],[1.1,1.7]],
-    [5,"MD","Partido",[55,85],[7.5,9],[3.6,4.5]]
-  ];
-  const start=new Date(2025,7,18);// 18 ago 2025
-  const WK=34;const team=[];const players=[];
-  for(let w=0;w<WK;w++){
-    // descarga cada 4ª semana
-    const deload=(w%4===3)?0.82:1;
-    tpl.forEach(t=>{
-      // alguna sesión se cae aleatoriamente (no todas las semanas iguales)
-      if(t[0]===4 && rnd()<0.35)return;
-      const dt=new Date(start);dt.setDate(start.getDate()+w*7+t[0]);
-      const dur=Math.round(j(t[3][0],t[3][1])*deload);
-      const rpe=Math.round(j(t[4][0],t[4][1])*deload*10)/10;
-      const dens=j(t[5][0],t[5][1]);// TRIMP por minuto-equivalente
-      const isMatch=t[1]==="MD";
-      // equipo
-      const srpe=Math.round(dur*rpe);
-      const trimpTeam=Math.round(dur*dens*(0.9+0.2*rnd()));
-      const kcal=Math.round(trimpTeam*j(2.6,3.2));
-      team.push({dk:dkey(dt),date:new Date(dt),week:w,mdx:t[1],tipo:t[2],isMatch,dur,rpe,srpe,trimp:trimpTeam,kcal,ratio:srpe>0?trimpTeam/srpe:0});
-      // por jugador (para heatmap)
-      roster.forEach(nm=>{
-        const dr=Math.round(dur*(0.9+0.2*rnd()));
-        const rp=Math.max(3,Math.min(10,Math.round((rpe+(rnd()*2-1)*1.1)*10)/10));
-        const sr=Math.round(dr*rp);
-        const tr=Math.round(dr*dens*pf[nm]*(0.85+0.3*rnd()));
-        players.push({name:nm,dk:dkey(dt),date:new Date(dt),mon:dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'),mdx:t[1],tipo:t[2],srpe:sr,trimp:tr,ratio:sr>0?tr/sr:0});
-      });
-    });
-  }
-  STATE.season=team;STATE.seasonPlayers=players;
-}
-function renderUnif(){
-  seedSeason();
-  const range=(document.getElementById('unif-range')||{}).value||'all';
-  const agg=(document.getElementById('unif-agg')||{}).value||'session';
-  const order=(document.getElementById('unif-order')||{}).value||'pos';
-  let S=STATE.season.slice();
-  const maxW=Math.max(...S.map(s=>s.week));
-  if(range!=='all'){const lim=maxW-(+range)+1;S=S.filter(s=>s.week>=lim);}
-  const nWeeks=new Set(S.map(s=>s.week)).size;
-  document.getElementById('unif-ts-sub').textContent=(agg==='week'?nWeeks+' semanas':S.length+' sesiones · '+nWeeks+' semanas');
-  // KPIs
-  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
-  const reg=linreg(S.map(s=>({x:s.srpe,y:s.trimp})));
-  const ratioAvg=avg(S.map(s=>s.ratio));
-  const k=(lab,val,sub)=>`<div class="kpi"><div class="lab">${lab}</div><div class="val mono">${val}</div><div class="sub">${sub}</div></div>`;
-  document.getElementById('unif-kpis').innerHTML=
-    k('Sesiones',S.length,'con ambas cargas')+
-    k('sRPE medio',Math.round(avg(S.map(s=>s.srpe))),'UA · externa')+
-    k('TRIMP medio',Math.round(avg(S.map(s=>s.trimp))),'Edwards · interna')+
-    k('Eficiencia',ratioAvg.toFixed(2),'TRIMP / sRPE')+
-    k('Correlación R²',reg?reg.r2.toFixed(2):'—','interna ↔ externa');
-  document.getElementById('unif-r2').textContent=reg?('R² = '+reg.r2.toFixed(2)+' · pendiente '+reg.slope.toFixed(2)):'';
-  // serie temporal + banda eficiencia
-  drawSeasonTS(S,agg,maxW);
-  drawAcuteBand(S);
-  renderEffBand(S);
-  // scatter temporada
-  drawUnifScatter(S,reg);
-  // lectura
-  renderSeasonRead(S,reg,ratioAvg);
-  // heatmap jugador × mes
-  renderHeatmap(range,maxW,order);
-  renderPos();
-}
-function aggByWeek(S){
-  const byw={};S.forEach(s=>{(byw[s.week]=byw[s.week]||[]).push(s);});
-  return Object.keys(byw).map(Number).sort((a,b)=>a-b).map(w=>{
-    const arr=byw[w];const tr=arr.reduce((a,b)=>a+b.trimp,0),sr=arr.reduce((a,b)=>a+b.srpe,0);
-    return {week:w,label:'S'+(w+1),trimp:tr,srpe:sr,ratio:sr>0?tr/sr:0,isMatch:arr.some(s=>s.isMatch),n:arr.length,dk:arr[0].dk};
-  });
-}
-function drawSeasonTS(S,agg,maxW){
-  killCharts(['ch-unif-ts']);const el=document.getElementById('ch-unif-ts');if(!el)return;
-  const week=(agg==='week');
-  const D=week?aggByWeek(S):S;
-  const labels=D.map(d=>week?d.label:d.dk.slice(5));
-  // marcador de semana actual (última semana del rango)
-  const isCur=d=>d.week===maxW;
-  const trBg=D.map(d=>isCur(d)?rgba(PAL.accent,.7):(d.isMatch?rgba(PAL.matchday,.5):rgba(PAL.data,.4)));
-  const trBd=D.map(d=>isCur(d)?PAL.accent:(d.isMatch?PAL.matchday:PAL.data));
-  const trBw=D.map(d=>isCur(d)?2:1);
-  charts['ch-unif-ts']=new Chart(el,{data:{labels,datasets:[
-    {type:'bar',label:'TRIMP',yAxisID:'y',data:D.map(d=>d.trimp),backgroundColor:trBg,borderColor:trBd,borderWidth:trBw,borderRadius:2,order:2},
-    {type:'line',label:'sRPE',yAxisID:'y1',data:D.map(d=>d.srpe),borderColor:PAL.ink,backgroundColor:rgba(PAL.ink,.05),borderWidth:2.2,pointRadius:week?3:0,pointBackgroundColor:PAL.ink,tension:.35,fill:false,order:1}
-  ]},options:{...BASE,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>{const d=D[items[0].dataIndex];return week?('Semana '+(d.week+1)+(isCur(d)?' · actual':'')+' · '+d.n+' sesiones'):(d.dk+' · '+d.mdx+' · '+d.tipo+(isCur(d)?' · semana actual':''));},label:c=>c.dataset.label+': '+Math.round(c.raw)}}},
-    scales:{x:{...AX,ticks:{...AX.ticks,maxTicksLimit:week?20:14,autoSkip:true}},y:{...AX,position:'left',title:{display:true,text:'TRIMP',color:PAL.data,font:{size:10}}},y1:{...AX,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'sRPE (UA)',color:PAL.ink,font:{size:10}}}}}});
-}
-function drawAcuteBand(S){
-  killCharts(['ch-unif-band']);const el=document.getElementById('ch-unif-band');if(!el)return;
-  const full=STATE.season.slice().sort((a,b)=>a.date-b.date);
-  const acute=[],chronic=[];
-  full.forEach((s,i)=>{acute.push(mean(full.slice(Math.max(0,i-6),i+1).map(x=>x.trimp)));chronic.push(mean(full.slice(Math.max(0,i-27),i+1).map(x=>x.trimp)));});
-  const dkSet=new Set(S.map(s=>s.dk));
-  const idx=full.map((s,i)=>({s,i})).filter(o=>dkSet.has(o.s.dk));
-  const labels=idx.map(o=>o.s.date.getDate()+'/'+(o.s.date.getMonth()+1));
-  const acuteLine=idx.map(o=>Math.round(acute[o.i]));
-  const lower=idx.map(o=>Math.round(chronic[o.i]*0.8));
-  const upper=idx.map(o=>Math.round(chronic[o.i]*1.3));
-  const trimpBars=idx.map(o=>o.s.trimp);
-  const matchData=idx.map(o=>o.s.isMatch?Math.round(acute[o.i]):null);
-  const mc=cssVar('--muted')||'#8a93a0';const ink=cssVar('--ink')||'#222';
-  charts['ch-unif-band']=new Chart(el,{data:{labels,datasets:[
-    {type:'line',label:'rango sup',data:upper,borderColor:'transparent',backgroundColor:'rgba(150,160,175,.20)',pointRadius:0,fill:'+1',order:6,yAxisID:'y'},
-    {type:'line',label:'rango inf',data:lower,borderColor:'transparent',backgroundColor:'rgba(150,160,175,.20)',pointRadius:0,fill:false,order:6,yAxisID:'y'},
-    {type:'bar',label:'TRIMP sesión',data:trimpBars,backgroundColor:'rgba(194,163,107,.50)',borderWidth:0,order:5,yAxisID:'y',barPercentage:0.55,categoryPercentage:0.9},
-    {type:'line',label:'Carga aguda',data:acuteLine,borderColor:ink,backgroundColor:ink,borderWidth:2,pointRadius:0,tension:.3,order:1,yAxisID:'y'},
-    {type:'line',label:'Partido',data:matchData,showLine:false,borderColor:'#e23b32',backgroundColor:'#e23b32',pointRadius:idx.map(o=>o.s.isMatch?4:0),pointBorderColor:'#fff',pointBorderWidth:1,order:0,yAxisID:'y'}
-  ]},options:{...BASE,plugins:{legend:{display:false},tooltip:{filter:c=>['Carga aguda','TRIMP sesión','Partido'].includes(c.dataset.label)&&c.raw!=null,callbacks:{label:c=>c.dataset.label==='Partido'?'Partido · aguda '+c.raw:(c.dataset.label==='Carga aguda'?'Carga aguda '+c.raw:'TRIMP '+c.raw)}}},scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9},maxTicksLimit:16,autoSkip:true}},y:{...AX,beginAtZero:true,title:{display:true,text:'TRIMP',color:mc,font:{size:9}}}}}});
-}
-function renderEffBand(S){
-  const box=document.getElementById('unif-effband');if(!box)return;
-  // agrupa por semana
-  const byw={};S.forEach(s=>{(byw[s.week]=byw[s.week]||[]).push(s);});
-  const weeks=Object.keys(byw).map(Number).sort((a,b)=>a-b);
-  const cells=weeks.map(w=>{const arr=byw[w];const tr=arr.reduce((a,b)=>a+b.trimp,0),sr=arr.reduce((a,b)=>a+b.srpe,0);
-    const r=sr>0?tr/sr:null;const b=effBand(r);
-    return `<div title="Semana ${w+1} · ratio ${r?r.toFixed(2):'—'}" style="flex:1;min-width:6px;height:14px;background:${b.c};opacity:.9;border-radius:2px"></div>`;}).join('');
-  box.innerHTML=`<div style="display:flex;gap:2px;margin-top:10px">${cells}</div>`;
-}
-function drawUnifScatter(S,reg){
-  killCharts(['ch-unif']);const el=document.getElementById('ch-unif');if(!el)return;
-  const pts=S.map(s=>({x:s.srpe,y:s.trimp,dk:s.dk,mdx:s.mdx}));
-  const col=S.map(s=>{const b=effBand(s.ratio);return b.c;});
-  const ds=[{label:'Sesión',data:pts,backgroundColor:col.map(c=>rgba(c,.62)),borderColor:col,pointRadius:4,pointHoverRadius:6}];
-  if(reg&&pts.length>=2){const xs=pts.map(p=>p.x);const x0=Math.min(...xs),x1=Math.max(...xs);
-    ds.push({type:'line',label:'Tendencia',data:[{x:x0,y:reg.slope*x0+reg.intercept},{x:x1,y:reg.slope*x1+reg.intercept}],borderColor:'#aeaeb2',borderWidth:2,borderDash:[6,4],pointRadius:0,fill:false});}
-  charts['ch-unif']=new Chart(el,{type:'scatter',data:{datasets:ds},options:{...BASE,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.dk?`${c.raw.dk} (${c.raw.mdx}): sRPE ${Math.round(c.raw.x)} · TRIMP ${Math.round(c.raw.y)}`:''}}},scales:{x:{...AX,title:{display:true,text:'sRPE (UA) · externa',color:'#6e6e73',font:{size:10}}},y:{...AX,title:{display:true,text:'TRIMP · interna',color:'#6e6e73',font:{size:10}}}}}});
-}
-function renderSeasonRead(S,reg,ratioAvg){
-  const box=document.getElementById('unif-read');if(!box)return;
-  const byType={};S.forEach(s=>{const o=byType[s.tipo]=byType[s.tipo]||{tr:0,sr:0,n:0};o.tr+=s.trimp;o.sr+=s.srpe;o.n++;});
-  const rows=Object.entries(byType).map(([t,o])=>({t,r:o.sr>0?o.tr/o.sr:0,n:o.n})).sort((a,b)=>b.r-a.r);
-  const b=effBand(ratioAvg);
-  const line=rows.map(x=>{const e=effBand(x.r);return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)"><span class="nm">${x.t}</span><span class="mono small"><b style="color:${e.c}">${x.r.toFixed(2)}</b> <span class="muted">· ${e.t}</span></span></div>`;}).join('');
-  box.innerHTML=`
-   <div style="text-align:center;padding:6px 0 12px">
-     <div style="font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase">Eficiencia media</div>
-     <div style="font-size:40px;font-weight:800;letter-spacing:-.03em;color:${b.c};line-height:1.1">${ratioAvg.toFixed(2)}</div>
-     <div class="small" style="color:${b.c}">${b.t}</div>
-   </div>
-   <div style="font-size:11px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Por tipo de sesión</div>
-   ${line}
-   <p class="small muted" style="margin-top:10px;line-height:1.6">El gimnasio/fuerza baja el ratio (mucho sRPE, poca demanda cardíaca); los partidos lo suben. La correlación global (R² ${reg?reg.r2.toFixed(2):'—'}) mide cuánto coinciden tus dos cargas internas a lo largo de la temporada.</p>`;
-}
-function renderHeatmap(range,maxW,order){
-  const box=document.getElementById('unif-heatmap');if(!box)return;
-  const metric=(document.getElementById('unif-hm')||{}).value||'ratio';
-  order=order||'pos';
-  let P=STATE.seasonPlayers.slice();
-  if(range!=='all'){const limW=maxW-(+range)+1;const limDk=STATE.season.filter(s=>s.week>=limW).map(s=>s.dk);const set=new Set(limDk);P=P.filter(p=>set.has(p.dk));}
-  const months=[...new Set(P.map(p=>p.mon))].sort();
-  let players=[...new Set(P.map(p=>p.name))];
-  // agrega por jugador×mes
-  const agg={};P.forEach(p=>{const key=p.name+'|'+p.mon;const o=agg[key]=agg[key]||{tr:0,sr:0,n:0};o.tr+=p.trimp;o.sr+=p.srpe;o.n++;});
-  const val=(nm,mo)=>{const o=agg[nm+'|'+mo];if(!o||!o.n)return null;if(metric==='ratio')return o.sr>0?o.tr/o.sr:null;if(metric==='trimp')return o.tr/o.n;return o.sr/o.n;};
-  // eficiencia media de cada jugador (para ordenar)
-  const effOf={};players.forEach(nm=>{let tr=0,sr=0;P.forEach(p=>{if(p.name===nm){tr+=p.trimp;sr+=p.srpe;}});effOf[nm]=sr>0?tr/sr:0;});
-  const POS=['Portero','Pivote','1ª Línea','Extremo'];
-  const posOf=nm=>(STATE.players[nm]||{}).pos||'';
-  const posRank=nm=>{const p=posOf(nm);const i=POS.findIndex(x=>p.toLowerCase().includes(x.toLowerCase().slice(0,4)));return i<0?9:i;};
-  if(order==='abc')players.sort((a,b)=>a.localeCompare(b,'es'));
-  else if(order==='eff')players.sort((a,b)=>effOf[b]-effOf[a]);
-  else players.sort((a,b)=>posRank(a)-posRank(b)||a.localeCompare(b,'es'));
-  // escala de color
-  let allv=[];players.forEach(nm=>months.forEach(mo=>{const v=val(nm,mo);if(v!=null)allv.push(v);}));
-  const mn=Math.min(...allv),mx=Math.max(...allv);
-  const lerp=(a,b,t)=>Math.round(a+(b-a)*t);
-  const mix=(c1,c2,t)=>`rgb(${lerp(c1[0],c2[0],t)},${lerp(c1[1],c2[1],t)},${lerp(c1[2],c2[2],t)})`;
-  // ratio: escala diverging fija rojo(0.20)→verde(0.38)→azul(0.58); carga: azul→rojo por rango
-  const RED=[194,112,46],GRN=[47,158,99],BLU=[63,85,114];
-  const colOf=v=>{if(v==null)return null;
-    if(metric==='ratio'){const lo=0.20,mid=0.38,hi=0.58;
-      if(v<=mid){const t=Math.max(0,Math.min(1,(v-lo)/(mid-lo)));return mix(RED,GRN,t);}
-      const t=Math.max(0,Math.min(1,(v-mid)/(hi-mid)));return mix(GRN,BLU,t);}
-    const t=Math.max(0,Math.min(1,(v-mn)/((mx-mn)||1)));return mix(BLU,RED,t);};
-  const monLab=mo=>{const p=mo.split('-');return ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][+p[1]]+' '+p[0].slice(2);};
-  const fmtV=v=>v==null?'':(metric==='ratio'?v.toFixed(2):Math.round(v));
-  const showPos=(order==='pos');let lastPos=null;
-  let html='<table class="hm"><thead><tr><th class="nm-c" style="text-align:left">Jugador</th>'+months.map(mo=>`<th>${monLab(mo)}</th>`).join('')+'</tr></thead><tbody>';
-  players.forEach(nm=>{
-    if(showPos){const p=posOf(nm)||'—';if(p!==lastPos){lastPos=p;html+=`<tr><td class="nm-c" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;padding-top:8px" colspan="${months.length+1}">${p}</td></tr>`;}}
-    html+='<tr><td class="nm-c">'+nm+'</td>'+months.map(mo=>{const v=val(nm,mo);const c=colOf(v);return v==null?'<td class="empty"></td>':`<td class="cell" style="background:${c}" title="${nm} · ${monLab(mo)}: ${fmtV(v)}">${fmtV(v)}</td>`;}).join('')+'</tr>';});
-  html+='</tbody></table>';
-  box.innerHTML=html;
-  document.getElementById('unif-hm-sub').textContent=metric==='ratio'?'eficiencia TRIMP/sRPE':(metric==='trimp'?'TRIMP medio por sesión':'sRPE medio por sesión');
-  const leg=document.getElementById('unif-hm-legend');
-  if(metric==='ratio'){leg.innerHTML=`<span><i class="led" style="background:#c2702e"></i>percepción/contacto</span><span><i class="led" style="background:#2f9e63"></i>equilibrio</span><span><i class="led" style="background:#3f5572"></i>demanda cardíaca</span><span class="muted">escala continua</span>`;}
-  else{leg.innerHTML=`<span><i class="led" style="background:rgb(63,85,114)"></i>menos</span><span><i class="led" style="background:rgb(194,112,46)"></i>más</span><span class="muted">escala relativa al rango mostrado</span>`;}
-}
-
+/* v230 · Eliminados seedSeason() y toda la vista «Datos unificados» (renderUnif,
+   aggByWeek, drawSeasonTS, drawAcuteBand, renderEffBand, drawUnifScatter,
+   renderSeasonRead, renderHeatmap, effBand). STATE.season no tenía ninguna
+   fuente real —su único escritor era el propio generador— así que esa vista
+   entera mostraba una temporada inventada. Además era inalcanzable: no estaba
+   en NAV ni había ningún enlace a go('unif'). */
 function arcGauge(label,val,cap,stops,valTxt,sub,size){
   size=size||150;const stroke=Math.round(size*0.10);const cx=size/2,cy=size/2,r=(size-stroke)/2-2;
   const start=135,sweep=270;
