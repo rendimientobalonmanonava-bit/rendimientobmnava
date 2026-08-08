@@ -450,29 +450,28 @@ main{padding:13px 16px 70px}
 .eq-col{display:flex;flex-direction:column;gap:14px;min-width:0}
 .eq-cab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:2px 2px 0}
 .eq-cab-p{width:8px;height:8px;border-radius:50%;flex:none}
-/* La rejilla de "A vigilar" venía fijada a 6 columnas dentro de dash-left; ahora
-   el panel es más ancho, así que se adapta al espacio disponible. */
-#team-rings .ath-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:14px 8px;justify-items:center}
-/* Mapa de riesgo carga × recuperación */
-.eq-rk{display:grid;grid-template-columns:74px repeat(3,minmax(0,1fr));gap:6px;margin-top:4px}
-.eq-rk-ch,.eq-rk-rh{display:flex;flex-direction:column;justify-content:center;font-size:10px;color:var(--muted);line-height:1.25}
-.eq-rk-ch{align-items:center;text-align:center;padding-bottom:2px}
-.eq-rk-rh{align-items:flex-end;text-align:right;padding-right:4px}
-.eq-rk-ch b,.eq-rk-rh b{font-size:11px;color:var(--txt);font-weight:700}
-.eq-rk-c{min-height:62px;border-radius:10px;border:1px solid var(--hair);background:var(--panel2);padding:7px 8px;display:flex;flex-direction:column;gap:5px;justify-content:center;align-items:center}
-.eq-rk-c.sev-ok.on{background:rgba(30,168,99,.12);border-color:rgba(30,168,99,.35)}
-.eq-rk-c.sev-warn.on{background:rgba(224,138,0,.14);border-color:rgba(224,138,0,.4)}
-.eq-rk-c.sev-bad.on{background:rgba(226,59,50,.14);border-color:rgba(226,59,50,.45)}
-.eq-rk-n{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
-.eq-rk-0{color:var(--muted2,var(--muted));font-size:13px;opacity:.5}
-.eq-rk-w{display:flex;flex-wrap:wrap;gap:3px;justify-content:center}
-.eq-rk-p{font-size:9.5px;font-weight:700;padding:2px 5px;border-radius:5px;background:var(--panel);border:1px solid var(--hair);cursor:pointer;white-space:nowrap}
-.eq-rk-p:hover{border-color:var(--accent);color:var(--accent)}
-.eq-rk-mas{font-size:9.5px;color:var(--muted);align-self:center}
-.eq-rk-foot{font-size:11px;color:var(--muted);margin-top:10px;padding-top:9px;border-top:1px solid var(--hair);line-height:1.5}
+/* v232 · "A vigilar" pasa a la tercera columna. Con auto-fit y justify-items
+   centrado, las fichas se quedaban estrechas y dejaban aire a los lados; se
+   fijan tres columnas que ocupan todo el ancho y las fichas se estiran. */
+#team-rings .ath-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 8px;align-content:start}
+#team-rings .ath{width:100%;max-width:none;min-width:0}
+#team-rings .attn-ok{grid-column:1/-1}
+/* Estado por línea: cuatro tarjetas en 2×2 dentro de media fila, para que
+   Portero no se quede solo en una fila con dos huecos al lado. */
+.eq-r2 .posband-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* Fila de dos columnas desiguales: el panel ancho a la izquierda. */
+.eq-r23{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:start;margin-bottom:14px}
+.eq-r23>.panel{margin-bottom:0}
+@media(max-width:860px){.eq-r23{grid-template-columns:1fr}}
+/* Alto de los gráficos del resumen de equipo */
+.eq-ch{height:180px}
+.eq-ch-tall{height:320px}
+/* Repartos de readiness y ACWR */
+.eq-dist+.eq-dist{margin-top:16px;padding-top:14px;border-top:1px solid var(--hair)}
+.eq-dist-h{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:600}
+.eq-dist-h b{font-size:11px;font-weight:600;color:var(--muted)}
 @media(max-width:1200px){.eq-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.eq-r3{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:860px){.eq-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.eq-r3,.eq-r2{grid-template-columns:1fr}.eq-v{font-size:21px}
-  .eq-rk{grid-template-columns:56px repeat(3,minmax(0,1fr))}}
+@media(max-width:860px){.eq-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.eq-r3,.eq-r2{grid-template-columns:1fr}.eq-v{font-size:21px}}
 /* v231 · Retiradas las reglas .dash-top/.dash-col/.dash-left/.dash-right/
    .dash-rsplit: el resumen del equipo ya no usa esos contenedores desde que
    pasó a filas temáticas (.eq-r3/.eq-r2), y no quedaba ningún markup con
@@ -2001,6 +2000,8 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--ok)"></span>Cómo llega el equipo</div>
         <div id="team-hero"></div>
         <div class="panel" id="team-welllights"></div>
+        <div class="panel"><h2>Recuperación del equipo <span class="r muted">últimos 14 días</span></h2>
+          <div class="eq-ch"><canvas id="ch-team-rec"></canvas></div></div>
       </div>
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--accent)"></span>Carga
@@ -2010,27 +2011,35 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="panel"><h2>Intensidad de la sesión <span class="r muted">última</span></h2><div id="team-intensity"></div></div>
       </div>
       <div class="eq-col">
-        <div class="eq-cab"><span class="eq-cab-p" style="background:var(--warn)"></span>Disponibilidad</div>
-        <div class="panel"><h2>Disponibilidad</h2><div style="height:168px"><canvas id="ch-avail"></canvas></div><div id="team-qavail"></div></div>
+        <div class="eq-cab"><span class="eq-cab-p" style="background:var(--warn)"></span>A vigilar</div>
+        <div class="panel" id="team-rings"></div>
+        <div class="panel" id="team-quick"><h2>Registro rápido <span class="r muted">marca un estado</span></h2><div id="team-qavail"></div></div>
       </div>
     </div>
+    <!-- v232 · Reparto para que ninguna columna acabe muy por encima de la
+         otra: Estado por línea + carga del equipo a la izquierda; repartos y
+         pulso a la derecha. Medido: 598 frente a 547 px. -->
     <div class="eq-r2">
-      <div class="panel" id="team-risk"></div>
-      <div class="panel" id="team-rings"></div>
+      <div class="eq-col">
+        <div id="team-posband"></div>
+        <div class="panel"><h2>Estado de carga del equipo</h2><div id="team-meters"></div></div>
+      </div>
+      <div class="eq-col">
+        <div class="panel"><h2>Reparto del equipo <span class="r muted">readiness y ACWR</span></h2><div id="team-dist"></div></div>
+        <div class="panel" id="team-hr-panel" style="cursor:pointer" onclick="go('hr')">
+          <h2>Resumen de pulso · zonas de FC <span class="r muted">interna + externa ›</span></h2>
+          <div id="team-hr"></div>
+        </div>
+      </div>
     </div>
-    <div class="eq-r2">
-      <div id="team-posband"></div>
-      <div class="panel"><h2>Estado de carga del equipo</h2><div id="team-meters"></div></div>
-    </div>
-    <div class="eq-r2">
+    <div class="eq-r23">
       <div class="panel" id="team-class-panel" style="cursor:pointer" onclick="go('hr')">
         <h2>Clasificación de la última sesión · Pulso + RPE <span class="r muted" id="team-hr-when">ver detalle ›</span></h2>
         <div id="team-hr-class"></div>
       </div>
-      <div class="panel" id="team-hr-panel" style="cursor:pointer" onclick="go('hr')">
-        <h2>Resumen de pulso · zonas de FC <span class="r muted">interna + externa ›</span></h2>
-        <div id="team-hr"></div>
-      </div>
+      <div class="panel"><h2>Carga por tipo de sesión <span class="r muted">reparto de UA</span></h2>
+        <div class="eq-ch eq-ch-tall"><canvas id="ch-team-tipos"></canvas></div></div>
+    </div>
     </div>
     <div class="panel">
       <h2>Plantilla · estado del día <span class="r muted">toca un jugador para abrir su ficha</span></h2>
@@ -5010,7 +5019,9 @@ function renderTeam(){
   renderTeamRings();renderTeamWellLights();renderTeamQuickAvail();
   /* v231 · tira de titulares y mapa de riesgo carga × recuperación */
   try{renderTeamStrip();}catch(e){}
-  try{renderTeamRisk();}catch(e){}
+  try{drawTeamRec();}catch(e){}
+  try{drawTeamTypes();}catch(e){}
+  try{renderTeamDist();}catch(e){}
   const posSel=document.getElementById('team-pos');
   if(posSel){const cur=posSel.value;const poss=[...new Set(all.map(p=>p.pos))];posSel.innerHTML='<option value="">Todas las posiciones</option>'+poss.map(p=>`<option ${p===cur?'selected':''}>${p}</option>`).join('');}
   const matchDks=new Set(STATE.rpe.filter(s=>s.mdx==='MD'||norm(s.tipo).includes('partido')).map(s=>s.dk));
@@ -5063,6 +5074,10 @@ function drawTeam7(){
   if(window.qdRenderMini){try{qdRenderMini();}catch(e){console.warn('qd mini',e);}}
 }
 function drawAvail(){
+  /* v232 · el donut de Disponibilidad salió del resumen del equipo: repetía lo
+     que ya dice la tira de titulares (disponibles, con molestia, fuera). Si el
+     canvas no está montado no hay nada que dibujar. */
+  if(!document.getElementById('ch-avail')){killCharts(['ch-avail']);return;}
   killCharts(['ch-avail']);const ps=Object.values(STATE.players);const c={ok:0,warn:0,bad:0,na:0};ps.forEach(p=>c[p.sev]=(c[p.sev]||0)+1);
   charts['ch-avail']=new Chart(document.getElementById('ch-avail'),{type:'doughnut',data:{labels:['Óptimo','Atención','Alerta','Sin datos'],datasets:[{data:[c.ok,c.warn,c.bad,c.na],backgroundColor:[rgba(PAL.ok,.85),rgba(PAL.warn,.85),rgba(PAL.bad,.85),rgba(PAL.data2,.6)],borderColor:cssVar('--panel'),borderWidth:3,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{position:'right',labels:{color:'#6e6e73',font:{family:'JetBrains Mono',size:10},boxWidth:10,usePointStyle:true,pointStyle:'circle'}}}}});
 }
@@ -8482,61 +8497,71 @@ function renderTeamStrip(){
     ${t('Wellness hoy',pctW+'<small>%</small>',respHoy+' de '+ps.length+' han respondido',pctW>=80?'ok':pctW>=50?'warn':'bad')}
   </div>`;
 }
-/* ============ v231 · Mapa de riesgo readiness × ACWR ============
-   Cruza las dos variables que ya gobiernan las alertas y coloca a cada jugador
-   en su casilla. La esquina de abajo a la derecha —carga disparada con el
-   jugador mal recuperado— es la que interesa mirar antes de una sesión. No
-   introduce ningún cálculo nuevo: usa p.readiness y p.acwr.ratio tal cual. */
-function renderTeamRisk(){
-  const box=document.getElementById('team-risk');if(!box)return;
-  const ps=Object.values(STATE.players);
-  const val=ps.filter(p=>p.readiness!=null&&p.acwr&&!isNaN(p.acwr.ratio));
-  if(!val.length){box.innerHTML='<h2>Mapa de riesgo</h2><p class="small muted" style="padding:10px 0">Hacen falta readiness y ACWR para situar a los jugadores.</p>';return;}
-  /* filas = carga (de menos a más), columnas = recuperación (de peor a mejor) */
-  const filas=[
-    {k:'pico', lab:'Pico',      sub:'&gt;1,5',    test:a=>a>1.5},
-    {k:'alto', lab:'Alto',      sub:'1,3–1,5',    test:a=>a>1.3&&a<=1.5},
-    {k:'opt',  lab:'Óptimo',    sub:'0,8–1,3',    test:a=>a>=0.8&&a<=1.3},
-    {k:'bajo', lab:'Bajo',      sub:'&lt;0,8',    test:a=>a<0.8}
-  ];
-  const cols=[
-    {k:'r_bajo',lab:'Bajo', sub:'&lt;55',  test:r=>r<55},
-    {k:'r_med', lab:'Medio',sub:'55–74',   test:r=>r>=55&&r<75},
-    {k:'r_alto',lab:'Alto', sub:'≥75',     test:r=>r>=75}
-  ];
-  /* severidad de la casilla: la carga pesa, y una recuperación baja la agrava */
-  const sevDe=(fi,ci)=>{
-    const carga=[3,2,0,1][fi];        // pico, alto, óptimo, bajo
-    const rec=[2,1,0][ci];            // readiness bajo, medio, alto
-    const s=carga+rec;
-    return s>=4?'bad':s>=2?'warn':'ok';
-  };
-  const ini=n=>n.split(' ').slice(0,2).map(x=>x[0]||'').join('');
-  let celdas='';
-  filas.forEach((f,fi)=>{
-    celdas+=`<div class="eq-rk-rh"><b>${f.lab}</b><span>${f.sub}</span></div>`;
-    cols.forEach((c,ci)=>{
-      const dentro=val.filter(p=>f.test(p.acwr.ratio)&&c.test(p.readiness));
-      const sev=sevDe(fi,ci);
-      celdas+=`<div class="eq-rk-c ${dentro.length?'on':''} sev-${sev}">`
-        +(dentro.length?`<div class="eq-rk-n">${dentro.length}</div><div class="eq-rk-w">`
-            +dentro.slice(0,6).map(p=>`<span class="eq-rk-p" title="${String(p.name).replace(/"/g,'')} · Rdy ${Math.round(p.readiness)} · ACWR ${p.acwr.ratio.toFixed(2)}" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')">${ini(p.name)}</span>`).join('')
-            +(dentro.length>6?`<span class="eq-rk-mas">+${dentro.length-6}</span>`:'')
-          +'</div>':'<span class="eq-rk-0">—</span>')
-        +'</div>';
-    });
-  });
-  const alerta=val.filter(p=>p.acwr.ratio>1.3&&p.readiness<55).length;
-  box.innerHTML=`<h2>Mapa de riesgo <span class="r muted">carga × recuperación · ${val.length} jugadores</span></h2>
-    <div class="eq-rk">
-      <div class="eq-rk-ch"></div>
-      ${cols.map(c=>`<div class="eq-rk-ch"><b>${c.lab}</b><span>${c.sub}</span></div>`).join('')}
-      ${celdas}
-    </div>
-    <div class="eq-rk-foot">Filas: ACWR (carga aguda frente a crónica). Columnas: readiness de wellness.
-      ${alerta?`<b style="color:var(--bad)">${alerta} ${alerta===1?'jugador':'jugadores'} con carga alta y recuperación baja.</b>`:'<b style="color:var(--ok)">Nadie combina carga alta con recuperación baja.</b>'}</div>`;
+/* ============ v232 · Recuperación del equipo y reparto ============
+   La columna de "Estado de carga" quedaba a media altura frente a Estado por
+   línea. Se acompaña de la serie de recuperación, que ya calculaba
+   teamRecSeries para la tira del hero pero no se veía como tendencia, y de dos
+   repartos que hasta ahora había que contar a mano en la tabla. */
+function drawTeamRec(){
+  const el=document.getElementById('ch-team-rec');if(!el)return;
+  killCharts(['ch-team-rec']);
+  let ser=[];try{ser=teamRecSeries(14);}catch(e){}
+  if(!ser.length){if(el.parentElement)el.parentElement.innerHTML='<div class="small muted" style="padding:18px 0">Sin histórico de wellness para la serie.</div>';return;}
+  const mc=cssVar('--muted')||'#8a93a0';
+  charts['ch-team-rec']=new Chart(el,{data:{labels:ser.map(s=>s.dk.slice(5)),datasets:[
+    {type:'bar',label:'Recuperación media',data:ser.map(s=>s.pct),borderRadius:3,
+     backgroundColor:ser.map(s=>s.sev==='ok'?rgba(PAL.ok,.55):s.sev==='warn'?rgba(PAL.warn,.55):rgba(PAL.bad,.5))},
+    {type:'line',label:'Tendencia',data:ser.map((_,i)=>{const w=ser.slice(Math.max(0,i-3),i+1);return Math.round(mean(w.map(x=>x.pct)));}),
+     borderColor:PAL.accent,borderWidth:2,pointRadius:0,tension:.35}
+  ]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10}},
+    tooltip:{callbacks:{label:c=>c.raw+'% de recuperación'}}},
+    scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,beginAtZero:true,max:100,ticks:{...AX.ticks,callback:v=>v+'%'}}}}});
 }
-window.renderTeamStrip=renderTeamStrip;window.renderTeamRisk=renderTeamRisk;
+function renderTeamDist(){
+  const box=document.getElementById('team-dist');if(!box)return;
+  const ps=Object.values(STATE.players);
+  const rd=ps.map(p=>p.readiness).filter(v=>v!=null);
+  const ac=ps.map(p=>p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null).filter(v=>v!=null);
+  const barra=(titulo,tramos,total,nota)=>{
+    if(!total)return `<div class="eq-dist"><div class="eq-dist-h"><span>${titulo}</span><b class="muted">sin datos</b></div></div>`;
+    return `<div class="eq-dist">
+      <div class="eq-dist-h"><span>${titulo}</span><b>${total} jugadores</b></div>
+      <div class="zonebar">${tramos.filter(t=>t[0]).map(t=>`<span style="flex:${t[0]};background:${t[1]}" title="${t[2]}: ${t[0]}">${t[0]}</span>`).join('')}</div>
+      <div class="zone-legend">${tramos.map(t=>`<span><i style="background:${t[1]}"></i>${t[2]} · ${t[0]}</span>`).join('')}</div>
+      ${nota?`<div class="small muted" style="margin-top:6px">${nota}</div>`:''}
+    </div>`;
+  };
+  const okc='#1ea863',wc='#e08a00',bc='#e23b32',am='#e0a800';
+  const rTr=[[rd.filter(v=>v>=75).length,okc,'Óptimo ≥75'],[rd.filter(v=>v>=55&&v<75).length,wc,'Moderado 55–74'],[rd.filter(v=>v<55).length,bc,'Bajo <55']];
+  const aTr=[[ac.filter(v=>v<0.8).length,am,'Infracarga <0,8'],[ac.filter(v=>v>=0.8&&v<=1.3).length,okc,'Óptimo 0,8–1,3'],[ac.filter(v=>v>1.3&&v<1.5).length,wc,'Sobrecarga 1,3–1,5'],[ac.filter(v=>v>=1.5).length,bc,'Pico ≥1,5']];
+  const sinRd=ps.length-rd.length, sinAc=ps.length-ac.length;
+  box.innerHTML=barra('Readiness',rTr,rd.length,sinRd?sinRd+' sin cuestionario':'')
+    +barra('ACWR',aTr,ac.length,sinAc?sinAc+' sin carga suficiente':'');
+}
+/* v232 · Reparto de la carga por tipo de sesión. teamByType ya agregaba las UA
+   por tipo dentro de la ventana, pero ese dato solo se veía como número suelto:
+   en donut se ve de un vistazo si la semana se ha ido en partido, gimnasio o
+   pista. */
+function drawTeamTypes(){
+  const el=document.getElementById('ch-team-tipos');if(!el)return;
+  killCharts(['ch-team-tipos']);
+  let m={};try{m=teamByType(FILTER.window||28)||{};}catch(e){}
+  const ent=Object.keys(m).filter(k=>k&&m[k]>0).sort((a,b)=>m[b]-m[a]);
+  if(!ent.length){if(el.parentElement)el.parentElement.innerHTML='<div class="small muted" style="padding:18px 0">Sin sRPE en la ventana seleccionada.</div>';return;}
+  const tot=ent.reduce((a,k)=>a+m[k],0);
+  const cols=[PAL.accent,PAL.warn,PAL.ok,PAL.matchday||PAL.bad,PAL.data,PAL.data2];
+  const mc=cssVar('--muted')||'#8a93a0';
+  charts['ch-team-tipos']=new Chart(el,{type:'doughnut',
+    data:{labels:ent,datasets:[{data:ent.map(k=>Math.round(m[k])),
+      backgroundColor:ent.map((_,i)=>rgba(cols[i%cols.length],.8)),
+      borderColor:cssVar('--panel'),borderWidth:3,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{position:'right',labels:{color:mc,font:{size:10},boxWidth:10,usePointStyle:true,pointStyle:'circle'}},
+        tooltip:{callbacks:{label:c=>c.label+': '+c.raw+' UA ('+Math.round(c.raw/tot*100)+'%)'}}}}});
+}
+window.drawTeamTypes=drawTeamTypes;
+window.drawTeamRec=drawTeamRec;window.renderTeamDist=renderTeamDist;
+window.renderTeamStrip=renderTeamStrip;
 function renderTeamQuickAvail(){
   const box=document.getElementById('team-qavail');if(!box)return;
   const roster=Object.keys(STATE.players).sort((a,b)=>a.localeCompare(b,'es'));
