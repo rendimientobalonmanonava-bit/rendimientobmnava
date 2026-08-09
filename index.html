@@ -603,6 +603,39 @@ main{padding:13px 16px 70px}
 .ath-rsn{font-size:9.5px;color:var(--muted);margin-top:4px;line-height:1.25;text-align:center}
 /* Las reglas .qav-* se retiran con el panel de registro rápido al que
    vestían: no queda ningún markup con esas clases. */
+/* ===== v237 · Evolución individual · tarjetas ===== */
+.vh-cat{display:flex;align-items:baseline;gap:9px;margin:18px 0 8px;font-size:12.5px;font-weight:700}
+.vh-cat b{font-size:11px;font-weight:600;color:var(--muted)}
+.vh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:12px}
+.vh-card{border:1px solid var(--line);border-left:3px solid var(--vc);border-radius:12px;background:var(--panel2);padding:11px 12px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.vh-h{display:flex;align-items:center;gap:7px}
+.vh-n{font-size:12px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.vh-tr{font-size:13px;font-weight:700;flex:none}
+.vh-v{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+.vh-v b{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.vh-v span{font-size:11px;color:var(--muted)}
+.vh-z{font-style:normal;font-size:11px;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
+.vh-sp{height:34px;display:flex;align-items:center}
+.vh-sp .spark{width:100%;height:34px}
+.vh-nospark{font-size:10.5px;color:var(--muted)}
+/* Escala del z: tramos rojo/ámbar/neutro/verde con el marcador del jugador */
+.vh-esc{margin-top:1px}
+.vh-esc-bar{position:relative;height:7px;border-radius:4px;overflow:hidden;background:var(--hair)}
+.vh-esc-bar>span{position:absolute;top:0;height:100%;display:block}
+.vh-esc-m{position:absolute;top:-3px;width:3px;height:13px;border-radius:2px;transform:translateX(-50%);box-shadow:0 0 0 2px var(--panel2)}
+.vh-esc-t{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:3px}
+.vh-esc-na{opacity:.75}
+.vh-esc-na .vh-esc-t{justify-content:flex-start}
+.vh-f{display:flex;align-items:baseline;gap:8px;margin-top:auto;padding-top:6px;border-top:1px solid var(--hair);font-size:10px}
+.vh-age{font-weight:700;flex:none}
+.vh-meta{color:var(--muted);margin-left:auto;text-align:right}
+.vh-ayuda{margin-top:16px;border-top:1px solid var(--hair);padding-top:10px}
+.vh-ayuda>summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--accent);list-style:none}
+.vh-ayuda>summary::-webkit-details-marker{display:none}
+.vh-ayuda>summary::before{content:'▸ ';font-size:10px}
+.vh-ayuda[open]>summary::before{content:'▾ '}
+.vh-ayuda p{margin-top:8px;line-height:1.6}
+@media(max-width:520px){.vh-grid{grid-template-columns:1fr 1fr}.vh-v b{font-size:20px}}
 .tw-lights{display:flex;justify-content:space-between;gap:6px;margin-top:10px}
 .tw-light{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;flex:1}
 .tw-light b{font-size:14px;color:var(--txt);font-family:var(--mono,monospace)}
@@ -8772,16 +8805,36 @@ function renderTeamHR(){
   const ua=Object.values(byp);const srpe=ua.length?Math.round(avg(ua)):null;
   const z45=(ztot[3]+ztot[4])/tot*100;
   renderHRClass(rows,key,dk,'team-hr-class');
-  const k=(l,v,s)=>`<div class="kpi"><div class="lab">${l}</div><div class="val mono">${v}</div><div class="sub">${s}</div></div>`;
+  /* v237 · Los cuatro KPI salían en negro y había que conocer los rangos de
+     memoria. Se colorean con los baremos que ya usa la app: TRIMP 120/220 y
+     sRPE 250/450 son los de sus propios medidores, y el %Z4+Z5 usa las bandas
+     oficiales de SESSPEC (8/18/24), las mismas con las que se clasifica la
+     sesión. Verde = carga baja, ámbar = media, rojo = alta: es un semáforo de
+     intensidad, no de calidad. */
+  const sevPorTramos=(v,a,b)=>v==null||isNaN(v)?'muted':(v<a?'ok':v<b?'warn':'bad');
+  const k=(l,v,s,sev)=>`<div class="kpi"><div class="lab">${l}</div><div class="val mono" style="color:var(--${sev||'txt'})">${v}</div><div class="sub">${s}</div></div>`;
   const bar='<div style="display:flex;height:16px;border-radius:8px;overflow:hidden;border:1px solid var(--line)">'+
     ztot.map((s,zi)=>s>0?`<div style="width:${(s/tot*100).toFixed(1)}%;background:${HRZ[zi][1]}"></div>`:'').join('')+'</div>';
   const leg=HRZ.map((z,zi)=>`<span><i class="led" style="background:${z[1]}"></i>${z[0]} ${(ztot[zi]/tot*100).toFixed(0)}%</span>`).join('');
+  const nPl=Object.keys(STATE.players||{}).length;
+  const cob=nPl?rows.length/nPl*100:0;
+  const fcM=Math.round(avg(rows.map(r=>r.hrAvg)));
+  const trM=Math.round(avg(rows.map(trimpOf)));
+  const srM=srpe!=null?srpe:(sessMeta(key,dk)&&sessMeta(key,dk).ua!=null?Math.round(sessMeta(key,dk).ua):null);
+  /* Cobertura: aquí verde es tener a casi todos monitorizados, no carga baja. */
+  const sevCob=!nPl?'muted':(cob>=80?'ok':cob>=50?'warn':'bad');
+  /* La FC media es el único sin baremo propio en el proyecto —el modelo v1.0
+     avisa de que no marca bien la sesión— así que va con una escala orientativa
+     de intensidad y se dice en el subtítulo. */
+  const bandaZ=(typeof bandOf==='function'&&typeof SESSPEC!=='undefined')
+    ? bandOf(z45,(SESSPEC.find(x=>x.key==='z54')||{bands:[[0,8],[8,18],[18,24],[24,99]]}).bands) : null;
+  const sevZ=bandaZ==null?'muted':(bandaZ===0?'ok':bandaZ===1?'warn':'bad');
   box.innerHTML=`<div class="kpis" style="margin-bottom:14px">${
-    k('Jugadores',rows.length,'con pulsómetro')+
-    k('FC media',Math.round(avg(rows.map(r=>r.hrAvg)))+'%','equipo')+
-    k('TRIMP medio',Math.round(avg(rows.map(trimpOf))),'Edwards · interna')+
-    k('sRPE medio',srpe!=null?srpe:(sessMeta(key,dk)&&sessMeta(key,dk).ua!=null?Math.round(sessMeta(key,dk).ua):'—'),srpe!=null?'UA · externa':'UA estimada')}</div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:7px">Tiempo en zonas de FC · <b style="color:var(--txt)">${z45.toFixed(0)}%</b> en Z4–Z5 (alta intensidad)</div>
+    k('Jugadores',rows.length,nPl?'de '+nPl+' · '+Math.round(cob)+'% con pulsómetro':'con pulsómetro',sevCob)+
+    k('FC media',(isNaN(fcM)?'—':fcM+'%'),'equipo · escala orientativa',sevPorTramos(isNaN(fcM)?null:fcM,65,78))+
+    k('TRIMP medio',isNaN(trM)?'—':trM,'Edwards · interna',sevPorTramos(isNaN(trM)?null:trM,120,220))+
+    k('sRPE medio',srM!=null?srM:'—',srpe!=null?'UA · externa':'UA estimada',sevPorTramos(srM,250,450))}</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:7px">Tiempo en zonas de FC · <b style="color:var(--${sevZ})">${z45.toFixed(0)}%</b> en Z4–Z5 (alta intensidad)</div>
   ${bar}
   <div class="legend" style="margin-top:9px">${leg}</div>`;
 }
@@ -14147,6 +14200,30 @@ function vhAge(dk){
   const col=d<=42?'var(--muted)':d<=120?'var(--warn)':'var(--bad)';
   return {txt,col,days:d};
 }
+/* v237 · Evolución individual, rehecha. Antes era una tabla de ocho columnas
+   por categoría más un párrafo largo de explicación: mucho número y ninguna
+   lectura visual. Ahora cada prueba es una tarjeta con la serie dibujada, el z
+   sobre una escala con marcador y el color del semáforo, de modo que se ve de
+   un vistazo cómo está y hacia dónde va. Los cálculos no cambian: siguen
+   saliendo de vhZ (z contra baseline propio, escala robusta por MAD). */
+function vhEscalaZ(z,tier,semaf){
+  if(!semaf)return '<div class="vh-esc vh-esc-na"><span class="vh-esc-t">sin semáforo · se sigue por tendencia</span></div>';
+  if(z==null)return '<div class="vh-esc vh-esc-na"><span class="vh-esc-t">z no disponible todavía</span></div>';
+  const cap=VH_CFG.zCap||5;
+  const pos=Math.max(0,Math.min(100,(z+cap)/(2*cap)*100));
+  const pR=(cap-VH_CFG.zRed)/(2*cap)*100, pY=(cap-VH_CFG.zYellow)/(2*cap)*100;
+  return '<div class="vh-esc">'
+    +'<div class="vh-esc-bar">'
+      +'<span style="left:0;width:'+pR.toFixed(1)+'%;background:var(--bad)"></span>'
+      +'<span style="left:'+pR.toFixed(1)+'%;width:'+(pY-pR).toFixed(1)+'%;background:var(--warn)"></span>'
+      +'<span style="left:'+pY.toFixed(1)+'%;width:'+(100-2*pY).toFixed(1)+'%;background:var(--hair)"></span>'
+      +'<span style="left:'+(100-pY).toFixed(1)+'%;width:'+(pY-pR).toFixed(1)+'%;background:var(--warn)"></span>'
+      +'<span style="left:'+(100-pR).toFixed(1)+'%;width:'+pR.toFixed(1)+'%;background:var(--ok)"></span>'
+      +'<i class="vh-esc-m" style="left:'+pos.toFixed(1)+'%;background:var(--'+(tier==='neutral'?'txt':tier)+')"></i>'
+    +'</div>'
+    +'<div class="vh-esc-t"><span>peor</span><span>su normal</span><span>mejor</span></div>'
+  +'</div>';
+}
 function vhRenderPanel(){
   const box=document.getElementById('vh-panel');if(!box)return;
   const sel=document.getElementById('tests-player');
@@ -14154,93 +14231,79 @@ function vhRenderPanel(){
   if(!name){box.innerHTML='<p class="muted">Sin jugadores cargados.</p>';return;}
   const defs=(typeof TESTS!=='undefined')?TESTS:[];
   const cats=[...new Set(defs.map(t=>t.cat))];
-  const anyReal=((STATE.testHist||{})[name]||[]).some(sn=>sn.real);
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   let html='';
   if(!STATE.vhLoaded){
-    html+='<div class="hint" style="margin-bottom:10px">Aún no se ha cargado la hoja de valoraciones. '+
-          'Lo que ves procede de '+(anyReal?'entradas manuales guardadas en este navegador':'datos de ejemplo')+
-          ', así que el z individual todavía no es interpretable.</div>';
+    html+='<div class="hint" style="margin-bottom:10px">Aún no se ha cargado la hoja de valoraciones, '+
+          'así que el z individual todavía no es interpretable.</div>';
   }
   const all=defs.map(t=>({t,r:vhZ(name,t.k)}));
   const withData=all.filter(x=>x.r.n>0);
   let newest=null;
   withData.forEach(x=>{if(x.r.curDk&&(!newest||String(x.r.curDk)>String(newest)))newest=x.r.curDk;});
   const stale=withData.filter(x=>{const d=vhDaysAgo(x.r.curDk);return d!=null&&d>120;}).length;
+  const conZ=withData.filter(x=>!x.r.provisional&&x.r.z!=null);
+  const mejor=conZ.filter(x=>vhTier(x.r.z)==='ok').length;
+  const peor=conZ.filter(x=>{const t=vhTier(x.r.z);return t==='bad'||t==='warn';}).length;
+
   if(withData.length){
-    html+='<div class="qd-kpis" style="margin-bottom:12px">'+
-      '<div class="qd-kpi"><div class="qd-kpi-v">'+withData.length+'</div><div class="qd-kpi-l">pruebas con dato</div></div>'+
-      '<div class="qd-kpi"><div class="qd-kpi-v">'+(defs.length-withData.length)+'</div><div class="qd-kpi-l">sin medir</div></div>'+
-      '<div class="qd-kpi"><div class="qd-kpi-v">'+withData.filter(x=>!x.r.provisional&&x.r.z!=null).length+
-        '</div><div class="qd-kpi-l">con z válido</div></div>'+
-      '<div class="qd-kpi"><div class="qd-kpi-v">'+stale+'</div><div class="qd-kpi-l">de +4 meses</div></div>'+
-      '<div class="qd-kpi"><div class="qd-kpi-v" style="font-size:15px">'+(newest||'—')+
-        '</div><div class="qd-kpi-l">valoración más reciente</div></div>'+
-      '</div>';
+    const kpi=(v,l,sev)=>'<div class="qd-kpi"><div class="qd-kpi-v" style="color:var(--'+(sev||'txt')+')">'+v+'</div><div class="qd-kpi-l">'+l+'</div></div>';
+    html+='<div class="qd-kpis" style="margin-bottom:14px">'
+      +kpi(withData.length+' <small style="font-size:13px;color:var(--muted)">/ '+defs.length+'</small>','pruebas con dato')
+      +kpi(conZ.length,'con z válido',conZ.length?'txt':'muted')
+      +kpi(mejor,'por encima de su normal',mejor?'ok':'muted')
+      +kpi(peor,'por debajo de su normal',peor?'warn':'ok')
+      +kpi(stale,'de más de 4 meses',stale?'warn':'ok')
+      +kpi('<span style="font-size:15px">'+(newest||'—')+'</span>','valoración más reciente')
+      +'</div>';
   }
+
   cats.forEach(cat=>{
     const list=defs.filter(t=>t.cat===cat);
     const withRes=list.map(t=>({t,r:vhZ(name,t.k)})).filter(x=>x.r.n>0)
       .sort((a,b)=>String(b.r.curDk||'').localeCompare(String(a.r.curDk||'')));
     const sinDato=list.filter(t=>!vhZ(name,t.k).n);
-    const rows=withRes.map(function(o){
+    if(!withRes.length&&!sinDato.length)return;
+    const tarjetas=withRes.map(function(o){
       const t=o.t,r=o.r;
       const semaf=vhHasSemaphore(t.k);
-      const tier=semaf?vhTier(r.z):'na';
+      const tier=semaf&&!r.provisional?vhTier(r.z):'na';
+      const col='var(--'+(tier==='na'||tier==='neutral'?'line':tier)+')';
       const age=vhAge(r.curDk);
-      const zCell=!semaf
-        ? '<td class="mono muted" title="Composición corporal: se sigue por tendencia, no por semáforo">n/a</td>'
-        : r.provisional
-          ? '<td class="mono muted" title="'+(r.reason||'')+'">prov.</td>'
-          : '<td class="mono" style="color:var(--'+(tier==='neutral'?'txt':tier)+');font-weight:700">'+vhFmtZ(r.z)+'</td>';
-      return '<tr>'+
-        '<td>'+t.name+'</td>'+
-        '<td class="mono" style="font-weight:600">'+vhFmt(r.cur,2)+(t.unit?' <span class="muted small">'+t.unit+'</span>':'')+'</td>'+
-        '<td class="small"><span class="muted">'+(r.curDk||'—')+'</span><br><span style="color:'+age.col+'">'+age.txt+'</span></td>'+
-        '<td class="mono">'+vhFmt(r.baselineMed,2)+'</td>'+
-        zCell+
-        '<td style="color:'+vhTrendColor(r.trend,t.k)+';font-weight:700" title="'+
-          (r.trendSlope!=null?('pendiente '+(r.trendSlope>=0?'+':'')+vhFmt(r.trendSlope,2)+' z por medición'):'insuficientes mediciones')+
-          '">'+vhTrendIcon(r.trend)+'</td>'+
-        '<td class="mono small '+(r.n<VH_CFG.minBaseline+1?'muted':'')+'">'+r.n+'</td>'+
-        '<td class="small muted" title="'+(r.scaleFloored?'La variabilidad del baseline era menor que el ruido del test; se ha aplicado un suelo del '+(VH_CFG.minScaleRel*100)+'% de la mediana':'')+'">'+(r.provisional?(r.reason||''):(r.method||''))+'</td>'+
-        '</tr>';
+      const vals=(r.serie||[]).map(x=>x.val);
+      const spCol=(typeof cssVar==='function')
+        ? (tier==='ok'?cssVar('--ok'):tier==='bad'?cssVar('--bad'):tier==='warn'?cssVar('--warn'):cssVar('--muted'))
+        : '#888';
+      const chispa=vals.length>1?sparkline(vals,{w:150,h:34,color:spCol,fill:true}):'<span class="vh-nospark">una sola medición</span>';
+      const zTxt=!semaf?'n/a':(r.provisional?'prov.':vhFmtZ(r.z));
+      const trend=r.trend?('<span class="vh-tr" style="color:'+vhTrendColor(r.trend,t.k)+'" title="'+
+        (r.trendSlope!=null?('pendiente '+(r.trendSlope>=0?'+':'')+vhFmt(r.trendSlope,2)+' z por medición'):'')+'">'+vhTrendIcon(r.trend)+'</span>'):'';
+      return '<div class="vh-card" style="--vc:'+col+'">'
+        +'<div class="vh-h"><span class="vh-n">'+esc(t.name)+'</span>'+trend+'</div>'
+        +'<div class="vh-v"><b>'+vhFmt(r.cur,2)+'</b>'+(t.unit?'<span>'+esc(t.unit)+'</span>':'')
+          +'<em class="vh-z" style="color:var(--'+(tier==='neutral'||tier==='na'?'muted':tier)+')">z '+zTxt+'</em></div>'
+        +'<div class="vh-sp">'+chispa+'</div>'
+        +vhEscalaZ(semaf&&!r.provisional?r.z:null,tier,semaf)
+        +'<div class="vh-f"><span class="vh-age" style="color:'+age.col+'">'+age.txt+'</span>'
+          +'<span class="vh-meta">'+(r.curDk||'—')+' · '+r.n+' med.</span></div>'
+      +'</div>';
     }).join('');
-    if(rows||sinDato.length){
-      html+='<h3 style="margin:16px 0 6px;font-size:13px;letter-spacing:.02em">'+cat+
-        ' <span class="muted" style="font-weight:400">· '+withRes.length+' de '+list.length+'</span></h3>';
-      if(rows)html+='<div class="wrap-x"><table class="tbl"><thead><tr>'+
-        '<th>Test</th><th>Último valor</th><th>Cuándo</th><th>Baseline</th>'+
-        '<th title="z de la última medición contra el baseline individual previo. Positivo = mejor que su normal.">z indiv.</th>'+
-        '<th title="Tendencia sobre el histórico completo">Tend.</th>'+
-        '<th title="Número de mediciones disponibles">n</th><th>Escala</th>'+
-        '</tr></thead><tbody>'+rows+'</tbody></table></div>';
-      if(sinDato.length)html+='<p class="small muted" style="margin:6px 0 0">Sin medir nunca: '+
-        sinDato.map(function(t){return t.name;}).join(' · ')+'</p>';
-    }
+    html+='<div class="vh-cat"><span>'+esc(cat)+'</span><b>'+withRes.length+' de '+list.length+'</b></div>';
+    if(tarjetas)html+='<div class="vh-grid">'+tarjetas+'</div>';
+    if(sinDato.length)html+='<p class="small muted" style="margin:8px 0 0">Sin medir nunca: '+
+      sinDato.map(function(t){return esc(t.name);}).join(' · ')+'</p>';
   });
   if(!withData.length)html+='<p class="muted">Sin mediciones para este jugador.</p>';
-  html+='<p class="hint" style="margin-top:12px">Cada fila muestra la <b>última medición de esa prueba concreta</b>, '+
-        'que no tiene por qué ser del mismo día que las demás: el salto se mide cada semana y el 30-15 una o dos veces '+
-        'por temporada, y ambos siguen siendo válidos. La columna <b>Cuándo</b> indica la antigüedad; pasa a ámbar a '+
-        'partir de 6 semanas y a rojo a partir de 4 meses. '+
-        'El <b>z individual</b> compara esa última medición con la mediana de las anteriores del propio jugador, con '+
-        'escala robusta (MAD, con repliegue a SD y suelo del '+(VH_CFG.minScaleRel*100)+'% de la mediana). Exige '+
-        VH_CFG.minBaseline+' mediciones previas; por debajo aparece como <span class="mono">prov.</span> '+
-        'El signo está corregido: z positivo siempre significa mejor que su normal. '+
-        'La <b>tendencia</b> es la pendiente sobre el histórico completo, en z por medición.</p>';
+  html+='<details class="vh-ayuda"><summary>Cómo leer estas tarjetas</summary>'
+    +'<p class="small muted">Cada tarjeta es la <b>última medición de esa prueba</b>, que no tiene por qué ser del mismo día '
+    +'que las demás: el salto se mide cada semana y el 30-15 una o dos veces por temporada. La antigüedad pasa a ámbar a las '
+    +'6 semanas y a rojo a los 4 meses. El <b>z</b> compara esa medición con la mediana de las anteriores del propio jugador, '
+    +'con escala robusta por MAD y suelo del '+(VH_CFG.minScaleRel*100)+'% de la mediana; exige '+VH_CFG.minBaseline
+    +' mediciones previas, y por debajo aparece como prov. El signo va corregido: z positivo siempre es mejor que su normal. '
+    +'La <b>flecha</b> es la pendiente sobre el histórico completo. La composición corporal se sigue por tendencia y no lleva '
+    +'semáforo, porque un z alto o bajo no significa por sí mismo mejor rendimiento.</p></details>';
   box.innerHTML=html;
 }
-window.vhRenderPanel=vhRenderPanel;
-window.vhResolveName=vhResolveName;
-window.vhFmtZ=vhFmtZ;
-window.vhIngestAuto=vhIngestAuto;
-window.vhZ=vhZ;
-window.vhSeries=vhSeries;
-window.VH_CFG=VH_CFG;
-
-/* ---------- 8 · enganche con la vista de perfil físico ---------- */
-/* renderTestsProfile() se llama al cambiar de jugador; se envuelve para
-   repintar también este panel sin tocar la función original. */
 function vhHook(){
   if(typeof window.renderTestsProfile==='function'&&!window.renderTestsProfile.__vhWrapped){
     const orig=window.renderTestsProfile;
