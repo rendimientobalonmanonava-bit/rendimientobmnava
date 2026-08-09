@@ -444,8 +444,16 @@ main{padding:13px 16px 70px}
 .eq-v{font-size:25px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eq-v small{font-size:12px;font-weight:600;color:var(--muted)}
 .eq-s{font-size:11px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.eq-r3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start;margin-bottom:14px}
-.eq-r2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start;margin-bottom:14px}
+/* v233 · align-items:stretch en vez de start: todas las columnas de una fila
+   miden lo mismo y el último panel de cada una crece para ocupar el resto, así
+   no quedan huecos al pie de las columnas cortas. Los paneles son flex para
+   poder repartir su contenido en vertical cuando se estiran. */
+.eq-r3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch;margin-bottom:14px}
+.eq-r2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch;margin-bottom:14px}
+.eq-r3>.eq-col,.eq-r2>.eq-col,.eq-r23>.eq-col{height:100%}
+.eq-col>.panel:last-child,.eq-r2>.panel:last-child{flex:1 1 auto}
+.eq-r3>.panel,.eq-r2>.panel,.eq-r23>.panel{display:flex;flex-direction:column}
+.eq-col>.panel{display:flex;flex-direction:column}
 .eq-r3>.panel,.eq-r2>.panel,.eq-col>.panel{margin-bottom:0}
 .eq-col{display:flex;flex-direction:column;gap:14px;min-width:0}
 .eq-cab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:2px 2px 0}
@@ -460,12 +468,56 @@ main{padding:13px 16px 70px}
    Portero no se quede solo en una fila con dos huecos al lado. */
 .eq-r2 .posband-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 /* Fila de dos columnas desiguales: el panel ancho a la izquierda. */
-.eq-r23{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:start;margin-bottom:14px}
+.eq-r23{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:stretch;margin-bottom:14px}
 .eq-r23>.panel{margin-bottom:0}
+/* el gráfico crece con el panel en vez de dejar aire debajo */
+.eq-r23>.panel>.eq-ch-tall{flex:1;height:auto;min-height:300px}
 @media(max-width:860px){.eq-r23{grid-template-columns:1fr}}
 /* Alto de los gráficos del resumen de equipo */
 .eq-ch{height:180px}
 .eq-ch-tall{height:320px}
+/* v233 · Próxima sesión planificada. Las sesiones se apilan en vertical, no en
+   columnas: el panel vive en una columna de ~354px y repartirlo en 2 o 3 dejaba
+   111px por tarjeta, con los títulos recortados. En vertical hay sitio de sobra
+   (la columna se estira junto al hero) y solo hace falta compactar la tarjeta a
+   medida que crece el número de sesiones. */
+.tn-wrap{display:flex;flex-direction:column;gap:9px;margin-top:4px;flex:1}
+.tn-wrap>.tn-card{flex:1 1 0;min-height:0}
+.tn-card{border:1px solid var(--line);border-left:3px solid var(--tc);border-radius:12px;background:var(--panel2);padding:11px 12px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.tn-top{display:flex;align-items:baseline;gap:8px}
+.tn-tipo{font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tn-hora{font-size:11px;color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums;flex:none}
+.tn-main{display:flex;align-items:center;gap:11px}
+.tn-sem{display:flex;flex-direction:column;gap:3px;background:#20242c;border-radius:7px;padding:5px 4px;flex:none}
+.tn-lamp{width:11px;height:11px;border-radius:50%;display:block}
+.tn-dur{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;min-width:0}
+.tn-dur b{font-size:27px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.tn-dur span{font-size:11px;color:var(--muted)}
+.tn-dur i{font-size:10.5px;font-style:normal;font-weight:700;color:var(--tc);text-transform:uppercase;letter-spacing:.04em;width:100%}
+.tn-sec{margin-top:auto;display:flex;flex-direction:column;gap:7px}
+.tn-ct{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11px}
+.tn-ct-l{color:var(--muted);text-transform:uppercase;font-size:9.5px;letter-spacing:.05em;font-weight:700}
+.tn-ct-v{color:var(--muted)}
+.tn-objs{display:flex;flex-wrap:wrap;gap:4px}
+.tn-obj{font-size:10.5px;padding:2px 8px;border-radius:999px;background:var(--panel);border:1px solid var(--hair);color:var(--muted)}
+.tn-vacio{flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+.tn-2 .tn-card,.tn-3 .tn-card{gap:7px;padding:9px 11px}
+.tn-2 .tn-dur b{font-size:23px}
+.tn-3 .tn-dur b{font-size:20px}
+.tn-3 .tn-tipo{font-size:12px}
+.tn-3 .tn-lamp{width:9px;height:9px}
+.tn-3 .tn-objs{display:none}
+/* v233 · Fisioterapia y parte médico */
+.tf-pl{display:flex;flex-direction:column;gap:4px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px}
+.tf-pl select{font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-family:inherit;text-transform:none;letter-spacing:0;font-weight:500}
+.tf-grid{display:flex;flex-direction:column;gap:8px;flex:1}
+.tf-it{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel2);border-radius:11px;padding:10px 12px;cursor:pointer;font-family:inherit;flex:1;min-height:56px}
+.tf-it:hover{border-color:var(--accent);background:var(--panel)}
+.tf-ic{font-size:17px;flex:none}
+.tf-tx{display:flex;flex-direction:column;min-width:0}
+.tf-tx b{font-size:13px;font-weight:700;color:var(--txt)}
+.tf-tx small{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+
 /* Repartos de readiness y ACWR */
 .eq-dist+.eq-dist{margin-top:16px;padding-top:14px;border-top:1px solid var(--hair)}
 .eq-dist-h{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:600}
@@ -2000,8 +2052,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--ok)"></span>Cómo llega el equipo</div>
         <div id="team-hero"></div>
         <div class="panel" id="team-welllights"></div>
-        <div class="panel"><h2>Recuperación del equipo <span class="r muted">últimos 14 días</span></h2>
-          <div class="eq-ch"><canvas id="ch-team-rec"></canvas></div></div>
+        <div class="panel" id="team-next"></div>
       </div>
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--accent)"></span>Carga
@@ -2013,7 +2064,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--warn)"></span>A vigilar</div>
         <div class="panel" id="team-rings"></div>
-        <div class="panel" id="team-quick"><h2>Registro rápido <span class="r muted">marca un estado</span></h2><div id="team-qavail"></div></div>
+        <div class="panel" id="team-fisio"></div>
       </div>
     </div>
     <!-- v232 · Reparto para que ninguna columna acabe muy por encima de la
@@ -5019,9 +5070,10 @@ function renderTeam(){
   renderTeamRings();renderTeamWellLights();renderTeamQuickAvail();
   /* v231 · tira de titulares y mapa de riesgo carga × recuperación */
   try{renderTeamStrip();}catch(e){}
-  try{drawTeamRec();}catch(e){}
   try{drawTeamTypes();}catch(e){}
   try{renderTeamDist();}catch(e){}
+  try{renderTeamNext();}catch(e){}
+  try{renderTeamFisio();}catch(e){}
   const posSel=document.getElementById('team-pos');
   if(posSel){const cur=posSel.value;const poss=[...new Set(all.map(p=>p.pos))];posSel.innerHTML='<option value="">Todas las posiciones</option>'+poss.map(p=>`<option ${p===cur?'selected':''}>${p}</option>`).join('');}
   const matchDks=new Set(STATE.rpe.filter(s=>s.mdx==='MD'||norm(s.tipo).includes('partido')).map(s=>s.dk));
@@ -8497,26 +8549,8 @@ function renderTeamStrip(){
     ${t('Wellness hoy',pctW+'<small>%</small>',respHoy+' de '+ps.length+' han respondido',pctW>=80?'ok':pctW>=50?'warn':'bad')}
   </div>`;
 }
-/* ============ v232 · Recuperación del equipo y reparto ============
-   La columna de "Estado de carga" quedaba a media altura frente a Estado por
-   línea. Se acompaña de la serie de recuperación, que ya calculaba
-   teamRecSeries para la tira del hero pero no se veía como tendencia, y de dos
-   repartos que hasta ahora había que contar a mano en la tabla. */
-function drawTeamRec(){
-  const el=document.getElementById('ch-team-rec');if(!el)return;
-  killCharts(['ch-team-rec']);
-  let ser=[];try{ser=teamRecSeries(14);}catch(e){}
-  if(!ser.length){if(el.parentElement)el.parentElement.innerHTML='<div class="small muted" style="padding:18px 0">Sin histórico de wellness para la serie.</div>';return;}
-  const mc=cssVar('--muted')||'#8a93a0';
-  charts['ch-team-rec']=new Chart(el,{data:{labels:ser.map(s=>s.dk.slice(5)),datasets:[
-    {type:'bar',label:'Recuperación media',data:ser.map(s=>s.pct),borderRadius:3,
-     backgroundColor:ser.map(s=>s.sev==='ok'?rgba(PAL.ok,.55):s.sev==='warn'?rgba(PAL.warn,.55):rgba(PAL.bad,.5))},
-    {type:'line',label:'Tendencia',data:ser.map((_,i)=>{const w=ser.slice(Math.max(0,i-3),i+1);return Math.round(mean(w.map(x=>x.pct)));}),
-     borderColor:PAL.accent,borderWidth:2,pointRadius:0,tension:.35}
-  ]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10}},
-    tooltip:{callbacks:{label:c=>c.raw+'% de recuperación'}}},
-    scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,beginAtZero:true,max:100,ticks:{...AX.ticks,callback:v=>v+'%'}}}}});
-}
+/* v233 · drawTeamRec retirada: su panel lo sustituye la próxima sesión
+   planificada, que es lo que el cuerpo técnico mira antes de entrenar. */
 function renderTeamDist(){
   const box=document.getElementById('team-dist');if(!box)return;
   const ps=Object.values(STATE.players);
@@ -8560,7 +8594,90 @@ function drawTeamTypes(){
         tooltip:{callbacks:{label:c=>c.label+': '+c.raw+' UA ('+Math.round(c.raw/tot*100)+'%)'}}}}});
 }
 window.drawTeamTypes=drawTeamTypes;
-window.drawTeamRec=drawTeamRec;window.renderTeamDist=renderTeamDist;
+window.renderTeamDist=renderTeamDist;
+/* ============ v233 · Próxima sesión planificada ============
+   Lo que el cuerpo técnico mira antes de entrenar. Como principal, el semáforo
+   de intensidad y la duración teórica; debajo, objetivos y contacto programado.
+   Un día puede tener varias sesiones (lo normal, pista y gimnasio), así que el
+   bloque cambia de forma: con una, tarjeta grande; con dos o tres, en columnas
+   más compactas para que quepan sin recortar nada. */
+function teamNextDay(){
+  calLoad();
+  const hoy=dkey(REF());
+  const dias=Object.keys(STATE.calendar||{}).filter(dk=>((STATE.calendar[dk]||[]).some(e=>e.type!=='descanso'))).sort();
+  const dk=dias.find(d=>d>=hoy);
+  if(!dk)return null;
+  const evs=(STATE.calendar[dk]||[]).filter(e=>e.type!=='descanso')
+    .sort((a,b)=>String(a.time||'99').localeCompare(String(b.time||'99')));
+  return evs.length?{dk,evs}:null;
+}
+function renderTeamNext(){
+  const box=document.getElementById('team-next');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const d=teamNextDay();
+  if(!d){
+    box.innerHTML='<h2>Próxima sesión</h2><div class="tn-vacio">Sin sesiones planificadas.<br><span class="small muted">Planifícalas desde el Calendario.</span></div>';
+    return;
+  }
+  const hoy=dkey(REF());
+  const cuando=d.dk===hoy?'hoy':(d.dk===dkey(new Date(dkToDate(hoy).getTime()+86400000))?'mañana':d.dk.split('-').reverse().slice(0,2).join('/'));
+  const n=d.evs.length;
+  const clase=n===1?'tn-1':(n===2?'tn-2':'tn-3');
+  const total=d.evs.reduce((a,e)=>a+(+e.dur||0),0);
+  const tarjetas=d.evs.map(e=>{
+    const i=evIntens(e), c=evContacto(e);
+    const it=CAL_INT[i]||CAL_INT[2];
+    const tipo=(CAL_TYPES[e.type]||{}).lab||e.type;
+    const objs=(e.objs&&e.objs.length?e.objs:(e.note?[e.note]:[]));
+    return `<div class="tn-card" style="--tc:${it.col}">
+      <div class="tn-top">
+        <span class="tn-tipo">${esc(e.title||tipo)}</span>
+        ${e.time?`<span class="tn-hora">${esc(e.time)}</span>`:''}
+      </div>
+      <div class="tn-main">
+        <div class="tn-sem" title="Intensidad ${it.lab}">
+          <span class="tn-lamp" style="background:${CAL_INT[3].col};opacity:${i===3?1:.15}"></span>
+          <span class="tn-lamp" style="background:${CAL_INT[2].col};opacity:${i===2?1:.15}"></span>
+          <span class="tn-lamp" style="background:${CAL_INT[1].col};opacity:${i===1?1:.15}"></span>
+        </div>
+        <div class="tn-dur"><b>${e.dur?e.dur:'—'}</b><span>min</span><i>${it.lab}</i></div>
+      </div>
+      <div class="tn-sec">
+        <div class="tn-ct"><span class="tn-ct-l">Contacto</span>${calContactBar(c)}<span class="tn-ct-v">${esc(CAL_CONTACT_LAB[c]||'—')}</span></div>
+        <div class="tn-objs">${objs.length?objs.slice(0,3).map(o=>`<span class="tn-obj">${esc(o)}</span>`).join(''):'<span class="small muted">Sin objetivos anotados</span>'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  box.innerHTML=`<h2>Próxima sesión <span class="r muted">${cuando}${n>1?' · '+n+' sesiones':''}${total?' · '+total+' min':''}</span></h2>
+    <div class="tn-wrap ${clase}">${tarjetas}</div>`;
+}
+/* ============ v233 · Fisioterapia y parte médico ============
+   Las cuatro entradas del selector de fisio, accesibles desde el resumen para
+   que Virginia no tenga que abrir el selector cada vez. */
+function renderTeamFisio(){
+  const box=document.getElementById('team-fisio');if(!box)return;
+  const nn=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const op=[
+    ['👐','Tratamiento de hoy','Camilla, ejercicios, electroterapia…','trat'],
+    ['📋','Parte del día','Molestia, tratamiento o cómo está hoy.','incidencia'],
+    ['📄','Cita o documento','Informe, prueba, próxima cita.','med'],
+    ['🩹','Lesión nueva','Abre episodio con readaptación por fases.','lesion']
+  ];
+  box.innerHTML=`<h2>Fisioterapia y parte médico <span class="r muted">registro rápido</span></h2>
+    <label class="tf-pl">Jugador<select id="tf-name">${nn.map(x=>'<option>'+String(x).replace(/</g,'&lt;')+'</option>').join('')}</select></label>
+    <div class="tf-grid">${op.map(o=>`<button type="button" class="tf-it" onclick="teamFisioGo('${o[3]}')">
+      <span class="tf-ic">${o[0]}</span><span class="tf-tx"><b>${o[1]}</b><small>${o[2]}</small></span></button>`).join('')}</div>`;
+}
+/* Mismo destino que fisioRegGo, pero leyendo el jugador de este panel. */
+function teamFisioGo(kind){
+  const n=(document.getElementById('tf-name')||{}).value||'';
+  if(kind==='trat'){if(window.openMedTreatQuick)openMedTreatQuick(n);return;}
+  if(kind==='incidencia'){if(window.openHeroForm)openHeroForm('incidencia',n);return;}
+  if(kind==='med'){if(window.openHeroForm)openHeroForm('med',n);return;}
+  if(kind==='lesion'){try{if(window.go)go('medico');}catch(e){}if(window.openMedInjury)openMedInjury(n);}
+}
+window.renderTeamNext=renderTeamNext;window.renderTeamFisio=renderTeamFisio;window.teamFisioGo=teamFisioGo;
+
 window.renderTeamStrip=renderTeamStrip;
 function renderTeamQuickAvail(){
   const box=document.getElementById('team-qavail');if(!box)return;
