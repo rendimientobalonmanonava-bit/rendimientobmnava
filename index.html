@@ -647,6 +647,34 @@ main{padding:13px 16px 70px}
 .vh-f{display:flex;align-items:baseline;gap:8px;margin-top:auto;padding-top:7px;border-top:1px solid var(--hair);font-size:10px}
 .vh-age{font-weight:700;flex:none}
 .vh-meta{color:var(--muted);margin-left:auto;text-align:right}
+/* ===== v242 · Jugadores históricos ===== */
+.vh-po-ex{display:inline-block;margin-left:5px;font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:var(--panel2);border:1px solid var(--hair);border-radius:4px;padding:0 4px;vertical-align:middle}
+.vh-po-hist{cursor:default}
+.vh-po-hist .vh-po-f{filter:grayscale(.35)}
+/* Récord del club */
+.vh-rec{margin-top:14px;border:1px solid var(--hair);border-radius:12px;background:var(--panel2);padding:11px 13px}
+.vh-rec-l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+.vh-rec-b{display:flex;align-items:center;gap:11px}
+.vh-rec-f{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--panel);border:2px solid #d4a017;flex:none}
+.vh-rec-tx{flex:1;min-width:0}
+.vh-rec-n{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vh-rec-d{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.vh-rec-v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;flex:none}
+.vh-rec-v small{font-size:10px;font-weight:600;color:var(--muted)}
+.vh-rec-f2{font-size:10.5px;color:var(--muted);margin-top:8px;padding-top:7px;border-top:1px solid var(--hair)}
+/* Gestión de la lista en Conexión */
+.expl-add{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;margin:12px 0}
+.expl-add input{font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-family:inherit;min-width:0}
+.expl-list{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.expl-row{display:flex;align-items:center;gap:11px;border:1px solid var(--hair);border-radius:11px;background:var(--panel2);padding:8px 11px}
+.expl-f{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--panel);border:1px solid var(--line);flex:none}
+.expl-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.expl-tx b{font-size:13px}
+.expl-tx span{font-size:11px;color:var(--muted)}
+.expl-sug{border:1px dashed var(--line);border-radius:11px;padding:10px 12px;margin:10px 0;background:var(--panel2)}
+.expl-sug-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px}
+.expl-sugb{margin:0 6px 6px 0;font-size:12px}
+@media(max-width:640px){.expl-add{grid-template-columns:minmax(0,1fr)}}
 /* ===== v239 · Detalle de una valoración: podio, evolución e histórico ===== */
 .vh-card{cursor:pointer;transition:border-color .12s,transform .12s}
 .vh-card:hover{border-color:var(--accent)}
@@ -2795,6 +2823,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     <div class="panel"><h2>Mapeo de posiciones <span class="r muted">reasigna el rol de un jugador · se aplica a toda la app</span></h2>
       <div id="config-posmap"></div>
     </div>
+    <div class="panel" id="expl-panel"></div>
     <div class="panel"><h2>Parámetros del motor</h2><div class="hint" id="cfg-dump"></div></div>
     <div class="panel"><h2>Alcance</h2><p class="hint">v1: seguimiento diario — Wellness y RPE/carga con z-score individual, readiness, alertas, ACWR RA y EWMA, monotonía, strain, carga ajustada por contacto y contexto MDx. Valoraciones físicas (episódicas) y Polar (manual) en iteraciones posteriores. Umbrales y readiness son calibrables: edita el bloque <span class="mono">CONFIG</span> al inicio del &lt;script&gt;.</p></div>
   </section>
@@ -5107,7 +5136,7 @@ function go(v){const ESUB={dispo:1,medico:1,parte:1};const realV=ESUB[v]?'estado
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'||v==='unif'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
-  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config')renderPosMap();if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
+  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
 function writeHash(){const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){history.replaceState(null,'',h);}}
 function readHash(){const h=decodeURIComponent(location.hash.replace(/^#/,''));if(!h)return null;const p=h.split('/');const v=p[0];if(!TABS.some(t=>t[0]===v))return null;return{view:v,date:p[1]||null};}
 const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["unif","Carga integrada"],["avail","Disponibilidad"],["parte","Parte wellness"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
@@ -13977,6 +14006,36 @@ function vhTokens(s){
   return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(t=>t.length>1);
 }
+/* ============ v242 · Jugadores históricos ============
+   Valoraciones de gente que pasó por el club y ya no está. Se guardan aparte de
+   la plantilla a propósito: su dato tiene que salir en los récords, pero no
+   puede entrar en disponibilidad, cargas, wellness ni alertas, que se calculan
+   sobre quien está ahora. Por eso NO se tocan STATE.players ni filterToSquad;
+   solo se amplía la resolución de nombres al importar y los podios históricos.
+   La lista la confirma el staff desde Conexión: un nombre desconocido de la
+   hoja se sigue descartando mientras no se dé de alta aquí. */
+const EX_LS='bmnava_expl';
+let EX_MEM=null;
+function exLoad(){
+  if(EX_MEM)return EX_MEM;
+  try{EX_MEM=JSON.parse(localStorage.getItem(EX_LS)||'{}')||{};}catch(e){EX_MEM={};}
+  return EX_MEM;
+}
+function exPersist(){try{localStorage.setItem(EX_LS,JSON.stringify(exLoad()));}catch(e){}}
+function exNames(){return Object.keys(exLoad()).sort((a,b)=>a.localeCompare(b,'es'));}
+function exIs(n){return !!exLoad()[n];}
+function exAdd(nombre,pos,temp){
+  nombre=String(nombre||'').trim();if(!nombre)return false;
+  const L=exLoad();
+  L[nombre]={pos:(pos||'').trim(),temp:(temp||'').trim(),alta:dkey(new Date())};
+  exPersist();VH_NAMEC=null;   // la caché de nombres debe rehacerse
+  return true;
+}
+function exDel(nombre){const L=exLoad();delete L[nombre];exPersist();VH_NAMEC=null;}
+function exMeta(n){return exLoad()[n]||null;}
+window.exLoad=exLoad;window.exNames=exNames;window.exIs=exIs;
+window.exAdd=exAdd;window.exDel=exDel;window.exMeta=exMeta;
+
 function vhResolveName(raw){
   if(!raw)return null;
   VH_NAMEC=VH_NAMEC||{};
@@ -13995,7 +14054,22 @@ function vhResolveName(raw){
     /* mismo criterio que filterToSquad: 2 tokens comunes, o 1 token largo */
     return shared.length>=2||shared.some(t=>t.length>=5);
   });
-  const res=cands.length===1?cands[0]:null;
+  let res=cands.length===1?cands[0]:null;
+  /* v242 · si no es de la plantilla, puede ser un jugador histórico dado de alta.
+     Se comprueba después, para que la plantilla actual siempre tenga prioridad. */
+  if(!res){
+    const ex=exNames();
+    const exExact=ex.find(p=>norm(p)===norm(raw));
+    if(exExact)res=exExact;
+    else{
+      const c2=ex.filter(p=>{
+        const pt=vhTokens(p);
+        const sh=rt.filter(t=>pt.indexOf(t)>=0);
+        return sh.length>=2||sh.some(t=>t.length>=5);
+      });
+      if(c2.length===1)res=c2[0];
+    }
+  }
   VH_NAMEC[raw]=res;
   return res;
 }
@@ -14265,6 +14339,9 @@ function vhReport(r,set){
   if(unk.length)warn.push('columnas no reconocidas: '+unk.slice(0,6).map(u=>'"'+u+'"').join(', ')+(unk.length>6?'…':''));
   if(r.errs)warn.push(r.errs+' celdas con error de la hoja (#REF!, #DIV/0!…)');
   const unp=Object.keys(r.unknownPlayers||{});
+  /* v242 · se recuerdan para poder ofrecerlos como alta de jugador histórico
+     en Conexión, sin tener que teclearlos a mano. */
+  try{window.VH_LAST_UNKNOWN=unp.slice();if(window.exRender)exRender();}catch(e){}
   if(unp.length)warn.push(unp.length+' nombres sin correspondencia en la plantilla: '+
     unp.slice(0,5).map(u=>'"'+u+'"').join(', ')+(unp.length>5?'…':''));
   if(warn.length)t+='<br><span style="color:var(--warn)">Descartado: '+warn.join(' · ')+'</span>';
@@ -14521,7 +14598,13 @@ function vhSemaforo(tier,semaf){
    seleccionadas desde el desplegable. */
 function vhFoto(n){
   const p=(STATE.players||{})[n]||{};
-  return p.avatar||(window.phPlaceholder?phPlaceholder(n):(window.__AVATAR__||''));
+  if(p.avatar)return p.avatar;
+  /* v242 · un jugador histórico no tiene entrada en STATE.players, así que su
+     foto se busca por el mismo camino que la del resto: la carpeta fotos/ del
+     hosting y las subidas por el staff. Si no hay, su marca de iniciales. */
+  try{if(window.photoFor){const f=photoFor(n);if(f)return f;}}catch(e){}
+  try{if(window.phLoad){const g=phLoad()[n];if(g)return g;}}catch(e){}
+  return window.phPlaceholder?phPlaceholder(n):(window.__AVATAR__||'');
 }
 /* Última medición de cada jugador para esa prueba, ordenada por la dirección
    del test (hay pruebas donde menos es mejor: grasa, asimetrías, tiempos). */
@@ -14543,12 +14626,18 @@ function vhRankingHistorico(k){
   const def=(typeof TESTS!=='undefined')?TESTS.find(t=>t.k===k):null;
   const lb=!!(def&&def.lowerBetter);
   const out=[];
-  Object.keys(STATE.players||{}).forEach(function(n){
+  /* v242 · el récord del club incluye a quien ya no está: la plantilla actual
+     más los jugadores históricos dados de alta. El podio de la última medición
+     (vhRankingActual) sigue siendo solo de la plantilla, porque responde a
+     quién está mejor ahora. */
+  const todos=Object.keys(STATE.players||{}).concat(
+    (typeof exNames==='function'?exNames():[]).filter(n=>!(STATE.players||{})[n]));
+  todos.forEach(function(n){
     const ser=vhSeries(n,k);
     if(!ser.length)return;
     let mejor=ser[0];
     ser.forEach(function(o){if(lb?o.val<mejor.val:o.val>mejor.val)mejor=o;});
-    out.push({n,v:mejor.val,dk:mejor.dk});
+    out.push({n,v:mejor.val,dk:mejor.dk,ex:(typeof exIs==='function')&&exIs(n)&&!(STATE.players||{})[n]});
   });
   out.sort((a,b)=>lb?a.v-b.v:b.v-a.v);
   return out;
@@ -14563,15 +14652,48 @@ function vhPodio(lista,unit,destacado){
     const o=top[i];if(!o)return '';
     const pos=i+1;
     const yo=destacado&&o.n===destacado?' vh-po-yo':'';
-    return '<div class="vh-po p'+pos+yo+'" onclick="closeInfoEdit();openPlayer(\''+String(o.n).replace(/'/g,"\\'")+'\')">'
+    /* Un histórico no tiene ficha que abrir: su tarjeta no es pulsable. */
+    const abrir=o.ex?'':' onclick="closeInfoEdit();openPlayer(\''+String(o.n).replace(/'/g,"\\'")+'\')"';
+    return '<div class="vh-po p'+pos+yo+(o.ex?' vh-po-hist':'')+'"'+abrir+'>'
       +'<span class="vh-po-m">'+pos+'</span>'
       +'<img class="vh-po-f" src="'+vhFoto(o.n)+'" alt="">'
-      +'<div class="vh-po-n">'+esc(o.n)+'</div>'
+      +'<div class="vh-po-n">'+esc(o.n)+(o.ex?'<span class="vh-po-ex" title="'+esc(((typeof exMeta==='function'&&exMeta(o.n))||{}).temp||'jugador histórico')+'">ex</span>':'')+'</div>'
       +'<div class="vh-po-v">'+vhFmt(o.v,2)+(unit?'<small> '+esc(unit)+'</small>':'')+'</div>'
       +'<div class="vh-po-d">'+esc(o.dk||'')+'</div>'
       +'<div class="vh-po-base"></div>'
     +'</div>';
   }).join('')+'</div>';
+}
+/* v242 · Récord del club: la mejor marca absoluta de esta prueba, mirando cada
+   medición suelta de todo el histórico, esté el jugador o no. Se separa del
+   podio porque responde a otra pregunta: no "quién es el mejor" sino "cuál es
+   el mejor registro que tenemos". */
+function vhRecordBloque(k,def){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const lb=!!(def&&def.lowerBetter);
+  const nombres=Object.keys(STATE.players||{}).concat(
+    (typeof exNames==='function'?exNames():[]).filter(n=>!(STATE.players||{})[n]));
+  let rec=null,total=0;
+  nombres.forEach(function(n){
+    (vhSeries(n,k)||[]).forEach(function(o){
+      total++;
+      if(!rec||(lb?o.val<rec.v:o.val>rec.v))rec={n,v:o.val,dk:o.dk,
+        ex:(typeof exIs==='function')&&exIs(n)&&!(STATE.players||{})[n]};
+    });
+  });
+  if(!rec)return '';
+  const meta=rec.ex&&typeof exMeta==='function'?exMeta(rec.n):null;
+  return '<div class="vh-rec">'
+    +'<div class="vh-rec-l">Récord del club</div>'
+    +'<div class="vh-rec-b">'
+      +'<img class="vh-rec-f" src="'+vhFoto(rec.n)+'" alt="">'
+      +'<div class="vh-rec-tx"><div class="vh-rec-n">'+esc(rec.n)
+        +(rec.ex?'<span class="vh-po-ex">ex</span>':'')+'</div>'
+        +'<div class="vh-rec-d">'+esc(rec.dk||'')+(meta&&meta.temp?' · '+esc(meta.temp):'')+'</div></div>'
+      +'<div class="vh-rec-v">'+vhFmt(rec.v,2)+(def.unit?'<small> '+esc(def.unit)+'</small>':'')+'</div>'
+    +'</div>'
+    +'<div class="vh-rec-f2">Mejor de '+total+' mediciones registradas'+(lb?' · en esta prueba gana el valor más bajo':'')+'</div>'
+  +'</div>';
 }
 window.vhAbrir=function(k){
   const def=(typeof TESTS!=='undefined')?TESTS.find(t=>t.k===k):null;
@@ -14592,8 +14714,9 @@ window.vhAbrir=function(k){
       +(r.n>1
         ? '<div class="vh-det-ch"><canvas id="ch-vh-det"></canvas></div>'
         : '<p class="small muted">'+(r.n===1?'Solo hay una medición, todavía no hay evolución que dibujar.':'Este jugador no tiene mediciones de esta prueba.')+'</p>')
-      +'<div class="vh-det-sec">Mejor marca histórica <span>mejor registro de cada jugador en toda la base de datos</span></div>'
+      +'<div class="vh-det-sec">Mejor marca histórica <span>mejor registro de cada jugador · incluye a quien ya no está</span></div>'
       +vhPodio(hist,def.unit,name)
+      +vhRecordBloque(k,def)
     +'</div>';
   rhModal(def.name+(def.unit?' · '+def.unit:''),cuerpo);
   if(r.n>1){
@@ -14619,6 +14742,62 @@ window.vhAbrir=function(k){
     },30);
   }
 };
+/* v242 · Gestión de la lista de jugadores históricos. La lista la confirma el
+   staff: mientras un nombre no esté aquí, la importación lo sigue descartando.
+   Se ofrecen como sugerencia los nombres que la última importación no supo
+   colocar, para no tener que teclearlos. */
+function exRender(){
+  const box=document.getElementById('expl-panel');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
+  const lista=exNames();
+  const filas=lista.length?lista.map(function(n){
+    const m=exMeta(n)||{};
+    let med=0;try{med=((STATE.testHist||{})[n]||[]).length;}catch(e){}
+    return '<div class="expl-row">'
+      +'<img class="expl-f" src="'+vhFoto(n)+'" alt="">'
+      +'<div class="expl-tx"><b>'+esc(n)+'</b><span>'+[esc(m.pos||''),esc(m.temp||'')].filter(Boolean).join(' · ')
+        +(med?(m.pos||m.temp?' · ':'')+med+' valoraciones':'')+'</span></div>'
+      +'<button class="btn ghost" onclick="exQuitar(\''+q(n)+'\')">Quitar</button>'
+    +'</div>';
+  }).join(''):'<p class="small muted">Todavía no hay ningún jugador histórico dado de alta.</p>';
+  /* Sugerencias: lo que la última importación no supo colocar. */
+  const sug=(window.VH_LAST_UNKNOWN||[]).filter(n=>!exIs(n));
+  const sugBox=sug.length?'<div class="expl-sug"><div class="expl-sug-h">De la última importación · sin correspondencia</div>'
+    +sug.map(n=>'<button class="btn ghost expl-sugb" onclick="exAltaRapida(\''+q(n)+'\')">+ '+esc(n)+'</button>').join('')
+    +'<div class="small muted" style="margin-top:7px">Revísalos antes: si alguno es una errata de un jugador actual, corrígelo en la hoja en vez de darlo de alta.</div></div>':'';
+  box.innerHTML='<h2>Jugadores históricos <span class="r muted">'+lista.length+' dados de alta</span></h2>'
+    +'<p class="hint">Jugadores que pasaron por el club y ya no están. Sus valoraciones entran en el récord del club y en el podio histórico de cada prueba, pero no en disponibilidad, cargas, wellness ni alertas, que son de la plantilla actual. Mientras un nombre no esté en esta lista, la importación lo descarta.</p>'
+    +'<div class="expl-add">'
+      +'<input id="expl-n" placeholder="Nombre y apellidos, igual que en la hoja">'
+      +'<input id="expl-p" placeholder="Posición (opcional)">'
+      +'<input id="expl-t" placeholder="Temporadas · 2019–2023 (opcional)">'
+      +'<button class="btn" onclick="exAlta()">Dar de alta</button>'
+    +'</div>'
+    +sugBox
+    +'<div class="expl-list">'+filas+'</div>'
+    +'<p class="small muted" style="margin-top:10px">La foto se resuelve igual que la del resto: un archivo con su nombre exacto en la carpeta <span class="mono">fotos</span> del hosting. Si no la hay, se muestra su marca de iniciales.</p>';
+}
+window.exAlta=function(){
+  const g=id=>((document.getElementById(id)||{}).value||'').trim();
+  const n=g('expl-n');
+  if(!n){if(window.toast)toast('Escribe el nombre');return;}
+  if((STATE.players||{})[n]){if(window.toast)toast('Ese jugador está en la plantilla actual');return;}
+  exAdd(n,g('expl-p'),g('expl-t'));
+  ['expl-n','expl-p','expl-t'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  if(window.toast)toast('Alta de '+n);
+  exRender();
+};
+window.exAltaRapida=function(n){
+  exAdd(n,'','');
+  if(window.toast)toast('Alta de '+n+' · vuelve a importar la hoja para traer sus valoraciones');
+  exRender();
+};
+window.exQuitar=function(n){
+  if(!confirm('¿Quitar a '+n+' de los jugadores históricos?\n\nSus valoraciones dejarán de contar en los récords.'))return;
+  exDel(n);exRender();
+};
+window.exRender=exRender;
 function vhRenderPanel(){
   const box=document.getElementById('vh-panel');if(!box)return;
   const sel=document.getElementById('tests-player');
