@@ -647,6 +647,37 @@ main{padding:13px 16px 70px}
 .vh-f{display:flex;align-items:baseline;gap:8px;margin-top:auto;padding-top:7px;border-top:1px solid var(--hair);font-size:10px}
 .vh-age{font-weight:700;flex:none}
 .vh-meta{color:var(--muted);margin-left:auto;text-align:right}
+/* ===== v239 · Detalle de una valoración: podio, evolución e histórico ===== */
+.vh-card{cursor:pointer;transition:border-color .12s,transform .12s}
+.vh-card:hover{border-color:var(--accent)}
+.vh-det{display:flex;flex-direction:column;gap:4px}
+.vh-det-sec{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 10px;padding-top:12px;border-top:1px solid var(--hair);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.vh-det-sec:first-child{margin-top:2px;padding-top:0;border-top:0}
+.vh-det-sec span{font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted2,var(--muted));opacity:.85}
+.vh-det-ch{height:230px}
+/* Podio: 2º, 1º, 3º, con la peana más alta en el centro */
+.vh-podio{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;align-items:end}
+.vh-po{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;min-width:0;padding:8px 6px 0;border-radius:12px;transition:background .12s}
+.vh-po:hover{background:var(--panel2)}
+.vh-po-m{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex:none}
+.vh-po.p1 .vh-po-m{background:#d4a017}
+.vh-po.p2 .vh-po-m{background:#9aa3ae}
+.vh-po.p3 .vh-po-m{background:#b3703a}
+.vh-po-f{width:54px;height:54px;border-radius:50%;object-fit:cover;background:var(--panel2);border:2px solid var(--line)}
+.vh-po.p1 .vh-po-f{width:66px;height:66px;border-color:#d4a017}
+.vh-po.p2 .vh-po-f{border-color:#9aa3ae}
+.vh-po.p3 .vh-po-f{border-color:#b3703a}
+.vh-po-yo .vh-po-f{box-shadow:0 0 0 3px var(--accent)}
+.vh-po-n{font-size:11.5px;font-weight:700;text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.vh-po-v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.vh-po-v small{font-size:10px;font-weight:600;color:var(--muted)}
+.vh-po-d{font-size:9.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.vh-po-base{width:100%;margin-top:5px;border-radius:7px 7px 0 0;background:var(--panel2);border:1px solid var(--line);border-bottom:0}
+.vh-po.p1 .vh-po-base{height:34px;background:color-mix(in srgb,#d4a017 14%,transparent)}
+.vh-po.p2 .vh-po-base{height:22px}
+.vh-po.p3 .vh-po-base{height:14px}
+@media(max-width:480px){.vh-po-f{width:44px;height:44px}.vh-po.p1 .vh-po-f{width:54px;height:54px}
+  .vh-po-v{font-size:15px}.vh-po-n{font-size:10.5px}}
 .vh-ayuda{margin-top:18px;border-top:1px solid var(--hair);padding-top:10px}
 .vh-ayuda>summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--accent);list-style:none}
 .vh-ayuda>summary::-webkit-details-marker{display:none}
@@ -14307,6 +14338,112 @@ function vhSemaforo(tier,semaf){
   const l=(c,activa)=>activa?on(c):off(c);
   return '<div class="vh-tl">'+l('#e23b32',tier==='bad')+l('#e08a00',tier==='warn')+l('#1ea863',tier==='ok'||tier==='neutral')+'</div>';
 }
+/* ============ v239 · Detalle de una valoración ============
+   Al pulsar una tarjeta se abre el detalle de esa prueba: el podio del equipo
+   con la última medición de cada uno, la evolución del jugador que se está
+   mirando, y el mejor registro histórico de la base de datos. Vale para
+   cualquier prueba, así que sirve igual cuando se cambian las tarjetas
+   seleccionadas desde el desplegable. */
+function vhFoto(n){
+  const p=(STATE.players||{})[n]||{};
+  return p.avatar||(window.phPlaceholder?phPlaceholder(n):(window.__AVATAR__||''));
+}
+/* Última medición de cada jugador para esa prueba, ordenada por la dirección
+   del test (hay pruebas donde menos es mejor: grasa, asimetrías, tiempos). */
+function vhRankingActual(k){
+  const def=(typeof TESTS!=='undefined')?TESTS.find(t=>t.k===k):null;
+  const lb=!!(def&&def.lowerBetter);
+  const out=[];
+  Object.keys(STATE.players||{}).forEach(function(n){
+    const ser=vhSeries(n,k);
+    if(!ser.length)return;
+    const u=ser[ser.length-1];
+    out.push({n,v:u.val,dk:u.dk});
+  });
+  out.sort((a,b)=>lb?a.v-b.v:b.v-a.v);
+  return out;
+}
+/* Mejor registro de cada jugador en todo el histórico, no solo el último. */
+function vhRankingHistorico(k){
+  const def=(typeof TESTS!=='undefined')?TESTS.find(t=>t.k===k):null;
+  const lb=!!(def&&def.lowerBetter);
+  const out=[];
+  Object.keys(STATE.players||{}).forEach(function(n){
+    const ser=vhSeries(n,k);
+    if(!ser.length)return;
+    let mejor=ser[0];
+    ser.forEach(function(o){if(lb?o.val<mejor.val:o.val>mejor.val)mejor=o;});
+    out.push({n,v:mejor.val,dk:mejor.dk});
+  });
+  out.sort((a,b)=>lb?a.v-b.v:b.v-a.v);
+  return out;
+}
+function vhPodio(lista,unit,destacado){
+  if(!lista.length)return '<p class="small muted">Sin mediciones registradas.</p>';
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const top=lista.slice(0,3);
+  /* Orden visual del podio: 2º, 1º, 3º. Con menos de tres se pinta lo que haya. */
+  const orden=top.length===1?[0]:(top.length===2?[1,0]:[1,0,2]);
+  return '<div class="vh-podio">'+orden.map(function(i){
+    const o=top[i];if(!o)return '';
+    const pos=i+1;
+    const yo=destacado&&o.n===destacado?' vh-po-yo':'';
+    return '<div class="vh-po p'+pos+yo+'" onclick="closeInfoEdit();openPlayer(\''+String(o.n).replace(/'/g,"\\'")+'\')">'
+      +'<span class="vh-po-m">'+pos+'</span>'
+      +'<img class="vh-po-f" src="'+vhFoto(o.n)+'" alt="">'
+      +'<div class="vh-po-n">'+esc(o.n)+'</div>'
+      +'<div class="vh-po-v">'+vhFmt(o.v,2)+(unit?'<small> '+esc(unit)+'</small>':'')+'</div>'
+      +'<div class="vh-po-d">'+esc(o.dk||'')+'</div>'
+      +'<div class="vh-po-base"></div>'
+    +'</div>';
+  }).join('')+'</div>';
+}
+window.vhAbrir=function(k){
+  const def=(typeof TESTS!=='undefined')?TESTS.find(t=>t.k===k):null;
+  if(!def)return;
+  const sel=document.getElementById('tests-player');
+  const name=(sel&&sel.value)||Object.keys(STATE.players||{})[0];
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const r=vhZ(name,k);
+  const act=vhRankingActual(k), hist=vhRankingHistorico(k);
+  const dir=def.lowerBetter?'menos es mejor':'más es mejor';
+  const puesto=act.findIndex(x=>x.n===name);
+  const cuerpo=
+    '<div class="vh-det">'
+      +'<div class="vh-det-sec">Podio del equipo <span>última medición de cada jugador · '+esc(dir)+'</span></div>'
+      +vhPodio(act,def.unit,name)
+      +'<div class="vh-det-sec">Evolución de '+esc(name)+
+        (puesto>=0?' <span>puesto '+(puesto+1)+' de '+act.length+'</span>':'')+'</div>'
+      +(r.n>1
+        ? '<div class="vh-det-ch"><canvas id="ch-vh-det"></canvas></div>'
+        : '<p class="small muted">'+(r.n===1?'Solo hay una medición, todavía no hay evolución que dibujar.':'Este jugador no tiene mediciones de esta prueba.')+'</p>')
+      +'<div class="vh-det-sec">Mejor marca histórica <span>mejor registro de cada jugador en toda la base de datos</span></div>'
+      +vhPodio(hist,def.unit,name)
+    +'</div>';
+  rhModal(def.name+(def.unit?' · '+def.unit:''),cuerpo);
+  if(r.n>1){
+    setTimeout(function(){
+      const el=document.getElementById('ch-vh-det');if(!el)return;
+      killCharts(['ch-vh-det']);
+      const ser=r.serie||[];
+      const tier=vhHasSemaphore(k)&&!r.provisional?vhTier(r.z):'na';
+      const col=(typeof cssVar==='function')
+        ? (tier==='ok'?cssVar('--ok'):tier==='bad'?cssVar('--bad'):tier==='warn'?cssVar('--warn'):cssVar('--accent'))
+        : '#3056c4';
+      const mc=cssVar('--muted')||'#8a93a0';
+      const base=r.baselineMed;
+      const ds=[{type:'line',label:def.name,data:ser.map(o=>o.val),borderColor:col,borderWidth:2.4,
+                 pointRadius:4,pointBackgroundColor:col,tension:.3,fill:true,
+                 backgroundColor:(typeof rgba==='function')?rgba(col,.12):'transparent'}];
+      if(base!=null)ds.push({type:'line',label:'Su normal',data:ser.map(()=>base),borderColor:mc,
+                             borderDash:[6,4],borderWidth:1.4,pointRadius:0});
+      charts['ch-vh-det']=new Chart(el,{data:{labels:ser.map(o=>o.dk),datasets:ds},
+        options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10}},
+          tooltip:{callbacks:{label:c=>c.dataset.label+': '+vhFmt(c.raw,2)+(def.unit?' '+def.unit:'')}}},
+          scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX}}}});
+    },30);
+  }
+};
 function vhRenderPanel(){
   const box=document.getElementById('vh-panel');if(!box)return;
   const sel=document.getElementById('tests-player');
@@ -14373,7 +14510,7 @@ function vhRenderPanel(){
       const chispa=vals.length>1?sparkline(vals,{w:190,h:38,color:spCol,fill:true}):'<span class="vh-nospark">una sola medición</span>';
       const trend=r.trend?('<span class="vh-tr" style="color:'+vhTrendColor(r.trend,t.k)+'" title="'+
         (r.trendSlope!=null?('pendiente '+(r.trendSlope>=0?'+':'')+vhFmt(r.trendSlope,2)+' z por medición'):'')+'">'+vhTrendIcon(r.trend)+'</span>'):'';
-      return '<div class="vh-card" style="--vc:'+col+'">'
+      return '<div class="vh-card" style="--vc:'+col+'" onclick="vhAbrir(\''+q(t.k)+'\')" title="Ver podio e histórico">'
         +'<div class="vh-h">'+vhSemaforo(tier,semaf)+'<span class="vh-n">'+esc(t.name)+'</span>'+trend+'</div>'
         +'<div class="vh-top">'
           +vhAnillo(semaf&&!r.provisional?r.z:null,tier,semaf)
