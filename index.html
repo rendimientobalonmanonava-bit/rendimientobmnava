@@ -965,6 +965,30 @@ main{padding:13px 16px 70px}
 .cal-scale{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:14px;font-size:11.5px;color:var(--muted)}
 .cal-sc i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .cal-ev-row{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--hair)}
+/* ===== v241 · Sesiones puestas sin programar ===== */
+/* Alta rápida dentro del día */
+.cal-quick{border:1px dashed var(--line);border-radius:12px;padding:11px 12px;margin:12px 0 4px;background:var(--panel2)}
+.cal-quick-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin-bottom:9px}
+.cal-quick-h span{font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:0;opacity:.85}
+.cal-quick-row{display:flex;flex-wrap:wrap;gap:7px}
+.cal-qbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit}
+.cal-qbtn:hover{border-color:var(--qc);color:var(--qc)}
+.cal-qdot{width:8px;height:8px;border-radius:50%;flex:none}
+/* Distintivo de "sin programar" */
+.cal-sp{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:var(--panel2);border:1px dashed var(--line);border-radius:5px;padding:1px 7px}
+.cal-ev-row.sp{border-style:dashed}
+.cal-ev-btn{padding:6px 11px;font-size:12px;font-weight:700}
+.cal-spnote{border:1px dashed var(--line);border-radius:11px;padding:10px 12px;margin:10px 0;font-size:12.5px;color:var(--muted);background:var(--panel2);line-height:1.5}
+.cal-spnote b{color:var(--txt)}
+/* En la rejilla del mes, trazo discontinuo y sin duración */
+.cal-chip.sp{border:1px dashed var(--line);background:transparent}
+.cal-chip.sp .cal-chip-dot{opacity:.45}
+/* En "Próximas sesiones" del resumen */
+.tn-card.sp,.tn-row.sp{border-style:dashed}
+.tn-sem-off{opacity:.35}
+.tn-sem-off .tn-lamp{background:var(--muted2,var(--muted))!important;opacity:.5}
+.tn-dur-sp b{color:var(--muted)}
+.tn-dur-sp i{color:var(--muted)}
 .cal-ev-dot{width:10px;height:10px;border-radius:50%;flex:none}
 .cal-evlist{margin-bottom:14px}
 .cal-addform{border-top:1px solid var(--line);padding-top:14px}
@@ -8777,34 +8801,39 @@ function renderTeamNext(){
     +[3,2,1].map(k=>`<span class="tn-lamp" style="background:${CAL_INT[k].col};opacity:${i===k?1:.15}"></span>`).join('')
     +'</div>';
   const primero=lista[0];
+  const sp0=(typeof evSP==='function')&&evSP(primero.e);
   const i0=evIntens(primero.e), c0=evContacto(primero.e), it0=CAL_INT[i0]||CAL_INT[2];
   const tipo0=(CAL_TYPES[primero.e.type]||{}).lab||primero.e.type;
   const objs0=(primero.e.objs&&primero.e.objs.length?primero.e.objs:(primero.e.note?[primero.e.note]:[]));
-  const destacada=`<div class="tn-card tn-hero" style="--tc:${it0.col}">
+  const destacada=`<div class="tn-card tn-hero${sp0?' sp':''}" style="--tc:${sp0?'var(--line)':it0.col}">
     <div class="tn-top">
       <span class="tn-dia">${tnDiaLab(primero.dk,hoy)}</span>
       <span class="tn-tipo">${esc(primero.e.title||tipo0)}</span>
       ${primero.e.time?`<span class="tn-hora">${esc(primero.e.time)}</span>`:''}
     </div>
     <div class="tn-main">
-      ${semaforo(i0)}
-      <div class="tn-dur"><b>${primero.e.dur?primero.e.dur:'—'}</b><span>min</span><i>${it0.lab}</i></div>
+      ${sp0?'<div class="tn-sem tn-sem-off"><span class="tn-lamp"></span><span class="tn-lamp"></span><span class="tn-lamp"></span></div>':semaforo(i0)}
+      ${sp0?'<div class="tn-dur tn-dur-sp"><b>—</b><i>sin programar</i></div>'
+        :`<div class="tn-dur"><b>${primero.e.dur?primero.e.dur:'—'}</b><span>min</span><i>${it0.lab}</i></div>`}
     </div>
     <div class="tn-sec">
-      <div class="tn-ct"><span class="tn-ct-l">Contacto</span>${calContactBar(c0)}<span class="tn-ct-v">${esc(CAL_CONTACT_LAB[c0]||'—')}</span></div>
-      <div class="tn-objs">${objs0.length?objs0.slice(0,3).map(o=>`<span class="tn-obj">${esc(o)}</span>`).join(''):'<span class="small muted">Sin objetivos anotados</span>'}</div>
+      ${sp0?'<div class="small muted">Puesta en el calendario. Falta volumen, intensidad y contacto.</div>'
+        :`<div class="tn-ct"><span class="tn-ct-l">Contacto</span>${calContactBar(c0)}<span class="tn-ct-v">${esc(CAL_CONTACT_LAB[c0]||'—')}</span></div>
+      <div class="tn-objs">${objs0.length?objs0.slice(0,3).map(o=>`<span class="tn-obj">${esc(o)}</span>`).join(''):'<span class="small muted">Sin objetivos anotados</span>'}</div>`}
     </div>
   </div>`;
   const resto=lista.slice(1).map(o=>{
+    /* v241 · sin programar: ni semáforo ni minutos inventados. */
+    const sp=(typeof evSP==='function')&&evSP(o.e);
     const i=evIntens(o.e), c=evContacto(o.e), it=CAL_INT[i]||CAL_INT[2];
     const tipo=(CAL_TYPES[o.e.type]||{}).lab||o.e.type;
-    return `<div class="tn-row" style="--tc:${it.col}">
-      ${semaforo(i,true)}
+    return `<div class="tn-row${sp?' sp':''}" style="--tc:${sp?'var(--line)':it.col}">
+      ${sp?'<div class="tn-sem tn-sem-sm tn-sem-off"><span class="tn-lamp"></span><span class="tn-lamp"></span><span class="tn-lamp"></span></div>':semaforo(i,true)}
       <div class="tn-row-tx">
         <div class="tn-row-t"><span class="tn-dia">${tnDiaLab(o.dk,hoy)}</span><span class="tn-tipo">${esc(o.e.title||tipo)}</span></div>
-        <div class="tn-row-m">${o.e.time?esc(o.e.time)+' · ':''}${it.lab}${c?' · '+esc(CAL_CONTACT_LAB[c]||''):''}</div>
+        <div class="tn-row-m">${o.e.time?esc(o.e.time)+' · ':''}${sp?'sin programar':it.lab+(c?' · '+esc(CAL_CONTACT_LAB[c]||''):'')}</div>
       </div>
-      <div class="tn-row-d"><b>${o.e.dur?o.e.dur:'—'}</b><span>min</span></div>
+      <div class="tn-row-d">${sp?'<b>—</b>':`<b>${o.e.dur?o.e.dur:'—'}</b><span>min</span>`}</div>
     </div>`;
   }).join('');
   const dias=new Set(lista.map(o=>o.dk)).size;
@@ -8963,6 +8992,27 @@ function calPersist(){try{localStorage.setItem('bmnava_cal',JSON.stringify(STATE
 function calMetaPersist(){try{localStorage.setItem('bmnava_calmeta',JSON.stringify(STATE.calMeta||{}));}catch(e){}}
 function calTplPersist(){try{localStorage.setItem('bmnava_caltpl',JSON.stringify(STATE.calTpl||[]));}catch(e){}}
 function evIntens(e){if(e.intens)return e.intens;if(e.lv!=null)return e.lv>=3?3:e.lv==2?2:1;return 2;}
+/* v241 · Sesión "sin programar": queda puesta en el calendario para saber que
+   ese día se entrena, pero sin volumen, intensidad ni contacto. Hace falta una
+   marca explícita porque evIntens/evDur/evContacto tienen valores por defecto,
+   así que sin ella una sesión recién puesta se mostraría con una intensidad y
+   una duración que nadie ha decidido. */
+function evSP(e){return !!(e&&e.sp);}
+window.evSP=evSP;
+/* Alta rápida: un toque por tipo, sin formulario. */
+function calQuickAdd(dk,tipo){
+  calLoad();
+  if(!STATE.calendar[dk])STATE.calendar[dk]=[];
+  const lab=(CAL_TYPES[tipo]||{}).lab||tipo;
+  STATE.calendar[dk].push({id:'cev_'+Date.now()+'_'+Math.round(Math.random()*999),
+    type:tipo,title:'',time:'',objs:[],note:'',sp:true});
+  STATE.calendar[dk].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));
+  calPersist();
+  if(window.toast)toast(lab+' añadido · '+calDkLabel(dk));
+  calBody(dk);renderCalendar();
+  try{if(window.renderTeam&&document.getElementById('team-next'))renderTeam();}catch(e){}
+}
+window.calQuickAdd=calQuickAdd;
 function evDur(e){return e.dur!=null?e.dur:(CAL_TYPES[e.type]?CAL_TYPES[e.type].dur:60);}
 const CAL_CONTACT_DEF={entreno:3,fuerza:1,partido:5,evento:1,descanso:0};
 const CAL_CONTACT_LAB=['—','Sin contacto','Contacto ligero','Contacto moderado','Contacto alto','Juego real · máximo'];
@@ -9103,7 +9153,13 @@ function calRealManual(dk){const meta=(STATE.calMeta||{})[dk];return meta&&meta.
 function calZonesGet(dk){const meta=(STATE.calMeta||{})[dk]||{};return {z4:meta.z4,z5:meta.z5};}
 function calPlanUA(dk){const evs=(STATE.calendar||{})[dk]||[];return evs.reduce((a,e)=>a+CAL_RPE[evIntens(e)]*evDur(e),0);}
 function calDev(planUA,realUA){if(!planUA||realUA==null)return null;const pct=Math.round((realUA-planUA)/planUA*100);const a=Math.abs(pct);const tier=a<=15?'ok':a<=30?'warn':'bad';const col=tier==='ok'?'#1ea863':tier==='warn'?'#e08a00':'#e23b32';const lab=a<=15?'Según lo previsto':pct>0?'Por encima del plan':'Por debajo del plan';return{pct,col,lab,tier,arrow:pct>3?'▲':pct<-3?'▼':'≈'};}
-function calDayPlan(dk){const evs=(STATE.calendar||{})[dk]||[];if(!evs.length)return{n:0};let totMin=0,peak=0,peakC=0;evs.forEach(e=>{totMin+=evDur(e);peak=Math.max(peak,evIntens(e));peakC=Math.max(peakC,evContacto(e));});const ci=CAL_INT[peak]||CAL_INT[2];return{n:evs.length,totMin,peak,col:ci.col,lab:ci.lab,contacto:peakC,planPct:Math.min(100,Math.round(totMin/150*100)),planUA:calPlanUA(dk)};}
+/* v241 · las sesiones sin programar quedan fuera del cálculo de carga: sumar
+   su duración y su intensidad por defecto daría un plan que nadie ha decidido.
+   Se cuentan aparte para poder avisar de que faltan por programar. */
+function calDayPlan(dk){const todas=(STATE.calendar||{})[dk]||[];const sinProg=todas.filter(evSP).length;
+  const evs=todas.filter(e=>!evSP(e));
+  if(!evs.length)return{n:0,sinProg,total:todas.length};
+  let totMin=0,peak=0,peakC=0;evs.forEach(e=>{totMin+=evDur(e);peak=Math.max(peak,evIntens(e));peakC=Math.max(peakC,evContacto(e));});const ci=CAL_INT[peak]||CAL_INT[2];return{n:evs.length,sinProg,total:todas.length,totMin,peak,col:ci.col,lab:ci.lab,contacto:peakC,planPct:Math.min(100,Math.round(totMin/150*100)),planUA:calPlanUA(dk)};}
 function calDkLabel(dk){const a=dk.split('-').map(Number);return a[2]+' '+CAL_MES[a[1]-1].toLowerCase()+' '+a[0];}
 function calTraffic(intens,h,cls){h=h||46;const w=Math.round(h*0.46);const cols={3:'#e23b32',2:'#e6a700',1:'#1ea863'};const order=[3,2,1];const pad=w*0.17,r=(w-2*pad)*0.42;const span=h-2*pad,step=span/3;let g='';order.forEach((lv,i)=>{const cy=pad+step*(i+0.5);const on=lv===intens;if(on)g+=`<circle cx="${w/2}" cy="${cy}" r="${(r*1.5).toFixed(1)}" fill="${cols[lv]}" opacity="0.24"/>`;g+=`<circle cx="${w/2}" cy="${cy}" r="${r.toFixed(1)}" fill="${on?cols[lv]:'var(--tl-off,#39414f)'}" opacity="${on?1:0.5}"/>`;});return `<svg class="${cls||''}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;flex:none"><rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="${(w*0.28).toFixed(1)}" fill="var(--tl-body,#1d222c)" stroke="var(--tl-edge,#10141b)" stroke-width="1"/>${g}</svg>`;}
 function calPlanPanel(dk,pl,real,dev){if(!pl.n)return '';const grado=pl.lab.toUpperCase();let vcol='#8a93a3',vtx='Sin carga real todavía',vsub='Se completará al cargar el RPE de este día';if(dev){vcol=dev.col;vtx=dev.tier==='ok'?'Bien programado':dev.tier==='warn'?'Ligero desajuste':'Desajuste — revisar';vsub=`${dev.arrow} ${dev.pct>0?'+':''}${dev.pct}% real vs plan · ${dev.lab}`;}const realStr=real!=null?`${real} UA`:'—';return `<div class="cal-panel" style="--pc:${pl.col}"><div class="cal-panel-tl">${calTraffic(pl.peak,82)}</div><div class="cal-panel-main"><div class="cal-panel-lab">Intensidad programada</div><div class="cal-panel-grade" style="color:${pl.col}">${grado}</div><div class="cal-panel-dur"><span class="cal-clock">◷</span> <b>${pl.totMin}′</b> <span class="muted">duración total${pl.n>1?` · ${pl.n} sesiones`:''}</span></div></div><div class="cal-panel-cmp"><div class="cal-cmp-row"><span>Programado</span><b>${pl.planUA} UA</b></div><div class="cal-cmp-row"><span>Real (RPE)</span><b style="color:var(--c-data,#3f5572)">${realStr}</b></div><div class="cal-cmp-verdict" style="--vc:${vcol}"><span class="cal-cmp-dot"></span><div class="cal-cmp-vtx"><b>${vtx}</b><span>${vsub}</span></div></div></div></div>`;}
@@ -9190,7 +9246,9 @@ function renderCalendar(){
     const onlyRest=evs.length>0&&evs.every(e=>e.type==='descanso');
     const themeCls=hasMatch?' cal-cell-match':(onlyRest?' cal-cell-rest':'');
     const matchEv=hasMatch?(evs.find(e=>e.type==='partido')||{}):null;
-    const chips=evs.slice(0,3).map(e=>{const t=CAL_TYPES[e.type],du=evDur(e);return `<div class="cal-chip" style="--c:${t.col}"><span class="cal-chip-dot" style="background:${t.col}"></span><span class="cal-chip-tx">${e.title||t.lab}</span>${du?`<span class="cal-chip-dur">${du}′</span>`:''}</div>`;}).join('')+(evs.length>3?`<div class="cal-more">+${evs.length-3} más</div>`:'');
+    /* v241 · una sesión sin programar se pinta en trazo discontinuo y sin duración:
+       está puesta en el calendario, pero su volumen no lo ha decidido nadie. */
+    const chips=evs.slice(0,3).map(e=>{const t=CAL_TYPES[e.type],sp=evSP(e),du=sp?0:evDur(e);return `<div class="cal-chip${sp?' sp':''}" style="--c:${t.col}"><span class="cal-chip-dot" style="background:${t.col}"></span><span class="cal-chip-tx">${e.title||t.lab}</span>${du?`<span class="cal-chip-dur">${du}′</span>`:''}</div>`;}).join('')+(evs.length>3?`<div class="cal-more">+${evs.length-3} más</div>`:'');
     const corner=hasMatch?'':(dev?`<span class="cal-dev" style="color:${dev.col};border-color:${dev.col}" title="Desviación plan vs real: ${dev.lab}">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:(rv!=null?`<span class="cal-realbadge" title="Carga real (RPE): ${rv} UA">${rv}</span>`:''));
     cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" onclick="calOpenDay('${dk}')">
       <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${citas.length?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length}): ${citas.map(c=>c.name+(c.e.time?' '+c.e.time:'')+(c.e.afecta==='pierde'?' · pierde entreno':c.e.afecta==='parcial'?' · parcial':'')).join(' · ')}">🩺 ${citas.length}</span>`:''}${corner}</div>
@@ -9278,7 +9336,14 @@ function renderCalWeek(box){
 }
 function calDayBody(dk){
   const evs=(STATE.calendar[dk]||[]);const real=calRealMap()[dk];const pl=calDayPlan(dk);const dev=pl.n?calDev(pl.planUA,real):null;
-  const list=evs.length?evs.map(e=>{const t=CAL_TYPES[e.type],ci=CAL_INT[evIntens(e)],du=evDur(e),ct=evContacto(e),os=evObjs(e);return `<div class="cal-ev-row${CAL_EDIT===e.id?' editing':''}"><span class="cal-ev-dot" style="background:${t.col}"></span><div style="flex:1;min-width:0"><b>${e.title||t.lab}</b>${e.time?` <span class="muted">· ${e.time}</span>`:''}<div class="small muted"><span style="color:${ci.col};font-weight:700">●</span> ${t.lab} · ${ci.lab} intensidad${du?` · ${du}′`:''}${e.type!=='descanso'&&e.type!=='evento'?` · contacto ${ct}/5`:''}</div>${os.length?`<div class="cal-ev-objs">${os.map((o,i)=>`<div class="cal-ev-obj"><span class="cal-ev-obj-n">${i+1}</span>${o.replace(/</g,'&lt;')}</div>`).join('')}</div>`:''}</div><button class="btn ghost" style="padding:5px 9px" title="Editar" onclick="calEditEvent('${dk}','${e.id}')">✎</button><button class="btn ghost" style="padding:5px 9px" title="Borrar" onclick="calDelEvent('${dk}','${e.id}')">✕</button></div>`;}).join(''):'<p class="small muted">Sin nada planificado este día todavía.</p>';
+  const list=evs.length?evs.map(e=>{const t=CAL_TYPES[e.type],ci=CAL_INT[evIntens(e)],du=evDur(e),ct=evContacto(e),os=evObjs(e);const sp=evSP(e);
+    const detalle=sp
+      ? `<div class="small"><span class="cal-sp">sin programar</span> <span class="muted">${t.lab} · falta volumen, intensidad y contacto</span></div>`
+      : `<div class="small muted"><span style="color:${ci.col};font-weight:700">●</span> ${t.lab} · ${ci.lab} intensidad${du?` · ${du}′`:''}${e.type!=='descanso'&&e.type!=='evento'?` · contacto ${ct}/5`:''}</div>`;
+    return `<div class="cal-ev-row${CAL_EDIT===e.id?' editing':''}${sp?' sp':''}"><span class="cal-ev-dot" style="background:${t.col}${sp?';opacity:.45':''}"></span><div style="flex:1;min-width:0"><b>${e.title||t.lab}</b>${e.time?` <span class="muted">· ${e.time}</span>`:''}${detalle}${os.length?`<div class="cal-ev-objs">${os.map((o,i)=>`<div class="cal-ev-obj"><span class="cal-ev-obj-n">${i+1}</span>${o.replace(/</g,'&lt;')}</div>`).join('')}</div>`:''}</div><button class="btn ghost cal-ev-btn" title="${sp?'Programar: añadir volumen, intensidad y contacto':'Editar'}" onclick="calEditEvent('${dk}','${e.id}')">${sp?'Programar':'✎'}</button><button class="btn ghost" style="padding:5px 9px" title="Borrar" onclick="calDelEvent('${dk}','${e.id}')">✕</button></div>`;}).join(''):'<p class="small muted">Sin nada planificado este día todavía.</p>';
+  /* v241 · si el día tiene sesiones puestas pero sin programar, se dice, para
+     que no parezca que falta planificación cuando lo que falta es el detalle. */
+  const avisoSP=(pl.sinProg?`<div class="cal-spnote"><b>${pl.sinProg}</b> ${pl.sinProg===1?'sesión puesta sin programar':'sesiones puestas sin programar'} · pulsa <b>Programar</b> para añadir volumen, intensidad y contacto.</div>`:'');
   const panel=pl.n?calPlanPanel(dk,pl,real,dev):(real!=null?`<div class="cal-realnote">Carga real registrada este día (de RPE): <b>${real} UA</b> · planifica una sesión para ver la desviación</div>`:'');
   const bajas=calBajas(dk);const indiv=calDayIndiv(dk);const meta=(STATE.calMeta||{})[dk]||{};
   const bajasBox=bajas.length?`<div class="cal-bajasbox"><div class="cal-bb-h"><span class="cal-bb-ic">⚕</span> No disponibles este día · ${bajas.length}</div><div class="cal-bb-list">${bajas.map(b=>`<span class="cal-bb-chip cal-bb-${b.status}">${b.name}${b.zone?` · ${b.zone}${b.side?' '+b.side:''}`:''} <i>${b.status==='baja'?'baja':'sin entrenar'}</i></span>`).join('')}</div></div>`:'';
@@ -9357,7 +9422,18 @@ function calDayBody(dk){
       <div class="small muted" style="margin-top:6px">La carga (RPE × min), el ACWR y la monotonía se recalculan al instante. Se guarda en este dispositivo. Si un jugador rellenó varios cuestionarios el mismo día, se muestra un <b>único RPE</b>: la media ponderada por la duración de cada sesión, aplicada a los minutos totales que indiques.</div>
     </div>`;
   }
-  return `${panel}${bajasBox}${citasBox}${indivBox}${durBox}<div class="cal-evlist">${list}</div>
+  /* v241 · Alta rápida: dejar puesto que ese día hay sesión sin decidir todavía
+     volumen, intensidad ni contacto. El formulario completo sigue debajo para
+     quien quiera programarla del tirón, y a la sesión puesta así se le puede
+     añadir el detalle después con el botón "Programar". */
+  const rapida=`<div class="cal-quick">
+     <div class="cal-quick-h">Añadir al día <span>sin programar · el detalle se puede poner luego</span></div>
+     <div class="cal-quick-row">${Object.entries(CAL_TYPES).map(([k,v])=>
+       `<button type="button" class="cal-qbtn" style="--qc:${v.col}" onclick="calQuickAdd('${dk}','${k}')">
+          <span class="cal-qdot" style="background:${v.col}"></span>${v.lab}</button>`).join('')}</div>
+   </div>`;
+  return `${panel}${avisoSP}${bajasBox}${citasBox}${indivBox}${durBox}<div class="cal-evlist">${list}</div>
+   ${ed?'':rapida}
    <div class="cal-addform"><div class="cm-lab" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">${ed?'Editar sesión':'Planificar sesión'}${ed?`<button class="btn ghost" style="padding:3px 8px;font-size:12px" onclick="calCancelEdit()">Cancelar edición</button>`:''}</div>
      <div class="cal-form-grid">
        <label class="full">Tipo<select id="cal-type" onchange="calTypeChanged()">${typeOpts}</select></label>
@@ -9402,10 +9478,17 @@ function calOpenDay(dk){calLoad();CAL_CUR=dk;CAL_EDIT=null;CAL_FORM={intens:2,du
 function calEditEvent(dk,id){CAL_CUR=dk;CAL_EDIT=id;calBody(dk);const b=document.getElementById('info-mbody');if(b)b.scrollTop=b.scrollHeight;}
 function calCancelEdit(){CAL_EDIT=null;CAL_FORM={intens:2,dur:75,contacto:3};calBody(CAL_CUR);}
 function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;const g=id=>(document.getElementById(id)||{}).value;const type=g('cal-type')||'entreno';const _objs=['cal-obj-0','cal-obj-1','cal-obj-2'].map(id=>(g(id)||'').trim()).filter(Boolean).slice(0,3);const data={type,title:(g('cal-title')||'').trim(),time:g('cal-time')||'',intens:CAL_FORM.intens||2,dur:+(g('cal-dur')||CAL_FORM.dur||0),contacto:CAL_FORM.contacto!=null?CAL_FORM.contacto:3,objs:_objs,note:_objs.join(' · ')};if(window.qdCalReadPlan)qdCalReadPlan(data);STATE.calendar[dk]=STATE.calendar[dk]||[];
-  if(CAL_EDIT){const e=STATE.calendar[dk].find(x=>x.id===CAL_EDIT);if(e)Object.assign(e,data);CAL_EDIT=null;toast('Sesión actualizada');}
+  /* v241 · guardar por el formulario completo significa programarla: se retira
+     la marca de "sin programar". */
+  if(CAL_EDIT){const e=STATE.calendar[dk].find(x=>x.id===CAL_EDIT);if(e){Object.assign(e,data);delete e.sp;}CAL_EDIT=null;toast('Sesión programada');}
   else{STATE.calendar[dk].push(Object.assign({id:'cev_'+Date.now()},data));toast('Añadido al '+calDkLabel(dk));}
-  STATE.calendar[dk].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));calPersist();CAL_FORM={intens:2,dur:75,contacto:3};calBody(dk);setTimeout(calTypeChanged,30);renderCalendar();}
-function calDelEvent(dk,id){const arr=(STATE.calendar[dk]||[]);const i=arr.findIndex(e=>e.id===id);if(i>=0){arr.splice(i,1);if(!arr.length)delete STATE.calendar[dk];if(CAL_EDIT===id)CAL_EDIT=null;calPersist();calBody(dk);renderCalendar();}}
+  STATE.calendar[dk].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));calPersist();CAL_FORM={intens:2,dur:75,contacto:3};calBody(dk);setTimeout(calTypeChanged,30);renderCalendar();
+  /* v241 · el resumen de equipo muestra las próximas sesiones, así que al
+     programar una hay que repintarlo: si no, seguía diciendo «sin programar»
+     una sesión que se acababa de completar. */
+  try{if(window.renderTeam&&document.getElementById('team-next'))renderTeam();}catch(e){}}
+function calDelEvent(dk,id){const arr=(STATE.calendar[dk]||[]);const i=arr.findIndex(e=>e.id===id);if(i>=0){arr.splice(i,1);if(!arr.length)delete STATE.calendar[dk];if(CAL_EDIT===id)CAL_EDIT=null;calPersist();calBody(dk);renderCalendar();
+  try{if(window.renderTeam&&document.getElementById('team-next'))renderTeam();}catch(e){}}}
 
 function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);}t.textContent=msg;requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';});clearTimeout(_toastT);_toastT=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(10px)';},2200);}
 
@@ -12187,6 +12270,8 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
   .med-chipbtn{min-height:40px}
   .afilter{min-height:40px;padding:9px 15px}
   .cal-mtg{min-height:40px;padding:10px 15px}
+  /* Alta rápida de sesiones: es lo que más se toca desde el móvil. */
+  .cal-qbtn{min-height:42px;padding:10px 15px;font-size:13px}
   /* La cabecera del parte es un flex sin wrap: con el logo a la derecha se
      salía 22px por la derecha en pantallas estrechas. */
   .pt-head{flex-wrap:wrap;gap:10px;padding:12px 14px}
