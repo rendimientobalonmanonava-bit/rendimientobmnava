@@ -4185,7 +4185,15 @@ function acwrToDate(name,ref,field="ua"){
   return{ratio:r.ratio,acute:r.acute,chronic:r.chronic,ewma:ec>0?ea/ec:NaN,
          rel:dias>=minD,dias,minDias:minD};
 }
-function dayContext(ref){const k=dkey(ref);const wT=STATE.wellness.filter(x=>x.dk===k);const rT=STATE.rpe.filter(x=>x.dk===k);const mdxs=[...wT.map(x=>x.mdx),...rT.map(x=>x.mdx)].filter(m=>m&&m!=="—");const mode=modeOf(mdxs)||"—";const isMatch=mode==="MD"||rT.some(s=>norm(s.tipo).includes("partido"));return{dk:k,mdx:mode,isMatch,trained:rT.length>0,nWell:wT.length,nSes:rT.length};}
+/* v243 · «sesiones» significaba solo registros de RPE, así que un día con el
+   entrenamiento planificado en el calendario salía como «Descanso · sin
+   sesión» mientras nadie hubiera mandado el RPE. Se cuentan las dos cosas por
+   separado: lo planificado y lo registrado. */
+function dayContext(ref){const k=dkey(ref);const wT=STATE.wellness.filter(x=>x.dk===k);const rT=STATE.rpe.filter(x=>x.dk===k);
+  let plan=[];try{calLoad();plan=((STATE.calendar||{})[k]||[]).filter(e=>e.type!=='descanso');}catch(e){}
+  const mdxs=[...wT.map(x=>x.mdx),...rT.map(x=>x.mdx)].filter(m=>m&&m!=="—");const mode=modeOf(mdxs)||"—";
+  const isMatch=mode==="MD"||rT.some(s=>norm(s.tipo).includes("partido"))||plan.some(e=>e.type==='partido');
+  return{dk:k,mdx:mode,isMatch,trained:rT.length>0,nWell:wT.length,nSes:rT.length,nPlan:plan.length};}
 function fmtDayLabel(dk){const a=dk.split('-').map(Number);const dt=new Date(a[0],a[1]-1,a[2]);const wd=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][dt.getDay()];const c=dayContext(dt);return `${a[2]}/${a[1]} (${wd})`+(c.mdx!=='—'?' · '+c.mdx:'')+(c.isMatch?' ★':'');}
 /* ===================== FILTRO DE PLANTILLA ACTUAL (26/27) =====================
    El dashboard solo muestra jugadores de la plantilla vigente (ROSTER_PDF).
@@ -4380,7 +4388,17 @@ function dpRender(){const pop=document.getElementById('dp-pop');if(!pop||!DP_YM)
   +'<div class="dp-grid dp-days">'+cells+'</div>'
   +'<div class="dp-foot"><button type="button" class="dp-foot-btn" onclick="goToday();dpClose()">Última jornada</button></div>';}
 function stepDay(delta){const inp=document.getElementById('ref-date');const cur=inp.value||dkey(REF());const a=cur.split('-').map(Number);const d=new Date(a[0],a[1]-1,a[2]);d.setDate(d.getDate()+delta);const nv=dkey(d);if(inp.min&&nv<inp.min)return;if(inp.max&&nv>inp.max)return;inp.value=nv;setRefDate(nv);}
-function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)return;const ref=REF();const c=dayContext(ref);const a=c.dk.split('-').map(Number);const wd=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(a[0],a[1]-1,a[2]).getDay()];const matchChip=c.isMatch?'<span class="chip bad">Día de partido</span>':(c.trained?'<span class="chip ok">Entrenamiento</span>':'<span class="chip warn">Descanso · sin sesión</span>');el.innerHTML=`<span class="tag">${wd} ${a[2]}/${a[1]}</span> <span class="chip">${c.mdx}</span> ${matchChip} <span class="muted small">${c.nWell} wellness · ${c.nSes} sesiones</span>`;}
+function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)return;const ref=REF();const c=dayContext(ref);const a=c.dk.split('-').map(Number);const wd=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(a[0],a[1]-1,a[2]).getDay()];const matchChip=c.isMatch
+    ?'<span class="chip bad">Día de partido</span>'
+    :(c.trained?'<span class="chip ok">Entrenamiento</span>'
+      :(c.nPlan?'<span class="chip">Planificado · sin registrar</span>'
+        :'<span class="chip warn">Descanso · sin sesión</span>'));
+  /* Se dice cuántas hay planificadas y cuántas registradas, que no son lo mismo:
+     lo registrado depende de que los jugadores manden el RPE. */
+  const cuenta=c.nSes
+    ? `${c.nSes} ${c.nSes===1?'sesión registrada':'sesiones registradas'}`
+    : (c.nPlan?`${c.nPlan} ${c.nPlan===1?'sesión planificada':'sesiones planificadas'} · sin RPE todavía`:'0 sesiones');
+  el.innerHTML=`<span class="tag">${wd} ${a[2]}/${a[1]}</span> <span class="chip">${c.mdx}</span> ${matchChip} <span class="muted small">${c.nWell} wellness · ${cuenta}</span>`;}
 
 /* ===================== MOTOR ===================== */
 function zIntra(value,history,sdMin){
@@ -7254,8 +7272,12 @@ function physioEpisodes(name){const all=physioEvents(name).filter(e=>e.ep);const
 var MED_SEV={};
 function physioSev(s){if(MED_SEV[s]!=null)return MED_SEV[s];return {baja:5,noentto:4,readapt:3,enfermo:3,trat:2,dolor:2,seleccion:1,filial:1,sancion:1,cita:1,tramite:1,personal:1,partido:1,disp:0}[s]||0;}
 function effectiveStatus(name,dk){
-  const td=dkey(new Date());
-  const eps=physioEpisodes(name).filter(e=>e.dk<=dk&&(e.to?dk<e.to:dk<=td));
+  /* v243 · Un episodio ABIERTO (sin fecha de alta) vale desde que se abre hasta
+     que alguien lo cierra, también en días futuros. Antes se cortaba en la fecha
+     de hoy (dk<=td), así que al mirar el calendario o la disponibilidad de
+     mañana un lesionado aparecía como disponible: justo el error peligroso al
+     planificar. Un episodio con alta prevista sigue cerrándose en esa fecha. */
+  const eps=physioEpisodes(name).filter(e=>e.dk<=dk&&(e.to?dk<e.to:true));
   let best=null;eps.forEach(e=>{if(!best||physioSev(e.status)>physioSev(best.status))best=e;});
   if(best)return best;
   const pts=physioPoints(name).filter(e=>e.dk===dk);
