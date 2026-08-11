@@ -6483,6 +6483,7 @@ function tsaRows(){const st=testStats();const names=Object.keys(STATE.players);c
 function tsaTier(rank,n){if(rank<=Math.ceil(n/3))return'ok';if(rank<=Math.ceil(2*n/3))return'warn';return'bad';}
 function renderTests(){
   buildTests();buildAnthro();buildTestHist();testLogApply();
+  try{vhHistApply();}catch(e){}
   const sel=document.getElementById('tests-player');const names=Object.keys(STATE.players);
   if(sel&&(!sel.options.length||sel.dataset.n!=names.length)){sel.innerHTML=names.map(n=>`<option>${n}</option>`).join('');sel.dataset.n=names.length;}
   const rows=tsaRows();const n=rows.length;const selName=(sel||{}).value;
@@ -6787,7 +6788,7 @@ let FICHA_TBL=['talla','peso','bench','benchrel','cmj','rsi','v7','v9','t100'];
 let CHAMP_REF={}; /* CHAMP_REF[posición]={claveMetrica:valorBruto} · referencia equipos Champions (pendiente de tus valores) */
 function svgRing(val,color,size,label,track,txt){track=track||cssVar('--panel2')||'#e6e9ee';txt=txt||cssVar('--muted')||'#8a93a0';const v=clamp(val||0,0,100);const r=(size-14)/2;const c=2*Math.PI*r;const off=c*(1-v/100);return `<div style="text-align:center"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${track}" stroke-width="11"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="49%" text-anchor="middle" dominant-baseline="central" font-size="${Math.round(size*0.3)}" font-weight="800" fill="${color}" font-family="monospace">${Math.round(v)}</text><text x="50%" y="68%" text-anchor="middle" font-size="10" fill="${txt}">/100</text></svg><div class="small" style="margin-top:2px;color:${txt}">${label}</div></div>`;}
 function fichaMetricDefs(){const L=[{k:'talla',label:'Talla',cat:'Antropometría'},{k:'peso',label:'Peso',cat:'Antropometría'}];TESTS.forEach(t=>{if(t.k==='peso')return;L.push({k:t.k,label:t.name,cat:t.cat});});L.push({k:'t100',label:'Fitness score',cat:'Total'});return L;}
-function openFicha(name){FICHA_NAME=name;buildTests();buildAnthro();buildTestHist();testLogApply();const opts=fichaMetricDefs().map(m=>`<option value="${m.k}">${m.label}</option>`).join('');['fref0','fref1','fref2','fref3'].forEach((id,i)=>{const sl=document.getElementById(id);if(sl){if(!sl.options.length)sl.innerHTML=opts;sl.value=FICHA_REFS[i];}});['fh0','fh1'].forEach((id,i)=>{const sl=document.getElementById(id);if(sl){if(!sl.options.length)sl.innerHTML=opts;sl.value=FICHA_HIST[i];}});fichaTblChips();const ov=document.getElementById('ficha-overlay');ov.style.display='flex';const _j=document.getElementById('fm-jug'),_f=document.getElementById('fm-full');if(_j)_j.classList.toggle('on',FICHA_MODE==='jugador');if(_f)_f.classList.toggle('on',FICHA_MODE==='completo');try{renderFicha(name);}catch(e){console.error('ficha',e);const c=document.getElementById('ficha-card');if(c)c.innerHTML='<div style="padding:24px">No se pudo generar la ficha: '+e.message+'</div>';}}
+function openFicha(name){FICHA_NAME=name;buildTests();buildAnthro();buildTestHist();testLogApply();try{vhHistApply();}catch(e){}const opts=fichaMetricDefs().map(m=>`<option value="${m.k}">${m.label}</option>`).join('');['fref0','fref1','fref2','fref3'].forEach((id,i)=>{const sl=document.getElementById(id);if(sl){if(!sl.options.length)sl.innerHTML=opts;sl.value=FICHA_REFS[i];}});['fh0','fh1'].forEach((id,i)=>{const sl=document.getElementById(id);if(sl){if(!sl.options.length)sl.innerHTML=opts;sl.value=FICHA_HIST[i];}});fichaTblChips();const ov=document.getElementById('ficha-overlay');ov.style.display='flex';const _j=document.getElementById('fm-jug'),_f=document.getElementById('fm-full');if(_j)_j.classList.toggle('on',FICHA_MODE==='jugador');if(_f)_f.classList.toggle('on',FICHA_MODE==='completo');try{renderFicha(name);}catch(e){console.error('ficha',e);const c=document.getElementById('ficha-card');if(c)c.innerHTML='<div style="padding:24px">No se pudo generar la ficha: '+e.message+'</div>';}}
 /* v217 · La tabla se elegía con un <select multiple>: no se veía lo seleccionado
    y exigía ctrl+clic. Ahora son chips agrupados por categoría que se encienden
    al tocarlos, con la cuenta y un atajo para vaciar. */
@@ -14377,6 +14378,127 @@ function exMeta(n){return exLoad()[n]||null;}
 window.exLoad=exLoad;window.exNames=exNames;window.exIs=exIs;
 window.exAdd=exAdd;window.exDel=exDel;window.exMeta=exMeta;
 
+/* ============ v250 · Récords históricos del club ============
+   Marcas de referencia de cada prueba desde 2023, aportadas por Daniel en
+   BM_Nava_ValoracionesDefinitivas. Van embebidas y no en localStorage a
+   propósito: son el patrimonio del club, las ve todo el staff sin importar el
+   navegador y no se pueden borrar sin querer.
+
+   NO son un ranking cerrado. Se cargan como mediciones más, en la misma serie
+   que lee vhSeries, así que el podio histórico y el récord del club se calculan
+   con todo junto: si un jugador de la plantilla actual supera una de estas
+   marcas, entra en el podio y desplaza a quien estuviera.
+
+   Los nombres que no son de la plantilla se dan de alta solos como jugadores
+   históricos, que es lo que hace que salgan en los podios sin contaminar
+   disponibilidad, cargas ni alertas. */
+const VH_CLUB_HIST=[
+  {dk:'2024-02-28',n:'Tomas Smetanka',k:'cmj',v:63.55},
+  {dk:'2023-09-27',n:'Jakub Prokop',k:'cmj',v:58.12},
+  {dk:'2024-09-11',n:'Daniel Pérez',k:'cmj',v:57.71},
+  {dk:'2023-09-06',n:'Pancho Ahumada',k:'rsi',v:3.96},
+  {dk:'2023-08-23',n:'Jakub Prokop',k:'rsi',v:2.99},
+  {dk:'2026-02-04',n:'Joao Bandeira',k:'rsi',v:2.71},
+  {dk:'2024-01-10',n:'Jakub Prokop',k:'cmju',v:34.1,lado:'izq'},
+  {dk:'2023-11-28',n:'Tomas Smetanka',k:'cmju',v:33.4,lado:'izq'},
+  {dk:'2025-02-04',n:'Laucha Robledo',k:'cmju',v:35.6,lado:'der'},
+  {dk:'2024-01-10',n:'Pancho Ahumada',k:'cmju',v:33.4,lado:'der'},
+  {dk:'2024-01-10',n:'Roberto Pérez',k:'tobm',v:58.3},
+  {dk:'2024-01-10',n:'Tomas Smetanka',k:'tobm',v:57.8},
+  {dk:'2025-02-04',n:'Gonzalo Carró',k:'tobm',v:56.4},
+  {dk:'2026-02-04',n:'Mateus M. Buda',k:'v7',v:103},
+  {dk:'2026-02-04',n:'Alfredo Otero',k:'v7',v:100},
+  {dk:'2026-02-04',n:'Javier Carrión',k:'v7',v:100},
+  {dk:'2024-08-01',n:'Pablo Herranz',k:'v9',v:111},
+  {dk:'2026-02-04',n:'Mateus M. Buda',k:'v9',v:110},
+  {dk:'2026-02-04',n:'Javier Carrión',k:'v9',v:106},
+  {dk:'2025-09-10',n:'Mateus M. Buda',k:'bench',v:171},
+  {dk:'2026-04-01',n:'Pablo Herranz',k:'bench',v:163},
+  {dk:'2024-09-11',n:'Isaías Guardiola',k:'bench',v:149},
+  {dk:'2025-09-10',n:'Alfredo Otero',k:'benchrel',v:1.6},
+  {dk:'2026-02-04',n:'Óscar Marugan',k:'benchrel',v:1.6},
+  {dk:'2024-03-10',n:'Tomas Smetanka',k:'benchrel',v:1.56},
+  {dk:'2023-07-26',n:'Tomas Smetanka',k:'vift',v:22},
+  {dk:'2023-07-26',n:'Óscar Marugan',k:'vift',v:21.5},
+  {dk:'2023-07-26',n:'Pablo Herranz',k:'vift',v:21.5},
+  {dk:'2024-08-01',n:'Óscar Marugan',k:'vo2',v:67.4},
+  {dk:'2024-08-01',n:'Sasha Tioumentsev',k:'vo2',v:61.1},
+  {dk:'2024-01-10',n:'Roberto Pérez',k:'vo2',v:58.9},
+  {dk:'2026-03-09',n:'Rui Baptista',k:'grasa',v:7.27},
+  {dk:'2025-02-04',n:'Laucha Robledo',k:'grasa',v:7.45},
+  {dk:'2024-09-11',n:'Nicolás Bonanno',k:'grasa',v:7.6},
+  {dk:'2026-03-09',n:'Rui Baptista',k:'masa',v:53.92},
+  {dk:'2025-02-04',n:'Borja Méndez',k:'masa',v:52.34},
+  {dk:'2025-02-04',n:'Francisco Ahumada',k:'masa',v:52.31},
+  {dk:'2026-02-04',n:'Mateus M. Buda',k:'imo',v:4.1},
+  {dk:'2026-03-09',n:'Rui Baptista',k:'imo',v:3.7},
+  {dk:'2025-02-04',n:'Francisco Ahumada',k:'imo',v:3.6},
+  {dk:'2026-02-04',n:'Mateus M. Buda',k:'masakg',v:63.04},
+  {dk:'2026-02-04',n:'Dzmitry Patotski',k:'masakg',v:57.55},
+  {dk:'2026-02-04',n:'Gedeón Guardiola',k:'masakg',v:54.5}
+];
+/* Temporada a la que pertenece una fecha, para la etiqueta del jugador histórico. */
+function vhHistTemp(dk){
+  const a=String(dk).split('-');const y=+a[0],m=+a[1];
+  const ini=(m>=7)?y:y-1;
+  return String(ini).slice(2)+'/'+String(ini+1).slice(2);
+}
+/* Resolución de nombres SOLO contra la plantilla actual. No se usa
+   vhResolveName porque esa también compara contra los históricos ya dados de
+   alta, y con el criterio de «un apellido de 5+ letras basta» fusionaba a
+   personas distintas: Roberto Pérez acababa siendo Daniel Pérez, y Gedeón
+   Guardiola pasaba a ser Isaías Guardiola. Entre dos históricos con el mismo
+   apellido no hay nada que deducir: el nombre del CSV es el bueno. */
+function vhHistSquad(raw){
+  const squad=Object.keys(STATE.players||{});
+  if(!squad.length||!raw)return null;
+  const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+  const exacto=squad.find(p=>norm(p)===norm(raw));
+  if(exacto)return exacto;
+  try{
+    const man=(typeof VH_MANUAL!=='undefined')?VH_MANUAL[norm(raw)]:null;
+    if(man&&squad.indexOf(man)>=0)return man;
+  }catch(e){}
+  const rt=(typeof vhTokens==='function')?vhTokens(raw):[];
+  if(!rt.length)return null;
+  const cands=squad.filter(function(p){
+    const pt=vhTokens(p);
+    const comunes=rt.filter(t=>pt.indexOf(t)>=0);
+    return comunes.length>=2||comunes.some(t=>t.length>=5);
+  });
+  return cands.length===1?cands[0]:null;
+}
+function vhHistApply(){
+  if(!Array.isArray(VH_CLUB_HIST)||!VH_CLUB_HIST.length)return 0;
+  /* Sin plantilla cargada no se puede saber quién sigue en el club y quién no,
+     y registrar a un jugador actual como histórico sería difícil de deshacer. */
+  if(!Object.keys(STATE.players||{}).length)return 0;
+  STATE.testHist=STATE.testHist||{};
+  let nuevos=0;
+  VH_CLUB_HIST.forEach(function(r){
+    let nom=null;
+    try{nom=vhHistSquad(r.n);}catch(e){}
+    if(!nom){
+      nom=r.n;
+      try{if(typeof exIs==='function'&&!exIs(nom)&&typeof exAdd==='function')exAdd(nom,'',vhHistTemp(r.dk));}catch(e){}
+    }
+    /* Si esa marca ya está en la serie del jugador —porque viene de la hoja de
+       valoraciones— no se duplica: inflaría su baseline con la misma medición
+       contada dos veces. */
+    let repetida=false;
+    try{repetida=(vhSeries(nom,r.k)||[]).some(function(o){return Math.abs(o.val-r.v)<0.005;});}catch(e){}
+    if(repetida)return;
+    const serie=(STATE.testHist[nom]=STATE.testHist[nom]||[]);
+    let snap=serie.find(function(x){return x.date===r.dk;});
+    if(!snap){snap={date:r.dk,vals:{},real:true};serie.push(snap);}
+    if(snap.vals[r.k]==null){snap.vals[r.k]=r.v;nuevos++;}
+    snap.real=true;
+    serie.sort(function(a,b){return String(a.date).localeCompare(String(b.date));});
+  });
+  if(nuevos)STATE.testsReal=true;
+  return nuevos;
+}
+window.vhHistApply=vhHistApply;window.VH_CLUB_HIST=VH_CLUB_HIST;
 function vhResolveName(raw){
   if(!raw)return null;
   VH_NAMEC=VH_NAMEC||{};
@@ -14944,6 +15066,10 @@ function vhFoto(n){
      foto se busca por el mismo camino que la del resto: la carpeta fotos/ del
      hosting y las subidas por el staff. Si no hay, su marca de iniciales. */
   try{if(window.photoFor){const f=photoFor(n);if(f)return f;}}catch(e){}
+  /* v250 · phOf mira lo subido en este navegador Y la carpeta fotos/ del
+     hosting. Antes solo se consultaba localStorage, así que un histórico con su
+     foto en la carpeta seguía saliendo con las iniciales. */
+  try{if(window.phOf){const g=phOf(n);if(g)return g;}}catch(e){}
   try{if(window.phLoad){const g=phLoad()[n];if(g)return g;}}catch(e){}
   return window.phPlaceholder?phPlaceholder(n):(window.__AVATAR__||'');
 }
@@ -15299,6 +15425,7 @@ function phDel(name){const m=phLoad();delete m[name];phPersist();}
 /* Orden de preferencia: lo subido en este navegador manda sobre la carpeta,
    para que se pueda corregir una foto sin tocar el hosting. */
 function phOf(name){return phLoad()[name]||PH_FILE[name]||null;}
+window.phOf=phOf;
 
 /* ---------- carpeta del hosting ---------- */
 /* Se prueba una URL por jugador y extensión. Con file:// no funciona (el navegador
@@ -15315,7 +15442,11 @@ async function phScanFolder(){
   if(PH_SCANNED)return;
   PH_SCANNED=true;
   if(location.protocol==='file:')return;
-  const names=Object.keys(STATE.players||{});
+  /* v250 · los jugadores históricos no están en STATE.players, así que su foto
+     nunca se buscaba en la carpeta. Se añaden aquí: mismo sitio y mismo criterio
+     de nombre que los de la plantilla. */
+  const names=Object.keys(STATE.players||{}).concat(
+    (typeof exNames==='function'?exNames():[]).filter(n=>!(STATE.players||{})[n]));
   for(const n of names){
     for(const ext of PH_EXT){
       const url=PH_DIR+encodeURIComponent(n)+'.'+ext;
