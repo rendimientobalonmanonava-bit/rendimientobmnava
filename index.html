@@ -2574,6 +2574,10 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <button class="btn ghost" onclick="seedHR(true);go('hr')">Cargar ejemplo real (Polar · 30/05)</button>
       </div>
       <p id="hr-msg" class="hint" style="margin-top:10px"></p>
+      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <h2 style="font-size:14px;margin:0 0 8px">Sesiones cargadas <span class="r muted">borra aquí las duplicadas</span></h2>
+        <div id="hr-sess-list"></div>
+      </div>
       <details style="margin-top:6px"><summary style="cursor:pointer;font-weight:700">Entrada manual en rejilla · recomendado en iPad</summary>
         <p class="small muted" style="margin-top:8px">Rellena solo los jugadores que participaron (tiempos por zona en minutos). Usa la <b>misma Fecha y Etiqueta</b> de arriba.</p>
         <div id="hr-grid"></div>
@@ -8727,6 +8731,10 @@ function renderHRIndiv(rows){
     +`<span><i class="band-sw"></i>caja = rango típico (p25–p75) · línea = mediana · bigotes = mín–máx</span><span>· barra superior = esta sesión, coloreada según su percentil individual · mín. ${HRI_MIN_SES} sesiones para baremo</span>`;
 }
 function renderHR(){
+  /* v249 · Si el arranque se quedó a medias, las sesiones guardadas seguían en
+     disco pero no se veían. Al abrir Pulsómetros se restauran igualmente. */
+  try{hrEnsure();}catch(e){}
+  try{renderHRSessions();}catch(e){}
   const sessions=[...new Set(STATE.hr.map(hrKey))].sort().reverse();
   const sessionsAsc=sessions.slice().reverse();
   const sel=document.getElementById('hr-session');
@@ -8814,6 +8822,7 @@ function renderHR(){
   if(evoEl)charts['ch-hr-evo']=new Chart(evoEl,{type:'line',data:{labels:evoRows.map(r=>r.dk.slice(5)),datasets:[{label:'TRIMP',data:evoRows.map(trimpOf),borderColor:PAL.accent,backgroundColor:rgba(PAL.accent,.12),fill:true,tension:.25,pointRadius:3,yAxisID:'y'},{label:'% Z4–Z5',data:evoRows.map(r=>{const t=r.z.reduce((a,b)=>a+b,0)||1;return (r.z[3]+r.z[4])/t*100;}),borderColor:PAL.bad,borderDash:[4,3],tension:.25,pointRadius:3,yAxisID:'y1'}]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10}}},scales:{x:AX,y:{...AX,position:'left',title:{display:true,text:'TRIMP',color:mc,font:{size:9}}},y1:{...AX,position:'right',grid:{display:false},title:{display:true,text:'% Z4–Z5',color:mc,font:{size:9}}}}}});
 }
 function importHR(){
+  hrEnsure();
   const txt=(document.getElementById('hr-paste').value||'').trim();
   const dval=document.getElementById('hr-date').value;
   const lab=(document.getElementById('hr-label').value||'').trim()||'Sesión';
@@ -8827,9 +8836,10 @@ function importHR(){
     recs.push({name:c[0],date:d,dk,session:lab,hrAvg:Math.round(num(c[1])),hrMax:Math.round(num(c[2])),kcal:Math.round(num(c[3])),z,dur:z.reduce((x,y)=>x+y,0)/60});});
   if(!recs.length){msg.textContent='No pude leer filas. Revisa el formato (Nombre; media; max; kcal; z1..z5).';return;}
   const key=dk+'|'+lab;recs.forEach(r=>r.manual=true);
+  const otras=hrOtrasDelDia(dk,key);
   STATE.hr=hrDedupe(STATE.hr.filter(x=>hrKey(x)!==key).concat(recs));
   const okp=hrPersist();
-  msg.textContent=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp?' · guardado':'')+'.';
+  msg.innerHTML=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp?' · guardado':'')+'.'+hrAvisoNombres(hrNombresNoReconocidos(recs))+hrAvisoDup(otras);
   document.getElementById('hr-paste').value='';renderHR();
 }
 /* v200 · PERSISTENCIA DE POLAR
@@ -8838,7 +8848,20 @@ function importHR(){
    cargados el día anterior. Ahora se guardan en localStorage como el resto de
    entradas manuales (calendario, médico, tests). */
 const HR_LS='bmnava_hr';
+/* v249 · hrPersist reescribe el archivo entero con lo que haya en memoria. Si
+   el arranque no llegó a restaurar lo guardado —basta con que la conexión con
+   las hojas o con Supabase se quede colgada, porque va antes— la memoria no
+   tiene las sesiones anteriores y la siguiente importación las borra del disco.
+   Es lo que hacía desaparecer la sesión del día anterior. hrEnsure() garantiza
+   que lo guardado está en memoria ANTES de tocar nada. */
+let HR_RESTAURADO=false;
+function hrEnsure(){
+  if(HR_RESTAURADO)return 0;
+  try{return hrLoadSaved();}catch(e){HR_RESTAURADO=true;return 0;}
+}
+window.hrEnsure=hrEnsure;
 function hrPersist(){
+  if(!HR_RESTAURADO)hrEnsure();
   try{
     const own=(STATE.hr||[]).filter(r=>r&&r.manual);
     localStorage.setItem(HR_LS,JSON.stringify(own.map(r=>({
@@ -8853,6 +8876,7 @@ function hrPersist(){
   }
 }
 function hrLoadSaved(){
+  HR_RESTAURADO=true;
   let raw=[];
   try{raw=JSON.parse(localStorage.getItem(HR_LS)||'[]')||[];}catch(e){raw=[];}
   if(!raw.length)return 0;
@@ -8871,19 +8895,86 @@ function hrLoadSaved(){
   return n;
 }
 window.hrPersist=hrPersist;window.hrLoadSaved=hrLoadSaved;
+/* v249 · Listado y borrado de sesiones cargadas. Hasta ahora una sesión subida
+   dos veces con etiquetas distintas convivía con la buena y no había forma de
+   quitarla: solo se podía sobrescribir una sesión repitiendo su misma fecha Y
+   su misma etiqueta. */
+function hrSesLab(key){const i=key.indexOf('|');return {dk:key.slice(0,i),lab:key.slice(i+1)};}
+function hrFechaEs(dk){const p=String(dk).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:dk;}
+function hrManualSessions(){
+  const m={};
+  (STATE.hr||[]).forEach(r=>{if(!r||!r.manual)return;const k=hrKey(r);(m[k]=m[k]||[]).push(r);});
+  return Object.keys(m).sort().reverse().map(k=>{
+    const s=hrSesLab(k);
+    const dur=mean(m[k].map(r=>r.dur||0));
+    return {key:k,dk:s.dk,lab:s.lab,n:m[k].length,dur:dur};
+  });
+}
+function renderHRSessions(){
+  const box=document.getElementById('hr-sess-list');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const ss=hrManualSessions();
+  if(!ss.length){box.innerHTML='<p class="small muted" style="margin:0">Todavía no has cargado ninguna sesión de Polar en este navegador.</p>';return;}
+  const porDia={};ss.forEach(s=>porDia[s.dk]=(porDia[s.dk]||0)+1);
+  const filas=ss.map(s=>{
+    const rep=porDia[s.dk]>1?' <span style="color:var(--warn);font-weight:700">· '+porDia[s.dk]+' ese día</span>':'';
+    return '<tr><td style="white-space:nowrap">'+hrFechaEs(s.dk)+rep+'</td>'
+      +'<td>'+esc(s.lab)+'</td><td style="white-space:nowrap">'+s.n+'</td>'
+      +'<td class="hr-c-dur" style="white-space:nowrap">'+(s.dur?Math.round(s.dur)+"'":'—')+'</td>'
+      +'<td><button class="med-chipbtn" style="color:var(--bad)" onclick="hrDeleteSession(&quot;'+esc(s.key)+'&quot;)" title="Borrar esta sesión">✕ Borrar</button></td></tr>';
+  }).join('');
+  const aviso=Object.keys(porDia).some(d=>porDia[d]>1)
+    ? '<p class="small" style="color:var(--warn);margin:0 0 8px">Hay más de una sesión cargada en el mismo día. Si alguna es un duplicado, bórrala aquí.</p>' : '';
+  box.innerHTML=aviso+'<div class="wrap-x"><table class="tbl"><thead><tr><th>Fecha</th><th>Sesión</th><th>Jug.</th><th class="hr-c-dur">Duración</th><th></th></tr></thead><tbody>'+filas+'</tbody></table></div>';
+}
+function hrDeleteSession(key){
+  hrEnsure();
+  const afectados=(STATE.hr||[]).filter(r=>r&&r.manual&&hrKey(r)===key);
+  if(!afectados.length){const m=document.getElementById('hr-msg');if(m)m.textContent='Esa sesión no se puede borrar: no la cargaste tú.';return;}
+  const s=hrSesLab(key);
+  if(!confirm('¿Borrar la sesión «'+s.lab+'» del '+hrFechaEs(s.dk)+'?\n\nSe eliminarán los datos de '+afectados.length+' jugadores. No se puede deshacer.'))return;
+  STATE.hr=(STATE.hr||[]).filter(r=>!(r&&r.manual&&hrKey(r)===key));
+  const ok=hrPersist();
+  try{renderHR();}catch(e){}
+  const m=document.getElementById('hr-msg');
+  if(m)m.textContent='Sesión borrada · '+s.lab+' ('+hrFechaEs(s.dk)+') · '+afectados.length+' jugadores'+(ok?' · guardado':'')+'.';
+}
+window.hrDeleteSession=hrDeleteSession;window.renderHRSessions=renderHRSessions;
 function buildHRGrid(){const box=document.getElementById('hr-grid');if(!box)return;const names=Object.keys(STATE.players).length?Object.keys(STATE.players).sort():[...new Set(STATE.hr.map(r=>r.name))].sort();
   const cols=['FC med %','FC máx %','Kcal','Z1','Z2','Z3','Z4','Z5'];const keys=['hrAvg','hrMax','kcal','z0','z1','z2','z3','z4'];
   box.innerHTML=`<div class="wrap-x"><table class="tbl"><thead><tr><th>Jugador</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${names.map(n=>`<tr><td style="white-space:nowrap">${n}</td>${keys.map(k=>`<td><input data-n="${n.replace(/"/g,'&quot;')}" data-k="${k}" inputmode="decimal" style="width:60px"></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
-function importHRGrid(){const dval=document.getElementById('hr-date').value;const lab=(document.getElementById('hr-label').value||'').trim()||'Sesión';const msg=document.getElementById('hr-msg');
+function importHRGrid(){hrEnsure();const dval=document.getElementById('hr-date').value;const lab=(document.getElementById('hr-label').value||'').trim()||'Sesión';const msg=document.getElementById('hr-msg');
   if(!dval){msg.textContent='Indica la fecha de la sesión (arriba).';return;}
   const a=dval.split('-').map(Number);const d=new Date(a[0],a[1]-1,a[2]);const dk=dkey(d);
   const map={};document.querySelectorAll('#hr-grid input[data-n]').forEach(inp=>{const n=inp.dataset.n,k=inp.dataset.k;const v=parseFloat((inp.value||'').replace(',','.'));if(!map[n])map[n]={};if(!isNaN(v))map[n][k]=v;});
   const recs=[];Object.keys(map).forEach(n=>{const m=map[n];const hasZone=['z0','z1','z2','z3','z4'].some(k=>m[k]>0);if(!(m.hrAvg||hasZone))return;const z=['z0','z1','z2','z3','z4'].map(k=>(m[k]||0)*60);recs.push({name:n,date:d,dk,session:lab,hrAvg:Math.round(m.hrAvg||0),hrMax:Math.round(m.hrMax||0),kcal:Math.round(m.kcal||0),z,dur:z.reduce((x,y)=>x+y,0)/60});});
   if(!recs.length){msg.textContent='Rellena al menos un jugador (FC media o minutos en zonas).';return;}
   const key=dk+'|'+lab;recs.forEach(r=>r.manual=true);
+  const otras2=hrOtrasDelDia(dk,key);
   STATE.hr=hrDedupe(STATE.hr.filter(x=>hrKey(x)!==key).concat(recs));
   const okp2=hrPersist();
-  msg.textContent=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp2?' · guardado':'')+'.';renderHR();}
+  msg.innerHTML=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp2?' · guardado':'')+'.'+hrAvisoNombres(hrNombresNoReconocidos(recs))+hrAvisoDup(otras2);renderHR();}
+/* v249 · Un duplicado solo se sobrescribe si coinciden fecha Y etiqueta. Con la
+   etiqueta distinta se creaban dos sesiones del mismo día sin avisar. */
+function hrOtrasDelDia(dk,key){
+  return [...new Set((STATE.hr||[]).filter(r=>r&&r.manual&&r.dk===dk&&hrKey(r)!==key).map(r=>r.session||'Sesión'))];
+}
+/* v249 · Un nombre que no casa con la plantilla se importaba, se anunciaba como
+   «guardado» y después filterToSquad lo eliminaba en silencio, de memoria y de
+   disco. El jugador desaparecía sin que nadie se enterase. Ahora se avisa en el
+   momento de subir la sesión, que es cuando se puede corregir. */
+function hrNombresNoReconocidos(recs){
+  if(typeof canonicalName!=='function')return [];
+  try{return [...new Set((recs||[]).map(r=>r.name).filter(n=>n&&!canonicalName(n)))];}catch(e){return [];}
+}
+function hrAvisoNombres(malos){
+  if(!malos||!malos.length)return '';
+  return '<br><span style="color:var(--bad);font-weight:700">No reconozco '+malos.length+' nombre'+(malos.length>1?'s':'')+': '+malos.map(x=>'«'+x+'»').join(', ')+'. Esos jugadores no se conservarán. Corrige el nombre y vuelve a subir la sesión.</span>';
+}
+function hrAvisoDup(otras){
+  if(!otras||!otras.length)return '';
+  return '<br><span style="color:var(--warn);font-weight:700">Ojo: ese día ya tenías '+otras.length+' sesión'+(otras.length>1?'es':'')+' cargada'+(otras.length>1?'s':'')+' ('+otras.map(x=>'«'+x+'»').join(', ')+'). Si es un duplicado, bórralo en «Sesiones cargadas».</span>';
+}
 /* ===================== CARGA INTEGRADA (interna × externa) ===================== */
 function linreg(pts){const n=pts.length;if(n<2)return null;
   const mx=pts.reduce((a,p)=>a+p.x,0)/n,my=pts.reduce((a,p)=>a+p.y,0)/n;
@@ -12570,6 +12661,13 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
      cambiar cómo se ven, alineando su contenido en vertical. */
   .estado-name{display:inline-flex;align-items:center;min-height:40px}
   .ev-rd{min-height:42px;align-items:center}
+  /* v249 · Sesiones de Polar: el botón de borrar caía fuera de pantalla y había
+     que arrastrar la tabla de lado para llegar a él. Se retira la columna de
+     duración, que ya sale arriba, y todo entra en el ancho del móvil. */
+  #hr-sess-list .hr-c-dur{display:none}
+  #hr-sess-list table{font-size:11.5px}
+  #hr-sess-list th,#hr-sess-list td{padding:6px 6px}
+  #hr-sess-list .med-chipbtn{padding:8px 9px;white-space:nowrap}
 }
 </style>
 <script>
