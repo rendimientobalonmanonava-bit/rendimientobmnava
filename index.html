@@ -4093,6 +4093,12 @@ const sum=a=>a.reduce((x,y)=>x+y,0);
 function parseSleep(raw){if(raw==null)return NaN;let s=raw.toString().trim().replace(",",".");if(/^\d{4,}$/.test(s))return NaN;if(/[:;]/.test(s)){const p=s.split(/[:;]/);return (+p[0])+(+p[1]||0)/60;}const v=parseFloat(s);return(isNaN(v)||v<0||v>16)?NaN:v;}
 function parseDate(raw){if(!raw)return null;let s=raw.toString().trim().split(" ")[0];let p=s.split(/[\/\-]/);if(p.length<3){const d=new Date(raw);return isNaN(d)?null:d;}let a=+p[0],b=+p[1],c=+p[2];if(c<100)c+=2000;let day,mon;if(a>12){day=a;mon=b;}else if(b>12){mon=a;day=b;}else{day=a;mon=b;}const d=new Date(c,mon-1,day);return isNaN(d)?null:d;}
 const dkey=d=>{if(!d)return"";const z=n=>(n<10?'0':'')+n;return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());};
+/* v248 · Día para la DISPONIBILIDAD. Readiness, ACWR y wellness se leen en
+   REF() —el último día con datos en las hojas—, pero un estado de baja es un
+   hecho de hoy: si el último wellness es del 13 de junio y la lesión es del 7
+   de agosto, con REF() el jugador aparecía entrenando en Resumen y de baja en
+   Disponibilidad. Una sola fecha para todos los estados. */
+const dkEstado=()=>dkey(new Date());
 function weekKey(d){const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const dy=(t.getUTCDay()+6)%7;t.setUTCDate(t.getUTCDate()-dy);return t.toISOString().slice(0,10);}
 function canonMDx(raw){let s=norm(raw);if(!s)return"—";if(s.includes("sin compet")||s==="especial"||s.includes("libre"))return"Sin competencia cercana";let m=s.match(/match\s*([+-])\s*(\d)/);if(m)return"MD"+m[1]+m[2];if(s.includes("match")||s==="md")return"MD";m=s.match(/md\s*([+-])\s*(\d)/);if(m)return"MD"+m[1]+m[2];return raw;}
 function pick(row,keys){const map={};for(const k in row)map[norm(k)]=row[k];
@@ -4667,7 +4673,7 @@ function medPhysioOpen(name,status,zone,side,note,id,dkIni){physioEnsure();(STAT
 function medPhysioSet(inj,status){physioEnsure();const arr=(STATE.physioUser||{})[inj.name]||[];const e=arr.find(x=>x._id==='med_'+inj.id&&!x.to);if(e){e.status=status;}else{medPhysioOpen(inj.name,status,inj.zona,inj.lado,inj.title,inj.id,inj.dk);}physioPersist();}
 function medPhysioClose(inj){physioEnsure();const arr=(STATE.physioUser||{})[inj.name]||[];arr.forEach(x=>{if(x._id==='med_'+inj.id&&!x.to)x.to=medToday();});physioPersist();}
 /* ---------- Modal: Lesión / molestia ---------- */
-function openMedInjury(name){medDbLoad();const ov=ensureInfoOverlay();const t=document.getElementById('info-mtitle');if(t)t.textContent='Registrar lesión / molestia';const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
+function openMedInjury(name,editId){medDbLoad();const ov=ensureInfoOverlay();const t=document.getElementById('info-mtitle');if(t)t.textContent=editId?'Editar lesión / molestia':'Registrar lesión / molestia';const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
  MED_BM={z:'',s:''};
  const names=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b));
  const nOpts=names.map(n=>'<option'+(n===name?' selected':'')+'>'+medEsc(n)+'</option>').join('');
@@ -4690,7 +4696,34 @@ function openMedInjury(name){medDbLoad();const ov=ensureInfoOverlay();const t=do
  +'<div class="small muted" id="mi-histnote" style="display:none;margin:-4px 0 6px">Se guardará como episodio cerrado y las fases se repartirán entre la fecha de lesión y la de alta según su duración prevista. Ajústalas luego en <b>Fechas de las fases</b>. No cambia la disponibilidad de hoy.</div>'
  +'<button class="btn" style="margin-top:6px" onclick="medInjurySave()">Guardar registro</button>'
  +'</div><div>'+medBodyPicker()+'</div></div>';
+ if(editId)medInjuryPrefill(editId);
  ov.style.display='flex';}
+/* v248 · Un episodio solo se podía crear y borrar: si el médico movía el alta
+   prevista o cambiaba el diagnóstico, había que rehacerlo entero. Ahora el
+   mismo formulario sirve para editar, y los cambios se propagan al espejo de
+   Disponibilidad (zona, lado, estado y fecha) para que no queden dos verdades. */
+function medInjuryPrefill(editId){
+ const e=medInj(editId);if(!e)return;
+ const s=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null)el.value=v;};
+ s('mi-name',e.name);s('mi-dk',e.dk);s('mi-kind',e.kind||'lesion');s('mi-by',e.by||'');
+ s('mi-title',e.title||'');s('mi-tipo',e.tipo||'');s('mi-clasif',e.clasif||'');s('mi-tejido',e.tejido||'');
+ s('mi-act',e.act||'');s('mi-accion',e.accion||'');s('mi-mom',e.mom||'');
+ s('mi-zona',e.zona||'');s('mi-lado',e.lado||'');s('mi-desc',e.desc||'');
+ s('mi-rtp',e.rtp||'');s('mi-status',e.status||'nochange');
+ MED_BM={z:e.zona||'',s:e.lado||''};
+ const pl=document.getElementById('mi-planrow');if(pl)pl.style.display='none';
+ const pain=document.getElementById('mi-pain');
+ if(pain){pain.value='';pain.placeholder='dolor de hoy (opcional)';}
+ s('mi-hist',e.open?'open':'closed');
+ medInjHistToggle();
+ s('mi-closedk',e.closeDk||'');
+ const b=document.querySelector('#info-mbody .med-form > .btn');
+ if(b){b.setAttribute('onclick','medInjurySave(\''+editId+'\')');b.textContent='Guardar cambios';}
+}
+window.medInjuryEdit=function(injId){
+ const e=medInj(injId);if(!e){if(window.toast)toast('No se encuentra el episodio');return;}
+ openMedInjury(e.name,injId);
+};
 /* v215 · al marcar el episodio como histórico se habilita la fecha de alta y se
    desactiva el estado de disponibilidad: una lesión ya cerrada no puede dejar al
    jugador marcado como no disponible hoy. */
@@ -4703,12 +4736,14 @@ function medInjHistToggle(){
  const nt=document.getElementById('mi-histnote');
  if(nt)nt.style.display=hist?'':'none';
 }
-function medInjurySave(){const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+function medInjurySave(editId){const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
  const name=g('mi-name'),title=(g('mi-title')||'').trim(),zona=(g('mi-zona')||'').trim();
  if(!name){toast('Selecciona un jugador');return;}
  if(!title){toast('Pon nombre a la lesión');return;}
  if(!zona){toast('Indica la zona (silueta o texto)');return;}
- const kind=g('mi-kind');const id=medUid('inj');
+ const kind=g('mi-kind');
+ if(editId){medInjuryUpdate(editId,g,name,title,zona,kind);return;}
+ const id=medUid('inj');
  const inj={id,name,dk:g('mi-dk')||medToday(),by:(g('mi-by')||'').trim(),kind,title,tipo:g('mi-tipo'),clasif:g('mi-clasif'),tejido:(g('mi-tejido')||'').trim(),act:g('mi-act'),accion:(g('mi-accion')||'').trim(),mom:g('mi-mom'),desc:(g('mi-desc')||'').trim(),zona,lado:g('mi-lado'),rtp:g('mi-rtp')||null,open:true,closeDk:null,pain:[],notes:[],phaseIdx:0,phases:[]};
  const p0=parseFloat(g('mi-pain'));if(!isNaN(p0))inj.pain.push({dk:inj.dk,v:p0,src:'manual'});
  if(kind==='lesion'){if(window.medRehabAssignPlan){medRehabAssignPlan(inj,g('mi-tpl'));}else{inj.phases=medTpl(g('mi-tpl'));inj.phases[0].startDk=inj.dk;}}
@@ -4728,6 +4763,46 @@ function medInjurySave(){const g=id=>{const el=document.getElementById(id);retur
  const st=g('mi-status');if(!hist&&st&&st!=='nochange'){inj.status=st;medPhysioOpen(name,st,zona,inj.lado,title,id,inj.dk);}
  STATE.med.inj.push(inj);medPersist();MED_SEL=id;closeInfoEdit();toast('Registro guardado · '+title);
  try{renderMedico();}catch(e){}try{renderAvail&&document.getElementById('v-avail').classList.contains('on')&&renderAvail();}catch(e){}}
+/* v248 · Sincroniza el espejo de Disponibilidad con el episodio médico: es lo
+   que garantiza que una baja en Médico sea la misma baja en Disponibilidad, en
+   el resumen y en la ficha del jugador, aunque se edite después. */
+function medMirrorSync(e,oldName){
+ physioEnsure();const key='med_'+e.id;
+ if(oldName&&oldName!==e.name){
+  const a=STATE.physioUser[oldName]||[];const mias=a.filter(x=>x._id===key);
+  STATE.physioUser[oldName]=a.filter(x=>x._id!==key);
+  if(mias.length){const d=(STATE.physioUser[e.name]=STATE.physioUser[e.name]||[]);mias.forEach(x=>d.push(x));}
+ }
+ const arr=(STATE.physioUser[e.name]=STATE.physioUser[e.name]||[]);
+ let m=arr.find(x=>x._id===key);
+ if(!e.open){if(m)m.to=e.closeDk||medToday();}
+ else if(e.status){
+  if(!m){medPhysioOpen(e.name,e.status,e.zona,e.lado,e.title,e.id,e.dk);m=arr.find(x=>x._id===key);}
+  if(m){m.status=e.status;m.to=null;}
+ }
+ if(m){m.zone=(e.zona||'').trim();m.side=e.lado||'';m.note=(e.title||'').trim();m.dk=e.dk;}
+ physioPersist();STATE.physioEx=null;try{buildPhysio();}catch(err){}
+}
+function medInjuryUpdate(editId,g,name,title,zona,kind){
+ const e=medInj(editId);if(!e){toast('No se encuentra el episodio');return;}
+ const hist=g('mi-hist')==='closed',closeDk=g('mi-closedk')||'';
+ const dk=g('mi-dk')||e.dk;
+ if(hist&&closeDk&&medDaysBetween(dk,closeDk)<0){toast('El alta no puede ser anterior a la lesión');return;}
+ const oldName=e.name;
+ e.name=name;e.dk=dk;e.by=(g('mi-by')||'').trim();e.kind=kind;e.title=title;
+ e.tipo=g('mi-tipo');e.clasif=g('mi-clasif');e.tejido=(g('mi-tejido')||'').trim();
+ e.act=g('mi-act');e.accion=(g('mi-accion')||'').trim();e.mom=g('mi-mom');
+ e.desc=(g('mi-desc')||'').trim();e.zona=zona;e.lado=g('mi-lado');e.rtp=g('mi-rtp')||null;
+ const pv=parseFloat(g('mi-pain'));
+ if(!isNaN(pv)){e.pain=e.pain||[];e.pain.push({dk:medToday(),v:pv,src:'manual'});}
+ if(hist){e.open=false;e.closeDk=closeDk||medToday();}
+ else{e.open=true;e.closeDk=null;const st=g('mi-status');if(st&&st!=='nochange')e.status=st;}
+ medMirrorSync(e,oldName);
+ medPersist();MED_SEL=e.id;closeInfoEdit();toast('Episodio actualizado · '+title);
+ try{renderMedico();}catch(err){}
+ try{renderAvail&&document.getElementById('v-avail').classList.contains('on')&&renderAvail();}catch(err){}
+ try{renderTeam&&renderTeam();}catch(err){}
+}
 /* ---------- Modal: Tratamiento ---------- */
 function openMedTreat(name,injId){medDbLoad();const ov=ensureInfoOverlay();const t=document.getElementById('info-mtitle');if(t)t.textContent='Registrar tratamiento';const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
  const names=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b));
@@ -4858,6 +4933,7 @@ function medDetailHtml(e){if(!e)return '';
   +(e.open?'<label class="small" style="font-weight:700">RTP est. <input type="date" value="'+(e.rtp||'')+'" onchange="medSetRtp(\''+e.id+'\',this.value)" style="margin-left:4px;padding:4px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px"></label>':'')
   +'<span class="r" style="margin-left:auto"></span>'
   +'<button class="med-chipbtn" onclick="openMedTreat(\''+medEsc(e.name)+'\',\''+e.id+'\')">＋ Tratamiento</button>'
+  +'<button class="med-chipbtn" onclick="medInjuryEdit(\''+e.id+'\')" title="Cambiar diagnóstico, zona, fechas o alta prevista">✎ Editar episodio</button>'
   +(e.open?'<button class="med-chipbtn" onclick="medClose(\''+e.id+'\')" style="border-color:#1ea863;color:#1ea863">✓ Alta / cerrar</button>':'<button class="med-chipbtn" onclick="medReopen(\''+e.id+'\')">Reabrir</button>')
   +'<button class="med-chipbtn" onclick="medDelete(\''+e.id+'\')" style="color:var(--bad)">Eliminar</button>'
   +'</div>';
@@ -5601,7 +5677,7 @@ function renderPlayerStrip(name){
   /* Disponibilidad de hoy: sale de effectiveStatus, igual que Disponibilidad */
   let stLab='Disponible',stCol='var(--ok)',stSub='sin incidencias abiertas';
   try{
-    const ev=effectiveStatus(name,dkey(REF()));
+    const ev=effectiveStatus(name,dkEstado());
     if(ev&&ev.status&&PHYSTAT[ev.status]){
       stLab=PHYSTAT[ev.status].lab;stCol=PHYSTAT[ev.status].c;
       stSub=[ev.zone?esc(ev.zone):'',ev.side||''].filter(Boolean).join(' ')||'—';
@@ -7215,7 +7291,7 @@ function renderPlayersGrid(){const box=document.getElementById('players-grid');i
     const dnum=(typeof dorsal==='function'?dorsal(name):'')||'';
     const forma=r.rank?(tier==='ok'?'Alto':tier==='warn'?'Medio':'Bajo'):'—';
     const ini=name.split(' ').slice(0,2).map(s=>s[0]||'').join('');
-    let pst='disp';try{const ev=effectiveStatus(name,dkey(REF()));if(ev&&ev.status)pst=ev.status;}catch(e){}
+    let pst='disp';try{const ev=effectiveStatus(name,dkEstado());if(ev&&ev.status)pst=ev.status;}catch(e){}
     /* v217 · esta rejilla tenía su propia tabla de etiquetas, que traducía
        «noentto» por la palabra «Tocado» y no contemplaba el resto de estados:
        quien faltaba por un trámite salía como tocado, y quien estaba con la
@@ -7320,6 +7396,22 @@ function effectiveStatus(name,dk){
   if(best)return best;
   const pts=physioPoints(name).filter(e=>e.dk===dk);
   if(pts.length){let b=pts[0];pts.forEach(e=>{if(physioSev(e.status)>physioSev(b.status))b=e;});return b;}
+  /* v247 · Una baja registrada como parte del día valía SOLO ese día, porque
+     los partes se emparejaban con e.dk===dk. Así, un esguince apuntado el 7 con
+     alta prevista el 22 dejaba al jugador como disponible desde el día 8: salía
+     de baja en su ficha (donde el registro se lista siempre) pero disponible en
+     todas las demás pantallas. Ahora un parte con estado que impide entrenar
+     vale desde su fecha hasta el alta prevista, igual que un episodio, y se
+     corta antes si alguien registra otro parte posterior. */
+  const bloquea=s=>NOAV_FIS_ST.indexOf(s)>=0||s==='readapt';
+  const previos=physioPoints(name).filter(e=>e.dk<dk).sort((a,b)=>a.dk<b.dk?1:-1);
+  const cand=previos.find(e=>bloquea(e.status));
+  if(cand){
+    /* Cualquier parte posterior al que abrió la baja la da por terminada: es la
+       forma de cerrarla sin tocar la fecha de alta. */
+    const posterior=previos.find(e=>e.dk>cand.dk);
+    if(!posterior&&(!cand.rtp||dk<cand.rtp))return cand;
+  }
   return null;
 }
 function physioOpenEpisode(name,status,zone,side,note){physioEnsure();(STATE.physioUser[name]=STATE.physioUser[name]||[]).push({_id:'ep_'+Date.now(),ep:true,dk:dkey(new Date()),to:null,status:status||'dolor',zone:(zone||'').trim(),side:side||'',note:(note||'').trim()});physioPersist();}
@@ -7489,7 +7581,7 @@ function renderPhysio(name){
   const leg=Object.keys(PHYSTAT).map(k=>`<span class="phys-leg"><i style="background:${PHYSTAT[k].c}"></i>${PHYSTAT[k].lab}</span>`).join('');
   const ls=PHYSTAT[last.status]||{lab:last.status,c:'var(--muted)'};
   const earliestReg={};srt.forEach(e=>{if(!['trat','noentto','baja'].includes(e.status))return;const r=zoneRegion(e.zone);if(!r)return;if(!(r in earliestReg))earliestReg[r]=e.dk;});
-  const log=srt.slice().reverse().map(e=>{const s=PHYSTAT[e.status]||{lab:e.status,c:'var(--muted)'};const d=e.date.toLocaleDateString('es',{day:'2-digit',month:'short'});const del=e.user?`<button class="phys-del" title="Eliminar" onclick="physioDel('${esc}','${e._id}')">✕</button>`:`<span class="phys-exbadge" title="dato de ejemplo">ej.</span>`;const rg=zoneRegion(e.zone);const recad=(['trat','noentto','baja'].includes(e.status)&&rg&&earliestReg[rg]&&e.dk>earliestReg[rg])?'<span class="phys-recad" title="reincidencia en zona ya lesionada">recaída</span>':'';return `<div class="phys-logrow"><span class="phys-dot" style="background:${s.c}"></span><span class="phys-date">${d}</span><span class="tag" style="border-color:${s.c};color:${s.c}">${s.lab}</span><span class="phys-zone">${e.zone?e.zone+(e.side?' '+e.side:'')+(e.sev?' '+e.sev:''):'—'}</span>${recad}<span class="small muted" style="flex:1">${[e.treat,e.mech?('mec: '+e.mech):'',e.pain!=null?('dolor '+e.pain+'/10'):'',e.rtp?('alta '+e.rtp.split('-').reverse().join('/')):'',e.note].filter(Boolean).join(' · ')}</span>${del}</div>`;}).join('');
+  const log=srt.slice().reverse().map(e=>{const s=PHYSTAT[e.status]||{lab:e.status,c:'var(--muted)'};const d=e.date.toLocaleDateString('es',{day:'2-digit',month:'short'});const del=e.user?`<button class="phys-del" title="Editar: estado, zona, alta prevista…" onclick="physioEdit('${esc}','${e._id}')">✎</button><button class="phys-del" title="Eliminar" onclick="physioDel('${esc}','${e._id}')">✕</button>`:`<span class="phys-exbadge" title="dato de ejemplo">ej.</span>`;const rg=zoneRegion(e.zone);const recad=(['trat','noentto','baja'].includes(e.status)&&rg&&earliestReg[rg]&&e.dk>earliestReg[rg])?'<span class="phys-recad" title="reincidencia en zona ya lesionada">recaída</span>':'';return `<div class="phys-logrow"><span class="phys-dot" style="background:${s.c}"></span><span class="phys-date">${d}</span><span class="tag" style="border-color:${s.c};color:${s.c}">${s.lab}</span><span class="phys-zone">${e.zone?e.zone+(e.side?' '+e.side:'')+(e.sev?' '+e.sev:''):'—'}</span>${recad}<span class="small muted" style="flex:1">${[e.treat,e.mech?('mec: '+e.mech):'',e.pain!=null?('dolor '+e.pain+'/10'):'',e.rtp?('alta '+e.rtp.split('-').reverse().join('/')):'',e.note].filter(Boolean).join(' · ')}</span>${del}</div>`;}).join('');
   box.innerHTML=header+medCardHTML(name,evs)+form+tools+
     `<div class="phys-strip">
       <div class="phys-si"><div class="v" style="color:${ls.c}">${ls.lab}</div><div class="l">Estado · ${last.date.toLocaleDateString('es',{day:'2-digit',month:'short'})}</div></div>
@@ -7548,6 +7640,9 @@ function parteStatusOptions(sel){
    funcionando sin tocarlos. Con 'mh-i', los del modal. */
 function parteFormHTML(px,opts){
   opts=opts||{};
+  /* v247 · admite precargar un registro existente, para poder editarlo en vez de
+     tener que borrarlo y volver a crearlo desde cero. */
+  const V=opts.val||{};
   const hoy=dkey(new Date());
   const dl=px+'zones';
   let pl='';
@@ -7556,22 +7651,59 @@ function parteFormHTML(px,opts){
     pl='<label class="parte-wide">Jugador<select id="'+px+'name">'+nn.map(n=>'<option>'+String(n).replace(/</g,'&lt;')+'</option>').join('')+'</select></label>';
   }
   return '<div class="parte-grid">'+pl
-   +'<label>Fecha<input type="date" id="'+px+'date" value="'+hoy+'"></label>'
-   +'<label>Estado<select id="'+px+'status">'+parteStatusOptions('dolor')+'</select></label>'
-   +'<label>Zona<input id="'+px+'zone" list="'+dl+'" placeholder="rodilla, gemelo…"><datalist id="'+dl+'">'+PARTE_ZONAS.map(z=>'<option value="'+z+'">').join('')+'</datalist></label>'
-   +'<label>Lado<select id="'+px+'side"><option value="">—</option><option value="I">Izquierdo</option><option value="D">Derecho</option></select></label>'
-   +'<label>Dolor (0–10)<input type="number" min="0" max="10" step="1" id="'+px+'pain" placeholder="0–10"></label>'
-   +'<label class="parte-wide">Nota<input id="'+px+'note" placeholder="qué cuenta el jugador, observación…"></label>'
+   +'<label>Fecha<input type="date" id="'+px+'date" value="'+(V.dk||hoy)+'"></label>'
+   +'<label>Estado<select id="'+px+'status">'+parteStatusOptions(V.status||'dolor')+'</select></label>'
+   +'<label>Zona<input id="'+px+'zone" list="'+dl+'" placeholder="rodilla, gemelo…" value="'+String(V.zone||'').replace(/"/g,'&quot;')+'"><datalist id="'+dl+'">'+PARTE_ZONAS.map(z=>'<option value="'+z+'">').join('')+'</datalist></label>'
+   +'<label>Lado<select id="'+px+'side">'+['','I','D'].map(function(o){return '<option value="'+o+'"'+(String(V.side||'')===o?' selected':'')+'>'+(o===''?'—':(o==='I'?'Izquierdo':'Derecho'))+'</option>';}).join('')+'</select></label>'
+   +'<label>Dolor (0–10)<input type="number" min="0" max="10" step="1" id="'+px+'pain" placeholder="0–10" value="'+(V.pain!=null?V.pain:'')+'"></label>'
+   +'<label class="parte-wide">Nota<input id="'+px+'note" placeholder="qué cuenta el jugador, observación…" value="'+String(V.note||'').replace(/"/g,'&quot;')+'"></label>'
    +'</div>'
    +'<details class="parte-mas"><summary>Más detalle <span class="small muted">gravedad · mecanismo · tratamiento · alta prevista</span></summary>'
    +'<div class="parte-grid">'
-   +'<label>Gravedad<select id="'+px+'sev"><option value="">—</option><option>+</option><option>++</option><option>+++</option></select></label>'
-   +'<label>Mecanismo<select id="'+px+'mech"><option value="">—</option><option>Sobrecarga</option><option>Contacto/golpe</option><option>Gesto técnico</option><option>Caída</option><option>Sin contacto</option><option>Recaída</option><option>Enfermedad</option></select></label>'
-   +'<label>Tratamiento<input id="'+px+'treat" placeholder="descarga, US, VF…"></label>'
-   +'<label>Alta prevista<input type="date" id="'+px+'rtp"></label>'
+   +'<label>Gravedad<select id="'+px+'sev">'+['','+','++','+++'].map(function(o){return '<option value="'+o+'"'+(String(V.sev||'')===o?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></label>'
+   +'<label>Mecanismo<select id="'+px+'mech">'+['','Sobrecarga','Contacto/golpe','Gesto técnico','Caída','Sin contacto','Recaída','Enfermedad'].map(function(o){return '<option value="'+o+'"'+(String(V.mech||'')===o?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></label>'
+   +'<label>Tratamiento<input id="'+px+'treat" placeholder="descarga, US, VF…" value="'+String(V.treat||'').replace(/"/g,'&quot;')+'"></label>'
+   +'<label>Alta prevista<input type="date" id="'+px+'rtp" value="'+(V.rtp||'')+'"></label>'
    +'</div></details>';
 }
-function parteSave(px,name){
+/* v247 · Editar un parte ya registrado. Antes solo se podía borrar, así que
+   mover el alta prevista —lo que pasa cada vez que el médico cambia la
+   previsión— obligaba a rehacer el registro entero. */
+window.physioEdit=function(name,id){
+  physioEnsure();
+  const e=((STATE.physioUser||{})[name]||[]).find(x=>x._id===id);
+  if(!e){if(window.toast)toast('Ese registro es de ejemplo y no se puede editar');return;}
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
+  const h='<h2 style="margin-top:0">Editar parte · '+esc(name)+
+    ' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+    +'<p class="small muted" style="margin:-6px 0 12px">Cambia lo que haga falta, incluida el alta prevista. El registro se actualiza; no se crea uno nuevo.</p>'
+    +'<div class="ph-f">'+parteFormHTML('mh-e',{val:e})
+    +'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">'
+      +'<button class="btn" onclick="physioEditSave(\''+q(name)+'\',\''+q(id)+'\')">Guardar cambios</button>'
+      +'<button class="btn ghost" onclick="physioEditAlta(\''+q(name)+'\',\''+q(id)+'\')">Dar el alta hoy</button>'
+    +'</div></div>';
+  const body=document.getElementById('ph-body');
+  if(body){body.innerHTML=h;document.getElementById('ph-overlay').style.display='flex';}
+};
+window.physioEditSave=function(name,id){
+  if(parteSave('mh-e',name,id)){closeHeroForm();try{renderPhysio(name);}catch(e){}}
+};
+/* Cerrar la baja hoy sin tener que calcular la fecha: pone el alta en el día de
+   hoy, que es como se termina un proceso cuando el jugador vuelve antes. */
+window.physioEditAlta=function(name,id){
+  physioEnsure();
+  const e=((STATE.physioUser||{})[name]||[]).find(x=>x._id===id);
+  if(!e)return;
+  e.rtp=dkey(new Date());
+  if(window.physioPersist)physioPersist();
+  STATE.physioEx=null;try{buildPhysio();}catch(err){}
+  closeHeroForm();
+  try{parteRefresh(name);}catch(err){}
+  try{renderPhysio(name);}catch(err){}
+  if(window.toast)toast('Alta registrada hoy · '+name);
+};
+function parteSave(px,name,editId){
   const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
   name=name||g(px+'name');
   if(!name){alert('Selecciona un jugador.');return false;}
@@ -7584,6 +7716,25 @@ function parteSave(px,name){
   }
   const pain=g(px+'pain');
   physioEnsure();
+  /* v247 · con editId se actualiza el registro existente, para poder mover el
+     alta prevista o corregir el estado sin borrarlo y rehacerlo. */
+  if(editId){
+    const arr=(STATE.physioUser[name]=STATE.physioUser[name]||[]);
+    const e=arr.find(x=>x._id===editId);
+    if(e){
+      e.dk=dk;e.status=status;
+      e.zone=(g(px+'zone')||'').trim();e.side=g(px+'side')||'';
+      e.sev=g(px+'sev')||'';e.mech=g(px+'mech')||'';
+      e.pain=(pain!==''&&pain!=null)?+pain:null;
+      e.rtp=g(px+'rtp')||'';e.treat=(g(px+'treat')||'').trim();
+      e.note=(g(px+'note')||'').trim();
+      if(window.physioPersist)physioPersist();
+      STATE.physioEx=null;try{buildPhysio();}catch(err){}
+      parteRefresh(name);
+      if(window.toast)toast('Parte actualizado · '+name);
+      return true;
+    }
+  }
   (STATE.physioUser[name]=STATE.physioUser[name]||[]).push({
     _id:'u_'+Date.now(),dk,status,
     zone:(g(px+'zone')||'').trim(),side:g(px+'side')||'',
@@ -7930,7 +8081,7 @@ function renderParte(){
   const zcol=z=>z<=-0.4?'#16a34a':z>=0.4?'#dc2626':'#b08900';
   const headCells=VARS.map(([k,lab])=>{const v=todayT[k];const z=zOf(k);const c=zcol(z);return `<div class="kpi"><div class="kpi-l">${lab}</div><div class="kpi-v">${isNaN(v)?'—':fmt(v,2)}</div><span class="pillT" style="color:${c};background:color-mix(in srgb,${c} 15%,transparent)"><span class="pillT-dot" style="background:${c}"></span>z ${fmt(z,2)}</span></div>`;}).join('');
   const lvl=v=>isNaN(v)?'na':v<=2.0?'ok':v<=2.7?'warn':'bad';
-  const anyPain=Object.keys(STATE.players).some(n=>{const ev=effectiveStatus(n,refdk);return ev&&['dolor','baja','noentto'].includes(ev.status);});
+  const anyPain=Object.keys(STATE.players).some(n=>{const ev=effectiveStatus(n,dkEstado());return ev&&['dolor','baja','noentto'].includes(ev.status);});
   const tl=l=>{const lamp=(c,on)=>`<span class="tl-l" style="background:${c};${on?'box-shadow:0 0 8px '+c:'opacity:.16'}"></span>`;return `<div class="tl">${lamp('#dc2626',l==='bad')}${lamp('#e0a800',l==='warn')}${lamp('#16a34a',l==='ok')}</div>`;};
   const domsL=(()=>{let x=lvl(todayT.doms);if(anyPain&&x==='ok')x='warn';return x;})();
   const ranked=Object.values(STATE.players).filter(p=>p.readiness!=null).sort((a,b)=>b.readiness-a.readiness);
@@ -7939,7 +8090,7 @@ function renderParte(){
   const colf=p=>p&&p.sev?({ok:'#16a34a',warn:'#d4a017',bad:'#dc2626',na:'#9aa3ad'})[p.sev]||'#9aa3ad':'#9aa3ad';
   const goods=ranked.slice(0,3);const bads=ranked.slice(-3).reverse().filter(p=>!goods.includes(p)).slice(0,3);
   const dRow=(p,kind)=>{const col=kind==='good'?'#16a34a':'#dc2626';const pct=Math.max(4,Math.min(100,p.readiness||0));const tail=kind==='bad'?`<span class="pt-dnote">${parteNote(p)}</span>`:`<span class="pt-dbar"><span style="width:${pct}%;background:${col}"></span></span>`;return `<div class="pt-drow"><span class="pt-dring${avReal(p)?' pt-dring--photo':''}">${ringSVG(p.readiness,col,40,4)}<img src="${av(p)}"></span><span class="pt-dn">${p.name.split(' ')[0]}</span><span class="pt-dr" style="color:${col}">${p.readiness}</span>${tail}</div>`;};
-  const pains=[];Object.keys(STATE.players).sort().forEach(n=>{const ev=effectiveStatus(n,refdk);if(ev&&['dolor','baja','trat','noentto'].includes(ev.status)&&ev.zone)pains.push(`<span class="pt-pain">${ev.zone}${ev.side?' '+ev.side:''} · ${n.split(' ')[0]}</span>`);});
+  const pains=[];Object.keys(STATE.players).sort().forEach(n=>{const ev=effectiveStatus(n,dkEstado());if(ev&&['dolor','baja','trat','noentto'].includes(ev.status)&&ev.zone)pains.push(`<span class="pt-pain">${ev.zone}${ev.side?' '+ev.side:''} · ${n.split(' ')[0]}</span>`);});
   const painsBar=`<div class="pt-nopasar-bar"><b>No pasarnos con</b>${pains.length?pains.slice(0,8).join(''):'<span class="pt-pain pt-pain-ok">sin dolores activos</span>'}</div>`;
   const bucket=p=>{const t=(p.pos||'').toLowerCase();if(t.includes('porter'))return'Porteros';if(t.includes('pivot'))return'Pivotes';if(t.includes('extrem'))return'Extremos';return '1ª Línea';};
   const groups={'Extremos':[],'Porteros':[],'Pivotes':[],'1ª Línea':[]};Object.values(STATE.players).forEach(p=>{groups[bucket(p)].push(p);});
@@ -8797,7 +8948,7 @@ function renderTeamRings(){
   const top=topAll.slice(0,nTop);
   const colOf=p=>p.sev==='bad'?'#e23b32':p.sev==='warn'?'#e08a00':'#1ea863';
   const tagOf=p=>p.sev==='bad'?'A vigilar':p.sev==='warn'?'Atención':'En forma';
-  const dkr=dkey(REF());
+  const dkr=dkEstado();
   const reasonFor=(p,kind)=>{const ev=effectiveStatus(p.name,dkr);if(ev&&PHYSTAT[ev.status]&&['dolor','baja','noentto','trat','enfermo'].includes(ev.status)){return PHYSTAT[ev.status].lab+(ev.zone?' '+ev.zone+(ev.side?' '+ev.side:''):'');}const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null;if(kind==='good')return (p.readiness!=null&&p.readiness>=85)?'Readiness alto':'Buena forma';if(p.readiness!=null&&p.readiness<55)return 'Readiness bajo';if(ac!=null&&ac>1.3)return 'Carga aguda alta';if(ac!=null&&ac<0.8)return 'Carga muy baja';return 'A vigilar carga';};
   const items=watch.map(p=>teamRingItem(p,colOf(p),tagOf(p),reasonFor(p,'watch'))).concat(top.map(p=>teamRingItem(p,'#1ea863','Top forma',reasonFor(p,'good'))));
   box.innerHTML=`<h2>A vigilar y destacados <span class="r muted">${watch.length+top.length} jugadores</span></h2>
@@ -8810,11 +8961,11 @@ function renderTeamRings(){
 function renderTeamStrip(){
   const box=document.getElementById('team-strip');if(!box)return;
   const ps=Object.values(STATE.players);if(!ps.length){box.innerHTML='';return;}
-  const dk=dkey(REF());
+  const dk=dkey(REF());const dkSt=dkEstado();
   const rdyM=mean(ps.map(p=>p.readiness).filter(x=>x!=null));
   const acM=mean(ps.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
   let disp=0,care=0,fisico=0,otro=0;
-  ps.forEach(p=>{let st=null;try{const ev=effectiveStatus(p.name,dk);st=ev&&ev.status;}catch(e){}
+  ps.forEach(p=>{let st=null;try{const ev=effectiveStatus(p.name,dkSt);st=ev&&ev.status;}catch(e){}
     if(!st||st==='disp'||st==='partido')disp++;
     else if(NOAV_FIS_ST.indexOf(st)>=0)fisico++;
     else if(NOFIS_ST.indexOf(st)>=0)otro++;
