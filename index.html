@@ -4573,7 +4573,14 @@ function medPhysioReconcile(){
   return n;
 }
 window.medPhysioReconcile=medPhysioReconcile;
-function medPersist(){try{localStorage.setItem('bmnava_meddb',JSON.stringify(STATE.med));}catch(e){}}
+/* v246 · Ninguno de estos persistidores debe escribir si su almacén no se ha
+   cargado antes: al hacerlo guardaba un objeto vacío encima del bueno y borraba
+   el trabajo de todos. Es la misma familia de fallo que ya apareció en
+   fisioterapia, y explica que Virginia metiera información y desapareciera. */
+function medPersist(){
+  if(!STATE.med)return;
+  try{localStorage.setItem('bmnava_meddb',JSON.stringify(STATE.med));}catch(e){}
+}
 function medApplyStatuses(){(STATE.med.statuses||[]).forEach(s=>{PHYSTAT[s.k]={lab:s.lab,c:s.c};MED_SEV[s.k]=s.sev;});}
 function medUid(p){return (p||'m')+'_'+Date.now()+'_'+Math.floor(Math.random()*1e4);}
 function medInj(id){return (STATE.med.inj||[]).find(x=>x.id===id);}
@@ -7331,7 +7338,10 @@ function physioEnsure(){
   return STATE.physioUser;
 }
 window.physioEnsure=physioEnsure;
-function physioPersist(){try{localStorage.setItem('bmnava_physio',JSON.stringify(STATE.physioUser||{}));}catch(e){}}
+function physioPersist(){
+  if(!STATE.physioUser)return;
+  try{localStorage.setItem('bmnava_physio',JSON.stringify(STATE.physioUser));}catch(e){}
+}
 function zoneRegion(z){z=(z||'').toLowerCase();
   if(/rodilla|rotulian|menisco|lca|ligament/.test(z))return'rodilla';
   if(/aquiles|gemelo|sóleo|soleo|sural|fascia plant|tibial|peroneo|popliteo|poplíteo/.test(z))return'pierna';
@@ -7384,14 +7394,25 @@ function physioStats(evs){
    Consecuencia: todas las llamadas del módulo médico —notas, fases, criterios,
    tratamientos, altas— guardaban la ficha del jugador en lugar del episodio, así
    que nada de eso se persistía y se perdía al recargar. */
-function medInfoPersist(){try{localStorage.setItem('bmnava_med',JSON.stringify(STATE.medInfo||{}));}catch(e){}}
+function medInfoEnsure(){
+  if(!STATE.medInfo){
+    try{STATE.medInfo=JSON.parse(localStorage.getItem('bmnava_med')||'{}')||{};}
+    catch(e){STATE.medInfo={};}
+  }
+  return STATE.medInfo;
+}
+window.medInfoEnsure=medInfoEnsure;
+function medInfoPersist(){
+  if(!STATE.medInfo)return;
+  try{localStorage.setItem('bmnava_med',JSON.stringify(STATE.medInfo));}catch(e){}
+}
 /* v230 · Se retira el EX con alergias y antecedentes de ejemplo. Solo se
    aplicaba por nombre exacto, así que con la plantilla actual no llegaba a
    activarse, pero seguía vivo: bastaba con que alguien se llamase igual para
    colgarle un historial médico que no es suyo. */
 function medLoad(){if(!STATE.medInfo){try{STATE.medInfo=JSON.parse(localStorage.getItem('bmnava_med')||'{}')||{};}catch(e){STATE.medInfo={};}}
   return STATE.medInfo;}
-function medSave(name){const g=id=>((document.getElementById(id)||{}).value||'').trim();STATE.medInfo=STATE.medInfo||{};STATE.medInfo[name]={alergias:g('med-alergias'),antecedentes:g('med-antecedentes'),medicacion:g('med-medicacion'),grupo:g('med-grupo'),obs:g('med-obs')};medInfoPersist();renderPhysio(name);}
+function medSave(name){const g=id=>((document.getElementById(id)||{}).value||'').trim();medInfoEnsure();STATE.medInfo[name]={alergias:g('med-alergias'),antecedentes:g('med-antecedentes'),medicacion:g('med-medicacion'),grupo:g('med-grupo'),obs:g('med-obs')};medInfoPersist();renderPhysio(name);}
 function medRTPinfo(name){const evs=physioEvents(name).filter(e=>e.rtp&&e.status!=='disp');if(!evs.length)return null;const e=evs.slice().sort((a,b)=>a.dk<b.dk?-1:1)[evs.length-1];const d=Math.round((dkToDate(e.rtp)-new Date(new Date().toISOString().slice(0,10)))/864e5);return {e,days:d};}
 function painSparkline(evs){
   const pts=evs.filter(e=>e.pain!=null&&!isNaN(e.pain)).sort((a,b)=>a.dk<b.dk?-1:1);
