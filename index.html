@@ -4546,7 +4546,33 @@ const o={bad:0,warn:1};STATE.alerts=A.sort((a,b)=>o[a.sev]-o[b.sev]);}
 var MED_SEL=null;
 const MED_TT_BASE=['Fisioterapia','Masaje','Medicación','Readaptación','Consulta médica','Nutrición'];
 function medDbLoad(){if(STATE.med)return;let m={};try{m=JSON.parse(localStorage.getItem('bmnava_meddb')||'{}')||{};}catch(e){m={};}
-  STATE.med={inj:m.inj||[],treat:m.treat||[],cat:m.cat||[],alog:m.alog||[],statuses:m.statuses||[],ttypes:m.ttypes||[]};medApplyStatuses();}
+  STATE.med={inj:m.inj||[],treat:m.treat||[],cat:m.cat||[],alog:m.alog||[],statuses:m.statuses||[],ttypes:m.ttypes||[]};medApplyStatuses();
+  try{medPhysioReconcile();}catch(e){}}
+/* v245 · Reconciliación Médico → Disponibilidad.
+   Los dos módulos guardan en claves distintas (bmnava_meddb y bmnava_physio) y
+   el enlace es un espejo que Médico crea en la segunda. Si ese espejo falta
+   —porque se perdió, porque la lesión se registró con la versión que lo
+   borraba, o porque se creó sin estado— la lesión seguía en Médico y el jugador
+   aparecía como disponible, sin forma de arreglarlo salvo tocar el estado a
+   mano. Aquí se rehace solo al cargar: toda lesión abierta con estado debe
+   tener su episodio abierto en Disponibilidad, empezando en la fecha de la
+   lesión. Solo crea lo que falta; no toca ni cierra nada existente. */
+function medPhysioReconcile(){
+  if(!STATE.med||!Array.isArray(STATE.med.inj))return 0;
+  physioEnsure();
+  let n=0;
+  STATE.med.inj.forEach(function(e){
+    if(!e||!e.open||!e.status||!e.name)return;
+    const arr=(STATE.physioUser||{})[e.name]||[];
+    const ya=arr.some(function(x){return x._id==='med_'+e.id&&!x.to;});
+    if(ya)return;
+    medPhysioOpen(e.name,e.status,e.zona,e.lado,e.title,e.id,e.dk);
+    n++;
+  });
+  if(n){STATE.physioEx=null;try{buildPhysio();}catch(err){}}
+  return n;
+}
+window.medPhysioReconcile=medPhysioReconcile;
 function medPersist(){try{localStorage.setItem('bmnava_meddb',JSON.stringify(STATE.med));}catch(e){}}
 function medApplyStatuses(){(STATE.med.statuses||[]).forEach(s=>{PHYSTAT[s.k]={lab:s.lab,c:s.c};MED_SEV[s.k]=s.sev;});}
 function medUid(p){return (p||'m')+'_'+Date.now()+'_'+Math.floor(Math.random()*1e4);}
@@ -8017,6 +8043,10 @@ function renderPlayerReadiness(name){
 function renderAll(){applyHist();
   const dks=[...new Set([...STATE.wellness.map(x=>x.dk),...STATE.rpe.map(x=>x.dk)])].sort();
   if(dks.length){const a=dks[dks.length-1].split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);}
+  /* v245 · La base médica se carga aquí, antes de construir fisioterapia: al
+     cargarla se reconcilian las lesiones abiertas con Disponibilidad, y si eso
+     ocurriera después el estado del día saldría sin las bajas. */
+  try{medDbLoad();}catch(e){}
   buildPlayers();buildTests();buildPhysio();syncDatePicker();renderDayCtx();renderTeam();renderPosBand();renderAlerts();
   document.getElementById('cfg-dump').innerHTML=`Ventana aguda/crónica: ${CONFIG.load.acute}/${CONFIG.load.chronic} d · ACWR coupled · EWMA α ${CONFIG.load.ewmaAcute}/${CONFIG.load.ewmaChronic} · z amarillo/rojo: ±${CONFIG.z.yellow}/±${CONFIG.z.red} · mín. registros z: ${CONFIG.z.minRecords} · z contextual MDx ≥${CONFIG.z.minContext} · factor contacto: ${Object.entries(CONFIG.contactFactor).map(([k,v])=>k+'→'+v).join(', ')} · peso posición en media de contacto: ${Object.entries(CONFIG.contactPosW||{}).map(([k,v])=>k+'→'+v).join(', ')}`;
   document.getElementById('src-dot').className="dot "+(STATE.mode||"");
