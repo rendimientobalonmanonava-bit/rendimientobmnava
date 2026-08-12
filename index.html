@@ -681,6 +681,10 @@ main{padding:13px 16px 70px}
 .vh-det{display:flex;flex-direction:column;gap:4px}
 .vh-det-sec{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 10px;padding-top:12px;border-top:1px solid var(--hair);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
 .vh-det-sec:first-child{margin-top:2px;padding-top:0;border-top:0}
+/* v251 · rótulo de pierna sobre cada podio unilateral. Sin línea superior: no
+   es una sección nueva, es una subdivisión de «Mejor marca histórica». */
+.vh-lado-t{font-size:11.5px;font-weight:800;color:var(--txt);margin:12px 0 6px;display:flex;align-items:center;gap:6px}
+.vh-lado-t:before{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent)}
 .vh-det-sec span{font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted2,var(--muted));opacity:.85}
 .vh-det-ch{height:230px}
 /* Podio: 2º, 1º, 3º, con la peana más alta en el centro */
@@ -14172,8 +14176,18 @@ function vhSlope(vals){
 /* ---------- 2 · serie individual por test ---------- */
 /* Lee de STATE.testHist, que es la estructura ya existente:
    STATE.testHist[jugador] = [{date:'YYYY-MM-DD', vals:{cmj:34.2,...}, real:true}] */
-function vhSeries(name,k){
+/* v251 · lado opcional ('L'/'R'). Los tests unilaterales se miden por pierna y
+   vhCommit ya guardaba cada lado en sn.sides, pero nadie lo leía: la serie
+   devolvía siempre la media de las dos, así que izquierda y derecha competían
+   en el mismo ranking como si fueran la misma marca. */
+function vhSeries(name,k,lado){
   const hist=(STATE.testHist||{})[name]||[];
+  if(lado==='L'||lado==='R'){
+    return hist
+      .map(sn=>({dk:sn.date,val:((sn.sides||{})[k]||{})[lado],real:sn.real!==false}))
+      .filter(o=>o.val!=null&&!isNaN(o.val))
+      .sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+  }
   return hist
     .map(sn=>({dk:sn.date,val:(sn.vals||{})[k],real:sn.real!==false}))
     .filter(o=>o.val!=null&&!isNaN(o.val))
@@ -14486,12 +14500,21 @@ function vhHistApply(){
        valoraciones— no se duplica: inflaría su baseline con la misma medición
        contada dos veces. */
     let repetida=false;
-    try{repetida=(vhSeries(nom,r.k)||[]).some(function(o){return Math.abs(o.val-r.v)<0.005;});}catch(e){}
+    const ladoK=r.lado?(r.lado==='izq'?'L':'R'):null;
+    try{repetida=(vhSeries(nom,r.k,ladoK)||[]).some(function(o){return Math.abs(o.val-r.v)<0.005;});}catch(e){}
     if(repetida)return;
     const serie=(STATE.testHist[nom]=STATE.testHist[nom]||[]);
     let snap=serie.find(function(x){return x.date===r.dk;});
-    if(!snap){snap={date:r.dk,vals:{},real:true};serie.push(snap);}
-    if(snap.vals[r.k]==null){snap.vals[r.k]=r.v;nuevos++;}
+    if(!snap){snap={date:r.dk,vals:{},sides:{},real:true};serie.push(snap);}
+    /* v251 · Una marca de una sola pierna va a sides, no a vals: vals guarda la
+       media de las dos y meter ahí un registro unilateral lo hacía competir
+       contra medias en el mismo ranking. */
+    if(r.lado){
+      snap.sides=snap.sides||{};
+      const c=(snap.sides[r.k]=snap.sides[r.k]||{});
+      const ld=r.lado==='izq'?'L':'R';
+      if(c[ld]==null){c[ld]=r.v;nuevos++;}
+    }else if(snap.vals[r.k]==null){snap.vals[r.k]=r.v;nuevos++;}
     snap.real=true;
     serie.sort(function(a,b){return String(a.date).localeCompare(String(b.date));});
   });
@@ -15073,6 +15096,33 @@ function vhFoto(n){
   try{if(window.phLoad){const g=phLoad()[n];if(g)return g;}}catch(e){}
   return window.phPlaceholder?phPlaceholder(n):(window.__AVATAR__||'');
 }
+/* ¿Hay mediciones por pierna en esta prueba? Decide si el histórico se presenta
+   separado (izquierda/derecha) o en un único ranking. */
+function vhTieneLados(k){
+  const th=STATE.testHist||{};
+  for(const n in th){
+    const arr=th[n]||[];
+    for(let i=0;i<arr.length;i++){
+      const c=(arr[i].sides||{})[k];
+      if(c&&(c.L!=null||c.R!=null))return true;
+    }
+  }
+  return false;
+}
+/* El rótulo depende de con qué se mide: el CMJ unilateral y la movilidad de
+   tobillo son piernas, la fuerza de agarre son manos. Poner «pierna» en todas
+   sería sencillo y estaría mal en la mitad. */
+const VH_LADO_PARTE={cmju:'Pierna',tobm:'Tobillo',grip:'Mano'};
+function vhLadoLab(k,ld){
+  const p=VH_LADO_PARTE[k];
+  const izq=ld==='L';
+  if(!p)return izq?'Lado izquierdo':'Lado derecho';
+  return p+(izq?' izquierda':' derecha');
+}
+function vhTodosLosNombres(){
+  return Object.keys(STATE.players||{}).concat(
+    (typeof exNames==='function'?exNames():[]).filter(n=>!(STATE.players||{})[n]));
+}
 /* Última medición de cada jugador para esa prueba, ordenada por la dirección
    del test (hay pruebas donde menos es mejor: grasa, asimetrías, tiempos). */
 function vhRankingActual(k){
@@ -15089,7 +15139,7 @@ function vhRankingActual(k){
   return out;
 }
 /* Mejor registro de cada jugador en todo el histórico, no solo el último. */
-function vhRankingHistorico(k){
+function vhRankingHistorico(k,lado){
   const def=(typeof TESTS!=='undefined')?TESTS.find(t=>t.k===k):null;
   const lb=!!(def&&def.lowerBetter);
   const out=[];
@@ -15100,7 +15150,7 @@ function vhRankingHistorico(k){
   const todos=Object.keys(STATE.players||{}).concat(
     (typeof exNames==='function'?exNames():[]).filter(n=>!(STATE.players||{})[n]));
   todos.forEach(function(n){
-    const ser=vhSeries(n,k);
+    const ser=vhSeries(n,k,lado);
     if(!ser.length)return;
     let mejor=ser[0];
     ser.forEach(function(o){if(lb?o.val<mejor.val:o.val>mejor.val)mejor=o;});
@@ -15138,14 +15188,20 @@ function vhPodio(lista,unit,destacado){
 function vhRecordBloque(k,def){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   const lb=!!(def&&def.lowerBetter);
-  const nombres=Object.keys(STATE.players||{}).concat(
-    (typeof exNames==='function'?exNames():[]).filter(n=>!(STATE.players||{})[n]));
+  const nombres=vhTodosLosNombres();
+  /* v251 · En una prueba unilateral el récord es la mejor marca de UNA pierna,
+     no la media de las dos: comparar una media con un registro de un solo lado
+     mezclaba dos cosas distintas. */
+  const porLados=vhTieneLados(k);
+  const lados=porLados?['L','R']:[null];
   let rec=null,total=0;
   nombres.forEach(function(n){
-    (vhSeries(n,k)||[]).forEach(function(o){
-      total++;
-      if(!rec||(lb?o.val<rec.v:o.val>rec.v))rec={n,v:o.val,dk:o.dk,
-        ex:(typeof exIs==='function')&&exIs(n)&&!(STATE.players||{})[n]};
+    lados.forEach(function(ld){
+      (vhSeries(n,k,ld)||[]).forEach(function(o){
+        total++;
+        if(!rec||(lb?o.val<rec.v:o.val>rec.v))rec={n,v:o.val,dk:o.dk,lado:ld,
+          ex:(typeof exIs==='function')&&exIs(n)&&!(STATE.players||{})[n]};
+      });
     });
   });
   if(!rec)return '';
@@ -15159,7 +15215,9 @@ function vhRecordBloque(k,def){
         +'<div class="vh-rec-d">'+esc(rec.dk||'')+(meta&&meta.temp?' · '+esc(meta.temp):'')+'</div></div>'
       +'<div class="vh-rec-v">'+vhFmt(rec.v,2)+(def.unit?'<small> '+esc(def.unit)+'</small>':'')+'</div>'
     +'</div>'
-    +'<div class="vh-rec-f2">Mejor de '+total+' mediciones registradas'+(lb?' · en esta prueba gana el valor más bajo':'')+'</div>'
+    +'<div class="vh-rec-f2">Mejor de '+total+' mediciones registradas'
+      +(rec.lado?' · '+vhLadoLab(k,rec.lado).toLowerCase():'')
+      +(lb?' · en esta prueba gana el valor más bajo':'')+'</div>'
   +'</div>';
 }
 window.vhAbrir=function(k){
@@ -15181,8 +15239,12 @@ window.vhAbrir=function(k){
       +(r.n>1
         ? '<div class="vh-det-ch"><canvas id="ch-vh-det"></canvas></div>'
         : '<p class="small muted">'+(r.n===1?'Solo hay una medición, todavía no hay evolución que dibujar.':'Este jugador no tiene mediciones de esta prueba.')+'</p>')
-      +'<div class="vh-det-sec">Mejor marca histórica <span>mejor registro de cada jugador · incluye a quien ya no está</span></div>'
-      +vhPodio(hist,def.unit,name)
+      +(vhTieneLados(k)
+        ? '<div class="vh-det-sec">Mejor marca histórica por lado <span>izquierda y derecha se comparan por separado · incluye a quien ya no está</span></div>'
+          +'<div class="vh-lado-t">'+vhLadoLab(k,'L')+'</div>'+vhPodio(vhRankingHistorico(k,'L'),def.unit,name)
+          +'<div class="vh-lado-t">'+vhLadoLab(k,'R')+'</div>'+vhPodio(vhRankingHistorico(k,'R'),def.unit,name)
+        : '<div class="vh-det-sec">Mejor marca histórica <span>mejor registro de cada jugador · incluye a quien ya no está</span></div>'
+          +vhPodio(hist,def.unit,name))
       +vhRecordBloque(k,def)
     +'</div>';
   rhModal(def.name+(def.unit?' · '+def.unit:''),cuerpo);
