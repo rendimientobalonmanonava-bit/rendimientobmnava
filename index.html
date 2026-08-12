@@ -2895,6 +2895,21 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
   </div>
 
   <section class="view" id="v-config">
+    <!-- v255 · Copia de seguridad. Todo lo que se rellena a mano —médico,
+         fisioterapia, calendario, duraciones, valoraciones, Polar— vive en el
+         navegador y viaja por Supabase, pero hasta ahora no había forma de
+         sacarlo ni de recuperarlo si algo salía mal. -->
+    <div class="panel" id="bkp-panel">
+      <h2>Copia de seguridad <span class="r muted" id="bkp-espacio"></span></h2>
+      <p class="hint">Descarga en un archivo todo lo que el cuerpo técnico ha metido a mano: médico, fisioterapia, calendario, duraciones, asistencia, valoraciones, sesiones de Polar, jugadores históricos y fichas. <b>Hazlo cada semana.</b> Es lo único que permite volver atrás si algo se pierde.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn" onclick="bkpDescargar()">Descargar copia</button>
+        <button class="btn ghost" onclick="document.getElementById('bkp-file').click()">Restaurar desde archivo</button>
+        <input type="file" id="bkp-file" accept="application/json,.json" style="display:none" onchange="bkpRestaurar(this)">
+      </div>
+      <div id="bkp-detalle" style="margin-top:12px"></div>
+      <div class="small" id="bkp-msg" style="margin-top:10px;color:var(--accent)"></div>
+    </div>
     <div class="panel">
       <h2>Conexión de datos</h2>
       <p class="hint">Lee tus hojas de Google publicadas como CSV, sin contraseñas ni servidor. En Sheets: <b>Archivo → Compartir → Publicar en la web → elige la pestaña → CSV → Publicar</b>, y pega el enlace. El modo demo muestra todo con datos de ejemplo.</p>
@@ -3044,28 +3059,49 @@ async function syPull(){
     r=await fetch(SY.url+'/rest/v1/'+SY_TABLE+'?select=k,v,updated_at,updated_by',{headers:syHeaders()});
   if(!r.ok){syStatus('err','No se pudo descargar ('+r.status+')');throw new Error('HTTP '+r.status);}
   const rows=await r.json();
-  let n=0;
+  let n=0;const protegidos=[];
   rows.forEach(row=>{
     if(!row||!row.k||!syIsShared(row.k))return;
     try{
       const val=typeof row.v==='string'?row.v:JSON.stringify(row.v);
+      /* v255 · La descarga escribía encima del navegador sin mirar qué traía. Si
+         el servidor tenía un bloque vacío —porque alguien lo subió así tras un
+         fallo— pulsar «Actualizar» borraba aquí datos buenos. Un bloque vacío
+         nunca sustituye a uno con contenido; se avisa y se deja lo de aquí, que
+         siempre se puede volver a subir. */
+      if(lsVacioTexto(val)&&lsTieneDatos(row.k)){protegidos.push(row.k);return;}
       _setItem.call(localStorage,row.k,val);
+      LS_LEIDAS[row.k]=true;
       n++;
     }catch(e){}
   });
   SY.lastPull=new Date();
-  syStatus('ok',n+' bloques al día');
-  return {n,rows:rows.length};
+  if(protegidos.length){
+    syStatus('err',protegidos.length+' bloque(s) del servidor venían vacíos y no se han aplicado');
+    console.warn('bmnava · descarga: bloques vacíos ignorados →',protegidos.join(', '));
+    if(window.toast)toast('El servidor traía '+protegidos.length+' bloque(s) vacío(s). Se ha conservado lo de este dispositivo.');
+  }else syStatus('ok',n+' bloques al día');
+  return {n,rows:rows.length,protegidos:protegidos};
 }
 
 /* ---------- subida ---------- */
 async function syPushKeys(keys){
   if(!SY.url||!SY.key||!SY.token||!keys.length)return 0;
-  const payload=keys.map(k=>{
+  /* v255 · La otra mitad del mismo problema: subir un bloque vacío que esta
+     sesión no ha llegado a leer lo borra para todo el equipo. Se queda sin
+     enviar hasta que haya algo real que enviar. */
+  const payload=[];
+  keys.forEach(k=>{
     let v=null;
     try{v=JSON.parse(localStorage.getItem(k)||'null');}catch(e){v=localStorage.getItem(k);}
-    return {k,v,updated_at:new Date().toISOString(),updated_by:SY.email||'staff'};
+    const txt=localStorage.getItem(k);
+    if(lsVacioTexto(txt)&&!LS_LEIDAS[k]){
+      console.warn('bmnava · subida omitida de '+k+': está vacío y esta sesión no lo ha leído.');
+      return;
+    }
+    payload.push({k,v,updated_at:new Date().toISOString(),updated_by:SY.email||'staff'});
   });
+  if(!payload.length)return 0;
   const url=SY.url+'/rest/v1/'+SY_TABLE+'?on_conflict=k';
   const opts={method:'POST',headers:Object.assign(syHeaders(true),{'Prefer':'resolution=merge-duplicates'}),
               body:JSON.stringify(payload)};
@@ -4202,22 +4238,171 @@ function lsLeer(clave,vacio){
   try{const v=JSON.parse(localStorage.getItem(clave)||'null');return v==null?vacio:v;}
   catch(e){return vacio;}
 }
+function lsVacioTexto(t){
+  return !(t&&t!=='{}'&&t!=='[]'&&t!=='null'&&t!=='""');
+}
 function lsTieneDatos(clave){
-  const t=localStorage.getItem(clave);
-  return !!(t&&t!=='{}'&&t!=='[]'&&t!=='null'&&t!=='""');
+  return !lsVacioTexto(localStorage.getItem(clave));
 }
 function lsGuardar(clave,valor){
   try{
     if(!LS_LEIDAS[clave]&&lsTieneDatos(clave)){
       console.warn('bmnava · escritura bloqueada en '+clave+': hay datos guardados y esta sesión no los ha leído.');
+      lsAvisar('No se ha guardado: el bloque «'+lsNombre(clave)+'» tiene datos que esta sesión no ha cargado. Recarga la página antes de volver a intentarlo.');
       return false;
     }
     localStorage.setItem(clave,JSON.stringify(valor));
     LS_LEIDAS[clave]=true;
     return true;
-  }catch(e){return false;}
+  }catch(e){
+    /* v255 · El almacén del navegador ronda los 5 MB. Cuando se llena, esto
+       fallaba en silencio: parecía que habías guardado y no se había guardado
+       nada. Ahora se ve, y se dice qué hacer. */
+    const lleno=/quota|exceed|storage/i.test(String(e&&(e.name+' '+e.message)));
+    lsAvisar(lleno
+      ? 'NO SE HA GUARDADO: el almacenamiento del navegador está lleno ('+lsEspacio().mb+' MB). Descarga una copia de seguridad y libera espacio desde Conexión.'
+      : 'NO SE HA GUARDADO el bloque «'+lsNombre(clave)+'»: '+(e&&e.message||'error desconocido'));
+    console.error('bmnava · fallo al guardar '+clave,e);
+    return false;
+  }
 }
-window.lsLeer=lsLeer;window.lsGuardar=lsGuardar;
+/* Nombre legible de cada bloque, para que el aviso diga algo entendible. */
+const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_caltpl:'Plantillas de microciclo',
+  bmnava_sessdur:'Duraciones de sesión',bmnava_asist:'Asistencia',bmnava_info:'Datos personales',
+  bmnava_meddb:'Médico',bmnava_med:'Ficha médica',bmnava_medlog:'Agenda médica',
+  bmnava_physio:'Fisioterapia',bmnava_physiodict:'Diccionario de fisioterapia',
+  bmnava_testlog:'Valoraciones físicas',bmnava_expl:'Jugadores históricos',
+  bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos'};
+function lsNombre(k){return LS_NOMBRES[k]||k;}
+/* ============ v255 · Copia de seguridad ============
+   Un archivo con todo lo que se rellena a mano. No sustituye a la
+   sincronización: la sincronización reparte el estado actual entre el staff,
+   pero no guarda historia, así que si un bloque se vacía se vacía para todos.
+   Esto es lo que permite volver atrás. */
+const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
+  'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
+  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos'];
+function bkpRecoger(){
+  const o={};
+  BKP_CLAVES.forEach(k=>{const t=localStorage.getItem(k);if(t!=null)o[k]=t;});
+  return o;
+}
+function bkpCuenta(txt){
+  try{
+    const v=JSON.parse(txt);
+    if(Array.isArray(v))return v.length;
+    if(v&&typeof v==='object'){
+      /* Para el módulo médico interesan los episodios, no las cuatro llaves. */
+      if(Array.isArray(v.inj))return v.inj.length;
+      return Object.keys(v).length;
+    }
+  }catch(e){}
+  return 0;
+}
+function bkpResumen(datos){
+  const filas=BKP_CLAVES.map(k=>{
+    const t=datos[k];
+    const n=t?bkpCuenta(t):0;
+    const kb=t?Math.max(1,Math.round(t.length/1024)):0;
+    return '<tr><td>'+lsNombre(k)+'</td><td style="text-align:right">'+(n||'—')+'</td>'
+      +'<td style="text-align:right" class="small muted">'+(kb?kb+' KB':'—')+'</td></tr>';
+  }).join('');
+  return '<div class="wrap-x"><table class="tbl"><thead><tr><th>Bloque</th><th style="text-align:right">Registros</th><th style="text-align:right">Tamaño</th></tr></thead><tbody>'+filas+'</tbody></table></div>';
+}
+function bkpRender(){
+  const d=document.getElementById('bkp-detalle');
+  if(d)d.innerHTML=bkpResumen(bkpRecoger());
+  const e=document.getElementById('bkp-espacio');
+  if(e){const sp=lsEspacio();
+    e.textContent=sp.mb+' MB ocupados en este navegador';
+    e.style.color=(+sp.mb>=4)?'var(--bad)':(+sp.mb>=3)?'var(--warn)':'';}
+}
+window.bkpRender=bkpRender;
+window.bkpDescargar=function(){
+  const datos=bkpRecoger();
+  const paquete={app:'bmnava',version:1,fecha:new Date().toISOString(),
+    origen:(location&&location.host)||'',datos:datos};
+  try{
+    const blob=new Blob([JSON.stringify(paquete)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='bmnava_copia_'+dkey(new Date())+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    const m=document.getElementById('bkp-msg');
+    if(m)m.textContent='Copia descargada · '+Object.keys(datos).length+' bloques. Guárdala fuera del ordenador (Drive, correo…).';
+  }catch(e){
+    const m=document.getElementById('bkp-msg');
+    if(m)m.innerHTML='<span style="color:var(--bad)">No se pudo generar la copia: '+(e.message||e)+'</span>';
+  }
+};
+window.bkpRestaurar=function(input){
+  const f=input&&input.files&&input.files[0];
+  if(!f)return;
+  const m=document.getElementById('bkp-msg');
+  const rd=new FileReader();
+  rd.onload=function(){
+    let paq=null;
+    try{paq=JSON.parse(rd.result);}catch(e){
+      if(m)m.innerHTML='<span style="color:var(--bad)">El archivo no es una copia válida.</span>';return;}
+    if(!paq||paq.app!=='bmnava'||!paq.datos){
+      if(m)m.innerHTML='<span style="color:var(--bad)">El archivo no es una copia de BM Nava.</span>';return;}
+    const claves=Object.keys(paq.datos).filter(k=>BKP_CLAVES.indexOf(k)>=0);
+    /* Se dice exactamente qué va a pasar con cada bloque ANTES de tocar nada:
+       restaurar sustituye, y sustituir sin avisar es justo lo que no queremos
+       volver a hacer. */
+    const det=claves.map(k=>{
+      const nuevo=bkpCuenta(paq.datos[k]);
+      const actual=lsTieneDatos(k)?bkpCuenta(localStorage.getItem(k)):0;
+      return '· '+lsNombre(k)+': '+actual+' → '+nuevo;
+    }).join('\n');
+    const fecha=(paq.fecha||'').slice(0,10);
+    if(!confirm('Restaurar la copia del '+fecha+'.\n\nSe SUSTITUYE lo que hay ahora en este navegador:\n\n'+det
+      +'\n\nSi la sincronización está activa, esto se repartirá al resto del staff.\n¿Continuar?'))return;
+    let n=0;
+    claves.forEach(k=>{
+      try{
+        LS_LEIDAS[k]=true;                 /* restaurar es una escritura consciente */
+        localStorage.setItem(k,paq.datos[k]);
+        n++;
+      }catch(e){lsAvisar('No se pudo restaurar «'+lsNombre(k)+'»: '+(e.message||e));}
+    });
+    if(m)m.textContent=n+' bloques restaurados. Recargando…';
+    setTimeout(()=>location.reload(),900);
+  };
+  rd.readAsText(f);
+  input.value='';
+};
+/* Un aviso por mensaje y por minuto: si algo falla en bucle no queremos tapar
+   la pantalla de toasts. */
+const LS_AVISADO={};
+function lsAvisar(msg){
+  const ahora=Date.now();
+  if(LS_AVISADO[msg]&&ahora-LS_AVISADO[msg]<60000)return;
+  LS_AVISADO[msg]=ahora;
+  try{if(window.toast)toast(msg);}catch(e){}
+  try{
+    let b=document.getElementById('ls-alerta');
+    if(!b){
+      b=document.createElement('div');b.id='ls-alerta';
+      b.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:9999;background:#e23b32;color:#fff;'
+        +'padding:12px 14px;border-radius:12px;font:600 13px/1.4 Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25);'
+        +'display:flex;gap:12px;align-items:flex-start';
+      document.body.appendChild(b);
+    }
+    b.innerHTML='<span style="flex:1">⚠ '+msg+'</span>'
+      +'<button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,.2);border:0;color:#fff;'
+      +'border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer">Cerrar</button>';
+  }catch(e){}
+}
+/* Espacio ocupado por la app en este navegador. */
+function lsEspacio(){
+  let b=0;
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
+    if(k&&k.indexOf('bmnava')===0)b+=k.length+(localStorage.getItem(k)||'').length;}}catch(e){}
+  return {bytes:b,mb:(b/1048576).toFixed(2)};
+}
+window.lsLeer=lsLeer;window.lsGuardar=lsGuardar;window.lsEspacio=lsEspacio;window.lsVacioTexto=lsVacioTexto;
 const dkey=d=>{if(!d)return"";const z=n=>(n<10?'0':'')+n;return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());};
 /* v248 · Día para la DISPONIBILIDAD. Readiness, ACWR y wellness se leen en
    REF() —el último día con datos en las hojas—, pero un estado de baja es un
@@ -5394,7 +5579,7 @@ function go(v){const ESUB={dispo:1,medico:1,parte:1};const realV=ESUB[v]?'estado
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'||v==='unif'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
-  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
+  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
 function writeHash(){const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){history.replaceState(null,'',h);}}
 function readHash(){const h=decodeURIComponent(location.hash.replace(/^#/,''));if(!h)return null;const p=h.split('/');const v=p[0];if(!TABS.some(t=>t[0]===v))return null;return{view:v,date:p[1]||null};}
 const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["unif","Carga integrada"],["avail","Disponibilidad"],["parte","Parte wellness"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
