@@ -681,6 +681,37 @@ main{padding:13px 16px 70px}
 .vh-det{display:flex;flex-direction:column;gap:4px}
 .vh-det-sec{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 10px;padding-top:12px;border-top:1px solid var(--hair);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
 .vh-det-sec:first-child{margin-top:2px;padding-top:0;border-top:0}
+/* v252 · Rótulo de sección del perfil físico: equipo · jugador · metodología ·
+   datos. Marca de dónde a dónde llega cada bloque sin meter más tarjetas. */
+.sec-tit{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:26px 4px 10px;
+  font-size:13px;font-weight:800;letter-spacing:.02em;color:var(--txt)}
+.sec-tit:first-of-type{margin-top:16px}
+.sec-tit:before{content:'';width:4px;height:15px;border-radius:2px;background:var(--accent);align-self:center}
+.sec-tit span{font-weight:600;font-size:11.5px;color:var(--muted);letter-spacing:0}
+/* Resumen de equipo */
+.tsum-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+.tsum-t{background:var(--panel2);border:1px solid var(--hair);border-radius:12px;padding:11px 13px;min-width:0}
+.tsum-t .l{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tsum-t .v{font-size:22px;font-weight:800;line-height:1.15;margin-top:3px}
+.tsum-t .s{font-size:11px;color:var(--muted);margin-top:2px}
+.tsum-cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px}
+.tsum-cat{background:var(--panel2);border:1px solid var(--hair);border-radius:12px;padding:11px 13px}
+.tc-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.tc-n{font-size:12.5px;font-weight:800}
+.tc-r{font-size:10.5px;font-weight:700}
+.tc-bar{position:relative;height:8px;border-radius:5px;background:var(--hair);margin:10px 0 7px}
+.tc-fill{position:absolute;top:0;height:8px;border-radius:5px;background:var(--accent);opacity:.75}
+.tc-med{position:absolute;top:-3px;width:2px;height:14px;border-radius:1px;background:var(--txt);opacity:.55}
+.tc-ends{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted)}
+.tc-ends b{color:var(--txt);font-variant-numeric:tabular-nums}
+.tsum-lists{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:14px}
+.tsum-l{background:var(--panel2);border:1px solid var(--hair);border-radius:12px;padding:11px 13px}
+.tsum-l h4{margin:0 0 8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tsum-r{display:flex;align-items:center;gap:9px;padding:5px 0;cursor:pointer;min-height:34px}
+.tsum-r:hover .nm{color:var(--accent)}
+.tsum-r img{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--panel);flex:0 0 auto}
+.tsum-r .nm{flex:1;min-width:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tsum-r .vl{font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
 /* v251 · rótulo de pierna sobre cada podio unilateral. Sin línea superior: no
    es una sección nueva, es una subdivisión de «Mejor marca histórica». */
 .vh-lado-t{font-size:11.5px;font-weight:800;color:var(--txt);margin:12px 0 6px;display:flex;align-items:center;gap:6px}
@@ -2677,6 +2708,81 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div><h2 style="margin:0">Perfil físico · z-scores y TSA <span class="tag" id="tests-badge">datos de ejemplo</span></h2><div class="small muted">Estandarización dentro de la plantilla (Turner 2019) · condición, fuerza y explosividad</div></div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0"><span class="tag">Jugador</span><select id="tests-player" onchange="renderTestsProfile()" style="max-width:190px;min-width:0"></select><button class="btn" onclick="openFicha(document.getElementById('tests-player').value)">Ficha / exportar</button></div>
     </div>
+
+    <!-- ═══ 1 · EQUIPO ═══ v252 · El estado del grupo iba repartido entre el
+         bloque plegado de «Análisis avanzado» y una tabla al final, así que para
+         saber cómo está el equipo había que abrir un desplegable y bajar. Ahora
+         abre la vista. -->
+    <div class="sec-tit">Estado de forma del equipo <span>todos los jugadores con valoraciones</span></div>
+    <div class="panel" id="tsa-team-sum"></div>
+    <div class="grid g2">
+      <div class="panel"><h2>Ranking TSA del equipo <span class="r muted">tercios: verde/ámbar/rojo</span></h2><div style="height:420px"><canvas id="ch-tsa-rank"></canvas></div></div>
+      <div class="panel"><h2>Mapa de calor · jugadores × tests <span class="r muted">z (rojo↓ verde↑)</span></h2><div class="wrap-x"><div id="tsa-heat"></div></div></div>
+    </div>
+    <details class="panel" style="padding:14px 18px">
+      <summary style="cursor:pointer;font-weight:700">Tabla de perfiles · TSA jugador por jugador</summary>
+      <div style="margin-top:12px">
+      <div class="panel"><h2>Tabla de perfiles · TSA por jugador</h2><div id="tsa-tbl"></div>
+        <p class="small muted" style="margin-top:10px;line-height:1.45">z = (valor − media)/DT; tiempos invertidos (arriba = mejor). <b>TSA</b> = media de z (Turner 2019); 0–100 = t = z×10+50 (orientativo, plantilla &lt;30).</p>
+      </div>
+      </div>
+    </details>
+
+    <!-- ═══ 2 · JUGADOR ═══ Todo lo del jugador seleccionado, seguido. Antes la
+         evolución individual estaba arriba y su radar, sus z por test y su
+         detalle por categoría dentro del plegable de análisis avanzado: el mismo
+         jugador contado en dos sitios que no se veían a la vez. -->
+    <div class="sec-tit">Perfil individual <span id="sec-ind-nom">del jugador seleccionado</span></div>
+    <div class="panel" id="coach-panel"><div id="tsa-prof-head"></div><input type="file" id="coach-photo-file" accept="image/*" style="display:none" onchange="coachPhotoSet(this)"></div>
+    <div class="panel"><h2>Evolución individual <span class="r muted">z contra su propio histórico</span></h2><div id="vh-panel"></div></div>
+    <div class="grid g2">
+      <div class="panel"><h2>z-scores por test <span class="r muted">encima de 0 = fortaleza</span></h2><div style="height:240px"><canvas id="ch-tsa-prof"></canvas></div></div>
+      <div class="panel"><h2>Radar del jugador <span class="r muted">por capacidad</span></h2><div style="height:240px"><canvas id="ch-tsa-radar"></canvas></div></div>
+    </div>
+    <div class="panel" id="tsa-graphs"></div>
+    <div class="grid g2">
+      <div class="panel"><h2>Detalle por categoría <span class="r muted">jugador seleccionado</span></h2><div id="tsa-detail"></div></div>
+    <div class="panel"><h2>Histórico por fechas <span class="r muted">evolución y % de mejora</span><span style="float:right"><select id="hist-metric" onchange="renderTestHist(document.getElementById('tests-player').value)"></select></span></h2>
+      <div id="hist-chips" style="display:flex;gap:22px;flex-wrap:wrap;margin:4px 0 12px"></div>
+      <div style="height:220px"><canvas id="ch-hist"></canvas></div>
+      <p class="small muted" style="margin-top:8px;line-height:1.45">Evolución de la métrica entre valoraciones, con mejor/media/peor/actual y el <b>% de mejora</b> (último vs primero, ajustado a la dirección del test, como tu Athlete Dashboard). <i>Con un CSV con columna de fecha se conecta a tus mediciones reales.</i></p>
+    </div>
+    </div>
+    <div class="panel">
+      <h2>Valoración antropométrica · nutrición <span class="r muted" id="anthro-lab"></span></h2>
+      <div id="anthro-head"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px" class="anthro-grid">
+        <div><div class="cm-lab" style="margin-bottom:6px">Composición corporal</div><div style="height:200px"><canvas id="ch-anthro-comp"></canvas></div></div>
+        <div><div class="cm-lab" style="margin-bottom:6px">Pliegues (mm) · actual vs previo</div><div style="height:200px"><canvas id="ch-anthro-skin"></canvas></div></div>
+        <div><div class="cm-lab" style="margin-bottom:6px">Somatotipo</div><div style="height:200px"><canvas id="ch-anthro-somato"></canvas></div></div>
+      </div>
+      <div id="anthro-comment" class="small" style="margin-top:12px"></div>
+    </div>
+
+    <!-- ═══ 3 · METODOLOGÍA ═══ Lo que no habla de un jugador ni del equipo,
+         sino de los propios tests: fiabilidad, correlaciones y efecto por
+         posición. Sigue plegado. -->
+    <details class="adv-wrap" ontoggle="if(this.open){setTimeout(()=>{try{Object.values(charts).forEach(c=>c&&c.resize&&c.resize());}catch(e){}},60);}">
+      <summary class="adv-sum">Metodología y fiabilidad · CV, SWC, correlaciones y tamaño del efecto <span class="small muted">(Turner 2015)</span></summary>
+    <div class="panel"><h2>Fiabilidad y cambio mínimo · CV y SWC</h2><div id="cvswc-tbl"></div>
+      <p class="small muted" style="margin-top:10px;line-height:1.55">El <b>CV %</b> mostrado es la dispersión de la plantilla (DT/media). El <b>SWC</b> (cambio mínimo que merece la pena) = DT × 0.2; también 0.6 (moderado) y 1.2 (grande). Para fijar objetivos individuales realistas, el cambio debe superar el SWC. <i>La fiabilidad real (CV intra-jugador) requiere 2–5 intentos por test; lo añadimos cuando cargues ensayos repetidos.</i></p>
+    </div>
+    <div class="grid g2">
+      <div class="panel"><h2>Matriz de correlaciones <span class="r muted">entre tests (z)</span></h2><div class="wrap-x"><div id="corr-matrix"></div></div></div>
+      <div class="panel"><h2>Relación entre dos tests</h2>
+        <div class="ctrlrow"><select id="sc-x" onchange="renderTestScatter()"></select><span class="small muted">vs</span><select id="sc-y" onchange="renderTestScatter()"></select></div>
+        <div style="height:210px"><canvas id="ch-scatter"></canvas></div>
+        <div class="small" id="sc-info" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="panel"><h2>Tamaño del efecto por posición <span class="r muted">Cohen's d</span></h2><div id="es-tbl"></div>
+      <p class="small muted" style="margin-top:10px;line-height:1.55">Magnitud del efecto (Hopkins): &lt;0.2 trivial · 0.2–0.6 pequeño · 0.6–1.2 moderado · 1.2–2 grande · &gt;2 muy grande.</p>
+    </div>
+    </details>
+
+    <!-- ═══ 4 · DATOS ═══ Los cargadores, al final: se tocan una vez cada
+         valoración, no cada vez que se abre la vista. -->
+    <div class="sec-tit">Datos <span>carga e importación</span></div>
     <details class="panel" style="padding:14px 18px">
       <summary style="cursor:pointer;font-weight:700">Cargar / editar datos de tests</summary>
       <div style="margin-top:12px">
@@ -2705,57 +2811,6 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="ctrlrow" style="margin-top:8px"><button class="btn" onclick="vhLoadPasted()">Cargar CSV pegado</button></div>
         <div class="small" id="vh-msg" style="margin-top:8px;color:var(--accent)"></div>
       </div>
-    </details>
-    <div class="panel"><h2>Evolución individual <span class="r muted">z contra su propio histórico</span></h2><div id="vh-panel"></div></div>
-    <div class="panel" id="coach-panel"><div id="tsa-prof-head"></div><input type="file" id="coach-photo-file" accept="image/*" style="display:none" onchange="coachPhotoSet(this)"></div>
-    <details class="adv-wrap" ontoggle="if(this.open){setTimeout(()=>{try{Object.values(charts).forEach(c=>c&&c.resize&&c.resize());}catch(e){}},60);}">
-      <summary class="adv-sum">Análisis avanzado · z-scores, TSA, fiabilidad y correlaciones <span class="small muted">(para Virginia)</span></summary>
-    <div class="panel" id="tsa-graphs"></div>
-    <div class="grid g2">
-      <div class="panel"><h2>z-scores por test <span class="r muted">encima de 0 = fortaleza</span></h2><div style="height:240px"><canvas id="ch-tsa-prof"></canvas></div></div>
-      <div class="panel"><h2>Radar del jugador <span class="r muted">por capacidad</span></h2><div style="height:240px"><canvas id="ch-tsa-radar"></canvas></div></div>
-    </div>
-    <div class="grid g2">
-      <div class="panel"><h2>Ranking TSA del equipo <span class="r muted">tercios: verde/ámbar/rojo</span></h2><div style="height:420px"><canvas id="ch-tsa-rank"></canvas></div></div>
-      <div class="panel"><h2>Mapa de calor · jugadores × tests <span class="r muted">z (rojo↓ verde↑)</span></h2><div class="wrap-x"><div id="tsa-heat"></div></div></div>
-    </div>
-    <div class="grid g2">
-      <div class="panel"><h2>Detalle por categoría <span class="r muted">jugador seleccionado</span></h2><div id="tsa-detail"></div></div>
-      <div class="panel"><h2>Tabla de perfiles · TSA por jugador</h2><div id="tsa-tbl"></div>
-        <p class="small muted" style="margin-top:10px;line-height:1.45">z = (valor − media)/DT; tiempos invertidos (arriba = mejor). <b>TSA</b> = media de z (Turner 2019); 0–100 = t = z×10+50 (orientativo, plantilla &lt;30).</p>
-      </div>
-    </div>
-    <div class="panel"><h2>Histórico por fechas <span class="r muted">evolución y % de mejora</span><span style="float:right"><select id="hist-metric" onchange="renderTestHist(document.getElementById('tests-player').value)"></select></span></h2>
-      <div id="hist-chips" style="display:flex;gap:22px;flex-wrap:wrap;margin:4px 0 12px"></div>
-      <div style="height:220px"><canvas id="ch-hist"></canvas></div>
-      <p class="small muted" style="margin-top:8px;line-height:1.45">Evolución de la métrica entre valoraciones, con mejor/media/peor/actual y el <b>% de mejora</b> (último vs primero, ajustado a la dirección del test, como tu Athlete Dashboard). <i>Con un CSV con columna de fecha se conecta a tus mediciones reales.</i></p>
-    </div>
-    <div class="panel">
-      <h2>Valoración antropométrica · nutrición <span class="r muted" id="anthro-lab"></span></h2>
-      <div id="anthro-head"></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px" class="anthro-grid">
-        <div><div class="cm-lab" style="margin-bottom:6px">Composición corporal</div><div style="height:200px"><canvas id="ch-anthro-comp"></canvas></div></div>
-        <div><div class="cm-lab" style="margin-bottom:6px">Pliegues (mm) · actual vs previo</div><div style="height:200px"><canvas id="ch-anthro-skin"></canvas></div></div>
-        <div><div class="cm-lab" style="margin-bottom:6px">Somatotipo</div><div style="height:200px"><canvas id="ch-anthro-somato"></canvas></div></div>
-      </div>
-      <div id="anthro-comment" class="small" style="margin-top:12px"></div>
-    </div>
-
-    <h2 style="margin:22px 4px 6px">Análisis (Turner 2015)</h2>
-    <div class="panel"><h2>Fiabilidad y cambio mínimo · CV y SWC</h2><div id="cvswc-tbl"></div>
-      <p class="small muted" style="margin-top:10px;line-height:1.55">El <b>CV %</b> mostrado es la dispersión de la plantilla (DT/media). El <b>SWC</b> (cambio mínimo que merece la pena) = DT × 0.2; también 0.6 (moderado) y 1.2 (grande). Para fijar objetivos individuales realistas, el cambio debe superar el SWC. <i>La fiabilidad real (CV intra-jugador) requiere 2–5 intentos por test; lo añadimos cuando cargues ensayos repetidos.</i></p>
-    </div>
-    <div class="grid g2">
-      <div class="panel"><h2>Matriz de correlaciones <span class="r muted">entre tests (z)</span></h2><div class="wrap-x"><div id="corr-matrix"></div></div></div>
-      <div class="panel"><h2>Relación entre dos tests</h2>
-        <div class="ctrlrow"><select id="sc-x" onchange="renderTestScatter()"></select><span class="small muted">vs</span><select id="sc-y" onchange="renderTestScatter()"></select></div>
-        <div style="height:210px"><canvas id="ch-scatter"></canvas></div>
-        <div class="small" id="sc-info" style="margin-top:8px"></div>
-      </div>
-    </div>
-    <div class="panel"><h2>Tamaño del efecto por posición <span class="r muted">Cohen's d</span></h2><div id="es-tbl"></div>
-      <p class="small muted" style="margin-top:10px;line-height:1.55">Magnitud del efecto (Hopkins): &lt;0.2 trivial · 0.2–0.6 pequeño · 0.6–1.2 moderado · 1.2–2 grande · &gt;2 muy grande.</p>
-    </div>
     </details>
   </section>
 
@@ -6485,6 +6540,80 @@ function scoreRing(val,colorVar,size,label){size=size||96;const v=clamp(val||0,0
   </div>`;}
 function tsaRows(){const st=testStats();const names=Object.keys(STATE.players);const rows=names.map(n=>{const r=testZ(n,st);return{name:n,pos:posOf(n),z:r.z,tsa:r.tsa,t100:r.t100};});rows.sort((a,b)=>(isNaN(b.tsa)?-1e9:b.tsa)-(isNaN(a.tsa)?-1e9:a.tsa));rows.forEach((r,i)=>r.rank=i+1);return rows;}
 function tsaTier(rank,n){if(rank<=Math.ceil(n/3))return'ok';if(rank<=Math.ceil(2*n/3))return'warn';return'bad';}
+/* ============ v252 · Resumen de equipo del perfil físico ============
+   Responde de un vistazo a «cómo está el grupo»: cuántos tienen valoración, el
+   reparto por tercios, dónde está fuerte y floja la plantilla por capacidad, y
+   quién tira y quién queda descolgado. Todo sale de cálculos que ya existían
+   —tsaRows, catScore, tsaTier—; no hay ningún baremo nuevo. */
+function renderTestsTeam(){
+  const box=document.getElementById('tsa-team-sum');if(!box)return;
+  const rows=tsaRows(),n=rows.length;
+  const conDato=rows.filter(r=>!isNaN(r.tsa));
+  if(!conDato.length){box.innerHTML='<p class="small muted" style="margin:0">Todavía no hay valoraciones cargadas. Usa los cargadores del final de la página.</p>';return;}
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const col=t=>t==='ok'?'var(--ok)':t==='warn'?'var(--warn)':'var(--bad)';
+  const t100=conDato.map(r=>r.t100).filter(v=>v!=null).sort((a,b)=>a-b);
+  const amp=t100.length?t100[t100.length-1]-t100[0]:null;
+  const testsCon=(typeof TESTS!=='undefined'?TESTS:[]).filter(d=>Object.keys(STATE.testHist||{}).some(nm=>
+    (STATE.testHist[nm]||[]).some(sn=>((sn.vals||{})[d.k]!=null)||((sn.sides||{})[d.k])))).length;
+  let ult='',nUlt=0;
+  Object.keys(STATE.testHist||{}).forEach(nm=>{(STATE.testHist[nm]||[]).forEach(sn=>{if(sn.date>ult)ult=sn.date;});});
+  if(ult)Object.keys(STATE.testHist||{}).forEach(nm=>{if((STATE.testHist[nm]||[]).some(sn=>sn.date===ult))nUlt++;});
+  const fecha=d=>{const a=String(d).split('-');return a.length===3?a[2]+'/'+a[1]+'/'+a[0]:d;};
+  const kpi=(l,v,sub,c)=>'<div class="tsum-t"><div class="l">'+l+'</div><div class="v"'+(c?' style="color:'+c+'"':'')+'>'+v+'</div><div class="s">'+sub+'</div></div>';
+  /* Sin «nivel medio» ni reparto por tercios: el z se estandariza dentro de la
+     plantilla, así que la media del equipo es 50 siempre y cada tercio es un
+     tercio por definición. Serían tres cifras que nunca cambian. Lo que sí dice
+     algo es cuánta gente hay medida, con cuántas pruebas, de cuándo, y cuánto se
+     abre el grupo entre el mejor y el peor. */
+  const kpis='<div class="tsum-k">'
+    +kpi('Con valoración',conDato.length+' <small style="font-size:13px;color:var(--muted)">/ '+n+'</small>',
+         conDato.length===n?'toda la plantilla':(n-conDato.length)+' sin datos',
+         conDato.length===n?'var(--ok)':'var(--warn)')
+    +kpi('Pruebas medidas',testsCon+' <small style="font-size:13px;color:var(--muted)">/ '+(typeof TESTS!=='undefined'?TESTS.length:0)+'</small>','del catálogo, con algún dato',null)
+    +kpi('Amplitud del grupo',amp==null?'—':amp+' <small style="font-size:13px;color:var(--muted)">pts</small>',
+         t100.length?('del '+t100[0]+' al '+t100[t100.length-1]+' sobre 100'):'—',
+         amp==null?null:(amp>=25?'var(--bad)':amp>=15?'var(--warn)':'var(--ok)'))
+    +kpi('Última valoración',ult?fecha(ult):'—',ult?nUlt+' jugadores medidos':'sin registrar',null)
+  +'</div>';
+  /* Una barra por capacidad: dónde cae el peor, la mediana y el mejor. Enseña de
+     un golpe si la plantilla va pareja o hay un roto, que es la lectura de grupo
+     que no da ni el ranking ni el mapa de calor. */
+  const cats=(typeof CATS!=='undefined'?CATS:[]).map(c=>{
+    const v=conDato.map(r=>({n:r.name,q:catScore(r.z,c)})).filter(o=>!isNaN(o.q))
+      .map(o=>({n:o.n,q:clamp(Math.round(o.q*10+50),0,100)})).sort((a,b)=>a.q-b.q);
+    if(!v.length)return '';
+    const mn=v[0],mx=v[v.length-1],md=v[Math.floor(v.length/2)].q;
+    const rango=mx.q-mn.q;
+    const cRango=rango>=25?'var(--bad)':rango>=15?'var(--warn)':'var(--ok)';
+    return '<div class="tsum-cat">'
+      +'<div class="tc-h"><span class="tc-n">'+esc(c)+'</span>'
+        +'<span class="tc-r" style="color:'+cRango+'">'+rango+' pts de diferencia</span></div>'
+      +'<div class="tc-bar"><div class="tc-fill" style="left:'+mn.q+'%;width:'+Math.max(rango,1)+'%"></div>'
+        +'<div class="tc-med" style="left:'+md+'%" title="mediana '+md+'"></div></div>'
+      +'<div class="tc-ends"><span>'+esc(mn.n.split(" ")[0])+' <b>'+mn.q+'</b></span>'
+        +'<span>'+esc(mx.n.split(" ")[0])+' <b>'+mx.q+'</b></span></div>'
+    +'</div>';
+  }).join('');
+  const fila=r=>{const t=tsaTier(r.rank,n);
+    return '<div class="tsum-r" onclick="tsaVerJugador(\''+esc(r.name).replace(/'/g,"\\'")+'\')">'
+      +'<img src="'+(typeof vhFoto==='function'?vhFoto(r.name):'')+'" alt="">'
+      +'<span class="nm">'+esc(r.name)+'</span>'
+      +'<span class="vl" style="color:'+col(t)+'">'+(r.t100!=null?r.t100:'—')+'</span></div>';};
+  const listas='<div class="tsum-lists">'
+    +'<div class="tsum-l"><h4>Mejor perfil</h4>'+conDato.slice(0,3).map(fila).join('')+'</div>'
+    +'<div class="tsum-l"><h4>A reforzar</h4>'+conDato.slice(-3).reverse().map(fila).join('')+'</div>'
+  +'</div>';
+  box.innerHTML='<h2 style="margin-top:0">Cómo está el equipo <span class="r muted">TSA sobre 100 · el 50 es la media de la propia plantilla</span></h2>'
+    +kpis+(cats?'<div class="tsum-cats">'+cats+'</div>':'')+listas;
+}
+/* Pulsar un jugador del resumen lo selecciona abajo y baja hasta su perfil. */
+window.tsaVerJugador=function(name){
+  const sel=document.getElementById('tests-player');
+  if(sel){sel.value=name;try{renderTestsProfile();}catch(e){}}
+  const d=document.getElementById('coach-panel');
+  if(d)d.scrollIntoView({behavior:'smooth',block:'start'});
+};
 function renderTests(){
   buildTests();buildAnthro();buildTestHist();testLogApply();
   try{vhHistApply();}catch(e){}
@@ -6501,6 +6630,7 @@ function renderTests(){
   if(box){const head=`<tr><th>#</th><th>Jugador</th><th>Pos</th>${CATS.map(c=>`<th>${c}</th>`).join('')}<th>TSA</th><th>0–100</th><th>Estado</th></tr>`;
     const body=rows.map(r=>{const cs=CATS.map(c=>catScore(r.z,c));return `<tr><td class="mono">${r.rank}</td><td>${r.name}</td><td class="small muted">${r.pos||''}</td>${cs.map(z=>`<td class="mono" style="color:var(--${isNaN(z)?'muted':z>=0?'ok':'bad'})">${isNaN(z)?'—':(z>=0?'+':'')+fmt(z,2)}</td>`).join('')}<td class="mono" style="font-weight:700">${isNaN(r.tsa)?'—':(r.tsa>=0?'+':'')+fmt(r.tsa,2)}</td><td class="mono">${r.t100==null?'—':r.t100}</td><td><span class="dot ${tsaTier(r.rank,n)}"></span>${tsaTier(r.rank,n)==='ok'?'Alto':tsaTier(r.rank,n)==='warn'?'Medio':'Bajo'}</td></tr>`;}).join('');
     box.innerHTML=`<div class="wrap-x"><table class="tbl sortable"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;}
+  try{renderTestsTeam();}catch(e){console.error('tsa-team',e);}
   renderTestsExtra();
   buildManualGrid();
   renderTestsProfile();
@@ -6511,6 +6641,8 @@ function renderTestsProfile(){
   const sel=document.getElementById('tests-player');if(!sel)return;const name=sel.value||Object.keys(STATE.players)[0];if(!name)return;
   const st=testStats();const r=testZ(name,st);const rows=tsaRows();const me=rows.find(x=>x.name===name)||{};const n=rows.length;const TT=TESTS.filter(t=>t.incTSA!==false);
   const lab=document.getElementById('tsa-prof-lab');if(lab)lab.textContent=name+(posOf(name)?' · '+posOf(name):'');
+  const sind=document.getElementById('sec-ind-nom');
+  if(sind)sind.textContent=name+(posOf(name)?' · '+posOf(name):'');
   try{renderTestsGraphs(name);}catch(e){console.error('tsa-graphs',e);}
   const head=document.getElementById('tsa-prof-head');
   // fitness score jugador vs media de su posición
@@ -12664,6 +12796,10 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
   .kpi-l,.ph-edit,.pt-pl-rd,.fc-u,.vh-esc-t,.eq-l,.crs-l,.vh-v em{font-size:10.5px}
   /* Nombres y filas que actúan como enlace: se les da alto de toque sin
      cambiar cómo se ven, alineando su contenido en vertical. */
+  /* v252 · las filas del resumen de equipo abren la ficha del jugador: alto de
+     toque, no de lectura. */
+  .tsum-r{min-height:44px}
+  .tsum-t .v{font-size:19px}
   .estado-name{display:inline-flex;align-items:center;min-height:40px}
   .ev-rd{min-height:42px;align-items:center}
   /* v249 · Sesiones de Polar: el botón de borrar caía fuera de pantalla y había
