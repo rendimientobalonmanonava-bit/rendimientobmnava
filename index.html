@@ -4183,6 +4183,41 @@ const fmt=(x,d=1)=>(x===null||x===undefined||isNaN(x))?"—":(+x).toFixed(d);
 const sum=a=>a.reduce((x,y)=>x+y,0);
 function parseSleep(raw){if(raw==null)return NaN;let s=raw.toString().trim().replace(",",".");if(/^\d{4,}$/.test(s))return NaN;if(/[:;]/.test(s)){const p=s.split(/[:;]/);return (+p[0])+(+p[1]||0)/60;}const v=parseFloat(s);return(isNaN(v)||v<0||v>16)?NaN:v;}
 function parseDate(raw){if(!raw)return null;let s=raw.toString().trim().split(" ")[0];let p=s.split(/[\/\-]/);if(p.length<3){const d=new Date(raw);return isNaN(d)?null:d;}let a=+p[0],b=+p[1],c=+p[2];if(c<100)c+=2000;let day,mon;if(a>12){day=a;mon=b;}else if(b>12){mon=a;day=b;}else{day=a;mon=b;}const d=new Date(c,mon-1,day);return isNaN(d)?null:d;}
+/* ============ v254 · REGLA ÚNICA DE PERSISTENCIA LOCAL ============
+   Nadie escribe en disco sin haber leído antes.
+
+   Este mismo fallo ya ha borrado datos tres veces —fisioterapia, sesiones de
+   Polar y ahora las duraciones del calendario— y siempre por lo mismo: una
+   función crea el estado vacío en memoria (`if(!STATE.x)STATE.x={}`), otra lo
+   persiste, y lo que hubiera guardado desaparece sin un solo aviso. Cada vez se
+   parcheó el almacén concreto; esto corta la familia entera.
+
+   lsGuardar() se niega a escribir sobre una clave que tiene contenido si en esta
+   sesión no se ha leído nunca. Es exactamente el caso catastrófico y solo ese:
+   cualquier código que haya leído antes puede escribir lo que quiera, incluso
+   dejar la clave vacía a propósito al borrar el último registro. */
+const LS_LEIDAS={};
+function lsLeer(clave,vacio){
+  LS_LEIDAS[clave]=true;
+  try{const v=JSON.parse(localStorage.getItem(clave)||'null');return v==null?vacio:v;}
+  catch(e){return vacio;}
+}
+function lsTieneDatos(clave){
+  const t=localStorage.getItem(clave);
+  return !!(t&&t!=='{}'&&t!=='[]'&&t!=='null'&&t!=='""');
+}
+function lsGuardar(clave,valor){
+  try{
+    if(!LS_LEIDAS[clave]&&lsTieneDatos(clave)){
+      console.warn('bmnava · escritura bloqueada en '+clave+': hay datos guardados y esta sesión no los ha leído.');
+      return false;
+    }
+    localStorage.setItem(clave,JSON.stringify(valor));
+    LS_LEIDAS[clave]=true;
+    return true;
+  }catch(e){return false;}
+}
+window.lsLeer=lsLeer;window.lsGuardar=lsGuardar;
 const dkey=d=>{if(!d)return"";const z=n=>(n<10?'0':'')+n;return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());};
 /* v248 · Día para la DISPONIBILIDAD. Readiness, ACWR y wellness se leen en
    REF() —el último día con datos en las hojas—, pero un estado de baja es un
@@ -4642,7 +4677,7 @@ const o={bad:0,warn:1};STATE.alerts=A.sort((a,b)=>o[a.sev]-o[b.sev]);}
 /* ===================== MÓDULO MÉDICO ===================== */
 var MED_SEL=null;
 const MED_TT_BASE=['Fisioterapia','Masaje','Medicación','Readaptación','Consulta médica','Nutrición'];
-function medDbLoad(){if(STATE.med)return;let m={};try{m=JSON.parse(localStorage.getItem('bmnava_meddb')||'{}')||{};}catch(e){m={};}
+function medDbLoad(){if(STATE.med)return;let m=lsLeer('bmnava_meddb',{})||{};
   STATE.med={inj:m.inj||[],treat:m.treat||[],cat:m.cat||[],alog:m.alog||[],statuses:m.statuses||[],ttypes:m.ttypes||[]};medApplyStatuses();
   try{medPhysioReconcile();}catch(e){}}
 /* v245 · Reconciliación Médico → Disponibilidad.
@@ -4675,8 +4710,8 @@ window.medPhysioReconcile=medPhysioReconcile;
    el trabajo de todos. Es la misma familia de fallo que ya apareció en
    fisioterapia, y explica que Virginia metiera información y desapareciera. */
 function medPersist(){
-  if(!STATE.med)return;
-  try{localStorage.setItem('bmnava_meddb',JSON.stringify(STATE.med));}catch(e){}
+  if(!STATE.med)return false;
+  return lsGuardar('bmnava_meddb',STATE.med);
 }
 function medApplyStatuses(){(STATE.med.statuses||[]).forEach(s=>{PHYSTAT[s.k]={lab:s.lab,c:s.c};MED_SEV[s.k]=s.sev;});}
 function medUid(p){return (p||'m')+'_'+Date.now()+'_'+Math.floor(Math.random()*1e4);}
@@ -7320,8 +7355,8 @@ function buildTestHist(){
 }
 /* ===== Entrada rápida de valoraciones físicas (persistente + unilateral) ===== */
 let QT_SEL={};
-function testLogLoad(){if(!STATE.testLog){try{STATE.testLog=JSON.parse(localStorage.getItem('bmnava_testlog')||'{}')||{};}catch(e){STATE.testLog={};}}}
-function testLogPersist(){try{localStorage.setItem('bmnava_testlog',JSON.stringify(STATE.testLog||{}));}catch(e){}}
+function testLogLoad(){if(!STATE.testLog)STATE.testLog=lsLeer('bmnava_testlog',{});}
+function testLogPersist(){testLogLoad();return lsGuardar('bmnava_testlog',STATE.testLog||{});}
 function testDefByK(k){return TESTS.find(t=>t.k===k);}
 function testRecValue(r){if(r.side==='uni'){const arr=[r.valL,r.valR].map(x=>+x).filter(x=>!isNaN(x));return arr.length?arr.reduce((s,x)=>s+x,0)/arr.length:null;}const v=+r.val;return isNaN(v)?null:v;}
 function testLogApply(){testLogLoad();const log=STATE.testLog||{};STATE.tests=STATE.tests||{};STATE.testHist=STATE.testHist||{};Object.keys(log).forEach(name=>{const recs=(log[name]||[]).slice().sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));if(!recs.length)return;STATE.tests[name]=STATE.tests[name]||{};STATE.testHist[name]=STATE.testHist[name]||[];recs.forEach(r=>{const v=testRecValue(r);if(v==null)return;const rv=Math.round(v*100)/100;STATE.tests[name][r.k]=rv;let snap=STATE.testHist[name].find(sn=>sn.date===r.dk);if(!snap){snap={date:r.dk,vals:{},real:true};STATE.testHist[name].push(snap);}snap.vals[r.k]=rv;snap.real=true;});STATE.testHist[name].sort((a,b)=>String(a.date).localeCompare(String(b.date)));STATE.testsReal=true;});}
@@ -7371,10 +7406,10 @@ const INFO_SECTIONS=[
  ['Redes sociales',[['instagram','Instagram','text'],['twitter','X / Twitter','text'],['tiktok','TikTok','text']]],
  ['Gestión',[['estatusClub','Estatus en el club','text'],['llegada','Fecha de llegada','text'],['estado','Estado (informativo)','text'],['repre','Representante','text'],['obs','Observaciones','text']]]
 ];
-function infoPersist(){try{localStorage.setItem('bmnava_info',JSON.stringify(STATE.info||{}));}catch(e){}}
+function infoPersist(){return lsGuardar('bmnava_info',STATE.info||{});}
 function infoLoad(){
   if(!STATE.info){
-    try{STATE.info=JSON.parse(localStorage.getItem('bmnava_info')||'{}')||{};}catch(e){STATE.info={};}
+    STATE.info=lsLeer('bmnava_info',{});
     const norm=x=>normH(x).split(/\s+/).filter(Boolean);
     Object.keys(STATE.players||{}).forEach(an=>{
       if(STATE.info[an])return;
@@ -7439,7 +7474,7 @@ function openInfoEdit(name){infoLoad();const d=STATE.info[name]||{};const _ov=en
   const mb=document.getElementById('info-mbody');mb.innerHTML=body;mb.setAttribute('data-player',name);
   document.getElementById('info-overlay').style.display='flex';
 }
-function infoSaveModal(){const mb=document.getElementById('info-mbody');if(!mb)return;const name=mb.getAttribute('data-player');const o={};mb.querySelectorAll('[data-k]').forEach(el=>{const val=(el.value||'').trim();if(val&&val!=='—')o[el.getAttribute('data-k')]=val;});STATE.info=STATE.info||{};STATE.info[name]=o;infoPersist();closeInfoEdit();
+function infoSaveModal(){const mb=document.getElementById('info-mbody');if(!mb)return;const name=mb.getAttribute('data-player');const o={};mb.querySelectorAll('[data-k]').forEach(el=>{const val=(el.value||'').trim();if(val&&val!=='—')o[el.getAttribute('data-k')]=val;});infoLoad();STATE.info=STATE.info||{};STATE.info[name]=o;infoPersist();closeInfoEdit();
   /* v227 · "Datos personales" ahora vive dentro de la ficha del jugador, no
      solo en el modo "Ficha individual" de la rejilla (que desaparece). */
   try{if(window.renderPlayerPersonal&&document.getElementById('pl-personal'))renderPlayerPersonal(name);}catch(e){}
@@ -7582,7 +7617,7 @@ const CARE_ST=['trat','dolor'];
    informe de temporada como si fuera real, y no dependía del modo demo.
    El historial de fisioterapia sale ahora solo de lo que registra el staff. */
 function buildPhysio(){
-  if(!STATE.physioUser){try{STATE.physioUser=JSON.parse(localStorage.getItem('bmnava_physio')||'{}')||{};}catch(e){STATE.physioUser={};}}
+  if(!STATE.physioUser)STATE.physioUser=lsLeer('bmnava_physio',{});
   if(STATE.physioEx)return;
   STATE.physioEx={};
 }
@@ -7631,15 +7666,15 @@ function physioCloseEpisode(name,id){physioEnsure();const arr=(STATE.physioUser|
    la sincronización activa ese vacío se propagaba a todos los dispositivos. */
 function physioEnsure(){
   if(!STATE.physioUser){
-    try{STATE.physioUser=JSON.parse(localStorage.getItem('bmnava_physio')||'{}')||{};}
+    try{STATE.physioUser=lsLeer('bmnava_physio',{});}
     catch(e){STATE.physioUser={};}
   }
   return STATE.physioUser;
 }
 window.physioEnsure=physioEnsure;
 function physioPersist(){
-  if(!STATE.physioUser)return;
-  try{localStorage.setItem('bmnava_physio',JSON.stringify(STATE.physioUser));}catch(e){}
+  if(!STATE.physioUser)return false;
+  return lsGuardar('bmnava_physio',STATE.physioUser);
 }
 function zoneRegion(z){z=(z||'').toLowerCase();
   if(/rodilla|rotulian|menisco|lca|ligament/.test(z))return'rodilla';
@@ -7695,21 +7730,21 @@ function physioStats(evs){
    que nada de eso se persistía y se perdía al recargar. */
 function medInfoEnsure(){
   if(!STATE.medInfo){
-    try{STATE.medInfo=JSON.parse(localStorage.getItem('bmnava_med')||'{}')||{};}
+    try{STATE.medInfo=lsLeer('bmnava_med',{});}
     catch(e){STATE.medInfo={};}
   }
   return STATE.medInfo;
 }
 window.medInfoEnsure=medInfoEnsure;
 function medInfoPersist(){
-  if(!STATE.medInfo)return;
-  try{localStorage.setItem('bmnava_med',JSON.stringify(STATE.medInfo));}catch(e){}
+  if(!STATE.medInfo)return false;
+  return lsGuardar('bmnava_med',STATE.medInfo);
 }
 /* v230 · Se retira el EX con alergias y antecedentes de ejemplo. Solo se
    aplicaba por nombre exacto, así que con la plantilla actual no llegaba a
    activarse, pero seguía vivo: bastaba con que alguien se llamase igual para
    colgarle un historial médico que no es suyo. */
-function medLoad(){if(!STATE.medInfo){try{STATE.medInfo=JSON.parse(localStorage.getItem('bmnava_med')||'{}')||{};}catch(e){STATE.medInfo={};}}
+function medLoad(){if(!STATE.medInfo)STATE.medInfo=lsLeer('bmnava_med',{});
   return STATE.medInfo;}
 function medSave(name){const g=id=>((document.getElementById(id)||{}).value||'').trim();medInfoEnsure();STATE.medInfo[name]={alergias:g('med-alergias'),antecedentes:g('med-antecedentes'),medicacion:g('med-medicacion'),grupo:g('med-grupo'),obs:g('med-obs')};medInfoPersist();renderPhysio(name);}
 function medRTPinfo(name){const evs=physioEvents(name).filter(e=>e.rtp&&e.status!=='disp');if(!evs.length)return null;const e=evs.slice().sort((a,b)=>a.dk<b.dk?-1:1)[evs.length-1];const d=Math.round((dkToDate(e.rtp)-new Date(new Date().toISOString().slice(0,10)))/864e5);return {e,days:d};}
@@ -7977,8 +8012,8 @@ const PHYS_DICT_DEF={
   zone:[['rodilla','rodilla'],['rotulian','rodilla'],['menisco','rodilla'],['lca','rodilla'],['osgood','rodilla'],['aquiles','aquiles'],['gemelo','gemelo'],['sóleo','sóleo'],['soleo','sóleo'],['tríceps sural','gemelo'],['triceps sural','gemelo'],['sural','gemelo'],['fascia plant','fascia plantar'],['tibial','tibial'],['peroneo','peroneo'],['popliteo','poplíteo'],['poplíteo','poplíteo'],['tobillo','tobillo'],['talón','talón'],['talon','talón'],['calcán','talón'],['haglund','talón'],['dedo','dedo'],['pie','pie'],['cuádric','cuádriceps'],['cuadric','cuádriceps'],['recto ant','cuádriceps'],['vasto','cuádriceps'],['isquio','isquios'],['bíceps fem','isquios'],['biceps fem','isquios'],['femoral','isquios'],['aductor','aductor'],['add ','aductor'],['psoas','psoas'],['glúteo','glúteo'],['gluteo','glúteo'],['tfl','TFL'],['cadera','cadera'],['sacroil','sacroilíaca'],['lumbar','lumbar'],['dorsal','dorsal'],['espalda','espalda'],['abdom','abdominal'],['oblicuo','oblicuo'],['costal','costal'],['charnela','charnela'],['hombro','hombro'],['escápula','escápula'],['escapula','escápula'],['supra','hombro'],['trapecio','trapecio'],['angular','escápula'],['rotador','hombro'],['subescap','hombro'],['infraesp','hombro'],['codo','codo'],['braquial','bíceps braquial'],['antebrazo','antebrazo'],['muñeca','muñeca'],['muneca','muñeca'],['mano','mano'],['carpo','muñeca'],['pulgar','pulgar'],['panadizo','dedo mano'],['cuello','cuello'],['cervical','cuello'],['tortícolis','cuello'],['torticolis','cuello'],['suboccipital','cuello'],['migraña','cabeza'],['nariz','cabeza'],['pómulo','cabeza'],['ojo','cabeza'],['córnea','cabeza'],['maxilo','cabeza']],
   treat:['us','voltadol','vf','vendaje','descarga','desc.','desc ','punción','puncion','kinesio','tecar','diamagnet','magneto','infiltr','masaje','drenaje','estiram','rehab','fremap','rm ','rnm','eco','plancheta','flex/ext','aines','crioterapia','cryopush','bomba','tto','mov']
 };
-function physioDict(){if(!STATE.physioDict){try{STATE.physioDict=JSON.parse(localStorage.getItem('bmnava_physiodict')||'null');}catch(e){}STATE.physioDict=STATE.physioDict||{status:[],zone:[]};}return STATE.physioDict;}
-function physioDictSave(){try{localStorage.setItem('bmnava_physiodict',JSON.stringify(STATE.physioDict||{status:[],zone:[]}));}catch(e){}}
+function physioDict(){if(!STATE.physioDict)STATE.physioDict=lsLeer('bmnava_physiodict',{status:[],zone:[]});return STATE.physioDict;}
+function physioDictSave(){physioDict();return lsGuardar('bmnava_physiodict',STATE.physioDict||{status:[],zone:[]});}
 function classifyPhysioText(txt){
   const t=(txt||'').toLowerCase().trim();const out={status:null,zone:'',side:'',sev:'',treat:'',note:(txt||'').trim(),review:false};
   if(!t)return out;
@@ -9067,10 +9102,11 @@ function hrPersist(){
   if(!HR_RESTAURADO)hrEnsure();
   try{
     const own=(STATE.hr||[]).filter(r=>r&&r.manual);
-    localStorage.setItem(HR_LS,JSON.stringify(own.map(r=>({
+    const ok=lsGuardar(HR_LS,own.map(r=>({
       name:r.name,dk:r.dk,session:r.session,hrAvg:r.hrAvg,hrMax:r.hrMax,
       kcal:r.kcal,z:r.z,dur:r.dur
-    }))));
+    })));
+    if(!ok)throw new Error('escritura bloqueada');
     return true;
   }catch(e){
     const m=document.getElementById('hr-msg');
@@ -9081,7 +9117,7 @@ function hrPersist(){
 function hrLoadSaved(){
   HR_RESTAURADO=true;
   let raw=[];
-  try{raw=JSON.parse(localStorage.getItem(HR_LS)||'[]')||[];}catch(e){raw=[];}
+  raw=lsLeer(HR_LS,[])||[];
   if(!raw.length)return 0;
   STATE.hr=STATE.hr||[];
   let n=0;
@@ -9553,10 +9589,16 @@ const CAL_INT=[null,{lab:'Baja',col:'#1ea863'},{lab:'Media',col:'#e0a800'},{lab:
 const CAL_RPE=[0,4,6,8];
 const CAL_MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let CALVIEW=null, CAL_CUR=null, CAL_EDIT=null, CAL_FORM={intens:2,dur:75,contacto:3}, CALMODE='mes', CALWEEK=null, CAL_CLIP=null;
-function calLoad(){if(!STATE.calendar){try{STATE.calendar=JSON.parse(localStorage.getItem('bmnava_cal')||'{}')||{};}catch(e){STATE.calendar={};}}if(!STATE.calMeta){try{STATE.calMeta=JSON.parse(localStorage.getItem('bmnava_calmeta')||'{}')||{};}catch(e){STATE.calMeta={};}}if(!STATE.calTpl){try{STATE.calTpl=JSON.parse(localStorage.getItem('bmnava_caltpl')||'[]')||[];}catch(e){STATE.calTpl=[];}}if(!STATE.sessDur){try{STATE.sessDur=JSON.parse(localStorage.getItem('bmnava_sessdur')||'{}')||{};}catch(e){STATE.sessDur={};}}if(!STATE.asist){try{STATE.asist=JSON.parse(localStorage.getItem('bmnava_asist')||'{}')||{};}catch(e){STATE.asist={};}}}
-function calPersist(){try{localStorage.setItem('bmnava_cal',JSON.stringify(STATE.calendar||{}));}catch(e){}}
-function calMetaPersist(){try{localStorage.setItem('bmnava_calmeta',JSON.stringify(STATE.calMeta||{}));}catch(e){}}
-function calTplPersist(){try{localStorage.setItem('bmnava_caltpl',JSON.stringify(STATE.calTpl||[]));}catch(e){}}
+function calLoad(){
+  if(!STATE.calendar)STATE.calendar=lsLeer('bmnava_cal',{});
+  if(!STATE.calMeta)STATE.calMeta=lsLeer('bmnava_calmeta',{});
+  if(!STATE.calTpl)STATE.calTpl=lsLeer('bmnava_caltpl',[]);
+  if(!STATE.sessDur)STATE.sessDur=lsLeer('bmnava_sessdur',{});
+  if(!STATE.asist)STATE.asist=lsLeer('bmnava_asist',{});
+}
+function calPersist(){return lsGuardar('bmnava_cal',STATE.calendar||{});}
+function calMetaPersist(){return lsGuardar('bmnava_calmeta',STATE.calMeta||{});}
+function calTplPersist(){return lsGuardar('bmnava_caltpl',STATE.calTpl||[]);}
 function evIntens(e){if(e.intens)return e.intens;if(e.lv!=null)return e.lv>=3?3:e.lv==2?2:1;return 2;}
 /* v241 · Sesión "sin programar": queda puesta en el calendario para saber que
    ese día se entrena, pero sin volumen, intensidad ni contacto. Hace falta una
@@ -9586,14 +9628,18 @@ function evContacto(e){if(e.contacto!=null)return e.contacto;return CAL_CONTACT_
 function evObjs(e){if(Array.isArray(e.objs))return e.objs.filter(x=>x&&String(x).trim()).slice(0,3);if(e.note&&String(e.note).trim())return [String(e.note).trim()];return [];}
 function calContactBar(c,cls){let s='';for(let i=1;i<=5;i++)s+=`<i class="${i<=c?'on':''}"></i>`;return `<span class="cal-ctbar ${cls||''}" title="Contacto ${c}/5 · ${CAL_CONTACT_LAB[c]||''}">${s}</span>`;}
 function calRealMap(){const m={};try{teamDayAgg().forEach(d=>{m[d.dk]=Math.round(d.ua);});}catch(e){}const meta=STATE.calMeta||{};Object.keys(meta).forEach(dk=>{const v=meta[dk]&&meta[dk].real;if(v!=null&&v!=='')m[dk]=Math.round(+v);});return m;}
-function sessDurGet(){if(!STATE.sessDur)STATE.sessDur={};return STATE.sessDur;}
-function sessDurPersist(){try{localStorage.setItem('bmnava_sessdur',JSON.stringify(STATE.sessDur||{}));}catch(e){}}
+/* v254 · Aquí se perdían las duraciones. Creaba el mapa vacío sin mirar el
+   disco, y el siguiente sessDurPersist() lo escribía encima de todo lo metido
+   días atrás. Basta con que algo llame aquí antes que a calLoad(), o con que una
+   sincronización haya dejado STATE.sessDur a null. */
+function sessDurGet(){if(!STATE.sessDur)STATE.sessDur=lsLeer('bmnava_sessdur',{});return STATE.sessDur;}
+function sessDurPersist(){return lsGuardar('bmnava_sessdur',sessDurGet());}
 function sessDurForName(dk,name){const m=sessDurGet()[dk];if(!m)return null;if(m[name]!=null&&m[name]!=='')return +m[name];if(m.__group!=null&&m.__group!=='')return +m.__group;return null;}
 /* v213 · convocatoria/asistencia por bloque (pista/gym). Sin esto, LB imputaba
    RPE a toda la plantilla aunque solo hubiera entrenado una parte. Ahora solo
    se imputa a quien respondió el cuestionario o a quien está en esta lista. */
-function asistGet(){if(!STATE.asist)STATE.asist={};return STATE.asist;}
-function asistPersist(){try{localStorage.setItem('bmnava_asist',JSON.stringify(STATE.asist||{}));}catch(e){}}
+function asistGet(){if(!STATE.asist)STATE.asist=lsLeer('bmnava_asist',{});return STATE.asist;}
+function asistPersist(){return lsGuardar('bmnava_asist',asistGet());}
 function asistKey(name,block){return name+'::'+block;}
 function asistHas(dk,block,name){const m=asistGet()[dk];return !!(m&&m[asistKey(name,block)]);}
 function asistToggle(dk,block,name,val){
@@ -10031,7 +10077,7 @@ function calTypeChanged(){if(CAL_EDIT)return;const t=(document.getElementById('c
 function calSetIntens(i){CAL_FORM.intens=i;document.querySelectorAll('.cal-int-pill').forEach(b=>b.classList.toggle('on',+b.dataset.i===i));}
 function calSetContacto(c){CAL_FORM.contacto=c;document.querySelectorAll('.cal-ct-pill').forEach(b=>b.classList.toggle('on',+b.dataset.c===c));const lab=document.getElementById('cal-ct-lab');if(lab)lab.textContent=CAL_CONTACT_LAB[c]||'';}
 function calSetDur(d){CAL_FORM.dur=d;const inp=document.getElementById('cal-dur');if(inp)inp.value=d;document.querySelectorAll('.cal-dur-chip').forEach(b=>b.classList.toggle('on',b.textContent===d+'′'));}
-function calMetaSave(dk){const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};const real=g('cal-mreal'),z4=g('cal-mz4'),z5=g('cal-mz5');STATE.calMeta=STATE.calMeta||{};const o={};if(real!=='')o.real=+real;if(z4!=='')o.z4=+z4;if(z5!=='')o.z5=+z5;if(Object.keys(o).length)STATE.calMeta[dk]=o;else delete STATE.calMeta[dk];calMetaPersist();calBody(dk);renderCalendar();toast('Datos del día guardados');}
+function calMetaSave(dk){const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};const real=g('cal-mreal'),z4=g('cal-mz4'),z5=g('cal-mz5');calLoad();STATE.calMeta=STATE.calMeta||{};const o={};if(real!=='')o.real=+real;if(z4!=='')o.z4=+z4;if(z5!=='')o.z5=+z5;if(Object.keys(o).length)STATE.calMeta[dk]=o;else delete STATE.calMeta[dk];calMetaPersist();calBody(dk);renderCalendar();toast('Datos del día guardados');}
 function calBody(dk){
   const b=document.getElementById('info-mbody');
   if(!b)return;
@@ -10501,8 +10547,8 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
    return out.sort((a,b)=>String(a.e.time||'99:99').localeCompare(String(b.e.time||'99:99')));
  };
  let FILT='all';
- function load(){if(!STATE.medLog){try{STATE.medLog=JSON.parse(localStorage.getItem('bmnava_medlog')||'{}')||{};}catch(e){STATE.medLog={};}}return STATE.medLog;}
- function persist(){try{localStorage.setItem('bmnava_medlog',JSON.stringify(STATE.medLog||{}));}catch(e){}}
+ function load(){if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});return STATE.medLog;}
+ function persist(){load();return lsGuardar('bmnava_medlog',STATE.medLog||{});}
  function fmt(dk){if(!dk)return'';const p=dk.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:dk;}
  function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
  const q=name=>name.replace(/'/g,"\\'");
@@ -10758,12 +10804,12 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
     La carga se hace aquí y no con el load() del módulo de agenda médica, que vive
     en otro IIFE y no está en este ámbito. */
  function medLogRW(){
-  if(!STATE.medLog){try{STATE.medLog=JSON.parse(localStorage.getItem('bmnava_medlog')||'{}')||{};}catch(e){STATE.medLog={};}}
+  if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});
   return STATE.medLog;
  }
  window.heroSaveMed=function(name){const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}const ML=medLogRW();const ev={id:'m_'+Date.now(),type:ty,dk,time:g('mh-time')||'',afecta:g('mh-afecta')||'no',title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()};
   (ML[name]=ML[name]||[]).push(ev);
-  try{localStorage.setItem('bmnava_medlog',JSON.stringify(ML));}catch(e){}
+  lsGuardar('bmnava_medlog',ML);
   var marcado=false;try{if(window.citaSync)marcado=citaSync(name,ev);}catch(e){}
   if(window.medRenderPlayer)medRenderPlayer(name);
   closeHeroForm();
@@ -14581,10 +14627,10 @@ const EX_LS='bmnava_expl';
 let EX_MEM=null;
 function exLoad(){
   if(EX_MEM)return EX_MEM;
-  try{EX_MEM=JSON.parse(localStorage.getItem(EX_LS)||'{}')||{};}catch(e){EX_MEM={};}
+  EX_MEM=lsLeer(EX_LS,{});
   return EX_MEM;
 }
-function exPersist(){try{localStorage.setItem(EX_LS,JSON.stringify(exLoad()));}catch(e){}}
+function exPersist(){return lsGuardar(EX_LS,exLoad());}
 function exNames(){return Object.keys(exLoad()).sort((a,b)=>a.localeCompare(b,'es'));}
 function exIs(n){return !!exLoad()[n];}
 function exAdd(nombre,pos,temp){
@@ -15675,14 +15721,14 @@ let PH_SCANNED=false;
 /* ---------- almacén local ---------- */
 function phLoad(){
   if(PH_MEM)return PH_MEM;
-  try{PH_MEM=JSON.parse(localStorage.getItem(PH_LS)||'{}')||{};}catch(e){PH_MEM={};}
+  PH_MEM=lsLeer(PH_LS,{});
   return PH_MEM;
 }
 /* v214 · invalida la caché en memoria para que la próxima phLoad() relea
    localStorage (usado tras un pull de sincronización). */
 window.phResetCache=function(){PH_MEM=null;};
 function phPersist(){
-  try{localStorage.setItem(PH_LS,JSON.stringify(phLoad()));return true;}
+  try{if(!lsGuardar(PH_LS,phLoad()))throw new Error('bloqueada');return true;}
   catch(e){
     /* QuotaExceededError: el almacén del navegador ronda los 5 MB y las fotos son
        lo único voluminoso que guarda la app. Se avisa en vez de fallar en silencio. */
