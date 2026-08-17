@@ -2519,7 +2519,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       </div>
       <div id="cal-week-head"></div>
       <div style="height:250px;margin-top:10px"><canvas id="cal-week-main"></canvas></div>
-      <p class="hint" style="margin-top:8px">El carril gris de fondo es lo <b>planificado</b>; la barra de color, centrada encima, es la carga <b>real</b> registrada, con gimnasio abajo y pista arriba. Cuanto más llena esté la barra respecto al carril, más se ha cumplido el plan. La línea es el RPE medio del equipo. Pasa el ratón por un día para ver el desglose y la desviación.</p>
+      <p class="hint" style="margin-top:8px">La barra es la carga <b>real</b> registrada, con gimnasio abajo y pista arriba, y encima lleva escrita la carga del día y su desviación. La raya oscura sobre cada barra marca lo <b>planificado</b>: si la barra la supera, se ha hecho más de lo previsto. La discontinua es la media de la semana y la línea negra el RPE medio del equipo.</p>
     </div>
     <div id="cal-body"></div>
   </section>
@@ -3839,6 +3839,108 @@ function lbcPlanWeek(dk){
   return out;
 }
 window.lbcPlanWeek=lbcPlanWeek;
+/* ============ v261 · Dibujo del gráfico de carga semanal ============
+   Solo afecta a «Carga de la semana» del calendario. Tres capas que Chart.js no
+   trae de serie y que son las que hacen legible un panel de carga:
+
+     1 · MARCA DE PLAN. Una línea corta a la altura de lo planificado sobre cada
+         barra. El plan es una referencia, no un volumen: dibujarlo como barra
+         obligaba a comparar dos áreas.
+     2 · ETIQUETA DE VALOR. La carga real escrita encima de cada barra, con la
+         desviación debajo y en el color que ya usa calDev. Sin pasar el ratón.
+     3 · LÍNEA DE MEDIA. Discontinua, a la altura de la media real de la semana,
+         para saber si un día se sale de lo habitual.
+
+   Los colores salen de los de siempre: pista índigo, gimnasio verde, y la
+   desviación por calDev (verde ≤15%, ámbar ≤30%, rojo por encima), que es el
+   único sitio del gráfico donde el rojo tiene sentido: es una alerta. */
+const lbcPlugCalWeek={
+  id:'lbcPlugCalWeek',
+  afterDatasetsDraw(ch,args,opts){
+    const cfg=(opts&&opts.datos)||null;
+    if(!cfg)return;
+    const {real,plan}=cfg;
+    const ctx=ch.ctx, ejeY=ch.scales.y, area=ch.chartArea;
+    const meta=ch.getDatasetMeta(0);      // pista · real (segmento superior)
+    if(!meta||!meta.data.length)return;
+    ctx.save();
+
+    /* --- 3 · media real de la semana --- */
+    const vals=real.map(d=>d.total).filter(v=>v>0);
+    if(vals.length>=2){
+      const media=vals.reduce((a,b)=>a+b,0)/vals.length;
+      const y=ejeY.getPixelForValue(media);
+      if(y>area.top&&y<area.bottom){
+        ctx.setLineDash([5,5]);ctx.lineWidth=1;ctx.strokeStyle='rgba(15,30,61,.28)';
+        ctx.beginPath();ctx.moveTo(area.left,y);ctx.lineTo(area.right,y);ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font='700 9.5px Inter,system-ui,sans-serif';
+        ctx.fillStyle='rgba(15,30,61,.55)';ctx.textAlign='left';ctx.textBaseline='bottom';
+        ctx.fillText('media '+Math.round(media)+' UA',area.left+4,y-3);
+      }
+    }
+
+    meta.data.forEach((bar,i)=>{
+      const r=real[i]||{},pl=plan[i]||{};
+      const ancho=bar.width;
+      const cx=bar.x;
+      /* --- 1 · marca del plan --- */
+      if(pl.plan>0){
+        const y=ejeY.getPixelForValue(pl.plan);
+        if(y>=area.top-1&&y<=area.bottom+1){
+          const w=ancho*0.72;
+          ctx.strokeStyle=COL_RPE;ctx.lineWidth=2.5;ctx.lineCap='round';
+          ctx.beginPath();ctx.moveTo(cx-w/2,y);ctx.lineTo(cx+w/2,y);ctx.stroke();
+        }
+      }
+      /* --- 2 · etiqueta con la carga real --- */
+      const tot=Math.round(r.total||0);
+      if(!tot)return;
+      const dev=(typeof calDev==='function')?calDev(pl.plan,r.total):null;
+      /* En pantallas estrechas cada día dispone de unos 34px: una cápsula con
+         valor y desviación no cabe y se solaparía con la del día siguiente. Ahí
+         se escribe solo la carga, sin cápsula y en cuerpo pequeño. */
+      const hueco=area.width/Math.max(1,meta.data.length);
+      const compacto=hueco<52;
+      const t1=String(tot);
+      const t2=(compacto||!dev)?'':(dev.pct>=0?'+':'')+dev.pct+'%';
+      if(compacto){
+        ctx.font='800 9.5px Inter,system-ui,sans-serif';
+        ctx.textAlign='center';ctx.textBaseline='bottom';
+        ctx.fillStyle=dev?dev.col:COL_RPE;
+        ctx.fillText(t1,cx,Math.max(10,bar.y-4));
+        return;
+      }
+      ctx.font='800 12.5px Inter,system-ui,sans-serif';
+      const w1=ctx.measureText(t1).width;
+      ctx.font='700 10px Inter,system-ui,sans-serif';
+      const w2=t2?ctx.measureText(t2).width:0;
+      const bw=Math.max(w1,w2)+14, bh=t2?30:20;
+      /* La cápsula puede salirse del área del gráfico y entrar en el margen
+         superior reservado en layout.padding: ahí se dibuja igual y no tapa la
+         barra. Solo se mete dentro si de verdad no cabe en el lienzo. */
+      let by=bar.y-bh-6;
+      if(by<2)by=bar.y+6;
+      const bx=cx-bw/2;
+      /* cápsula clara con borde, como en los paneles de referencia */
+      ctx.beginPath();
+      if(ctx.roundRect)ctx.roundRect(bx,by,bw,bh,8);
+      else ctx.rect(bx,by,bw,bh);
+      ctx.fillStyle='#fff';ctx.fill();
+      ctx.strokeStyle='rgba(15,30,61,.14)';ctx.lineWidth=1;ctx.stroke();
+      ctx.textAlign='center';ctx.textBaseline='top';
+      ctx.font='800 12.5px Inter,system-ui,sans-serif';
+      ctx.fillStyle=COL_RPE;
+      ctx.fillText(t1,cx,by+(t2?4:4));
+      if(t2){
+        ctx.font='700 10px Inter,system-ui,sans-serif';
+        ctx.fillStyle=dev?dev.col:'rgba(15,30,61,.45)';
+        ctx.fillText(t2,cx,by+18);
+      }
+    });
+    ctx.restore();
+  }
+};
 function lbcDrawCalWeek(canvasId,dk){
   const cv=document.getElementById(canvasId);
   if(!cv||typeof Chart==='undefined')return null;
@@ -3848,6 +3950,7 @@ function lbcDrawCalWeek(canvasId,dk){
   if(prev)prev.destroy();
   return new Chart(cv,{
     type:'bar',
+    plugins:[lbcPlugCalWeek],
     data:{
       labels:real.map(d=>d.lab),
       datasets:[
@@ -3860,17 +3963,21 @@ function lbcDrawCalWeek(canvasId,dk){
            El plan va en gris a propósito. Antes usaba las mismas tintas que lo
            real y había cuatro colores parecidos compitiendo; el desglose
            pista/gimnasio del plan sigue estando, en el tooltip. */
-        {label:'Planificado',data:plan.map(d=>d.plan||null),
-         backgroundColor:'rgba(15,30,61,.10)',
-         stack:'plan',grouped:false,order:6,borderRadius:10,
-         barPercentage:1,categoryPercentage:.88,maxBarThickness:98},
-        /* v206 · el gimnasio va SIEMPRE abajo y la pista encima. */
+        /* v261 · El plan deja de dibujarse como barra. Era lo que ensuciaba: dos
+           volúmenes compitiendo por el mismo hueco. Ahora es una MARCA de
+           objetivo —una línea corta a la altura del plan sobre cada barra— y la
+           carga real es el único volumen del gráfico. El valor va escrito encima
+           de cada barra, que es lo que hace legible de un vistazo un panel de
+           carga sin tener que pasar el ratón. Todo eso lo pinta el plugin
+           lbcPlugPlan de abajo; aquí solo queda el dato real.
+           El plan sigue en el dataset, oculto, para que el tooltip y la leyenda
+           lo sigan teniendo. */
         {label:'Pista · real',data:real.map(d=>Math.round(d.pista)||null),backgroundColor:COL_PISTA,
-         stack:'real',grouped:false,order:3,borderRadius:8,borderSkipped:false,
-         barPercentage:.64,categoryPercentage:.88,maxBarThickness:60},
+         stack:'real',order:3,borderRadius:{topLeft:7,topRight:7},borderSkipped:false,
+         barPercentage:.66,categoryPercentage:.9,maxBarThickness:64},
         {label:'Gimnasio · real',data:real.map(d=>Math.round(d.gym)||null),backgroundColor:COL_GYM,
-         stack:'real',grouped:false,order:2,borderRadius:8,borderSkipped:false,
-         barPercentage:.64,categoryPercentage:.88,maxBarThickness:60},
+         stack:'real',order:2,borderRadius:{bottomLeft:7,bottomRight:7},borderSkipped:false,
+         barPercentage:.66,categoryPercentage:.9,maxBarThickness:64},
         {label:'RPE',data:real.map(d=>d.rpe!=null?Math.round(d.rpe*10)/10:null),
          type:'line',yAxisID:'y2',borderColor:COL_RPE,backgroundColor:COL_RPE,
          borderWidth:2,pointRadius:4,tension:.25,spanGaps:true,order:1}
@@ -3879,7 +3986,12 @@ function lbcDrawCalWeek(canvasId,dk){
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
+      /* Aire arriba para que la etiqueta quepa SOBRE la barra más alta. Con
+         grace en el eje el hueco queda dentro del área del gráfico, así que la
+         cápsula no se sale del lienzo ni tapa la barra. */
+      layout:{padding:{top:44}},
       plugins:{
+        lbcPlugCalWeek:{datos:{real,plan}},
         legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},usePointStyle:true}},
         tooltip:{callbacks:{afterBody:items=>{
           const idx=items[0].dataIndex;
@@ -3897,7 +4009,7 @@ function lbcDrawCalWeek(canvasId,dk){
       },
       scales:{
         x:{stacked:true,grid:{display:false},ticks:{font:{size:11}}},
-        y:{stacked:true,beginAtZero:true,title:{display:true,text:'CARGA · UA',font:{size:10,weight:'700'}},
+        y:{stacked:true,beginAtZero:true,grace:'6%',title:{display:true,text:'CARGA · UA',font:{size:10,weight:'700'}},
            grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
         y2:{position:'right',min:0,max:10,title:{display:true,text:'RPE',font:{size:10,weight:'700'}},
             grid:{display:false},ticks:{stepSize:2,font:{size:10}}}
