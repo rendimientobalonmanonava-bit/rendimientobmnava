@@ -1040,6 +1040,7 @@ main{padding:13px 16px 70px}
 .cal-match-dnum{color:#fff}
 .cal-match-body{flex:1;display:flex;flex-direction:column;justify-content:center;gap:3px;padding:2px 56px 14px 2px}
 .cal-match-k{font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#fff;line-height:1.1}
+.cal-match-comp{font-size:10px;font-weight:700;color:rgba(255,255,255,.82);text-transform:lowercase}
 .cal-match-rival{font-size:12.5px;font-weight:700;color:#fff;opacity:.97;line-height:1.15}
 .cal-match-h{font-size:11px;font-weight:600;color:#fff;opacity:.86}
 .cal-match-logo{position:absolute;right:9px;bottom:9px;height:30px;width:auto;background:#fff;border-radius:7px;padding:3px 5px;box-shadow:0 1px 5px rgba(0,0,0,.2)}
@@ -1508,6 +1509,20 @@ body.sb-min .sb-ver{display:none}
 .cw-ev-tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cw-ev-du{margin-left:auto;font-size:10px;color:var(--muted);font-weight:700;flex:none}
 .cw-rest{font-size:11.5px;color:var(--muted2);text-align:center;padding:4px 0}
+/* v256 · Partidos. El distintivo es índigo, nunca rojo: el rojo queda para
+   alertas (CLAUDE.md 2.3). Un partido se lee de un vistazo por el borde
+   izquierdo y la etiqueta con el rival. */
+.cw-ev-p{border-left:3px solid var(--accent);font-weight:700}
+.cw-ev-badge{flex:none;font-size:8.5px;font-weight:800;letter-spacing:.05em;background:var(--accent);color:#fff;border-radius:4px;padding:1px 4px}
+.cal-pt-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11.5px;margin-top:4px}
+.cal-pt-badge{font-size:9px;font-weight:800;letter-spacing:.05em;background:var(--accent);color:#fff;border-radius:4px;padding:2px 5px}
+.cal-pt-hr{font-size:10px;font-weight:700;border-radius:5px;padding:2px 6px;border:1px solid var(--line)}
+.cal-pt-hr.medido{color:#1ea863;border-color:color-mix(in srgb,#1ea863 40%,transparent)}
+.cal-pt-hr.estimado{color:var(--muted);border-style:dashed}
+.cal-partido{border:1px solid var(--accent);border-radius:12px;padding:11px 12px;background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.cal-partido-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
+.cal-partido-grid label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:700;min-width:0}
+.cal-partido-grid input,.cal-partido-grid select{width:100%;min-width:0}
 .cw-ev-objs{display:flex;flex-direction:column;gap:2px;margin:-1px 0 1px}
 .cw-ev-obj{font-size:10px;line-height:1.3;color:var(--muted);background:var(--panel2);border-left:2px solid var(--accent);border-radius:0 5px 5px 0;padding:2px 6px;white-space:normal;word-break:break-word}
 .cal-ev-objs{display:flex;flex-direction:column;gap:3px;margin-top:5px}
@@ -9769,8 +9784,35 @@ function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 /* --- Toast --- */
 let _toastT;
 /* ===================== CALENDARIO MENSUAL ===================== */
-const CAL_TYPES={entreno:{lab:'Entreno',col:'#0071e3',intens:2,dur:75},fuerza:{lab:'Fuerza',col:'#7a5af8',intens:2,dur:60},partido:{lab:'Partido',col:'#e23b32',intens:3,dur:60},evento:{lab:'Evento',col:'#6b7280',intens:1,dur:0},descanso:{lab:'Descanso',col:'#1ea863',intens:1,dur:0}};
+const CAL_TYPES={entreno:{lab:'Entreno',col:'#0071e3',intens:2,dur:75},fuerza:{lab:'Fuerza',col:'#7a5af8',intens:2,dur:60},partido:{lab:'Partido',col:'#3056c4',intens:3,dur:60},evento:{lab:'Evento',col:'#6b7280',intens:1,dur:0},descanso:{lab:'Descanso',col:'#1ea863',intens:1,dur:0}};
 const CAL_INT=[null,{lab:'Baja',col:'#1ea863'},{lab:'Media',col:'#e0a800'},{lab:'Alta',col:'#e23b32'}];
+/* ============ v256 · PARTIDOS · paso 1 ============
+   Un partido es una sesión más —entra en carga, en sRPE y en el calendario—
+   pero con datos propios. El tipo 'partido' ya existía en CAL_TYPES; lo que no
+   había eran sus campos ni una marca visual que lo separase de un entreno.
+   El color pasa de rojo a índigo: el rojo está reservado a alertas.
+
+   Los minutos jugados NO se guardan aquí. Van por jugador y salen del campo de
+   duración que cada uno envía en el formulario de RPE los días de partido
+   (confirmado por Daniel), así que ya viven en STATE.rpe y no hay que
+   introducirlos dos veces. */
+const PARTIDO_COMP={amistoso:'Amistoso',liga:'Liga',copa:'Copa'};
+const PARTIDO_NIVEL={superior:'Superior',similar:'Similar',inferior:'Inferior'};
+/* origenHR se marca por partido, no por jugador: en pretemporada se juega con
+   pulsómetro y en liga no. En un partido medido, el jugador que no tenga fila
+   de Polar queda SIN DATO — ni medido ni estimado. */
+const PARTIDO_ORIGEN={medido:'Medido con pulsómetro',estimado:'Sin pulsómetro · estimado'};
+const PARTIDO_DEF={competicion:'liga',nivelRival:'similar',origenHR:'estimado'};
+function evEsPartido(e){return !!(e&&e.type==='partido');}
+function evRival(e){return (e&&e.rival||'').trim();}
+function evComp(e){return (e&&e.competicion)||PARTIDO_DEF.competicion;}
+function evNivel(e){return (e&&e.nivelRival)||PARTIDO_DEF.nivelRival;}
+function evOrigenHR(e){return (e&&e.origenHR)||PARTIDO_DEF.origenHR;}
+/* Etiqueta corta para el calendario: «vs Cangas · amistoso». */
+function partidoEtiqueta(e){
+  const r=evRival(e);
+  return (r?'vs '+r:'Partido')+' · '+(PARTIDO_COMP[evComp(e)]||evComp(e)).toLowerCase();
+}
 const CAL_RPE=[0,4,6,8];
 const CAL_MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let CALVIEW=null, CAL_CUR=null, CAL_EDIT=null, CAL_FORM={intens:2,dur:75,contacto:3}, CALMODE='mes', CALWEEK=null, CAL_CLIP=null;
@@ -10049,7 +10091,7 @@ function renderCalendar(){
     const corner=hasMatch?'':(dev?`<span class="cal-dev" style="color:${dev.col};border-color:${dev.col}" title="Desviación plan vs real: ${dev.lab}">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:(rv!=null?`<span class="cal-realbadge" title="Carga real (RPE): ${rv} UA">${rv}</span>`:''));
     cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" onclick="calOpenDay('${dk}')">
       <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${citas.length?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length}): ${citas.map(c=>c.name+(c.e.time?' '+c.e.time:'')+(c.e.afecta==='pierde'?' · pierde entreno':c.e.afecta==='parcial'?' · parcial':'')).join(' · ')}">🩺 ${citas.length}</span>`:''}${corner}</div>
-      ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body"><span class="cal-match-k">Partido</span>${matchEv.title?`<span class="cal-match-rival">${matchEv.title}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-chips">${chips}</div>
+      ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body"><span class="cal-match-k">Partido</span>${(evRival(matchEv)||matchEv.title)?`<span class="cal-match-rival">${(evRival(matchEv)?'vs '+evRival(matchEv):matchEv.title).replace(/</g,'&lt;')}</span>`:''}${evRival(matchEv)?`<span class="cal-match-comp">${(PARTIDO_COMP[evComp(matchEv)]||'').toLowerCase()}${evOrigenHR(matchEv)==='medido'?' · FC medida':''}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-chips">${chips}</div>
       <div class="cal-bars">
         ${pl.n?`<div class="cal-plan" title="Plan · ${pl.lab} intensidad · contacto ${pl.contacto}/5 · ${pl.totMin}′ (${pl.planUA} UA est.)">${calTraffic(pl.peak,38,'cal-tl')}<div class="cal-plan-tx"><span class="cal-plan-grade" style="color:${pl.col}">${pl.lab}</span><span class="cal-plan-dur"><span class="cal-clock">◷</span> ${pl.totMin}′</span>${pl.contacto>0?`<span class="cal-plan-ct">${calContactBar(pl.contacto)}</span>`:''}</div></div>`:''}
         ${rv!=null?`<div class="cal-real-row" title="Carga real: ${rv} UA${calRealManual(dk)!=null?' (manual)':' (RPE)'}"><span class="cal-rl-lab">REAL</span><div class="cal-bar"><div style="width:${Math.max(8,Math.min(100,Math.round(rv/700*100)))}%;background:var(--c-data,#3f5572)"></div></div><span class="cal-rl-val">${rv}</span></div>`:(pl.n?`<div class="cal-real-row cal-real-empty" title="Sin carga real registrada este día"><span class="cal-rl-lab">REAL</span><div class="cal-bar"></div><span class="cal-rl-val">—</span></div>`:'')}
@@ -10091,7 +10133,8 @@ function renderCalWeek(box){
   const cols=dks.map((dk,i)=>{
     const evs=(STATE.calendar[dk]||[]);const pl=calDayPlan(dk);const rv=real[dk];const dev=pl.n?calDev(pl.planUA,rv):null;
     const bajas=calBajas(dk);const z=calZonesGet(dk);const md=mdMap[dk];const a=dk.split('-');
-    const evList=evs.length?evs.map(e=>{const t=CAL_TYPES[e.type],ci=CAL_INT[evIntens(e)],du=evDur(e),os=evObjs(e);return `<div class="cw-ev" style="--c:${t.col}"><span class="cw-ev-dot" style="background:${ci.col}"></span><span class="cw-ev-tx">${e.title||t.lab}</span>${du?`<span class="cw-ev-du">${du}′</span>`:''}</div>${os.length?`<div class="cw-ev-objs">${os.map(o=>`<div class="cw-ev-obj">${o.replace(/</g,'&lt;')}</div>`).join('')}</div>`:''}`;}).join(''):'<div class="cw-rest">Sin sesión</div>';
+    const evList=evs.length?evs.map(e=>{const t=CAL_TYPES[e.type],ci=CAL_INT[evIntens(e)],du=evDur(e),os=evObjs(e);const esP=evEsPartido(e);
+      return `<div class="cw-ev${esP?' cw-ev-p':''}" style="--c:${t.col}"><span class="cw-ev-dot" style="background:${ci.col}"></span>${esP?'<span class="cw-ev-badge">PARTIDO</span>':''}<span class="cw-ev-tx">${esP?partidoEtiqueta(e).replace(/</g,'&lt;'):(e.title||t.lab)}</span>${du?`<span class="cw-ev-du">${du}′</span>`:''}</div>${os.length?`<div class="cw-ev-objs">${os.map(o=>`<div class="cw-ev-obj">${o.replace(/</g,'&lt;')}</div>`).join('')}</div>`:''}`;}).join(''):'<div class="cw-rest">Sin sesión</div>';
     const zoneStr=(z.z4!=null&&z.z4!=='')||(z.z5!=null&&z.z5!=='')?`<div class="cw-zones">${z.z5!=null&&z.z5!==''?`<span>Z5 <b>${z.z5}%</b></span>`:''}${z.z4!=null&&z.z4!==''?`<span>Z4 <b>${z.z4}%</b></span>`:''}</div>`:'';
     return `<div class="cw-col${dk===todayDk?' cw-today':''}${md==='MD'?' cw-md':''}${pl.n?' cw-haspl':''}" style="--cwc:${pl.n?pl.col:'transparent'}" onclick="calOpenDay('${dk}')">
       ${pl.n?`<i class="cw-band" style="background:${pl.col}"></i>`:''}<div class="cw-head"><div class="cw-wd">${wdL[i]}</div><div class="cw-date">${a[2]}/${a[1]}</div>${md?`<div class="cw-md-tag${md==='MD'?' is-md':''}">${md}</div>`:''}</div>
@@ -10136,7 +10179,8 @@ function calDayBody(dk){
   const list=evs.length?evs.map(e=>{const t=CAL_TYPES[e.type],ci=CAL_INT[evIntens(e)],du=evDur(e),ct=evContacto(e),os=evObjs(e);const sp=evSP(e);
     const detalle=sp
       ? `<div class="small"><span class="cal-sp">sin programar</span> <span class="muted">${t.lab} · falta volumen, intensidad y contacto</span></div>`
-      : `<div class="small muted"><span style="color:${ci.col};font-weight:700">●</span> ${t.lab} · ${ci.lab} intensidad${du?` · ${du}′`:''}${e.type!=='descanso'&&e.type!=='evento'?` · contacto ${ct}/5`:''}</div>`;
+      : `<div class="small muted"><span style="color:${ci.col};font-weight:700">●</span> ${t.lab} · ${ci.lab} intensidad${du?` · ${du}′`:''}${e.type!=='descanso'&&e.type!=='evento'?` · contacto ${ct}/5`:''}</div>`
+      +(evEsPartido(e)?`<div class="cal-pt-line"><span class="cal-pt-badge">PARTIDO</span>${evRival(e)?`<b>vs ${evRival(e).replace(/</g,'&lt;')}</b>`:'<span class="muted">sin rival</span>'} <span class="muted">· ${PARTIDO_COMP[evComp(e)]} · rival ${PARTIDO_NIVEL[evNivel(e)].toLowerCase()}</span> <span class="cal-pt-hr ${evOrigenHR(e)}">${evOrigenHR(e)==='medido'?'FC medida':'FC estimada'}</span></div>`:'');
     return `<div class="cal-ev-row${CAL_EDIT===e.id?' editing':''}${sp?' sp':''}"><span class="cal-ev-dot" style="background:${t.col}${sp?';opacity:.45':''}"></span><div style="flex:1;min-width:0"><b>${e.title||t.lab}</b>${e.time?` <span class="muted">· ${e.time}</span>`:''}${detalle}${os.length?`<div class="cal-ev-objs">${os.map((o,i)=>`<div class="cal-ev-obj"><span class="cal-ev-obj-n">${i+1}</span>${o.replace(/</g,'&lt;')}</div>`).join('')}</div>`:''}</div><button class="btn ghost cal-ev-btn" title="${sp?'Programar: añadir volumen, intensidad y contacto':'Editar'}" onclick="calEditEvent('${dk}','${e.id}')">${sp?'Programar':'✎'}</button><button class="btn ghost" style="padding:5px 9px" title="Borrar" onclick="calDelEvent('${dk}','${e.id}')">✕</button></div>`;}).join(''):'<p class="small muted">Sin nada planificado este día todavía.</p>';
   /* v241 · si el día tiene sesiones puestas pero sin programar, se dice, para
      que no parezca que falta planificación cuando lo que falta es el detalle. */
@@ -10234,6 +10278,16 @@ function calDayBody(dk){
    <div class="cal-addform"><div class="cm-lab" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">${ed?'Editar sesión':'Planificar sesión'}${ed?`<button class="btn ghost" style="padding:3px 8px;font-size:12px" onclick="calCancelEdit()">Cancelar edición</button>`:''}</div>
      <div class="cal-form-grid">
        <label class="full">Tipo<select id="cal-type" onchange="calTypeChanged()">${typeOpts}</select></label>
+       <div class="full cal-partido" id="cal-partido-box" style="display:${ed&&ed.type==='partido'?'':'none'}">
+         <div class="cm-sub">Datos del partido</div>
+         <div class="cal-partido-grid">
+           <label>Rival<input id="cal-rival" maxlength="60" placeholder="p. ej. Cangas" value="${ed?evRival(ed).replace(/"/g,'&quot;'):''}"></label>
+           <label>Competición<select id="cal-comp">${Object.keys(PARTIDO_COMP).map(k=>`<option value="${k}"${(ed?evComp(ed):PARTIDO_DEF.competicion)===k?' selected':''}>${PARTIDO_COMP[k]}</option>`).join('')}</select></label>
+           <label>Nivel del rival<select id="cal-nivel">${Object.keys(PARTIDO_NIVEL).map(k=>`<option value="${k}"${(ed?evNivel(ed):PARTIDO_DEF.nivelRival)===k?' selected':''}>${PARTIDO_NIVEL[k]}</option>`).join('')}</select></label>
+           <label>Frecuencia cardíaca<select id="cal-orighr">${Object.keys(PARTIDO_ORIGEN).map(k=>`<option value="${k}"${(ed?evOrigenHR(ed):PARTIDO_DEF.origenHR)===k?' selected':''}>${PARTIDO_ORIGEN[k]}</option>`).join('')}</select></label>
+         </div>
+         <p class="small muted" style="margin:8px 0 0">Los minutos jugados de cada jugador salen del campo de duración que envía en el formulario de RPE; no hay que meterlos aquí.</p>
+       </div>
        <div class="full"><div class="cm-sub">Intensidad</div><div class="cal-int-row">${intPills}</div></div>
        <div class="full"><div class="cm-sub">Grado de contacto <span class="muted" style="font-weight:400">· <span id="cal-ct-lab">${CAL_CONTACT_LAB[curC]||''}</span></span></div><div class="cal-ct-row">${ctPills}<span class="cal-ct-scale">1 sin contacto · 5 juego real</span></div></div>
        <div class="full"><div class="cm-sub">Tiempo · duración</div><div class="cal-dur-row"><input id="cal-dur" type="number" min="0" step="5" value="${curD}" oninput="CAL_FORM.dur=+this.value" style="width:92px"><span class="muted" style="font-size:13px">min</span>${durChips}</div></div>
@@ -10258,7 +10312,14 @@ function calDayBody(dk){
      </div>
    </div>`;
 }
-function calTypeChanged(){if(CAL_EDIT)return;const t=(document.getElementById('cal-type')||{}).value;if(CAL_TYPES[t]){calSetIntens(CAL_TYPES[t].intens);calSetDur(CAL_TYPES[t].dur);calSetContacto(CAL_CONTACT_DEF[t]!=null?CAL_CONTACT_DEF[t]:3);}}
+function calTypeChanged(){
+ /* La caja de datos del partido se muestra siempre que el tipo sea partido,
+    también editando: la salida temprana de abajo solo afecta a los valores por
+    defecto, que al editar no se deben pisar. */
+ try{const tt=(document.getElementById('cal-type')||{}).value;
+   const box=document.getElementById('cal-partido-box');
+   if(box)box.style.display=(tt==='partido')?'':'none';}catch(e){}
+ if(CAL_EDIT)return;const t=(document.getElementById('cal-type')||{}).value;if(CAL_TYPES[t]){calSetIntens(CAL_TYPES[t].intens);calSetDur(CAL_TYPES[t].dur);calSetContacto(CAL_CONTACT_DEF[t]!=null?CAL_CONTACT_DEF[t]:3);}}
 function calSetIntens(i){CAL_FORM.intens=i;document.querySelectorAll('.cal-int-pill').forEach(b=>b.classList.toggle('on',+b.dataset.i===i));}
 function calSetContacto(c){CAL_FORM.contacto=c;document.querySelectorAll('.cal-ct-pill').forEach(b=>b.classList.toggle('on',+b.dataset.c===c));const lab=document.getElementById('cal-ct-lab');if(lab)lab.textContent=CAL_CONTACT_LAB[c]||'';}
 function calSetDur(d){CAL_FORM.dur=d;const inp=document.getElementById('cal-dur');if(inp)inp.value=d;document.querySelectorAll('.cal-dur-chip').forEach(b=>b.classList.toggle('on',b.textContent===d+'′'));}
@@ -10274,7 +10335,16 @@ function calBody(dk){
 function calOpenDay(dk){calLoad();CAL_CUR=dk;CAL_EDIT=null;CAL_FORM={intens:2,dur:75,contacto:3};const ov=ensureInfoOverlay();document.getElementById('info-mtitle').textContent='Planificar · '+calDkLabel(dk);calBody(dk);const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';ov.style.display='flex';setTimeout(calTypeChanged,30);}
 function calEditEvent(dk,id){CAL_CUR=dk;CAL_EDIT=id;calBody(dk);const b=document.getElementById('info-mbody');if(b)b.scrollTop=b.scrollHeight;}
 function calCancelEdit(){CAL_EDIT=null;CAL_FORM={intens:2,dur:75,contacto:3};calBody(CAL_CUR);}
-function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;const g=id=>(document.getElementById(id)||{}).value;const type=g('cal-type')||'entreno';const _objs=['cal-obj-0','cal-obj-1','cal-obj-2'].map(id=>(g(id)||'').trim()).filter(Boolean).slice(0,3);const data={type,title:(g('cal-title')||'').trim(),time:g('cal-time')||'',intens:CAL_FORM.intens||2,dur:+(g('cal-dur')||CAL_FORM.dur||0),contacto:CAL_FORM.contacto!=null?CAL_FORM.contacto:3,objs:_objs,note:_objs.join(' · ')};if(window.qdCalReadPlan)qdCalReadPlan(data);STATE.calendar[dk]=STATE.calendar[dk]||[];
+function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;const g=id=>(document.getElementById(id)||{}).value;const type=g('cal-type')||'entreno';const _objs=['cal-obj-0','cal-obj-1','cal-obj-2'].map(id=>(g(id)||'').trim()).filter(Boolean).slice(0,3);const data={type,title:(g('cal-title')||'').trim(),time:g('cal-time')||'',intens:CAL_FORM.intens||2,dur:+(g('cal-dur')||CAL_FORM.dur||0),contacto:CAL_FORM.contacto!=null?CAL_FORM.contacto:3,objs:_objs,note:_objs.join(' · ')};
+  /* v256 · datos propios del partido. Si la sesión deja de ser un partido se
+     retiran, para que no quede un rival colgado en un entreno. */
+  if(type==='partido'){
+    data.rival=(g('cal-rival')||'').trim();
+    data.competicion=g('cal-comp')||PARTIDO_DEF.competicion;
+    data.nivelRival=g('cal-nivel')||PARTIDO_DEF.nivelRival;
+    data.origenHR=g('cal-orighr')||PARTIDO_DEF.origenHR;
+  }else{data.rival=null;data.competicion=null;data.nivelRival=null;data.origenHR=null;}
+  if(window.qdCalReadPlan)qdCalReadPlan(data);STATE.calendar[dk]=STATE.calendar[dk]||[];
   /* v241 · guardar por el formulario completo significa programarla: se retira
      la marca de "sin programar". */
   if(CAL_EDIT){const e=STATE.calendar[dk].find(x=>x.id===CAL_EDIT);if(e){Object.assign(e,data);delete e.sp;}CAL_EDIT=null;toast('Sesión programada');}
