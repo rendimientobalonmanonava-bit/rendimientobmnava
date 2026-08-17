@@ -2519,7 +2519,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       </div>
       <div id="cal-week-head"></div>
       <div style="height:250px;margin-top:10px"><canvas id="cal-week-main"></canvas></div>
-      <p class="hint" style="margin-top:8px">La barra ancha y clara es lo <b>planificado</b>; las barras estrechas de dentro son la carga <b>real</b> registrada, separando gimnasio y pista. La línea es el RPE medio del equipo. Pasa el ratón por un día para ver la desviación.</p>
+      <p class="hint" style="margin-top:8px">El carril gris de fondo es lo <b>planificado</b>; la barra de color, centrada encima, es la carga <b>real</b> registrada, con gimnasio abajo y pista arriba. Cuanto más llena esté la barra respecto al carril, más se ha cumplido el plan. La línea es el RPE medio del equipo. Pasa el ratón por un día para ver el desglose y la desviación.</p>
     </div>
     <div id="cal-body"></div>
   </section>
@@ -3851,21 +3851,26 @@ function lbcDrawCalWeek(canvasId,dk){
     data:{
       labels:real.map(d=>d.lab),
       datasets:[
-        /* Plan: mismos colores que lo real pero en tono claro, para que el ojo
-           asocie azul→pista y verde→gimnasio en las dos series. */
-        {label:'Pista · plan',data:plan.map(d=>d.pista||null),
-         backgroundColor:'rgba(48,86,196,.22)',
-         stack:'plan',order:5,borderRadius:2,barPercentage:.92,categoryPercentage:.78},
-        {label:'Gimnasio · plan',data:plan.map(d=>d.gym||null),
-         backgroundColor:'rgba(21,138,86,.30)',
-         stack:'plan',order:4,borderRadius:2,barPercentage:.92,categoryPercentage:.78},
-        /* v206 · el gimnasio va SIEMPRE abajo y la pista encima, tanto en el plan
-           como en lo real. Antes quedaban invertidos entre sí y costaba comparar
-           el bloque de un lado con el del otro. */
+        /* v260 · Plan y real dejan de ir uno al lado del otro. El plan pasa a ser
+           un CARRIL de fondo, neutro y ancho, y lo real se dibuja centrado
+           encima: se lee de un golpe cuánto se ha llenado de lo previsto, que es
+           la comparación que interesa. grouped:false es lo que hace que los dos
+           ocupen el mismo hueco en vez de repartírselo.
+
+           El plan va en gris a propósito. Antes usaba las mismas tintas que lo
+           real y había cuatro colores parecidos compitiendo; el desglose
+           pista/gimnasio del plan sigue estando, en el tooltip. */
+        {label:'Planificado',data:plan.map(d=>d.plan||null),
+         backgroundColor:'rgba(15,30,61,.10)',
+         stack:'plan',grouped:false,order:6,borderRadius:10,
+         barPercentage:1,categoryPercentage:.88,maxBarThickness:98},
+        /* v206 · el gimnasio va SIEMPRE abajo y la pista encima. */
         {label:'Pista · real',data:real.map(d=>Math.round(d.pista)||null),backgroundColor:COL_PISTA,
-         stack:'real',borderRadius:3,order:3,barPercentage:.5,categoryPercentage:.78},
+         stack:'real',grouped:false,order:3,borderRadius:8,borderSkipped:false,
+         barPercentage:.64,categoryPercentage:.88,maxBarThickness:60},
         {label:'Gimnasio · real',data:real.map(d=>Math.round(d.gym)||null),backgroundColor:COL_GYM,
-         stack:'real',borderRadius:3,order:2,barPercentage:.5,categoryPercentage:.78},
+         stack:'real',grouped:false,order:2,borderRadius:8,borderSkipped:false,
+         barPercentage:.64,categoryPercentage:.88,maxBarThickness:60},
         {label:'RPE',data:real.map(d=>d.rpe!=null?Math.round(d.rpe*10)/10:null),
          type:'line',yAxisID:'y2',borderColor:COL_RPE,backgroundColor:COL_RPE,
          borderWidth:2,pointRadius:4,tension:.25,spanGaps:true,order:1}
