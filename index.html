@@ -10657,16 +10657,20 @@ function ptPartidosCal(soloMedidos){
   });
   return out.sort((a,b)=>a.dk<b.dk?1:-1);
 }
-/* Minutos jugados de un jugador ese día: lo que el staff escribió en la columna
-   «Min jugados» del calendario y, si no hay nada, lo que declaró en el
-   cuestionario. Es el mismo dato que ya usa la carga; no se duplica. */
+/* Minutos JUGADOS de un jugador ese día: exclusivamente lo que el staff ha
+   escrito en la columna «Min jugados» de la ficha del día. Es el mismo dato que
+   ya usa la carga, así que no se pide dos veces.
+
+   v258 · Antes, si esa casilla estaba vacía, se replegaba a la duración que el
+   jugador declara en el cuestionario de RPE. Para un entrenamiento eso vale,
+   pero para un partido NO: esa duración es la de la sesión tal como él la
+   percibe, no sus minutos en pista, y mete tiempo de banquillo en el
+   denominador de la tasa sin que se note. Daniel solo aporta minutos jugados;
+   si no están puestos, aquí no hay tasa que calcular y se dice. */
 function ptMinutos(dk,name){
   let m=null;
   try{m=lbDur(dk,name,'pista');}catch(e){}
-  if(m!=null&&m>0)return +m;
-  const xs=(STATE.rpe||[]).filter(x=>x.dk===dk&&x.name===name);
-  const d=xs.reduce((s,x)=>s+(x.dur0>0?x.dur0:(x.dur>0?x.dur:0)),0);
-  return d>0?d:null;
+  return (m!=null&&m>0)?+m:null;
 }
 /* ---------- lectura de las filas medidas ---------- */
 function ptFilas(){return ptLoad().filter(r=>r&&r.dk&&r.name);}
