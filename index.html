@@ -4733,11 +4733,24 @@ function contactWeightOf(name,posRaw){
   const W=CONFIG.contactPosW||{};
   return (W[g]!=null)?W[g]:1;
 }
-/* Media de contacto ponderada por posición sobre registros de RPE. */
+/* v259 · El gimnasio no aporta contacto: su cuestionario va siempre en 1 y en
+   los días de doble sesión arrastraba hacia abajo el contacto del día (medido:
+   una sesión de pista de contacto 5 caía a 3 al sumarle el gimnasio). Se
+   excluyen los registros cuyo bloque es 'gym'. Los combinados —un solo
+   cuestionario que declara pista y fuerza a la vez— SÍ cuentan: su contacto es
+   el de la parte de pista, y descartarlos perdería la mayor parte del dato. */
+function contactoDePista(x){
+  if(!x)return false;
+  try{return lbBucket(x.tipo)!=='gym';}catch(e){return true;}
+}
+window.contactoDePista=contactoDePista;
+/* Media de contacto ponderada por posición sobre registros de RPE.
+   Portero 0 · Extremo 0,5 · 1ª Línea y Pivote 1 (CONFIG.contactPosW). */
 function meanContactoPos(recs){
   let sw=0,sv=0;
   (recs||[]).forEach(x=>{
     if(!x||x.contacto==null||isNaN(x.contacto))return;
+    if(!contactoDePista(x))return;              // el gimnasio no cuenta
     const w=contactWeightOf(x.name,x.pos);
     if(!(w>0))return;                 // porteros fuera
     sw+=w;sv+=x.contacto*w;
@@ -8987,7 +9000,7 @@ function pctZones(rows){const p=rows.map(r=>{const t=r.z.reduce((a,b)=>a+b,0)||1
 function sessMeta(key,dk){
   if(STATE.hrMeta&&STATE.hrMeta[key])return STATE.hrMeta[key];
   const rp=STATE.rpe.filter(x=>x.dk===dk);if(!rp.length)return null;
-  const byp={};rp.forEach(x=>{const o=byp[x.name]=byp[x.name]||{name:x.name,pos:x.pos,ua:0,rpe:[],c:[]};o.ua+=x.ua||0;if(x.rpe)o.rpe.push(x.rpe);if(x.contacto)o.c.push(x.contacto);});
+  const byp={};rp.forEach(x=>{const o=byp[x.name]=byp[x.name]||{name:x.name,pos:x.pos,ua:0,rpe:[],c:[]};o.ua+=x.ua||0;if(x.rpe)o.rpe.push(x.rpe);if(x.contacto&&contactoDePista(x))o.c.push(x.contacto);});
   const arr=Object.values(byp);const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   /* v225 · el contacto medio de la sesión sigue el mismo criterio que el
      indicador de Cargas: portero fuera, extremo al 0,5. Se pondera entre
