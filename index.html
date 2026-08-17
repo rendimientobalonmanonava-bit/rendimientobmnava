@@ -2519,7 +2519,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       </div>
       <div id="cal-week-head"></div>
       <div style="height:250px;margin-top:10px"><canvas id="cal-week-main"></canvas></div>
-      <p class="hint" style="margin-top:8px">La barra es la carga <b>real</b> registrada, con gimnasio abajo y pista arriba, y encima lleva escrita la carga del día y su desviación. La raya oscura sobre cada barra marca lo <b>planificado</b>: si la barra la supera, se ha hecho más de lo previsto. La discontinua es la media de la semana y la línea negra el RPE medio del equipo.</p>
+      <p class="hint" style="margin-top:8px">La barra es la carga <b>real</b> registrada, con gimnasio abajo y pista arriba, y encima lleva escrita la carga del día y su desviación. La raya oscura sobre cada barra marca lo <b>planificado</b>: si la barra la supera, se ha hecho más de lo previsto. La discontinua es la media de la semana y la línea negra el RPE medio del equipo. <b>Solo cuenta lo que estaba programado</b>: si un día no había gimnasio en el plan, el gimnasio que haya hecho un lesionado no entra en la carga del grupo — el día aparece con un punto ámbar bajo el eje y el detalle en el tooltip.</p>
     </div>
     <div id="cal-body"></div>
   </section>
@@ -3839,6 +3839,30 @@ function lbcPlanWeek(dk){
   return out;
 }
 window.lbcPlanWeek=lbcPlanWeek;
+/* ============ v262 · Solo cuenta lo que está programado ============
+   El 10/08 daba +146% de desviación porque el plan de ese día no tenía
+   gimnasio y los dos lesionados sí hicieron gimnasio. Eso no es carga del
+   grupo: es readaptación individual, y no debe entrar en la comparación
+   planificado vs real ni en la media de la semana.
+
+   Regla: en un día CON plan, un bloque solo cuenta si está programado. Si no
+   hay gimnasio en el plan, el gimnasio real de ese día queda fuera. Un día sin
+   plan ninguno no se filtra —no hay nada contra lo que comparar— y su carga se
+   muestra entera.
+
+   Lo excluido no se borra: se sigue viendo en el tooltip y el día lleva una
+   marca, para que se sepa que hubo trabajo que no se está contando. */
+function lbcSoloProgramado(r,pl){
+  const fuera={pista:0,gym:0};
+  if(!pl||!pl.plan)return {pista:r.pista||0,gym:r.gym||0,total:r.total||0,fuera,hayFuera:false};
+  const pista=(pl.pista>0)?(r.pista||0):0;
+  const gym=(pl.gym>0)?(r.gym||0):0;
+  fuera.pista=(r.pista||0)-pista;
+  fuera.gym=(r.gym||0)-gym;
+  const hayFuera=(fuera.pista+fuera.gym)>0.5;
+  return {pista,gym,total:pista+gym,fuera,hayFuera};
+}
+window.lbcSoloProgramado=lbcSoloProgramado;
 /* ============ v261 · Dibujo del gráfico de carga semanal ============
    Solo afecta a «Carga de la semana» del calendario. Tres capas que Chart.js no
    trae de serie y que son las que hacen legible un panel de carga:
@@ -3894,6 +3918,12 @@ const lbcPlugCalWeek={
         }
       }
       /* --- 2 · etiqueta con la carga real --- */
+      /* Aviso de que ese día hubo trabajo que no se está contando: un punto
+         ámbar bajo el eje. Sin él, excluir sería esconder. */
+      if(r.hayFuera){
+        ctx.beginPath();ctx.arc(cx,area.bottom+7,2.6,0,Math.PI*2);
+        ctx.fillStyle='#e08a00';ctx.fill();
+      }
       const tot=Math.round(r.total||0);
       if(!tot)return;
       const dev=(typeof calDev==='function')?calDev(pl.plan,r.total):null;
@@ -3946,6 +3976,8 @@ function lbcDrawCalWeek(canvasId,dk){
   if(!cv||typeof Chart==='undefined')return null;
   const real=lbcWeek(dk);
   const plan=lbcPlanWeek(dk);
+  /* v262 · lo que no estaba programado no entra en la comparación de grupo. */
+  const cont=real.map((r,i)=>lbcSoloProgramado(r,plan[i]));
   const prev=Chart.getChart?Chart.getChart(cv):null;
   if(prev)prev.destroy();
   return new Chart(cv,{
@@ -3972,10 +4004,10 @@ function lbcDrawCalWeek(canvasId,dk){
            lbcPlugPlan de abajo; aquí solo queda el dato real.
            El plan sigue en el dataset, oculto, para que el tooltip y la leyenda
            lo sigan teniendo. */
-        {label:'Pista · real',data:real.map(d=>Math.round(d.pista)||null),backgroundColor:COL_PISTA,
+        {label:'Pista · real',data:cont.map(d=>Math.round(d.pista)||null),backgroundColor:COL_PISTA,
          stack:'real',order:3,borderRadius:{topLeft:7,topRight:7},borderSkipped:false,
          barPercentage:.66,categoryPercentage:.9,maxBarThickness:64},
-        {label:'Gimnasio · real',data:real.map(d=>Math.round(d.gym)||null),backgroundColor:COL_GYM,
+        {label:'Gimnasio · real',data:cont.map(d=>Math.round(d.gym)||null),backgroundColor:COL_GYM,
          stack:'real',order:2,borderRadius:{bottomLeft:7,bottomRight:7},borderSkipped:false,
          barPercentage:.66,categoryPercentage:.9,maxBarThickness:64},
         {label:'RPE',data:real.map(d=>d.rpe!=null?Math.round(d.rpe*10)/10:null),
@@ -3991,17 +4023,24 @@ function lbcDrawCalWeek(canvasId,dk){
          cápsula no se sale del lienzo ni tapa la barra. */
       layout:{padding:{top:44}},
       plugins:{
-        lbcPlugCalWeek:{datos:{real,plan}},
+        lbcPlugCalWeek:{datos:{real:cont,plan}},
         legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},usePointStyle:true}},
         tooltip:{callbacks:{afterBody:items=>{
           const idx=items[0].dataIndex;
           const r=real[idx],pl=plan[idx];
+          const cc=cont[idx];
           const l=[];
           if(pl.plan)l.push('Plan: '+pl.plan+' UA  (pista '+pl.pista+' · gym '+pl.gym+')');
-          l.push('Real: '+Math.round(r.total)+' UA  (pista '+Math.round(r.pista)+' · gym '+Math.round(r.gym)+')');
-          if(pl.plan&&r.total){
-            const pct=Math.round((r.total-pl.plan)/pl.plan*100);
+          l.push('Real contable: '+Math.round(cc.total)+' UA  (pista '+Math.round(cc.pista)+' · gym '+Math.round(cc.gym)+')');
+          if(pl.plan&&cc.total){
+            const pct=Math.round((cc.total-pl.plan)/pl.plan*100);
             l.push('Desviación: '+(pct>=0?'+':'')+pct+'%');
+          }
+          if(cc.hayFuera){
+            const f=[];
+            if(cc.fuera.pista>0.5)f.push('pista '+Math.round(cc.fuera.pista));
+            if(cc.fuera.gym>0.5)f.push('gimnasio '+Math.round(cc.fuera.gym));
+            l.push('Fuera del plan: '+f.join(' · ')+' UA — no cuenta (trabajo no programado)');
           }
           if(r.est)l.push(r.est+' estimado(s)');
           return l;
@@ -4021,13 +4060,18 @@ window.lbcDrawCalWeek=lbcDrawCalWeek;
 /* Cabecera del panel: cifras de la semana con la desviación acumulada. */
 window.lbcCalWeekHead=function(dk){
   const real=lbcWeek(dk),plan=lbcPlanWeek(dk);
-  const tr=real.reduce((s,d)=>s+d.total,0);
+  /* v262 · los KPIs siguen la misma regla que el gráfico: solo cuenta lo
+     programado, para que la desviación de la semana no la mueva el gimnasio de
+     un lesionado. */
+  const cont=real.map((r,i)=>lbcSoloProgramado(r,plan[i]));
+  const fuera=cont.reduce((s,d)=>s+d.fuera.pista+d.fuera.gym,0);
+  const tr=cont.reduce((s,d)=>s+d.total,0);
   const tp=plan.reduce((s,d)=>s+d.plan,0);
   const dev=tp>0?Math.round((tr-tp)/tp*100):null;
   const mon=lbcMonday(dk),dom=new Date(mon.getTime());dom.setDate(mon.getDate()+6);
   const f=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
   const devCol=dev==null?'var(--muted)':(Math.abs(dev)<=15?'var(--ok)':(Math.abs(dev)<=30?'var(--warn)':'var(--bad)'));
-  const p=real.reduce((s,d)=>s+d.pista,0),g=real.reduce((s,d)=>s+d.gym,0);
+  const p=cont.reduce((s,d)=>s+d.pista,0),g=cont.reduce((s,d)=>s+d.gym,0);
   const est=real.reduce((s,d)=>s+d.est,0);
   return '<div class="lbc-kpis">'
     +'<div class="lbc-kpi"><b>'+Math.round(tr)+'</b><span>UA reales</span></div>'
@@ -4035,10 +4079,11 @@ window.lbcCalWeekHead=function(dk){
     +'<div class="lbc-kpi"><b style="color:'+devCol+'">'+(dev==null?'—':(dev>=0?'+':'')+dev+'%')+'</b><span>desviación</span></div>'
     +'<div class="lbc-kpi"><b>'+Math.round(p)+'</b><span>pista · plan '+plan.reduce((s,d)=>s+d.pista,0)+'</span></div>'
     +'<div class="lbc-kpi"><b>'+Math.round(g)+'</b><span>gimnasio · plan '+plan.reduce((s,d)=>s+d.gym,0)+'</span></div>'
-    +'<div class="lbc-kpi"><b>'+real.filter(d=>d.total>0).length+'</b><span>días con carga</span></div>'
+    +'<div class="lbc-kpi"><b>'+cont.filter(d=>d.total>0).length+'</b><span>días con carga</span></div>'
     +'</div>'
     +'<div class="small muted" style="margin-top:6px">Semana del '+f(mon)+' al '+f(dom)
-    +(est?(' · <span style="color:var(--warn)">'+est+' valor(es) estimado(s)</span>'):'')+'</div>';
+    +(est?(' · <span style="color:var(--warn)">'+est+' valor(es) estimado(s)</span>'):'')
+    +(fuera>0.5?(' · <span style="color:var(--warn)">'+Math.round(fuera)+' UA fuera del plan, sin contar</span>'):'')+'</div>';
 };
 
 
