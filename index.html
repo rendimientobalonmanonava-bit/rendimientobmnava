@@ -1156,6 +1156,19 @@ main{padding:13px 16px 70px}
 .cal-asist-btn:hover{border-color:var(--accent);border-style:solid;color:var(--accent)}
 .est-mark[onclick]{cursor:pointer}
 .est-mark[onclick]:hover{background:var(--warn);color:#fff}
+/* v263 · Carga de la semana: KPI al lateral, gráfico con el resto del bloque.
+   El gráfico crece en alto y en ancho, que es lo que alarga las barras. */
+.cw-layout{display:grid;grid-template-columns:236px minmax(0,1fr);gap:16px;align-items:stretch}
+.cw-side{min-width:0}
+.cw-plot{min-width:0;height:420px;position:relative}
+.cw-plot canvas{position:absolute;inset:0}
+.cw-side .lbc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.cw-side .lbc-kpi{text-align:left;padding:9px 11px}
+.cw-side .lbc-kpi b{font-size:19px}
+@media(max-width:900px){
+  .cw-layout{grid-template-columns:1fr;gap:12px}
+  .cw-plot{height:300px}
+}
 .lbc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
 .lbc-kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:center}
 .lbc-kpi b{display:block;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
@@ -2509,17 +2522,23 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
 
   <!-- CARGA -->
   <section class="view" id="v-cal">
+    <!-- v263 · Los KPI pasan al lateral en una o dos columnas y el gráfico se
+         queda con todo el ancho restante y más alto: barras mucho más largas,
+         que es donde se lee la semana. Se retira el párrafo explicativo de
+         debajo; lo que hacía falta explicar va ahora en la leyenda del propio
+         gráfico y en el tooltip. -->
     <div class="panel" id="cal-week-panel">
       <h2>Carga de la semana <span class="r muted">planificado vs real · gimnasio + pista</span></h2>
-      <div class="ctrlrow" style="margin-bottom:8px;align-items:center;gap:8px">
+      <div class="ctrlrow" style="margin-bottom:10px;align-items:center;gap:8px">
         <button class="btn ghost" onclick="calWeekNav(-1)">‹ Semana anterior</button>
         <button class="btn ghost" onclick="calWeekNav(0)">Semana actual</button>
         <button class="btn ghost" onclick="calWeekNav(1)">Semana siguiente ›</button>
         <span class="small muted" id="cal-week-lbl" style="margin-left:auto"></span>
       </div>
-      <div id="cal-week-head"></div>
-      <div style="height:250px;margin-top:10px"><canvas id="cal-week-main"></canvas></div>
-      <p class="hint" style="margin-top:8px">La barra es la carga <b>real</b> registrada, con gimnasio abajo y pista arriba, y encima lleva escrita la carga del día y su desviación. La raya oscura sobre cada barra marca lo <b>planificado</b>: si la barra la supera, se ha hecho más de lo previsto. La discontinua es la media de la semana y la línea negra el RPE medio del equipo. <b>Solo cuenta lo que estaba programado</b>: si un día no había gimnasio en el plan, el gimnasio que haya hecho un lesionado no entra en la carga del grupo — el día aparece con un punto ámbar bajo el eje y el detalle en el tooltip.</p>
+      <div class="cw-layout">
+        <aside class="cw-side" id="cal-week-head"></aside>
+        <div class="cw-plot"><canvas id="cal-week-main"></canvas></div>
+      </div>
     </div>
     <div id="cal-body"></div>
   </section>
@@ -4005,11 +4024,11 @@ function lbcDrawCalWeek(canvasId,dk){
            El plan sigue en el dataset, oculto, para que el tooltip y la leyenda
            lo sigan teniendo. */
         {label:'Pista · real',data:cont.map(d=>Math.round(d.pista)||null),backgroundColor:COL_PISTA,
-         stack:'real',order:3,borderRadius:{topLeft:7,topRight:7},borderSkipped:false,
-         barPercentage:.66,categoryPercentage:.9,maxBarThickness:64},
+         stack:'real',order:3,borderRadius:{topLeft:9,topRight:9},borderSkipped:false,
+         barPercentage:.74,categoryPercentage:.92,maxBarThickness:86},
         {label:'Gimnasio · real',data:cont.map(d=>Math.round(d.gym)||null),backgroundColor:COL_GYM,
-         stack:'real',order:2,borderRadius:{bottomLeft:7,bottomRight:7},borderSkipped:false,
-         barPercentage:.66,categoryPercentage:.9,maxBarThickness:64},
+         stack:'real',order:2,borderRadius:{bottomLeft:9,bottomRight:9},borderSkipped:false,
+         barPercentage:.74,categoryPercentage:.92,maxBarThickness:86},
         {label:'RPE',data:real.map(d=>d.rpe!=null?Math.round(d.rpe*10)/10:null),
          type:'line',yAxisID:'y2',borderColor:COL_RPE,backgroundColor:COL_RPE,
          borderWidth:2,pointRadius:4,tension:.25,spanGaps:true,order:1}
