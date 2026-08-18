@@ -1159,15 +1159,21 @@ main{padding:13px 16px 70px}
 /* v263 · Carga de la semana: KPI al lateral, gráfico con el resto del bloque.
    El gráfico crece en alto y en ancho, que es lo que alarga las barras. */
 .cw-layout{display:grid;grid-template-columns:236px minmax(0,1fr);gap:16px;align-items:stretch}
-.cw-side{min-width:0}
+/* v264 · El lateral se estira hasta abajo: las tres filas de KPI reparten toda
+   la altura del gráfico en vez de dejar medio bloque vacío. */
+.cw-side{min-width:0;display:flex;flex-direction:column;gap:10px}
 .cw-plot{min-width:0;height:420px;position:relative}
 .cw-plot canvas{position:absolute;inset:0}
-.cw-side .lbc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.cw-side .lbc-kpi{text-align:left;padding:9px 11px}
-.cw-side .lbc-kpi b{font-size:19px}
+.cw-side .lbc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;flex:1;grid-auto-rows:1fr;align-content:stretch}
+.cw-side .lbc-kpi{text-align:left;padding:10px 12px;display:flex;flex-direction:column;justify-content:center;min-height:0}
+.cw-side .lbc-kpi b{font-size:21px}
+.cw-side .lbc-kpi span{font-size:10px;line-height:1.25}
+.cw-side .cw-side-pie{margin-top:auto}
 @media(max-width:900px){
   .cw-layout{grid-template-columns:1fr;gap:12px}
   .cw-plot{height:300px}
+  .cw-side .lbc-kpis{flex:none;grid-auto-rows:auto}
+  .cw-side .lbc-kpi{min-height:62px}
 }
 .lbc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
 .lbc-kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:center}
@@ -4100,7 +4106,7 @@ window.lbcCalWeekHead=function(dk){
     +'<div class="lbc-kpi"><b>'+Math.round(g)+'</b><span>gimnasio · plan '+plan.reduce((s,d)=>s+d.gym,0)+'</span></div>'
     +'<div class="lbc-kpi"><b>'+cont.filter(d=>d.total>0).length+'</b><span>días con carga</span></div>'
     +'</div>'
-    +'<div class="small muted" style="margin-top:6px">Semana del '+f(mon)+' al '+f(dom)
+    +'<div class="small muted cw-side-pie" style="margin-top:6px">Semana del '+f(mon)+' al '+f(dom)
     +(est?(' · <span style="color:var(--warn)">'+est+' valor(es) estimado(s)</span>'):'')
     +(fuera>0.5?(' · <span style="color:var(--warn)">'+Math.round(fuera)+' UA fuera del plan, sin contar</span>'):'')+'</div>';
 };
