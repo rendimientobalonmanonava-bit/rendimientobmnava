@@ -3695,19 +3695,43 @@ function lbDayAll(dk){
 window.lbDayAll=lbDayAll;
 window.lbDayOf=function(dk,name){return (lbDayAll(dk)||{})[name]||null;};
 /* Agregado de equipo para un día: medianas por bloque. */
+/* v268 · ¿Este jugador cuenta para la carga del GRUPO ese día? Quedan fuera los
+   que no entrenan con el grupo: baja, enfermo, no entrena, readaptación, y los
+   ausentes por motivo no físico (selección, sanción, filial, cita, trámite,
+   personal). Los que entrenan tocados —dolor, tratamiento— SÍ cuentan: están
+   con el grupo y su carga es carga del grupo. */
+function lbEntrenaConGrupo(name,dk){
+  let st=null;
+  try{const ev=effectiveStatus(name,dk);st=ev&&ev.status;}catch(e){}
+  if(!st)return true;
+  if(st==='readapt')return false;
+  if(typeof NOAV_ST!=='undefined'&&NOAV_ST.indexOf(st)>=0)return false;
+  return true;
+}
+window.lbEntrenaConGrupo=lbEntrenaConGrupo;
+/* v268 · MEDIA, no mediana, y sobre la misma población en los tres números.
+   Antes devolvía la mediana de pista y la mediana de gimnasio por separado, y
+   quien las sumaba —el gráfico de la semana— se inventaba un jugador que no
+   existe: son dos poblaciones distintas. Con la media contando 0 en el bloque
+   que un jugador no hizo se cumple media(pista)+media(gym)=media(total), así
+   que la barra apilada suma exactamente lo que dice su etiqueta. */
 window.lbTeamDay=function(dk){
   const all=lbDayAll(dk);
-  const ns=Object.keys(all);
+  const ns=Object.keys(all).filter(n=>lbEntrenaConGrupo(n,dk));
   if(!ns.length)return null;
-  const med=a=>{if(!a.length)return 0;const s=a.slice().sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
-  const p=ns.map(n=>all[n].pista).filter(Boolean);
-  const g=ns.map(n=>all[n].gym).filter(Boolean);
+  const media=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+  const hayP=ns.some(n=>all[n].pista), hayG=ns.some(n=>all[n].gym);
+  const val=(b,f)=>media(ns.map(n=>all[n][b]?f(all[n][b]):0));
+  const soloCon=(b,f)=>{const v=ns.filter(n=>all[n][b]).map(n=>f(all[n][b]));return media(v);};
   return {
     n:ns.length,
-    pista:p.length?{ua:med(p.map(x=>x.ua)),dur:med(p.map(x=>x.dur)),rpe:med(p.map(x=>x.rpe))}:null,
-    gym:g.length?{ua:med(g.map(x=>x.ua)),dur:med(g.map(x=>x.dur)),rpe:med(g.map(x=>x.rpe))}:null,
-    ua:med(ns.map(n=>all[n].ua)),
-    rpe:med(ns.map(n=>{const a=[];if(all[n].pista)a.push(all[n].pista.rpe);if(all[n].gym)a.push(all[n].gym.rpe);return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}).filter(x=>x>0)),
+    excluidos:Object.keys(all).filter(n=>!lbEntrenaConGrupo(n,dk)),
+    /* ua se promedia sobre TODO el grupo (0 si no hizo ese bloque) para que sume;
+       dur y rpe solo sobre quien lo hizo, que es lo que describen. */
+    pista:hayP?{ua:val('pista',x=>x.ua),dur:soloCon('pista',x=>x.dur),rpe:soloCon('pista',x=>x.rpe)}:null,
+    gym:hayG?{ua:val('gym',x=>x.ua),dur:soloCon('gym',x=>x.dur),rpe:soloCon('gym',x=>x.rpe)}:null,
+    ua:media(ns.map(n=>all[n].ua)),
+    rpe:media(ns.map(n=>{const a=[];if(all[n].pista)a.push(all[n].pista.rpe);if(all[n].gym)a.push(all[n].gym.rpe);return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}).filter(x=>x>0)),
     estimados:ns.filter(n=>all[n].est.length).length,
     sinRegistro:ns.filter(n=>all[n].estTodo).map(n=>n)
   };
@@ -6415,10 +6439,19 @@ function renderPlayerDaily(name){
 window.renderPlayerDaily=renderPlayerDaily;
 
 /* ===================== VISTA CARGA ===================== */
+/* v268 · Misma regla que lbTeamDay: la carga del grupo es la MEDIA por jugador
+   y deja fuera a quien no entrena con el grupo ese día (baja, enfermo, no
+   entrena, readaptación o ausente por motivo no físico). Sin este filtro, un
+   lesionado hacía bajar la media del equipo como si el grupo hubiera entrenado
+   menos. */
 function teamDayAgg(){
   const ref=REF();const byDay={};
   STATE.rpe.filter(x=>x.date<=ref).forEach(x=>{const o=byDay[x.dk]=byDay[x.dk]||{dur:[],rpe:[],uaByP:{},date:x.date,mdx:x.mdx,tipo:x.tipo};o.dur.push(x.dur);o.rpe.push(x.rpe);o.uaByP[x.name]=(o.uaByP[x.name]||0)+x.ua;});
-  return Object.keys(byDay).sort().map(dk=>{const o=byDay[dk];return{dk,date:o.date,dur:mean(o.dur),rpe:mean(o.rpe),ua:mean(Object.values(o.uaByP)),mdx:o.mdx,tipo:o.tipo};});
+  return Object.keys(byDay).sort().map(dk=>{const o=byDay[dk];
+    const nombres=Object.keys(o.uaByP).filter(n=>(typeof lbEntrenaConGrupo==='function')?lbEntrenaConGrupo(n,dk):true);
+    const uas=nombres.map(n=>o.uaByP[n]);
+    return{dk,date:o.date,dur:mean(o.dur),rpe:mean(o.rpe),
+      ua:uas.length?mean(uas):0,nGrupo:uas.length,mdx:o.mdx,tipo:o.tipo};});
 }
 function renderLoadReport(){
   const box=document.getElementById('load-report');if(!box)return;
