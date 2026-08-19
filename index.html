@@ -3602,6 +3602,16 @@ function lbDayAll(dk){
   /* 1 · RPE declarado por bloque */
   const decl={};
   recs.forEach(r=>{
+    /* v267 · Los registros que la propia app ha creado por convocatoria NO son
+       una declaración del jugador. Si se leyeran aquí, en la segunda pasada
+       pasarían por respuesta real: el número seguiría bien pero perdería la
+       marca EST, y carga estimada indistinguible de carga medida es justo lo
+       que este proyecto no permite. También quedan fuera de la media del
+       equipo, que debe salir solo de lo declarado de verdad.
+       Se filtra por bloqueConvocado/sinRegistro, que solo llevan los registros
+       que crea la app, y NO por x.estimado: ese marca al jugador-día entero, así
+       que descartaría también la respuesta real del bloque que sí rellenó. */
+    if(r.bloqueConvocado||r.sinRegistro)return;
     const b=lbBucket(r.tipo);
     decl[r.name]=decl[r.name]||{pista:[],gym:[]};
     if(b==='both'){decl[r.name].pista.push(r);decl[r.name].gym.push(r);}
@@ -10240,6 +10250,24 @@ function sessDurApply(){
         x.rpeEff=d.pista&&d.gym?Math.round(((d.pista.rpe+d.gym.rpe)/2)*10)/10:(d.pista?d.pista.rpe:(d.gym?d.gym.rpe:x.rpe));
         x.durTotal=d.dur;x.nSes=g.length;
         x.estimado=d.est.length>0;
+      });
+      /* v267 · Un jugador que SÍ rellenó un bloque y está convocado al otro
+         tenía su bloque convocado calculado en lbDayAll —salía en la ficha del
+         día con la marca EST— pero esa carga no llegaba a STATE.rpe: el reparto
+         de arriba solo sabe volcar sobre registros que existen, y de ese bloque
+         no hay ninguno. Resultado: la tabla del día decía 1076 y la serie de
+         carga 621, y todo lo que bebe de STATE.rpe —ranking del día, carga
+         semanal, ACWR, monotonía y readiness— se quedaba sin esa parte.
+         Aquí se crea el registro que faltaba, marcado como estimado. */
+      (d.est||[]).forEach(b=>{
+        const yaHay=g.some(x=>{const bb=lbBucket(x.tipo);return bb===b||bb==='both';});
+        if(yaHay||!d[b])return;
+        const a=dk.split('-').map(Number);
+        recs.push({name:nm,date:new Date(a[0],a[1]-1,a[2]),dk,
+          rpe:d[b].rpe,dur:d[b].dur,dur0:0,ua:d[b].ua,cal:d[b].cal,contacto:d[b].ct,
+          pos:(STATE.players[nm]||{}).pos||'',
+          tipo:(b==='gym'?'Gimnasio':'Pista')+' · estimado',mdx:'—',
+          estimado:true,bloqueConvocado:b,lb:d});
       });
       /* Jugadores SIN ningún cuestionario ese día: se les crea un registro
          estimado para que la serie de carga no tenga un hueco que parezca
