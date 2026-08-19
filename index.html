@@ -1150,6 +1150,10 @@ main{padding:13px 16px 70px}
 .cal-blk-p{background:#3056c4}
 .cal-blk-g{background:#158a56}
 .cal-durin.sm{width:62px;padding:4px 6px;font-size:12px}
+/* v266 · aviso de minutos que faltan en la fila de carga */
+.cal-faltamin{display:inline-block;margin-left:7px;font-size:9.5px;font-weight:800;letter-spacing:.03em;
+  color:#b07500;background:color-mix(in srgb,#e0a800 16%,transparent);border-radius:6px;padding:2px 6px;cursor:help;
+  vertical-align:1px}
 .cal-dur-tbl2 th:nth-child(n+2){text-align:center;width:76px}
 .cal-dur-tbl2 td:nth-child(n+2){text-align:center}
 .cal-du-rpe.est{color:var(--muted)}
@@ -10276,7 +10280,27 @@ function calDurSetBlock(dk,name,bucket,val){
 }
 window.calDurBlock=calDurBlock;window.calDurSetBlock=calDurSetBlock;
 function calDurSetName(dk,name,val){const SD=sessDurGet();SD[dk]=SD[dk]||{};const v=(''+val).trim();if(v==='')delete SD[dk][name];else SD[dk][name]=+v;if(!Object.keys(SD[dk]).length)delete SD[dk];sessDurPersist();sessDurRecalc(dk);}
-function calDurAll(dk,val){const SD=sessDurGet();const v=(''+val).trim();if(v==='')return;SD[dk]={__group:+v};sessDurPersist();sessDurRecalc(dk);toast('Duración aplicada a todo el equipo');}
+/* v266 · Este botón hacía dos cosas mal y las dos movían la carga sin avisar:
+     1 · SD[dk]={__group:v} REEMPLAZABA el día entero, así que borraba los
+         minutos por bloque y los ajustes individuales que ya hubiera.
+     2 · El total se REPARTÍA entre los bloques existentes (137 → 68,5 y 68,5),
+         cuando lo que se escribe es la duración de la sesión, no la suma de
+         las dos.
+   Ahora aplica el valor a cada bloque que exista ese día y respeta lo demás.
+   __group se sigue LEYENDO para los días ya guardados así, pero no se escribe. */
+function calDurAll(dk,val){
+  const SD=sessDurGet();const v=(''+val).trim();if(v==='')return;
+  const n=+v;if(isNaN(n))return;
+  const hayP=window.lbBlockExists?lbBlockExists(dk,'pista'):true;
+  const hayG=window.lbBlockExists?lbBlockExists(dk,'gym'):false;
+  SD[dk]=SD[dk]||{};
+  if(hayP)SD[dk].__pista=n;
+  if(hayG)SD[dk].__gym=n;
+  if(!hayP&&!hayG)SD[dk].__pista=n;
+  delete SD[dk].__group;
+  sessDurPersist();sessDurRecalc(dk);
+  toast('Duración aplicada a todo el equipo'+(hayP&&hayG?' · pista y gimnasio':''));
+}
 function calRealManual(dk){const meta=(STATE.calMeta||{})[dk];return meta&&meta.real!=null&&meta.real!==''?Math.round(+meta.real):null;}
 function calZonesGet(dk){const meta=(STATE.calMeta||{})[dk]||{};return {z4:meta.z4,z5:meta.z5};}
 function calPlanUA(dk){const evs=(STATE.calendar||{})[dk]||[];return evs.reduce((a,e)=>a+CAL_RPE[evIntens(e)]*evDur(e),0);}
@@ -10525,6 +10549,18 @@ function calDayBody(dk){
         const estTag=x.est?'<span class="est-mark" onclick="asistToggle(\''+dk+'\',\''+b+'\',\''+safe+'\',false)" title="Convocado sin respuesta: valor estimado. Toca para desconvocar">est</span>':'';
         return '<td class="cal-du-rpe'+(x.est?' est':'')+'" title="'+(x.est?'Convocado, no respondió el cuestionario: valor estimado desde la media del equipo ajustada a su percepción habitual':'Declarado por el jugador')+'">'+x.rpe+estTag+'</td>';
       };
+      /* v266 · Un jugador convocado al que le falta el minutaje de ese bloque
+         daba carga 0 sin decir nada: el RPE aparecía estimado en su columna y
+         parecía que la convocatoria había surtido efecto. Ahora se avisa. */
+      const faltanMin=d=>{
+        if(!d)return '';
+        const f=[];
+        if(d.pista&&d.pista.rpe>0&&!(d.pista.dur>0))f.push('pista');
+        if(d.gym&&d.gym.rpe>0&&!(d.gym.dur>0))f.push('gimnasio');
+        if(!f.length)return '';
+        return '<span class="cal-faltamin" title="Tiene RPE pero no minutos en '+f.join(' y ')
+          +': su carga de ese bloque es 0. Escribe los minutos en la columna correspondiente.">faltan min</span>';
+      };
       const durCell=b=>{
         const x=d?d[b]:null;
         if(!x)return '<td class="muted">—</td>';
@@ -10535,7 +10571,7 @@ function calDayBody(dk){
       return '<tr'+(sinReg?' class="row-sinreg" title="No rellenó ningún cuestionario ese día"':'')+'>'
         +'<td class="cal-du-nm">'+nm+(sinReg?'<span class="est-mark">sin registro</span>':'')+'</td>'
         +cell('pista')+cell('gym')+durCell('pista')+durCell('gym')
-        +'<td class="cal-du-ua">'+(d?Math.round(d.ua):0)+'</td></tr>';
+        +'<td class="cal-du-ua">'+(d?Math.round(d.ua):0)+faltanMin(d)+'</td></tr>';
     }).join('');
     /* v205 · el gráfico de la semana ya no vive aquí: está fijo en la vista del
        Calendario, encima de la rejilla, para verlo sin abrir ningún día. Al abrir
