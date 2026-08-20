@@ -3666,6 +3666,16 @@ function lbDayAll(dk){
         est=true;
       }
       let dur=lbDur(dk,n,b);
+      /* v269 · El calentamiento del partido se suma SOLO aquí, en la carga, y
+         solo al bloque de pista. lbDur sigue devolviendo los minutos jugados a
+         secas, que es lo que lee ptMinutos para la tasa de Z4/Z5. Quien no jugó
+         ni un minuto pero estuvo se queda con el calentamiento, que es trabajo
+         real y no puede figurar como descanso. */
+      const calent=(b==='pista')?(window.calCalentDia?calCalentDia(dk):0):0;
+      if(dur==null&&calent>0){
+        const dd0=d[b].reduce((s,x)=>s+(x.dur0>0?x.dur0:0),0);
+        dur=dd0>0?dd0:0;
+      }
       if(dur==null){
         /* Sin minutos por bloque: repliegue a lo que traiga el cuestionario, y si
            tampoco, al total antiguo repartido entre los bloques presentes. */
@@ -3675,9 +3685,12 @@ function lbDayAll(dk){
         else dur=0;
       }
       const ct=ctOf(d[b]);
-      const ua=rpe*dur;
-      return {rpe:Math.round(rpe*10)/10,dur:Math.round(dur),ua,cal:ua*fOf(ct),ct,est,
-              nDecl:d[b].length};
+      const durCarga=dur+calent;
+      const ua=rpe*durCarga;
+      /* dur = minutos del bloque tal cual (jugados, en un partido).
+         durCarga = los que han producido la carga, calentamiento incluido. */
+      return {rpe:Math.round(rpe*10)/10,dur:Math.round(dur),durCarga:Math.round(durCarga),
+              calent,ua,cal:ua*fOf(ct),ct,est,nDecl:d[b].length};
     };
     const P=mk('pista',hayP,teamP),G=mk('gym',hayG,teamG);
     if(!P&&!G)return;
@@ -10138,7 +10151,22 @@ const PARTIDO_NIVEL={superior:'Superior',similar:'Similar',inferior:'Inferior'};
    pulsómetro y en liga no. En un partido medido, el jugador que no tenga fila
    de Polar queda SIN DATO — ni medido ni estimado. */
 const PARTIDO_ORIGEN={medido:'Medido con pulsómetro',estimado:'Sin pulsómetro · estimado'};
-const PARTIDO_DEF={competicion:'liga',nivelRival:'similar',origenHR:'estimado'};
+const PARTIDO_DEF={competicion:'liga',nivelRival:'similar',origenHR:'estimado',calent:0};
+/* v269 · CALENTAMIENTO DE PARTIDO
+   Los minutos que se apuntan en un partido son los JUGADOS: son el denominador
+   de la tasa de Z4/Z5 del perfil de partido, y meter ahí el calentamiento la
+   falsearía. Pero para la carga sí cuenta, y lo hace todo el equipo, juegue
+   quien juegue. Por eso va aparte: un solo valor por partido que se suma a la
+   carga de pista de todos los que estuvieron, y que NO toca los minutos que
+   lee el perfil de partido. */
+function evCalent(e){const v=+((e&&e.calent)||0);return isNaN(v)?0:Math.max(0,v);}
+/* Minutos de calentamiento de un día: si hubiera dos partidos, se suman. */
+function calCalentDia(dk){
+  let t=0;
+  try{((STATE.calendar||{})[dk]||[]).forEach(e=>{if(evEsPartido(e))t+=evCalent(e);});}catch(err){}
+  return t;
+}
+window.evCalent=evCalent;window.calCalentDia=calCalentDia;
 function evEsPartido(e){return !!(e&&e.type==='partido');}
 function evRival(e){return (e&&e.rival||'').trim();}
 function evComp(e){return (e&&e.competicion)||PARTIDO_DEF.competicion;}
@@ -10643,7 +10671,11 @@ function calDayBody(dk){
         <span class="cal-blk cal-blk-p">Pista</span><input type="number" min="0" step="5" id="cal-dur-pista" class="cal-durin" value="${(sessDurGet()[dk]||{}).__pista!=null?(sessDurGet()[dk]||{}).__pista:''}" placeholder="min" onchange="calDurBlock('${dk}','pista',this.value)">
         <span class="cal-blk cal-blk-g">Gimnasio</span><input type="number" min="0" step="5" id="cal-dur-gym" class="cal-durin" value="${(sessDurGet()[dk]||{}).__gym!=null?(sessDurGet()[dk]||{}).__gym:''}" placeholder="min" onchange="calDurBlock('${dk}','gym',this.value)">
         <span class="muted small">o total conjunto:</span><input type="number" min="0" step="5" id="cal-dur-all" class="cal-durin" value="${grp!=null?grp:''}" placeholder="min"><button type="button" class="btn ghost" onclick="calDurAll('${dk}',document.getElementById('cal-dur-all').value)">Aplicar a todos</button>${durQuick}</div>
-      ${isMatch?'<div class="small muted" style="margin:2px 0 8px">Día de partido: pon en cada fila los <b>minutos jugados</b> (0 si no jugó).</div>':''}
+      ${isMatch?('<div class="small muted" style="margin:2px 0 8px">Día de partido: pon en cada fila los <b>minutos jugados</b> (0 si no jugó).'
+        +((window.calCalentDia&&calCalentDia(dk)>0)
+          ? ' Al calcular la carga se suman además <b>'+calCalentDia(dk)+'\u2032 de calentamiento</b> a todo el equipo; ese tiempo no entra en la tasa de Z4/Z5 del perfil de partido.'
+          : ' Si hubo calentamiento, ponlo en el partido: se suma a la carga de todos sin tocar la tasa de Z4/Z5.')
+        +'</div>'):''}
       <div class="small muted" style="margin-bottom:8px">Solo se calcula carga para quien respondió el cuestionario o está convocado · <button type="button" class="btn ghost" style="padding:3px 9px;font-size:12px" onclick="asistSetAllPending('${dk}')">Convocar a todo el equipo disponible</button></div>
       <table class="cal-dur-tbl cal-dur-tbl2"><thead><tr><th>Jugador</th><th>RPE pista</th><th>RPE gym</th><th>${isMatch?'Min jugados':'Min pista'}</th><th>Min gym</th><th>Carga</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="small muted" style="margin-top:6px">La carga (RPE × min), el ACWR y la monotonía se recalculan al instante. Se guarda en este dispositivo. Si un jugador rellenó varios cuestionarios el mismo día, se muestra un <b>único RPE</b>: la media ponderada por la duración de cada sesión, aplicada a los minutos totales que indiques.</div>
@@ -10670,9 +10702,10 @@ function calDayBody(dk){
            <label>Rival<input id="cal-rival" maxlength="60" placeholder="p. ej. Cangas" value="${ed?evRival(ed).replace(/"/g,'&quot;'):''}"></label>
            <label>Competición<select id="cal-comp">${Object.keys(PARTIDO_COMP).map(k=>`<option value="${k}"${(ed?evComp(ed):PARTIDO_DEF.competicion)===k?' selected':''}>${PARTIDO_COMP[k]}</option>`).join('')}</select></label>
            <label>Nivel del rival<select id="cal-nivel">${Object.keys(PARTIDO_NIVEL).map(k=>`<option value="${k}"${(ed?evNivel(ed):PARTIDO_DEF.nivelRival)===k?' selected':''}>${PARTIDO_NIVEL[k]}</option>`).join('')}</select></label>
+           <label>Calentamiento (min)<input type="number" id="cal-calent" min="0" step="5" placeholder="0" value="${ed?(evCalent(ed)||''):''}"></label>
            <label>Frecuencia cardíaca<select id="cal-orighr">${Object.keys(PARTIDO_ORIGEN).map(k=>`<option value="${k}"${(ed?evOrigenHR(ed):PARTIDO_DEF.origenHR)===k?' selected':''}>${PARTIDO_ORIGEN[k]}</option>`).join('')}</select></label>
          </div>
-         <p class="small muted" style="margin:8px 0 0">Los minutos jugados de cada jugador salen del campo de duración que envía en el formulario de RPE; no hay que meterlos aquí.</p>
+         <p class="small muted" style="margin:8px 0 0">Los <b>minutos jugados</b> de cada jugador se ponen en la ficha del día. El <b>calentamiento</b> se suma aparte a la carga de todo el equipo y <b>no</b> entra en la tasa de Z4/Z5 del perfil de partido.</p>
        </div>
        <div class="full"><div class="cm-sub">Intensidad</div><div class="cal-int-row">${intPills}</div></div>
        <div class="full"><div class="cm-sub">Grado de contacto <span class="muted" style="font-weight:400">· <span id="cal-ct-lab">${CAL_CONTACT_LAB[curC]||''}</span></span></div><div class="cal-ct-row">${ctPills}<span class="cal-ct-scale">1 sin contacto · 5 juego real</span></div></div>
@@ -10729,7 +10762,8 @@ function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;const g=id=>(document.get
     data.competicion=g('cal-comp')||PARTIDO_DEF.competicion;
     data.nivelRival=g('cal-nivel')||PARTIDO_DEF.nivelRival;
     data.origenHR=g('cal-orighr')||PARTIDO_DEF.origenHR;
-  }else{data.rival=null;data.competicion=null;data.nivelRival=null;data.origenHR=null;}
+    data.calent=Math.max(0,+(g('cal-calent')||0)||0);
+  }else{data.rival=null;data.competicion=null;data.nivelRival=null;data.origenHR=null;data.calent=null;}
   if(window.qdCalReadPlan)qdCalReadPlan(data);STATE.calendar[dk]=STATE.calendar[dk]||[];
   /* v241 · guardar por el formulario completo significa programarla: se retira
      la marca de "sin programar". */
