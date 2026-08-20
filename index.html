@@ -2141,7 +2141,10 @@ body.modal-open #sidebar{overflow:hidden}
 .hr-top2 .hr-col>:last-child{flex:1}
 .hr-top2 .kpis{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;align-content:stretch}
 @media(max-width:1000px){.hr-top2{grid-template-columns:minmax(0,1fr)}}
-.wz-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--hair)}
+.wz-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid var(--hair)}
+/* v270 · segunda línea: el mismo tiempo por jugador, que es lo comparable */
+.wz-sub{display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;color:var(--muted);margin:0 0 10px}
+.wz-sub b{font-size:12px;font-weight:800;color:var(--txt);font-variant-numeric:tabular-nums}
 .wz-head b{font-size:16px;color:var(--ink)}
 .wz-row{display:flex;align-items:center;gap:8px;padding:5px 0}
 .wz-led{width:10px;height:10px;border-radius:3px;flex:none}
@@ -9418,20 +9421,53 @@ function drawHRWeek(dk){const el=document.getElementById('ch-hr-week');if(!el)re
   charts['ch-hr-week']=new Chart(el,{type:'bar',data:{labels,datasets:ds},options:{...BASE,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const day=perDay[c.dataIndex];const tot=day.reduce((a,b)=>a+b,0)||1;const sec=day[c.datasetIndex];return c.dataset.label+': '+fmtHM(sec)+' ('+Math.round(sec/tot*100)+'%)';}}}},scales:{x:{...AX,stacked:true,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,stacked:true,title:{display:true,text:'min',color:mc,font:{size:9}}}}},plugins:[totPlugin]});
   const leg=document.getElementById('hr-week-leg');if(leg)leg.innerHTML=HRZ.map(z=>`<span><i class="led" style="background:${z[1]}"></i>${z[0]}</span>`).join('');
 }
+/* ============ v270 · Acumulado semanal en zonas ============
+   Comparaba el total absoluto de la semana contra la media de TODAS las
+   anteriores, y eso mezclaba semanas que no son comparables: las sesiones
+   subidas por semana van de 1 a 5 y los jugadores registrados de 9 a 11, así
+   que una semana con más sesiones salía disparada sin que nadie hubiera
+   entrenado más fuerte. Además el promedio incluía semanas de una sola sesión,
+   que hundían la referencia e inflaban el porcentaje: de ahí venían aumentos
+   del 197% en Z5.
+
+   Ahora la referencia se calcula sobre el tiempo POR JUGADOR Y SESIÓN de las
+   WZ_VENTANA semanas anteriores con datos suficientes, y se reescala a los
+   jugadores y sesiones de la semana en curso. Así el Δ% responde a "para las
+   sesiones que hemos hecho, ¿se ha estado más o menos tiempo en esta zona?". */
+const WZ_VENTANA=4;      // semanas previas que forman la referencia
+const WZ_MIN_SESIONES=2; // una semana con menos sesiones no sirve de referencia
 function buildWeekZones(dk){const box=document.getElementById('hr-week-zones');if(!box)return;
   const curMon=hrMonday(dk).getTime();
-  const weeks={};STATE.hr.forEach(r=>{const m=hrMonday(r.dk).getTime();const w=weeks[m]||(weeks[m]=[0,0,0,0,0]);HRZ.forEach((_,zi)=>w[zi]+=(r.z[zi]||0));});
-  const cur=weeks[curMon]||[0,0,0,0,0];
-  const prior=Object.keys(weeks).map(Number).filter(m=>m<curMon);
-  const ref=HRZ.map((_,zi)=>prior.length?mean(prior.map(m=>weeks[m][zi])):null);
+  const weeks={};
+  (STATE.hr||[]).forEach(r=>{const m=hrMonday(r.dk).getTime();
+    const w=weeks[m]||(weeks[m]={z:[0,0,0,0,0],jug:new Set(),ses:new Set()});
+    HRZ.forEach((_,zi)=>w.z[zi]+=(r.z[zi]||0));
+    w.jug.add(r.name);w.ses.add(r.dk+'|'+(r.session||''));});
+  const W=weeks[curMon]||{z:[0,0,0,0,0],jug:new Set(),ses:new Set()};
+  const cur=W.z;
+  const nJug=W.jug.size||0,nSes=W.ses.size||0;
+  const unidad=Math.max(1,nJug)*Math.max(1,nSes);
+  const porUnidad=(o,zi)=>o.z[zi]/(Math.max(1,o.jug.size)*Math.max(1,o.ses.size));
+  const prior=Object.keys(weeks).map(Number)
+    .filter(m=>m<curMon&&weeks[m].ses.size>=WZ_MIN_SESIONES)
+    .sort((a,b)=>b-a).slice(0,WZ_VENTANA);
+  const comparable=prior.length>0&&nJug>0&&nSes>0;
+  const ref=HRZ.map((_,zi)=>comparable?mean(prior.map(m=>porUnidad(weeks[m],zi)))*unidad:null);
   const maxZ=Math.max(1,...cur);
   const rows=HRZ.map((_,zi)=>zi).reverse().map(zi=>{const z=HRZ[zi];const t=cur[zi];const r=ref[zi];
     const dpct=(r!=null&&r>0)?Math.round((t-r)/r*100):null;
     const dcol=dpct==null?'#9aa3ad':dpct>0?'#c2702e':dpct<0?'#3f5572':'#9aa3ad';
     const arrow=dpct==null?'':dpct>0?'▲':dpct<0?'▼':'·';
-    return `<div class="wz-row"><span class="wz-led" style="background:${z[1]}"></span><span class="wz-name">${z[0]}</span><div class="wz-bar"><span style="width:${Math.round(t/maxZ*100)}%;background:${z[1]}"></span></div><span class="wz-time">${fmtHM(t)}</span><span class="wz-delta" style="color:${dcol}">${dpct==null?'—':arrow+' '+Math.abs(dpct)+'%'}</span></div>`;}).join('');
+    const tit=r!=null?'Referencia ajustada a esta semana: '+fmtHM(r):'Sin semanas previas comparables';
+    return `<div class="wz-row"><span class="wz-led" style="background:${z[1]}"></span><span class="wz-name">${z[0]}</span><div class="wz-bar"><span style="width:${Math.round(t/maxZ*100)}%;background:${z[1]}"></span></div><span class="wz-val">${fmtHM(t)}</span><span class="wz-d" style="color:${dcol}" title="${tit}">${dpct==null?'—':arrow+' '+(dpct>0?'+':'')+dpct+'%'}</span></div>`;}).join('');
   const totCur=cur.reduce((a,b)=>a+b,0);
-  box.innerHTML=`<div class="wz-head"><span>Total de la semana</span><b>${fmtHM(totCur)}</b></div>${rows}<div class="wz-foot">${prior.length?'Δ% sobre la media de '+prior.length+' semana'+(prior.length>1?'s':'')+' previa'+(prior.length>1?'s':''):'sin semanas previas para comparar'}</div>`;
+  const porJug=nJug?totCur/nJug:0;
+  box.innerHTML=`<div class="wz-head"><span>Total de la semana</span><b>${fmtHM(totCur)}</b></div>`
+    +`<div class="wz-sub"><span>Por jugador${nSes?' · '+nSes+(nSes>1?' sesiones':' sesión'):''}${nJug?' · '+nJug+' jugador'+(nJug>1?'es':''):''}</span><b>${nJug?fmtHM(porJug):'—'}</b></div>`
+    +rows
+    +`<div class="wz-foot">${comparable
+        ? 'Δ% sobre la media de '+prior.length+' semana'+(prior.length>1?'s':'')+' previa'+(prior.length>1?'s':'')+', ajustada a los jugadores y sesiones de esta semana'
+        : 'Sin semanas previas suficientes para comparar'}</div>`;
 }
 function buildPosBaremo(rows){const box=document.getElementById('hr-pos-baremo');if(!box)return;
   const hist={};STATE.hr.forEach(r=>{const pos=(STATE.players[r.name]||{}).pos||'—';(hist[pos]=hist[pos]||[]).push(trimpOf(r));});
