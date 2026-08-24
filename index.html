@@ -1363,6 +1363,14 @@ body.sb-min .sb-ver{display:none}
 .pb-ev-alta .pb-ev-i{color:var(--ok)}
 .pb-hist{margin-top:14px;border-top:1px solid var(--hair);padding-top:12px}
 .pb-hist>summary{cursor:pointer;font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:10px}
+/* v276 · candidatos a agrupar */
+.pb-cand{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border:1px solid var(--line);
+  border-radius:var(--r-sm);margin-bottom:7px;cursor:pointer;background:var(--panel)}
+.pb-cand:hover{border-color:var(--accent)}
+.pb-cand input{margin-top:3px;flex:none}
+.pb-cand span{min-width:0;font-size:12.5px;line-height:1.4}
+.pb-cand b{display:block;font-weight:800}
+.pb-cand em{display:block;font-style:normal;font-size:11px;color:var(--muted);margin-top:2px}
 /* ══ v275 · La parte visual ══ */
 .pb-mapa{display:flex;align-items:center;gap:16px;background:var(--panel2);
   border-radius:var(--r-md);padding:12px 14px;margin-bottom:12px}
@@ -3296,6 +3304,19 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div id="bkp-detalle" style="margin-top:12px"></div>
       <div class="small" id="bkp-msg" style="margin-top:10px;color:var(--accent)"></div>
     </div>
+    <!-- v276 · Agrupar el histórico médico. Va en Conexión, con las demás
+         herramientas de mantenimiento: se usa una vez, no a diario. -->
+    <details class="panel" id="pb-agrupar-panel">
+      <summary style="cursor:pointer;font-weight:700">Agrupar historial médico <span class="small muted">· une lesiones repetidas y enlaza partes sueltos</span></summary>
+      <div style="margin-top:12px">
+        <p class="hint">Antes de que existiera el concepto de problema, cada lesión y cada parte del día se guardaban sueltos. Aquí se detectan los que parecen la misma historia y <b>se te proponen</b>: nada cambia hasta que marcas y aplicas. Fusionar no borra, solo agrupa, y se puede deshacer.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0">
+          <button class="btn ghost" onclick="pbRenderAgrupar()">Buscar candidatos</button>
+          <button class="btn ghost" onclick="pbDeshacerFusiones()">Deshacer fusiones</button>
+        </div>
+        <div id="pb-agrupar"><p class="small muted" style="margin:0">Pulsa «Buscar candidatos» para ver qué se puede agrupar.</p></div>
+      </div>
+    </details>
     <div class="panel">
       <h2>Conexión de datos</h2>
       <p class="hint">Lee tus hojas de Google publicadas como CSV, sin contraseñas ni servidor. En Sheets: <b>Archivo → Compartir → Publicar en la web → elige la pestaña → CSV → Publicar</b>, y pega el enlace. El modo demo muestra todo con datos de ejemplo.</p>
@@ -5615,15 +5636,35 @@ window.skelFuera=skelFuera;
 const PB_BLOQUEAN=['baja','noentto','enfermo','readapt'];
 function pbProblemas(name,incluirCerrados){
   try{medDbLoad();}catch(e){}
-  const todos=((STATE.med||{}).inj||[]).filter(x=>x&&x.name===name);
-  const out=incluirCerrados?todos:todos.filter(x=>x.open);
+  /* v276 · los problemas fusionados en otro no se listan aparte: su contenido
+     se lee dentro del principal. No se borran, solo se marcan, de modo que la
+     fusión se puede deshacer sin haber perdido nada. */
+  const todos=((STATE.med||{}).inj||[]).filter(x=>x&&x.name===name&&!x.mergedInto);
+  const out=incluirCerrados?todos:todos.filter(x=>pbGrupo(x).abierto);
   return out.slice().sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+}
+/* v276 · El grupo manda sobre la pieza. Tras fusionar, el problema principal
+   puede ser uno antiguo y ya cerrado mientras un rebrote posterior sigue
+   abierto: el estado y la duración tienen que salir de todo el grupo, no solo
+   del contenedor. Sin esto, una lesión con un brote activo aparecía «Cerrada». */
+function pbGrupo(inj){
+  const hijos=((STATE.med||{}).inj||[]).filter(x=>x&&x.mergedInto===inj.id);
+  const todos=[inj].concat(hijos);
+  const abierto=todos.some(x=>x.open);
+  let est=null;
+  todos.forEach(x=>{
+    if(!x.open||!x.status)return;
+    if(PB_BLOQUEAN.indexOf(x.status)>=0)est=x.status;
+  });
+  let cierre='';
+  if(!abierto)todos.forEach(x=>{if(x.closeDk&&x.closeDk>cierre)cierre=x.closeDk;});
+  return {abierto,status:est,cierre,n:todos.length};
 }
 function pbEstado(inj){
   if(!inj)return null;
-  if(!inj.open)return {k:'cerrado',lab:'Cerrado',col:'var(--muted)'};
-  if(inj.status&&PB_BLOQUEAN.indexOf(inj.status)>=0)
-    return {k:'activo',lab:'Activo',col:'var(--bad)'};
+  const g=pbGrupo(inj);
+  if(!g.abierto)return {k:'cerrado',lab:'Cerrado',col:'var(--muted)'};
+  if(g.status)return {k:'activo',lab:'Activo',col:'var(--bad)'};
   return {k:'seguimiento',lab:'En seguimiento',col:'var(--warn)'};
 }
 function pbEtiqueta(inj){
@@ -5645,13 +5686,22 @@ function pbPorZona(name,zona){
 function pbCronologia(inj){
   if(!inj)return [];
   const ev=[];
+  /* v276 · ids que aportan eventos: el propio y los que se fusionaron en él. */
+  const fus=((STATE.med||{}).inj||[]).filter(x=>x&&x.mergedInto===inj.id);
+  const ids=[inj.id].concat(fus.map(x=>x.id));
+  const mio=v=>ids.indexOf(v)>=0;
+  fus.forEach(f=>{
+    ev.push({dk:f.dk,tipo:'inicio',txt:'Rebrote registrado aparte'+(f.title?': '+f.title:''),
+      meta:[f.tipo,f.clasif].filter(Boolean).join(' · ')});
+    (f.notes||[]).forEach(n=>ev.push({dk:n.dk||f.dk,tipo:'nota',txt:n.txt||n,meta:''}));
+  });
   ev.push({dk:inj.dk,tipo:'inicio',txt:'Se abre el problema'+(inj.title?': '+inj.title:''),
     meta:[inj.tipo,inj.clasif,inj.accion].filter(Boolean).join(' · ')});
   /* partes del día asociados */
   try{
     physioEnsure();
     ((STATE.physioUser||{})[inj.name]||[]).forEach(x=>{
-      if(x.injId!==inj.id)return;
+      if(!mio(x.injId))return;
       const st=(typeof PHYSTAT!=='undefined'&&PHYSTAT[x.status])?PHYSTAT[x.status].lab:x.status;
       ev.push({dk:x.dk,tipo:'parte',id:x._id,
         txt:st||'Parte del día',
@@ -5662,7 +5712,7 @@ function pbCronologia(inj){
   /* tratamientos */
   try{
     ((STATE.med||{}).treat||[]).forEach(t=>{
-      if(t.injId!==inj.id)return;
+      if(!mio(t.injId))return;
       ev.push({dk:t.dk,tipo:'trat',id:t.id,txt:t.tipo||'Tratamiento',
         meta:[t.dur?t.dur+"'":'',t.by||'',t.note||''].filter(Boolean).join(' · ')});
     });
@@ -5674,7 +5724,7 @@ function pbCronologia(inj){
       ML=STATE.medLog&&Object.keys(STATE.medLog).length?STATE.medLog:lsLeer('bmnava_medlog',{});
     }
     (ML[inj.name]||[]).forEach(m=>{
-      if(m.injId!==inj.id)return;
+      if(!mio(m.injId))return;
       ev.push({dk:m.dk,tipo:'cita',id:m.id,txt:m.title||m.type||'Consulta',
         meta:[m.type||'',m.who||'',m.status||''].filter(Boolean).join(' · '),link:m.link||''});
     });
@@ -5705,7 +5755,8 @@ function pbBloque(inj,abierto){
   const e=pbEstado(inj);
   const cr=pbCronologia(inj);
   const brotes=cr.filter(x=>x.tipo==='parte'&&x.bloquea).length;
-  const dias=pbDias(inj.dk,inj.open?null:inj.closeDk);
+  const g=pbGrupo(inj);
+  const dias=pbDias(inj.dk,g.abierto?null:g.cierre);
   const q=String(inj.id).replace(/'/g,"\\'");
   const linea=x=>'<div class="pb-ev pb-ev-'+x.tipo+'">'
       +'<span class="pb-ev-i">'+(PB_ICONO[x.tipo]||'·')+'</span>'
@@ -5718,6 +5769,7 @@ function pbBloque(inj,abierto){
       +'<span class="pb-st" style="color:'+e.col+'">'+e.lab+'</span>'
       +'<span class="pb-meta">desde '+pbFecha(inj.dk)+' · '+dias+' d'
         +(brotes>1?' · '+brotes+' brotes':'')
+        +(g.n>1?' · '+g.n+' episodios unidos':'')
         +(inj.kind==='lesion'&&(inj.phases||[]).length?' · con readaptación':'')+'</span>'
     +'</summary>'
     +'<div class="pb-body">'
@@ -5773,8 +5825,9 @@ function pbSilueta(problemas){
 /* Barra de tiempo del problema: de la apertura a hoy, con una marca por evento.
    Convierte la lista de texto en algo que se lee en un segundo. */
 function pbBarra(inj,cr){
+  const g=pbGrupo(inj);
   const ini=new Date(inj.dk+'T00:00:00');
-  const fin=inj.open?new Date():new Date((inj.closeDk||inj.dk)+'T00:00:00');
+  const fin=g.abierto?new Date():new Date((g.cierre||inj.closeDk||inj.dk)+'T00:00:00');
   const total=Math.max(1,(fin-ini)/864e5);
   const COL={parte:'var(--warn)',trat:'var(--ok)',cita:'#5b7fa6',nota:'var(--muted2)',alta:'var(--ok)'};
   const marcas=cr.filter(x=>x.tipo!=='inicio').map(x=>{
@@ -5785,13 +5838,136 @@ function pbBarra(inj,cr){
   }).join('');
   return '<div class="pb-barra"><span class="pb-barra-l">'+pbFecha(inj.dk)+'</span>'
     +'<div class="pb-barra-t">'+marcas+'</div>'
-    +'<span class="pb-barra-l">'+(inj.open?'hoy':pbFecha(inj.closeDk))+'</span></div>';
+    +'<span class="pb-barra-l">'+(g.abierto?'hoy':pbFecha(g.cierre||inj.closeDk))+'</span></div>';
 }
+/* ══════════ v276 · Agrupar lo ya registrado ══════════
+   Todo lo anterior al concepto de problema quedó suelto: cada lesión por su
+   lado y los partes del día sin enlazar a ninguna. Esto detecta candidatos y
+   los PROPONE; no toca nada hasta que Daniel confirma cuáles.
+
+   Dos tipos de candidato:
+     · enlace  → un parte suelto cuya zona coincide con un problema de ese
+                 jugador abierto en esas fechas.
+     · fusión  → dos o más problemas del mismo jugador y la misma zona, que casi
+                 siempre son la misma historia con recaídas.
+
+   Nada se borra. Fusionar marca el problema absorbido con mergedInto y su
+   contenido se lee dentro del principal; enlazar solo rellena injId. Las dos
+   cosas se pueden deshacer. */
+function pbNorm(v){return String(v||'').toLowerCase().normalize('NFD')
+  .replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'').trim();}
+function pbMismaZona(a,b){
+  const x=pbNorm(a),y=pbNorm(b);
+  if(!x||!y)return false;
+  return x===y||x.indexOf(y)>=0||y.indexOf(x)>=0;
+}
+function pbCandidatos(){
+  try{medDbLoad();physioEnsure();}catch(e){}
+  const inj=((STATE.med||{}).inj||[]).filter(x=>x&&!x.mergedInto);
+  const enlaces=[],fusiones=[];
+  /* ── fusiones: mismo jugador, misma zona, mismo lado ── */
+  const porClave={};
+  inj.forEach(x=>{
+    const k=x.name+'|'+pbNorm(x.zona)+'|'+(x.lado||'');
+    if(!pbNorm(x.zona))return;
+    (porClave[k]=porClave[k]||[]).push(x);
+  });
+  Object.keys(porClave).forEach(k=>{
+    const g=porClave[k].slice().sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+    if(g.length<2)return;
+    fusiones.push({id:'f_'+pbNorm(k),name:g[0].name,zona:pbEtiqueta(g[0]),
+      principal:g[0],otros:g.slice(1)});
+  });
+  /* ── enlaces: partes sueltos que encajan con un problema ── */
+  Object.keys(STATE.physioUser||{}).forEach(name=>{
+    (STATE.physioUser[name]||[]).forEach(pt=>{
+      if(!pt||pt.injId||pt.ep)return;            /* ya enlazado, o es espejo de Médico */
+      if(!pbNorm(pt.zone))return;
+      const cand=inj.filter(x=>x.name===name&&pbMismaZona(x.zona,pt.zone)
+        &&(!pt.side||!x.lado||pt.side===x.lado));
+      if(!cand.length)return;
+      /* el problema abierto más cercano en el tiempo, sin adelantarse a su inicio */
+      const validos=cand.filter(x=>String(pt.dk)>=String(x.dk));
+      if(!validos.length)return;
+      validos.sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+      enlaces.push({id:'e_'+name+'_'+pt._id,name,parte:pt,inj:validos[0]});
+    });
+  });
+  return {enlaces,fusiones};
+}
+window.pbCandidatos=pbCandidatos;
+function pbRenderAgrupar(){
+  const box=document.getElementById('pb-agrupar');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const c=pbCandidatos();
+  const total=c.enlaces.length+c.fusiones.length;
+  if(!total){
+    box.innerHTML='<p class="small muted" style="margin:0">No hay nada que agrupar: todos los partes están enlazados y no hay dos problemas de la misma zona en el mismo jugador.</p>';
+    return;
+  }
+  const fil=(id,titulo,detalle)=>'<label class="pb-cand">'
+    +'<input type="checkbox" class="pb-ck" value="'+esc(id)+'" checked>'
+    +'<span><b>'+titulo+'</b><em>'+detalle+'</em></span></label>';
+  let h='';
+  if(c.fusiones.length){
+    h+='<div class="cm-sub" style="margin:4px 0 8px">Problemas que parecen el mismo · '+c.fusiones.length+'</div>';
+    h+=c.fusiones.map(f=>fil(f.id,esc(f.name)+' · '+esc(f.zona),
+      'Se fusionan '+(f.otros.length+1)+' problemas en el del '+pbFecha(f.principal.dk)
+      +'. Los demás ('+f.otros.map(o=>pbFecha(o.dk)).join(', ')+') pasan a leerse dentro de él.')).join('');
+  }
+  if(c.enlaces.length){
+    h+='<div class="cm-sub" style="margin:14px 0 8px">Partes sueltos que encajan con un problema · '+c.enlaces.length+'</div>';
+    h+=c.enlaces.map(e=>fil(e.id,esc(e.name)+' · '+pbFecha(e.parte.dk)+' · '+esc(e.parte.zone||''),
+      'Se enlaza con «'+esc(pbEtiqueta(e.inj))+'», abierto el '+pbFecha(e.inj.dk)+'.')).join('');
+  }
+  box.innerHTML=h
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center">'
+      +'<button class="btn" onclick="pbAplicarAgrupacion()">Aplicar lo marcado</button>'
+      +'<button class="btn ghost" onclick="document.querySelectorAll(\'.pb-ck\').forEach(x=>x.checked=false)">Desmarcar todo</button>'
+      +'<span class="small muted">Nada se borra: fusionar solo marca, y se puede deshacer.</span>'
+    +'</div><p class="hint" id="pb-agr-msg" style="margin-top:10px"></p>';
+}
+window.pbRenderAgrupar=pbRenderAgrupar;
+window.pbAplicarAgrupacion=function(){
+  const marcados=Array.from(document.querySelectorAll('.pb-ck:checked')).map(x=>x.value);
+  if(!marcados.length){const m=document.getElementById('pb-agr-msg');if(m)m.textContent='No has marcado nada.';return;}
+  const c=pbCandidatos();
+  let nF=0,nE=0;
+  c.fusiones.forEach(f=>{
+    if(marcados.indexOf(f.id)<0)return;
+    f.otros.forEach(o=>{o.mergedInto=f.principal.id;nF++;});
+  });
+  c.enlaces.forEach(e=>{
+    if(marcados.indexOf(e.id)<0)return;
+    e.parte.injId=e.inj.id;nE++;
+  });
+  if(nF)medPersist();
+  if(nE)physioPersist();
+  STATE.physioEx=null;try{buildPhysio();}catch(err){}
+  const m=document.getElementById('pb-agr-msg');
+  if(m)m.innerHTML='<b>'+nF+'</b> problema(s) fusionado(s) y <b>'+nE+'</b> parte(s) enlazado(s). '
+    +'Míralo en la ficha de los jugadores.';
+  pbRenderAgrupar();
+  try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}
+};
+/* Deshacer todas las fusiones, por si alguna no era correcta. */
+window.pbDeshacerFusiones=function(){
+  try{medDbLoad();}catch(e){}
+  const n=((STATE.med||{}).inj||[]).filter(x=>x&&x.mergedInto).length;
+  if(!n){if(window.toast)toast('No hay fusiones que deshacer');return;}
+  if(!confirm('¿Deshacer las '+n+' fusiones? Los problemas vuelven a listarse por separado. Los partes enlazados no se tocan.'))return;
+  ((STATE.med||{}).inj||[]).forEach(x=>{if(x&&x.mergedInto)delete x.mergedInto;});
+  medPersist();pbRenderAgrupar();
+  if(window.toast)toast(n+' fusiones deshechas');
+};
 function renderProblemas(name){
   const box=document.getElementById('pl-problemas');if(!box)return;
   const abiertos=pbProblemas(name);
   const todos=pbProblemas(name,true);
-  const cerrados=todos.filter(x=>!x.open);
+  /* v276 · el historial mira el GRUPO, no la pieza: tras fusionar, el
+     contenedor puede estar cerrado y tener un rebrote abierto, y así salía
+     duplicado —arriba como abierto y otra vez en el historial—. */
+  const cerrados=todos.filter(x=>!pbGrupo(x).abierto);
   let estado='Disponible',col='var(--ok)';
   try{
     const ev=effectiveStatus(name,dkEstado());
