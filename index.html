@@ -2384,8 +2384,14 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
   background:radial-gradient(ellipse,rgba(48,86,196,.55),transparent 70%);animation-delay:.05s}
 .sp-a2{width:520px;height:520px;left:calc(50% + 40px);top:calc(46% - 120px);
   background:radial-gradient(ellipse,rgba(28,150,160,.42),transparent 70%);animation-delay:.25s}
-.sp-a3{width:700px;height:380px;left:calc(50% - 240px);top:calc(46% + 60px);
-  background:radial-gradient(ellipse,rgba(48,86,196,.30),transparent 72%);animation-delay:.45s}
+/* Tercera aurora en el dorado del escudo del 50 aniversario. Es el único sitio
+   donde el oro sale del sidebar, y es deliberado: el splash no compite con
+   ninguna alerta y el encargo ya declaraba excepción de color para él. El rojo
+   del escudo se queda fuera a propósito: ese sí está reservado a alertas. */
+.sp-a3{width:700px;height:400px;left:calc(50% - 250px);top:calc(46% + 40px);
+  background:radial-gradient(ellipse,rgba(201,162,74,.34),transparent 70%);animation-delay:.45s}
+.sp-a4{width:460px;height:300px;left:calc(50% - 30px);top:calc(46% - 250px);
+  background:radial-gradient(ellipse,rgba(232,200,130,.20),transparent 72%);animation-delay:.65s}
 @keyframes spAur{to{opacity:1;transform:scale(1)}}
 .sp-drift{animation:spAur 2.5s var(--ease-out,cubic-bezier(.16,1,.3,1)) forwards,
   spDrift 14s var(--ease-in-out,cubic-bezier(.65,0,.35,1)) 2.5s infinite alternate}
@@ -2402,17 +2408,21 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
 .sp-arcs{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 .sp-arcs circle{fill:none;stroke:rgba(255,255,255,.085);stroke-width:1}
 /* 4 · escudo, en centro óptico */
-.sp-logo{position:relative;width:25vw;max-width:160px;height:auto;
+.sp-logo{position:relative;width:34vw;max-width:216px;height:auto;
   margin-top:-8vh;opacity:0;transform:scale(.92);
-  /* El logotipo del club viene con fondo blanco: se trata como placa, igual
-     que en la cabecera, en vez de dejarlo como un recorte pegado. */
-  border-radius:14px;padding:10px 12px;background:#fff;
-  box-shadow:0 0 0 1px rgba(255,255,255,.12),0 18px 60px -12px rgba(48,86,196,.55),
-             0 0 90px -10px rgba(28,150,160,.35);
+  /* Sin fondo: el escudo propio llega con transparencia y flota sobre la luz.
+     Solo se le pone halo, para que parezca que la aurora nace de él. */
+  filter:drop-shadow(0 18px 46px rgba(201,162,74,.35))
+         drop-shadow(0 0 70px rgba(48,86,196,.45));
   animation:spLogo .7s var(--ease-out,cubic-bezier(.16,1,.3,1)) .15s forwards;
   transition:opacity .9s var(--ease-in-out,cubic-bezier(.65,0,.35,1)),
              filter .9s var(--ease-in-out,cubic-bezier(.65,0,.35,1))}
 @keyframes spLogo{to{opacity:1;transform:scale(1)}}
+/* Repliegue: el logotipo de cabecera trae fondo blanco y necesita placa. */
+.sp-logo.sp-placa{border-radius:14px;padding:10px 12px;background:#fff;
+  filter:none;
+  box-shadow:0 0 0 1px rgba(255,255,255,.12),0 18px 60px -12px rgba(48,86,196,.55),
+             0 0 90px -10px rgba(201,162,74,.35)}
 /* 5 · lavado a blanco */
 .sp-wash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;
   transition:opacity .9s var(--ease-in-out,cubic-bezier(.65,0,.35,1))}
@@ -2433,6 +2443,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
   <div class="sp-aur sp-a1 sp-drift"></div>
   <div class="sp-aur sp-a2 sp-drift"></div>
   <div class="sp-aur sp-a3 sp-drift"></div>
+  <div class="sp-aur sp-a4 sp-drift"></div>
   <div class="sp-dots"></div>
   <svg class="sp-arcs" aria-hidden="true">
     <circle cx="88%" cy="-14%" r="760"></circle>
@@ -2446,10 +2457,28 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
   var el=document.getElementById('splash');
   if(!el)return;
   /* El escudo se toma del que ya está en la cabecera: no se duplica el base64. */
+  /* Si existe un escudo propio en la carpeta se usa ese, sin placa blanca
+     detrás, porque se espera con transparencia. Si no lo hay, se cae al
+     logotipo de la cabecera, que trae fondo blanco y sí necesita la placa.
+     Se prueba primero el SVG, que escala mejor. */
   function ponLogo(){
     var img=document.getElementById('sp-logo');
-    var src=(document.querySelector('.club-logo')||{}).src||window.__LOGO_CLUB__||window.__LOGO_CLUBs__;
-    if(img&&src)img.src=src;
+    if(!img)return;
+    var propio=['escudo.svg','escudo.png'];
+    var i=0;
+    function siguiente(){
+      if(i>=propio.length){
+        img.classList.add('sp-placa');
+        var src=(document.querySelector('.club-logo')||{}).src||window.__LOGO_CLUB__||window.__LOGO_CLUBs__;
+        if(src)img.src=src;
+        return;
+      }
+      var pr=new Image();
+      pr.onload=function(){img.src=pr.src;};
+      pr.onerror=function(){i++;siguiente();};
+      pr.src=propio[i];
+    }
+    siguiente();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ponLogo);
   else ponLogo();
