@@ -1367,10 +1367,21 @@ body.sb-min .sb-ver{display:none}
 .pb-cand{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border:1px solid var(--line);
   border-radius:var(--r-sm);margin-bottom:7px;cursor:pointer;background:var(--panel)}
 .pb-cand:hover{border-color:var(--accent)}
-.pb-cand input{margin-top:3px;flex:none}
-.pb-cand span{min-width:0;font-size:12.5px;line-height:1.4}
-.pb-cand b{display:block;font-weight:800}
+.pb-cand input[type=checkbox]{margin-top:3px;flex:none;width:15px;height:15px;min-width:15px;min-height:15px!important;padding:0}
+.pb-cand>span{flex:1;min-width:0;font-size:12.5px;line-height:1.4}
+.pb-cand>span>b{display:block;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .pb-cand em{display:block;font-style:normal;font-size:11px;color:var(--muted);margin-top:2px}
+/* v278 · propuestas de agrupación, jugador a jugador */
+.pb-cand-j{margin-bottom:16px}
+.pb-cand-jn{font-size:12px;font-weight:800;letter-spacing:.02em;margin:0 0 7px;display:flex;align-items:center;gap:7px}
+.pb-cand-jn span{font-weight:700;font-size:10px;color:var(--muted);background:var(--panel2);
+  border:1px solid var(--hair);border-radius:999px;padding:1px 7px}
+.pb-cand-tag{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);background:var(--panel2);border:1px solid var(--hair);border-radius:999px;padding:1px 7px;white-space:nowrap}
+.pb-cand-l{display:block;margin-top:7px;padding-top:7px;border-top:1px dashed var(--hair);
+  font-size:11px;line-height:1.7;color:var(--muted)}
+.pb-cand-l i{font-style:normal;font-variant-numeric:tabular-nums;color:var(--muted2);margin-right:5px}
+.pb-cand-l u{text-decoration:none;font-size:9.5px;color:var(--muted2)}
 /* ══ v275 · La parte visual ══ */
 .pb-mapa{display:flex;align-items:center;gap:16px;background:var(--panel2);
   border-radius:var(--r-md);padding:12px 14px;margin-bottom:12px}
@@ -5767,49 +5778,58 @@ function pbLinea(x){
    Fernández— salía como «sin problemas», con la ficha en blanco. Aquí se
    reúnen esos registros sueltos, sin inventar agrupaciones: se listan tal cual
    están, y agruparlos sigue siendo una decisión de Daniel. */
-function pbSueltos(name){
-  const ev=[];
+function pbSueltosRaw(name){
+  const out=[];
   /* el episodio que abre el propio problema no es un registro suelto: lo crea
      medPhysioOpen con _id 'med_<idDelProblema>' y ya se cuenta dentro de él. */
   const deProblema={};
   ((STATE.med||{}).inj||[]).forEach(x=>{if(x&&x.id)deProblema['med_'+x.id]=true;});
+  /* v278 · se recorre STATE.physioUser y NO physioEvents: physioEvents devuelve
+     copias de los partes ({...e}), y escribirles injId al agrupar no guardaría
+     nada. Aquí hacen falta los objetos de verdad. */
   try{
     physioEnsure();
-    (physioEvents(name)||[]).forEach(x=>{
+    ((STATE.physioUser||{})[name]||[]).forEach(x=>{
       if(!x||x.injId)return;
       if(x._id&&deProblema[x._id])return;
       const st=(typeof PHYSTAT!=='undefined'&&PHYSTAT[x.status])?PHYSTAT[x.status].lab:(x.status||'');
-      ev.push({dk:x.dk,tipo:x.ep?'episodio':'parte',
-        txt:st||(x.ep?'Episodio':'Parte del d\u00eda'),
+      out.push({src:x.ep?'ep':'parte',ref:x,dk:x.dk,zone:x.zone||'',side:x.side||'',
+        status:x.status||'',
+        txt:st||(x.ep?'Episodio':'Parte del día'),
         meta:[x.zone?x.zone+(x.side?' '+x.side:''):'',
               (x.pain!=null&&x.pain!=='')?'dolor '+x.pain+'/10':'',
               x.ep?(x.to?'hasta '+pbFecha(x.to):'sin alta'):'',
-              x.treat||'',x.note||''].filter(Boolean).join(' \u00b7 '),
-        zona:x.zone||''});
+              x.treat||'',x.note||''].filter(Boolean).join(' · ')});
     });
   }catch(e){}
   try{
     ((STATE.med||{}).treat||[]).forEach(t=>{
       if(!t||t.name!==name||t.injId)return;
-      ev.push({dk:t.dk,tipo:'trat',txt:t.tipo||'Tratamiento',
-        meta:[t.dur?t.dur+"'":'',t.practitioner||t.by||'',t.bodyZone||'',t.notas||t.note||''].filter(Boolean).join(' \u00b7 '),
-        zona:t.bodyZone||''});
+      out.push({src:'trat',ref:t,dk:t.dk,zone:t.bodyZone||'',side:t.side||'',status:'',
+        txt:t.tipo||'Tratamiento',
+        meta:[t.dur?t.dur+"'":'',t.practitioner||t.by||'',t.bodyZone||'',t.notas||t.note||''].filter(Boolean).join(' · ')});
     });
   }catch(e){}
   try{
-    let ML=(window.medLogRW?medLogRW():null);
-    if(!ML||!Object.keys(ML).length){
-      ML=(STATE.medLog&&Object.keys(STATE.medLog).length)?STATE.medLog:lsLeer('bmnava_medlog',{});
-    }
+    /* siempre el objeto vivo de STATE.medLog: al agrupar hay que escribirle
+       injId y persistirlo, no una copia recién leída que nadie guarda. */
+    if(window.medLogRW)medLogRW();
+    if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});
+    const ML=STATE.medLog;
     (ML[name]||[]).forEach(m=>{
       if(!m||m.injId)return;
-      ev.push({dk:m.dk,tipo:'cita',txt:m.title||m.type||'Consulta',
-        meta:[m.type||'',m.who||'',m.status||''].filter(Boolean).join(' \u00b7 '),zona:''});
+      out.push({src:'cita',ref:m,dk:m.dk,zone:'',side:'',status:'',
+        txt:m.title||m.type||'Consulta',
+        meta:[m.type||'',m.who||'',m.status||''].filter(Boolean).join(' · ')});
     });
   }catch(e){}
-  return ev.filter(x=>x.dk).sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+  return out.filter(x=>x.dk).sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
 }
-window.pbSueltos=pbSueltos;
+function pbSueltos(name){
+  const TIPO={ep:'episodio',parte:'parte',trat:'trat',cita:'cita'};
+  return pbSueltosRaw(name).map(x=>({dk:x.dk,tipo:TIPO[x.src]||'parte',txt:x.txt,meta:x.meta,zona:x.zone}));
+}
+window.pbSueltos=pbSueltos;window.pbSueltosRaw=pbSueltosRaw;
 function pbBloque(inj,abierto){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   const e=pbEstado(inj);
@@ -5918,6 +5938,91 @@ function pbMismaZona(a,b){
   if(!x||!y)return false;
   return x===y||x.indexOf(y)>=0||y.indexOf(x)>=0;
 }
+/* ══ v278 · Reconstruir los problemas que nunca se registraron como tales ══
+   El caso real: un esguince de tobillo contado en seis apuntes sueltos —el
+   parte del día de la caída, la previsión de que no entrena, la consulta en la
+   mutua, el vendaje— y ninguna lesión creada, porque cuando se apuntaron no
+   existía el concepto de problema. Cada uno por su lado no dice nada; juntos
+   son la historia entera. Esto los agrupa y PROPONE crear la lesión que los
+   contiene, con la lista de lo que absorbería a la vista para poder revisarla.
+
+   La zona se compara por región anatómica (zoneRegion), no por el texto: es lo
+   que hace que «Tobillo», «Tobillo D» y «esguince» sean lo mismo, y «trapecio»
+   y «zona escapular» sean el hombro. */
+function pbRegion(z){
+  const r=(typeof zoneRegion==='function')?zoneRegion(z||''):null;
+  return r||pbNorm(z)||'';
+}
+const PB_NUEVO_VENTANA=14;   /* días tras el último apunte que sigue absorbiendo lo que no lleva zona */
+const PB_NUEVO_ABIERTO=21;   /* sin registros durante este tiempo, el problema nace ya cerrado */
+function pbNuevos(){
+  const out=[];
+  const nombres={};
+  Object.keys((STATE.players||{})).forEach(n=>nombres[n]=true);
+  Object.keys((STATE.physioUser||{})).forEach(n=>nombres[n]=true);
+  ((STATE.med||{}).treat||[]).forEach(t=>{if(t&&t.name)nombres[t.name]=true;});
+  const hoy=(typeof medToday==='function')?medToday():'';
+  Object.keys(nombres).sort((a,b)=>a.localeCompare(b)).forEach(name=>{
+    const regs=pbSueltosRaw(name);
+    if(!regs.length)return;
+    /* 1 · por región anatómica; lo que no lleva zona se reparte después */
+    const porReg={},sinZona=[];
+    regs.forEach(r=>{
+      const reg=r.zone?pbRegion(r.zone):'';
+      if(!reg){sinZona.push(r);return;}
+      (porReg[reg]=porReg[reg]||[]).push(r);
+    });
+    const grupos=[];
+    Object.keys(porReg).forEach(reg=>{
+      const g=porReg[reg];
+      /* 2 · si hay derecha e izquierda de la misma región son dos historias.
+         Los apuntes sin lado se quedan con el lado mayoritario. */
+      const lados={};g.forEach(r=>{if(r.side)lados[r.side]=(lados[r.side]||0)+1;});
+      const ks=Object.keys(lados);
+      if(ks.length<2){grupos.push({reg,lado:ks[0]||'',regs:g});return;}
+      const may=ks.slice().sort((a,b)=>lados[b]-lados[a])[0];
+      ks.forEach(l=>{
+        const sub=g.filter(r=>r.side===l||(!r.side&&l===may));
+        if(sub.length)grupos.push({reg,lado:l,regs:sub});
+      });
+    });
+    /* 3 · lo que no lleva zona (una consulta, una prueba) entra solo si hay un
+       único grupo vivo en esas fechas: si hay dos, no hay forma de saber a cuál
+       pertenece y es mejor dejarlo fuera que colgarlo del problema equivocado. */
+    grupos.forEach(gr=>{
+      gr.desde=gr.regs.map(r=>r.dk).sort()[0];
+      gr.hasta=gr.regs.map(r=>r.dk).sort().slice(-1)[0];
+    });
+    sinZona.forEach(r=>{
+      const cab=grupos.filter(g=>r.dk>=g.desde&&r.dk<=pbSumaDias(g.hasta,PB_NUEVO_VENTANA));
+      if(cab.length!==1)return;
+      cab[0].regs.push(r);cab[0].sinZona=(cab[0].sinZona||0)+1;
+      if(r.dk>cab[0].hasta)cab[0].hasta=r.dk;
+    });
+    grupos.forEach(gr=>{
+      /* 4 · un apunte suelto no es un problema, salvo que ya impidiera entrenar */
+      const grave=gr.regs.some(r=>PB_BLOQUEAN.indexOf(r.status)>=0);
+      if(gr.regs.length<2&&!grave)return;
+      const conZona=gr.regs.filter(r=>r.zone);
+      const cuenta={};conZona.forEach(r=>{const z=String(r.zone).trim();cuenta[z]=(cuenta[z]||0)+1;});
+      const zona=Object.keys(cuenta).sort((a,b)=>cuenta[b]-cuenta[a])[0]||gr.reg;
+      const dias=hoy?pbDias(gr.hasta,hoy):999;
+      gr.regs.sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+      out.push({id:'n_'+pbNorm(name)+'_'+pbNorm(gr.reg)+'_'+(gr.lado||'x'),
+        name,zona,lado:gr.lado||'',region:gr.reg,
+        desde:gr.desde,hasta:gr.hasta,regs:gr.regs,
+        grave,abierto:dias<=PB_NUEVO_ABIERTO,
+        zonas:Object.keys(cuenta)});
+    });
+  });
+  return out;
+}
+function pbSumaDias(dk,n){
+  try{const d=new Date(dk+'T00:00:00');d.setDate(d.getDate()+n);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }catch(e){return dk;}
+}
+window.pbNuevos=pbNuevos;
 function pbCandidatos(){
   try{medDbLoad();physioEnsure();}catch(e){}
   const inj=((STATE.med||{}).inj||[]).filter(x=>x&&!x.mergedInto);
@@ -5950,46 +6055,82 @@ function pbCandidatos(){
       enlaces.push({id:'e_'+name+'_'+pt._id,name,parte:pt,inj:validos[0]});
     });
   });
-  return {enlaces,fusiones};
+  return {enlaces,fusiones,nuevos:pbNuevos()};
 }
 window.pbCandidatos=pbCandidatos;
 function pbRenderAgrupar(){
   const box=document.getElementById('pb-agrupar');if(!box)return;
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
   const c=pbCandidatos();
-  const total=c.enlaces.length+c.fusiones.length;
+  const total=c.enlaces.length+c.fusiones.length+c.nuevos.length;
   if(!total){
-    box.innerHTML='<p class="small muted" style="margin:0">No hay nada que agrupar: todos los partes están enlazados y no hay dos problemas de la misma zona en el mismo jugador.</p>';
+    box.innerHTML='<p class="small muted" style="margin:0">No hay nada que agrupar: no quedan apuntes sueltos que formen una historia, todos los partes están enlazados y no hay dos problemas de la misma zona en el mismo jugador.</p>';
     return;
   }
-  const fil=(id,titulo,detalle)=>'<label class="pb-cand">'
+  const fil=(id,titulo,detalle,extra)=>'<label class="pb-cand">'
     +'<input type="checkbox" class="pb-ck" value="'+esc(id)+'" checked>'
-    +'<span><b>'+titulo+'</b><em>'+detalle+'</em></span></label>';
-  let h='';
-  if(c.fusiones.length){
-    h+='<div class="cm-sub" style="margin:4px 0 8px">Problemas que parecen el mismo · '+c.fusiones.length+'</div>';
-    h+=c.fusiones.map(f=>fil(f.id,esc(f.name)+' · '+esc(f.zona),
-      'Se fusionan '+(f.otros.length+1)+' problemas en el del '+pbFecha(f.principal.dk)
-      +'. Los demás ('+f.otros.map(o=>pbFecha(o.dk)).join(', ')+') pasan a leerse dentro de él.')).join('');
-  }
-  if(c.enlaces.length){
-    h+='<div class="cm-sub" style="margin:14px 0 8px">Partes sueltos que encajan con un problema · '+c.enlaces.length+'</div>';
-    h+=c.enlaces.map(e=>fil(e.id,esc(e.name)+' · '+pbFecha(e.parte.dk)+' · '+esc(e.parte.zone||''),
-      'Se enlaza con «'+esc(pbEtiqueta(e.inj))+'», abierto el '+pbFecha(e.inj.dk)+'.')).join('');
-  }
-  box.innerHTML=h
+    +'<span><b>'+titulo+'</b><em>'+detalle+'</em>'+(extra||'')+'</span></label>';
+  /* v278 · agrupado por jugador: la revisión se hace jugador a jugador, no
+     saltando entre nombres dentro de tres listas por tipo. */
+  const porJug={};
+  const meter=(n,tipo,html)=>{(porJug[n]=porJug[n]||[]).push({tipo,html});};
+  c.nuevos.forEach(n=>{
+    const lista='<span class="pb-cand-l">'+n.regs.map(r=>
+      '<i>'+pbFecha(r.dk)+'</i> '+esc(r.txt)+(r.zone?'':' <u>sin zona</u>')).join('<br>')+'</span>';
+    meter(n.name,'nuevo',fil(n.id,
+      esc(pbZonaCap(n.zona))+(n.lado?' '+esc(n.lado):'')+'  <span class="pb-cand-tag">crear problema</span>',
+      'Reúne '+n.regs.length+' apuntes sueltos, del '+pbFecha(n.desde)+' al '+pbFecha(n.hasta)+'. '
+      +(n.abierto?'Se crea abierto, en seguimiento.':'Se crea ya cerrado, con alta el '+pbFecha(n.hasta)+'.')
+      +(n.zonas.length>1?' Zonas que se unen: '+n.zonas.map(esc).join(', ')+'.':''),
+      lista));
+  });
+  c.fusiones.forEach(f=>meter(f.name,'fusion',fil(f.id,
+    esc(f.zona)+'  <span class="pb-cand-tag">unir problemas</span>',
+    'Se fusionan '+(f.otros.length+1)+' problemas en el del '+pbFecha(f.principal.dk)
+    +'. Los demás ('+f.otros.map(o=>pbFecha(o.dk)).join(', ')+') pasan a leerse dentro de él.')));
+  c.enlaces.forEach(e=>meter(e.name,'enlace',fil(e.id,
+    pbFecha(e.parte.dk)+' · '+esc(e.parte.zone||'')+'  <span class="pb-cand-tag">enlazar parte</span>',
+    'Se enlaza con «'+esc(pbEtiqueta(e.inj))+'», abierto el '+pbFecha(e.inj.dk)+'.')));
+  const jugs=Object.keys(porJug).sort((a,b)=>a.localeCompare(b));
+  const h=jugs.map(n=>'<div class="pb-cand-j">'
+      +'<div class="pb-cand-jn">'+esc(n)+' <span>'+porJug[n].length+'</span></div>'
+      +porJug[n].map(x=>x.html).join('')
+    +'</div>').join('');
+  box.innerHTML='<p class="small muted" style="margin:0 0 12px">'
+      +jugs.length+' jugador'+(jugs.length>1?'es':'')+' con algo que agrupar · '
+      +c.nuevos.length+' problema'+(c.nuevos.length===1?'':'s')+' a crear, '
+      +c.fusiones.length+' a unir, '+c.enlaces.length+' parte'+(c.enlaces.length===1?'':'s')+' a enlazar. '
+      +'Revísalo jugador a jugador y desmarca lo que no encaje.</p>'
+    +h
     +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center">'
       +'<button class="btn" onclick="pbAplicarAgrupacion()">Aplicar lo marcado</button>'
       +'<button class="btn ghost" onclick="document.querySelectorAll(\'.pb-ck\').forEach(x=>x.checked=false)">Desmarcar todo</button>'
-      +'<span class="small muted">Nada se borra: fusionar solo marca, y se puede deshacer.</span>'
+      +'<span class="small muted">Nada se borra: los apuntes siguen donde estaban, solo pasan a colgar de una lesión.</span>'
     +'</div><p class="hint" id="pb-agr-msg" style="margin-top:10px"></p>';
 }
+function pbZonaCap(z){z=String(z||'').trim();return z?z.charAt(0).toUpperCase()+z.slice(1):'Problema';}
 window.pbRenderAgrupar=pbRenderAgrupar;
 window.pbAplicarAgrupacion=function(){
   const marcados=Array.from(document.querySelectorAll('.pb-ck:checked')).map(x=>x.value);
   if(!marcados.length){const m=document.getElementById('pb-agr-msg');if(m)m.textContent='No has marcado nada.';return;}
   const c=pbCandidatos();
-  let nF=0,nE=0;
+  let nF=0,nE=0,nN=0,nR=0;
+  /* v278 · crear los problemas propuestos y colgarles sus apuntes. No se llama
+     a medPhysioOpen: la disponibilidad la siguen gobernando los episodios que
+     ya existen, y crear una lesión aquí no puede cambiar quién entrena hoy. */
+  c.nuevos.forEach(n=>{
+    if(marcados.indexOf(n.id)<0)return;
+    const id=(typeof medUid==='function')?medUid('inj'):('inj_'+Date.now()+'_'+nN);
+    const inj={id,name:n.name,dk:n.desde,by:'',kind:n.grave?'lesion':'molestia',
+      title:pbZonaCap(n.zona)+(n.lado?' '+n.lado:''),
+      tipo:'',clasif:'',tejido:'',act:'',accion:'',mom:'',
+      desc:'Reconstruido a partir de '+n.regs.length+' apuntes que ya estaban registrados.',
+      zona:n.zona,lado:n.lado||'',rtp:null,
+      open:!!n.abierto,closeDk:n.abierto?null:n.hasta,
+      pain:[],notes:[],phaseIdx:0,phases:[],reconstruido:true};
+    (STATE.med.inj=STATE.med.inj||[]).push(inj);nN++;
+    n.regs.forEach(r=>{if(r&&r.ref){r.ref.injId=id;nR++;}});
+  });
   c.fusiones.forEach(f=>{
     if(marcados.indexOf(f.id)<0)return;
     f.otros.forEach(o=>{o.mergedInto=f.principal.id;nF++;});
@@ -5998,13 +6139,17 @@ window.pbAplicarAgrupacion=function(){
     if(marcados.indexOf(e.id)<0)return;
     e.parte.injId=e.inj.id;nE++;
   });
-  if(nF)medPersist();
-  if(nE)physioPersist();
+  if(nF||nN||nR)medPersist();
+  if(nE||nR)physioPersist();
+  if(nR&&STATE.medLog)lsGuardar('bmnava_medlog',STATE.medLog);
   STATE.physioEx=null;try{buildPhysio();}catch(err){}
-  const m=document.getElementById('pb-agr-msg');
-  if(m)m.innerHTML='<b>'+nF+'</b> problema(s) fusionado(s) y <b>'+nE+'</b> parte(s) enlazado(s). '
-    +'Míralo en la ficha de los jugadores.';
+  try{renderMedico&&renderMedico();}catch(err){}
+  /* el mensaje se escribe DESPUÉS de repintar: al revés lo borraba el render. */
   pbRenderAgrupar();
+  const m=document.getElementById('pb-agr-msg');
+  if(m)m.innerHTML='<b>'+nN+'</b> problema(s) creado(s) con <b>'+nR+'</b> apunte(s) dentro, '
+    +'<b>'+nF+'</b> fusionado(s) y <b>'+nE+'</b> parte(s) enlazado(s). '
+    +'Míralo en la ficha de los jugadores.';
   try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}
 };
 /* Deshacer todas las fusiones, por si alguna no era correcta. */
