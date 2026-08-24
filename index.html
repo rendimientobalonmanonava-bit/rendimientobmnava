@@ -1329,6 +1329,44 @@ body.sb-min .sb-ver{display:none}
 .mc-b{font-size:9.5px;font-weight:800;border-radius:6px;padding:2px 7px;letter-spacing:.03em}
 .mc-days{position:absolute;top:10px;right:12px;font-size:10px;color:var(--muted2);font-weight:700}
 .med-empty{color:var(--muted);font-size:12.5px;padding:14px;background:var(--panel);border:1px dashed var(--line);border-radius:13px}
+/* v274 · aviso bajo el desplegable de asociación */
+.parte-hint{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-top:4px;line-height:1.4}
+.parte-hint.activa{color:var(--warn-text);background:var(--warn-bg);border-radius:8px;padding:6px 9px;margin-top:6px}
+.parte-hint-b{border:1px solid currentColor;background:transparent;color:inherit;border-radius:6px;
+  padding:2px 8px;font:inherit;font-size:10.5px;font-weight:800;cursor:pointer;margin-left:4px}
+/* ══ v274 · Panel de problemas ══ */
+.pb-hoy{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;
+  padding:10px 12px;background:var(--panel2);border-radius:var(--r-sm);margin-bottom:12px}
+.pb-hoy .r{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.pb-dot{width:10px;height:10px;border-radius:50%;flex:none}
+.pb{border:1px solid var(--line);border-radius:var(--r-md);margin-bottom:10px;background:var(--panel);overflow:hidden}
+.pb[open]{border-color:color-mix(in srgb,var(--accent) 26%,var(--line))}
+.pb-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:11px 13px;cursor:pointer;
+  list-style:none;font-size:13px}
+.pb-h::-webkit-details-marker{display:none}
+.pb-h:hover{background:var(--panel2)}
+.pb-t{font-weight:800}
+.pb-st{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.pb-meta{margin-left:auto;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pb-body{padding:0 13px 13px;border-top:1px solid var(--hair)}
+.pb-desc{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0 0}
+.pb-acts{display:flex;gap:6px;flex-wrap:wrap;margin:11px 0}
+.pb-tl{border-left:2px solid var(--hair);margin-left:6px;padding-left:12px;display:flex;flex-direction:column;gap:9px}
+.pb-ev{display:flex;align-items:baseline;gap:8px;font-size:12px;position:relative}
+.pb-ev-i{position:absolute;left:-19px;width:14px;text-align:center;font-size:9px;color:var(--muted2);background:var(--panel)}
+.pb-ev-d{flex:none;width:42px;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pb-ev-t{flex:1;min-width:0;line-height:1.45}
+.pb-ev-t em{display:block;font-style:normal;font-size:10.5px;color:var(--muted);margin-top:1px}
+.pb-ev-parte .pb-ev-i{color:var(--warn)}
+.pb-ev-trat .pb-ev-i{color:var(--ok)}
+.pb-ev-cita .pb-ev-i{font-size:10px}
+.pb-ev-alta .pb-ev-i{color:var(--ok)}
+.pb-hist{margin-top:14px;border-top:1px solid var(--hair);padding-top:12px}
+.pb-hist>summary{cursor:pointer;font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:10px}
+@media(max-width:560px){
+  .pb-meta{margin-left:0;width:100%}
+  .pb-hoy .r{margin-left:0;width:100%}
+}
 /* ══ v273 · Estado vacío ══
    Donde antes había un hueco o una línea suelta. Icono lineal grande y gris,
    título y una sola línea de explicación, con aire de sobra: un vacío que se
@@ -2679,17 +2717,25 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="panel"><h2>ACWR · evolución <span class="r muted">banda 0.8–1.3</span></h2><div class="pl-ch"><canvas id="ch-pacwr"></canvas></div></div>
       </div>
       <div class="pl-col">
-        <div class="pl-cab"><span class="pl-cab-p" style="background:var(--warn)"></span>Fisioterapia</div>
-        <div id="pl-fisio" class="panel"></div>
+        <!-- v274 · Un solo panel. Antes había cuatro (fisioterapia, incidencias,
+             consultas y seguimiento del día a día) contando la misma historia
+             desde cuatro sitios. Los contenedores viejos se conservan ocultos
+             porque otras funciones siguen escribiendo en ellos; lo que se ve es
+             este. -->
+        <div class="pl-cab"><span class="pl-cab-p" style="background:var(--warn)"></span>Estado médico</div>
+        <div id="pl-problemas" class="panel"></div>
+        <div id="pl-fisio" class="panel" style="display:none"></div>
         <div id="player-physio" class="panel" style="display:none"></div>
-        <div class="pl-cab"><span class="pl-cab-p" style="background:#2563eb"></span>Consultas y pruebas</div>
-        <div id="player-medical" class="panel"></div>
+        <div id="player-medical" class="panel" style="display:none"></div>
       </div>
     </div>
     <!-- Lo que no se consulta a diario baja al final y se pliega: el detalle
          completo de incidencias (mapa corporal, cronología, RTP) y la ficha
          administrativa. El dato sigue a un clic sin cargar la primera pantalla. -->
-    <div id="player-daily" class="panel"></div>
+    <!-- v274 · «Seguimiento del día a día» sale de la vista: todo lo que
+         contaba está ahora dentro del problema al que pertenece. El contenedor
+         se conserva oculto porque renderPlayerDaily sigue escribiendo en él. -->
+    <div id="player-daily" class="panel" style="display:none"></div>
     <details class="panel pl-evo" id="pl-datos">
       <summary>Datos personales <span class="small muted">DNI, contacto, talla, gestión</span></summary>
       <div id="pl-personal"></div>
@@ -5518,6 +5564,192 @@ function skelFuera(){
     el.innerHTML='';delete el.dataset.skel;});
 }
 window.skelFuera=skelFuera;
+/* ══════════ v274 · EL PROBLEMA COMO CONTENEDOR ══════════
+   Hasta ahora cada cosa se registraba suelta: la lesión en un almacén, los
+   partes del día en otro, las citas y pruebas en un tercero. El cuerpo del
+   jugador no funciona así —una molestia va a más, remite y vuelve un mes
+   después— y la app obligaba a leer cuatro listas para reconstruir una sola
+   historia.
+
+   Un PROBLEMA es el recipiente. Es el registro de lesión que ya existía
+   (STATE.med.inj), al que ahora se le cuelgan por injId:
+     · los partes del día         (STATE.physioUser · ya tenían _id, les falta injId)
+     · las citas, pruebas y reconocimientos (STATE.medLog)
+     · los tratamientos           (ya venían enlazados)
+     · el plan por fases, si lo lleva
+
+   Un rebrote NO abre un problema nuevo: es un parte más colgado del mismo
+   problema. Así el esguince de agosto y el pinchazo de septiembre son la misma
+   historia con dos brotes.
+
+   Los tres estados salen de lo que ya había, sin campos nuevos:
+     activo         → abierto y con un estado que bloquea la disponibilidad
+     en seguimiento → abierto, pero el jugador entrena con normalidad
+     cerrado        → dado de alta
+   «En seguimiento» es la pieza que faltaba: permite tener la lesión abierta
+   para asociarle recidivas aunque el jugador esté entrenando. */
+const PB_BLOQUEAN=['baja','noentto','enfermo','readapt'];
+function pbProblemas(name,incluirCerrados){
+  try{medDbLoad();}catch(e){}
+  const todos=((STATE.med||{}).inj||[]).filter(x=>x&&x.name===name);
+  const out=incluirCerrados?todos:todos.filter(x=>x.open);
+  return out.slice().sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+}
+function pbEstado(inj){
+  if(!inj)return null;
+  if(!inj.open)return {k:'cerrado',lab:'Cerrado',col:'var(--muted)'};
+  if(inj.status&&PB_BLOQUEAN.indexOf(inj.status)>=0)
+    return {k:'activo',lab:'Activo',col:'var(--bad)'};
+  return {k:'seguimiento',lab:'En seguimiento',col:'var(--warn)'};
+}
+function pbEtiqueta(inj){
+  if(!inj)return '';
+  const z=(inj.zona||'').trim();
+  return (z?z.charAt(0).toUpperCase()+z.slice(1):(inj.title||'Problema'))
+    +(inj.lado?' '+inj.lado:'');
+}
+/* Problemas de un jugador que encajan con una zona, para proponer asociación. */
+function pbPorZona(name,zona){
+  const z=String(zona||'').toLowerCase().trim();
+  if(!z)return [];
+  return pbProblemas(name).filter(x=>{
+    const zx=String(x.zona||'').toLowerCase().trim();
+    return zx&&(zx===z||zx.indexOf(z)>=0||z.indexOf(zx)>=0);
+  });
+}
+/* Todo lo que cuelga de un problema, en una sola cronología ordenada. */
+function pbCronologia(inj){
+  if(!inj)return [];
+  const ev=[];
+  ev.push({dk:inj.dk,tipo:'inicio',txt:'Se abre el problema'+(inj.title?': '+inj.title:''),
+    meta:[inj.tipo,inj.clasif,inj.accion].filter(Boolean).join(' · ')});
+  /* partes del día asociados */
+  try{
+    physioEnsure();
+    ((STATE.physioUser||{})[inj.name]||[]).forEach(x=>{
+      if(x.injId!==inj.id)return;
+      const st=(typeof PHYSTAT!=='undefined'&&PHYSTAT[x.status])?PHYSTAT[x.status].lab:x.status;
+      ev.push({dk:x.dk,tipo:'parte',id:x._id,
+        txt:st||'Parte del día',
+        meta:[x.zone?x.zone+(x.side?' '+x.side:''):'',x.pain!=null?'dolor '+x.pain+'/10':'',x.note||''].filter(Boolean).join(' · '),
+        bloquea:PB_BLOQUEAN.indexOf(x.status)>=0});
+    });
+  }catch(e){}
+  /* tratamientos */
+  try{
+    ((STATE.med||{}).treat||[]).forEach(t=>{
+      if(t.injId!==inj.id)return;
+      ev.push({dk:t.dk,tipo:'trat',id:t.id,txt:t.tipo||'Tratamiento',
+        meta:[t.dur?t.dur+"'":'',t.by||'',t.note||''].filter(Boolean).join(' · ')});
+    });
+  }catch(e){}
+  /* citas, pruebas y reconocimientos */
+  try{
+    let ML=(window.medLogRW?medLogRW():null);
+    if(!ML||!Object.keys(ML).length){
+      ML=STATE.medLog&&Object.keys(STATE.medLog).length?STATE.medLog:lsLeer('bmnava_medlog',{});
+    }
+    (ML[inj.name]||[]).forEach(m=>{
+      if(m.injId!==inj.id)return;
+      ev.push({dk:m.dk,tipo:'cita',id:m.id,txt:m.title||m.type||'Consulta',
+        meta:[m.type||'',m.who||'',m.status||''].filter(Boolean).join(' · '),link:m.link||''});
+    });
+  }catch(e){}
+  /* notas del episodio */
+  (inj.notes||[]).forEach((n,i)=>{
+    ev.push({dk:n.dk||inj.dk,tipo:'nota',id:i,txt:n.txt||n,meta:''});
+  });
+  if(!inj.open&&inj.closeDk)
+    ev.push({dk:inj.closeDk,tipo:'alta',txt:'Alta · problema cerrado',meta:''});
+  return ev.sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+}
+window.pbProblemas=pbProblemas;window.pbEstado=pbEstado;window.pbEtiqueta=pbEtiqueta;
+window.pbPorZona=pbPorZona;window.pbCronologia=pbCronologia;
+/* ══ v274 · Panel único de problemas en la ficha del jugador ══
+   Sustituye a los cuatro que había —fisioterapia, incidencias, consultas y
+   «seguimiento del día a día»— que contaban la misma historia desde cuatro
+   ángulos y ocupaban media ficha. Ahora: una línea de estado, y debajo un
+   problema por bloque plegable con toda su cronología dentro. */
+function pbFecha(dk){const a=String(dk||'').split('-');return a.length===3?a[2]+'/'+a[1]:dk||'';}
+function pbDias(desde,hasta){
+  try{const a=new Date(desde+'T00:00:00'),b=hasta?new Date(hasta+'T00:00:00'):new Date();
+    return Math.max(0,Math.round((b-a)/864e5));}catch(e){return 0;}
+}
+const PB_ICONO={inicio:'●',parte:'◆',trat:'✚',cita:'🩺',nota:'✎',alta:'✓'};
+function pbBloque(inj,abierto){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const e=pbEstado(inj);
+  const cr=pbCronologia(inj);
+  const brotes=cr.filter(x=>x.tipo==='parte'&&x.bloquea).length;
+  const dias=pbDias(inj.dk,inj.open?null:inj.closeDk);
+  const q=String(inj.id).replace(/'/g,"\\'");
+  const linea=x=>'<div class="pb-ev pb-ev-'+x.tipo+'">'
+      +'<span class="pb-ev-i">'+(PB_ICONO[x.tipo]||'·')+'</span>'
+      +'<span class="pb-ev-d">'+pbFecha(x.dk)+'</span>'
+      +'<span class="pb-ev-t">'+esc(x.txt)+(x.meta?'<em>'+esc(x.meta)+'</em>':'')+'</span></div>';
+  return '<details class="pb"'+(abierto?' open':'')+'>'
+    +'<summary class="pb-h">'
+      +'<span class="pb-dot" style="background:'+e.col+'"></span>'
+      +'<span class="pb-t">'+esc(pbEtiqueta(inj))+'</span>'
+      +'<span class="pb-st" style="color:'+e.col+'">'+e.lab+'</span>'
+      +'<span class="pb-meta">desde '+pbFecha(inj.dk)+' · '+dias+' d'
+        +(brotes>1?' · '+brotes+' brotes':'')
+        +(inj.kind==='lesion'&&(inj.phases||[]).length?' · con readaptación':'')+'</span>'
+    +'</summary>'
+    +'<div class="pb-body">'
+      +(inj.desc?'<p class="pb-desc">'+esc(inj.desc)+'</p>':'')
+      +'<div class="pb-acts">'
+        +'<button class="med-chipbtn" onclick="pbNuevoBrote(\''+q+'\')">＋ Nuevo brote</button>'
+        +'<button class="med-chipbtn" onclick="medOpenEpisode&&medOpenEpisode(\''+q+'\')">Abrir en Médico</button>'
+        +(inj.open?'<button class="med-chipbtn" style="border-color:#1ea863;color:#1ea863" onclick="medClose&&medClose(\''+q+'\')">✓ Alta</button>':'')
+      +'</div>'
+      +'<div class="pb-tl">'+cr.map(linea).join('')+'</div>'
+    +'</div></details>';
+}
+/* Abre el parte de siempre, ya colgado de este problema. */
+window.pbNuevoBrote=function(injId){
+  const inj=(typeof medInj==='function')?medInj(injId):null;
+  if(!inj)return;
+  if(window.openHeroForm)openHeroForm('incidencia',inj.name);
+  setTimeout(function(){
+    const sel=document.getElementById('mh-iinj')||document.querySelector('select[id$="inj"]');
+    if(sel){sel.value=injId;}
+    const z=document.getElementById('mh-izone')||document.querySelector('input[id$="zone"]');
+    if(z&&!z.value)z.value=inj.zona||'';
+    const s2=document.querySelector('[id$="injhint"]');
+    if(s2)s2.textContent='Se registrará como un brote más de «'+String(pbEtiqueta(inj))+'».';
+  },160);
+};
+function renderProblemas(name){
+  const box=document.getElementById('pl-problemas');if(!box)return;
+  const abiertos=pbProblemas(name);
+  const todos=pbProblemas(name,true);
+  const cerrados=todos.filter(x=>!x.open);
+  let estado='Disponible',col='var(--ok)';
+  try{
+    const ev=effectiveStatus(name,dkEstado());
+    if(ev&&ev.status&&typeof PHYSTAT!=='undefined'&&PHYSTAT[ev.status]){
+      estado=PHYSTAT[ev.status].lab;col=PHYSTAT[ev.status].c;
+    }
+  }catch(e){}
+  const cab='<div class="pb-hoy"><span class="pb-dot" style="background:'+col+'"></span>'
+    +'<b style="color:'+col+'">'+estado+'</b>'
+    +'<span class="muted">hoy</span>'
+    +'<span class="r"><button class="med-chipbtn" onclick="openHeroForm(\'incidencia\',\''+String(name).replace(/'/g,"\\'")+'\')">＋ Parte del día</button>'
+    +'<button class="med-chipbtn" onclick="openMedInjury(\''+String(name).replace(/'/g,"\\'")+'\')">＋ Problema nuevo</button></span></div>';
+  const cuerpo=abiertos.length
+    ? abiertos.map((x,i)=>pbBloque(x,i===0)).join('')
+    : (window.vacio?vacio('corazon','Sin problemas abiertos',
+        'No hay ninguna lesión ni molestia en seguimiento. Los partes del día se registran con «＋ Parte del día».')
+       :'<p class="small muted">Sin problemas abiertos.</p>');
+  const hist=cerrados.length
+    ? '<details class="pb-hist"><summary>Historial · '+cerrados.length+' problema'+(cerrados.length>1?'s':'')+' cerrado'+(cerrados.length>1?'s':'')+'</summary>'
+      +cerrados.map(x=>pbBloque(x,false)).join('')+'</details>'
+    : '';
+  box.innerHTML='<h2 style="margin-top:0">Problemas <span class="r muted">lesiones, molestias y todo lo asociado</span></h2>'
+    +cab+cuerpo+hist;
+}
+window.renderProblemas=renderProblemas;
 function medEsc(t){return (t==null?'':String(t)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function medDaysBetween(a,b){return Math.round((dkToDate(b)-dkToDate(a))/86400000);}
 /* ---------- Plantillas de readaptación (guía BM Nava) ---------- */
@@ -6504,6 +6736,7 @@ function renderPlayer(name){
   try{renderPlayerFisio(name);}catch(e){}
   try{renderPlayerPersonal(name);}catch(e){}
   try{renderPlayerDaily(name);}catch(e){}
+  try{renderProblemas(name);}catch(e){console.error('problemas',e);}
 }
 function drawPlayerCharts(p){
   killCharts(['ch-well','ch-load','ch-pacwr']);
@@ -8608,7 +8841,7 @@ function renderPhysio(name){
      el prefijo 'phys-' y el id phys-form-wrap, así que physioPickZone y el mapa
      corporal siguen apuntando a los mismos campos. */
   const form=`<details class="phys-form" id="phys-form-wrap"><summary>+ Añadir parte del día / incidencia</summary>
-    ${parteFormHTML('phys-',{})}
+    ${parteFormHTML('phys-',{name:name})}
     <div class="ctrlrow" style="margin-top:8px"><button class="btn" onclick="physioAdd('${esc}')">Guardar</button><span class="small muted">Se guarda en este dispositivo · exportable a la hoja.</span></div>
   </details>`;
   const header=`<div class="fsec2" style="display:flex;align-items:center;gap:8px">Disponibilidad y lesiones <span class="tag" style="border-color:var(--accent);color:var(--accent)">entrada directa</span></div>`;
@@ -8695,6 +8928,58 @@ function parteStatusOptions(sel){
 /* px = prefijo de id. Con 'phys-' salen los ids que ya usaba la ficha
    (phys-date, phys-zone…), así que physioPickZone y el mapa corporal siguen
    funcionando sin tocarlos. Con 'mh-i', los del modal. */
+/* v274 · Opciones del desplegable: los problemas abiertos de ese jugador. Si no
+   hay ninguno, el campo se queda solo con «problema nuevo», que es el
+   comportamiento de siempre. */
+function pbOpcionesProblema(name,sel){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  let ops='<option value="">— problema nuevo, sin asociar —</option>';
+  if(!name)return ops;
+  try{
+    pbProblemas(name).forEach(function(x){
+      const e=pbEstado(x);
+      const f=String(x.dk||'').split('-').reverse().join('/');
+      ops+='<option value="'+esc(x.id)+'"'+(sel===x.id?' selected':'')+'>'
+        +esc(pbEtiqueta(x))+' · desde '+f+' · '+e.lab+'</option>';
+    });
+  }catch(e){}
+  return ops;
+}
+window.pbOpcionesProblema=pbOpcionesProblema;
+/* Si el jugador se elige dentro del propio formulario, sus problemas cambian. */
+window.pbRehazProblemas=function(px){
+  const n=(document.getElementById(px+'name')||{}).value||'';
+  const sel=document.getElementById(px+'inj');
+  if(sel)sel.innerHTML=pbOpcionesProblema(n,'');
+  const h=document.getElementById(px+'injhint');
+  if(h){h.textContent='';h.className='parte-hint';}
+  try{pbAvisaZona(px,n);}catch(e){}
+};
+/* Aviso al escribir la zona: si ese jugador ya tiene un problema abierto ahí, se
+   propone asociarlo en vez de abrir uno nuevo. No decide por su cuenta: avisa y
+   deja el desplegable a un clic. */
+window.pbAvisaZona=function(px,name){
+  name=name||((document.getElementById(px+'name')||{}).value||'');
+  const z=(document.getElementById(px+'zone')||{}).value||'';
+  const sel=document.getElementById(px+'inj');
+  const hint=document.getElementById(px+'injhint');
+  if(!sel||!hint)return;
+  if(sel.value){hint.textContent='';hint.className='parte-hint';return;}
+  const cand=pbPorZona(name,z);
+  if(!cand.length){hint.textContent='';hint.className='parte-hint';return;}
+  const x=cand[0];
+  const f=String(x.dk||'').split('-').reverse().join('/');
+  hint.className='parte-hint activa';
+  hint.innerHTML='Este jugador ya tiene <b>'+String(pbEtiqueta(x)).replace(/</g,'&lt;')
+    +'</b> abierto desde el '+f+'. '
+    +'<button type="button" class="parte-hint-b" onclick="pbAsocia(\''+px+'\',\''+x.id+'\')">¿Es el mismo? Asociar</button>';
+};
+window.pbAsocia=function(px,id){
+  const sel=document.getElementById(px+'inj');
+  if(sel){sel.value=id;sel.dispatchEvent(new Event('change'));}
+  const hint=document.getElementById(px+'injhint');
+  if(hint){hint.className='parte-hint';hint.textContent='Se registrará como un brote más de ese problema.';}
+};
 function parteFormHTML(px,opts){
   opts=opts||{};
   /* v247 · admite precargar un registro existente, para poder editarlo en vez de
@@ -8705,15 +8990,20 @@ function parteFormHTML(px,opts){
   let pl='';
   if(opts.player){
     const nn=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
-    pl='<label class="parte-wide">Jugador<select id="'+px+'name">'+nn.map(n=>'<option>'+String(n).replace(/</g,'&lt;')+'</option>').join('')+'</select></label>';
+    pl='<label class="parte-wide">Jugador<select id="'+px+'name" onchange="pbRehazProblemas(\''+px+'\')">'+nn.map(n=>'<option'+(opts.name===n?' selected':'')+'>'+String(n).replace(/</g,'&lt;')+'</option>').join('')+'</select></label>';
   }
   return '<div class="parte-grid">'+pl
    +'<label>Fecha<input type="date" id="'+px+'date" value="'+(V.dk||hoy)+'"></label>'
    +'<label>Estado<select id="'+px+'status">'+parteStatusOptions(V.status||'dolor')+'</select></label>'
-   +'<label>Zona<input id="'+px+'zone" list="'+dl+'" placeholder="rodilla, gemelo…" value="'+String(V.zone||'').replace(/"/g,'&quot;')+'"><datalist id="'+dl+'">'+PARTE_ZONAS.map(z=>'<option value="'+z+'">').join('')+'</datalist></label>'
+   +'<label>Zona<input id="'+px+'zone" oninput="pbAvisaZona(\''+px+'\',\''+String((opts.name||'')).replace(/'/g,"\\'")+'\')" list="'+dl+'" placeholder="rodilla, gemelo…" value="'+String(V.zone||'').replace(/"/g,'&quot;')+'"><datalist id="'+dl+'">'+PARTE_ZONAS.map(z=>'<option value="'+z+'">').join('')+'</datalist></label>'
    +'<label>Lado<select id="'+px+'side">'+['','I','D'].map(function(o){return '<option value="'+o+'"'+(String(V.side||'')===o?' selected':'')+'>'+(o===''?'—':(o==='I'?'Izquierdo':'Derecho'))+'</option>';}).join('')+'</select></label>'
    +'<label>Dolor (0–10)<input type="number" min="0" max="10" step="1" id="'+px+'pain" placeholder="0–10" value="'+(V.pain!=null?V.pain:'')+'"></label>'
    +'<label class="parte-wide">Nota<input id="'+px+'note" placeholder="qué cuenta el jugador, observación…" value="'+String(V.note||'').replace(/"/g,'&quot;')+'"></label>'
+   /* v274 · Asociar el parte a un problema abierto. Es lo que convierte un
+      rebrote en parte de la misma historia en vez de un evento suelto. */
+   +'<label class="parte-wide">¿Va asociado a?<select id="'+px+'inj">'
+     +pbOpcionesProblema(opts.name||(V&&V.name),V.injId)+'</select>'
+     +'<span class="parte-hint" id="'+px+'injhint"></span></label>'
    +'</div>'
    +'<details class="parte-mas"><summary>Más detalle <span class="small muted">gravedad · mecanismo · tratamiento · alta prevista</span></summary>'
    +'<div class="parte-grid">'
@@ -8735,7 +9025,7 @@ window.physioEdit=function(name,id){
   const h='<h2 style="margin-top:0">Editar parte · '+esc(name)+
     ' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
     +'<p class="small muted" style="margin:-6px 0 12px">Cambia lo que haga falta, incluida el alta prevista. El registro se actualiza; no se crea uno nuevo.</p>'
-    +'<div class="ph-f">'+parteFormHTML('mh-e',{val:e})
+    +'<div class="ph-f">'+parteFormHTML('mh-e',{val:e,name:name})
     +'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">'
       +'<button class="btn" onclick="physioEditSave(\''+q(name)+'\',\''+q(id)+'\')">Guardar cambios</button>'
       +'<button class="btn ghost" onclick="physioEditAlta(\''+q(name)+'\',\''+q(id)+'\')">Dar el alta hoy</button>'
@@ -8785,6 +9075,7 @@ function parteSave(px,name,editId){
       e.pain=(pain!==''&&pain!=null)?+pain:null;
       e.rtp=g(px+'rtp')||'';e.treat=(g(px+'treat')||'').trim();
       e.note=(g(px+'note')||'').trim();
+      e.injId=g(px+'inj')||null;          /* v274 · problema al que pertenece */
       if(window.physioPersist)physioPersist();
       STATE.physioEx=null;try{buildPhysio();}catch(err){}
       parteRefresh(name);
@@ -8794,6 +9085,7 @@ function parteSave(px,name,editId){
   }
   (STATE.physioUser[name]=STATE.physioUser[name]||[]).push({
     _id:'u_'+Date.now(),dk,status,
+    injId:g(px+'inj')||null,             /* v274 · problema al que pertenece */
     zone:(g(px+'zone')||'').trim(),side:g(px+'side')||'',
     sev:g(px+'sev')||'',mech:g(px+'mech')||'',
     pain:(pain!==''&&pain!=null)?+pain:null,
@@ -12111,6 +12403,10 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
        '<option value="parcial">Entrena parcial / llega tarde</option>'+
        '<option value="pierde">Se pierde el entrenamiento</option>'+
      '</select></label>'+
+     /* v274 · la consulta, la prueba o el reconocimiento cuelgan del problema al
+        que pertenecen, para que luego se lean dentro de su historia. */
+     '<label style="grid-column:1/3">¿Va asociado a?<select id="mh-inj">'+
+       pbOpcionesProblema(name,'')+'</select></label>'+
      '<label>Detalle / título<input id="mh-title" placeholder="zona, motivo, hallazgo…"></label>'+
      '<label>Profesional o centro<input id="mh-who" placeholder="Dr. / mutua / clínica"></label>'+
      '<label>Estado o resultado<input id="mh-status" placeholder="pendiente, apto…"></label>'+
@@ -12126,7 +12422,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
         ficha, así que los dos sitios piden exactamente lo mismo. */
      h='<h2 style="margin-top:0">Parte del día / incidencia'+(name?' · '+String(name).replace(/</g,'&lt;'):'')+' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'+
      '<p class="small muted" style="margin:-6px 0 12px">Lo que pasa en el día a día. Con «Con dolor» o «En tratamiento» sigue entrenando con normalidad.</p>'+
-     '<div class="ph-f">'+parteFormHTML('mh-i',{player:!name})+
+     '<div class="ph-f">'+parteFormHTML('mh-i',{player:!name,name:name})+
      '<div style="margin-top:10px"><button class="btn" onclick="heroSaveIncidencia(\''+q(name)+'\')">Guardar</button></div></div>';
    }
    /* v227 · el tipo 'coment' (comentario libre) se retiró: no persistía nunca
@@ -12186,7 +12482,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});
   return STATE.medLog;
  }
- window.heroSaveMed=function(name){const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}const ML=medLogRW();const ev={id:'m_'+Date.now(),type:ty,dk,time:g('mh-time')||'',afecta:g('mh-afecta')||'no',title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()};
+ window.heroSaveMed=function(name){const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}const ML=medLogRW();const ev={id:'m_'+Date.now(),type:ty,dk,time:g('mh-time')||'',afecta:g('mh-afecta')||'no',injId:g('mh-inj')||null,title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()};
   (ML[name]=ML[name]||[]).push(ev);
   lsGuardar('bmnava_medlog',ML);
   var marcado=false;try{if(window.citaSync)marcado=citaSync(name,ev);}catch(e){}
@@ -13679,7 +13975,11 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   return '<div class="phs-sum">'+kv('Esta semana',wk.length)+kv('Minutos 7d',min)+kv('Último',last?last.dk.slice(5):'—')+kv('Por',last?(last.practitioner||last.by||'—'):'—')+kv('Respuesta',last&&last.response?last.response:'—')+'</div>';
  };
  window.medPhysioRenderPlayerBlock=function(name){var box=document.getElementById('player-physio');if(!box)return;medDbLoad();
-  if(!name){box.style.display='none';return;}box.style.display='';
+  /* v274 · este panel ya no se muestra en la ficha: sus tratamientos y avisos
+     salen dentro del problema al que pertenecen. Se sigue rellenando por si
+     alguna otra vista lo consulta, pero permanece oculto. */
+  box.style.display='none';
+  if(!name){return;}
   var al=medPhysioAlerts().filter(function(a){return a.name===name;});
   box.innerHTML='<h2>Fisioterapia y tratamientos</h2>'+(al.length?'<div class="cx-flags" style="margin-bottom:8px">'+al.map(function(a){return '<span class="cx-flag '+a.level+'">'+esc(a.msg)+'</span>';}).join('')+'</div>':'')+medTreatTimeline(name,null,{});
  };
