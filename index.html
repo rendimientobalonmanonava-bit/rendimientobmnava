@@ -5749,7 +5749,67 @@ function pbDias(desde,hasta){
   try{const a=new Date(desde+'T00:00:00'),b=hasta?new Date(hasta+'T00:00:00'):new Date();
     return Math.max(0,Math.round((b-a)/864e5));}catch(e){return 0;}
 }
-const PB_ICONO={inicio:'●',parte:'◆',trat:'✚',cita:'🩺',nota:'✎',alta:'✓'};
+const PB_ICONO={inicio:'●',parte:'◆',trat:'✚',cita:'🩺',nota:'✎',alta:'✓',episodio:'■'};
+function pbLinea(x){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  return '<div class="pb-ev pb-ev-'+x.tipo+'">'
+    +'<span class="pb-ev-i">'+(PB_ICONO[x.tipo]||'\u00b7')+'</span>'
+    +'<span class="pb-ev-d">'+pbFecha(x.dk)+'</span>'
+    +'<span class="pb-ev-t">'+esc(x.txt)+(x.meta?'<em>'+esc(x.meta)+'</em>':'')+'</span></div>';
+}
+/* v277 · Lo que no cuelga de ningún problema TAMBIÉN es historia del jugador.
+   Al pasar la ficha al panel único de problemas se retiraron los cuatro paneles
+   antiguos (fisioterapia, incidencias, historial médico y seguimiento del día a
+   día), y con ellos dejó de verse todo lo registrado por las vías de siempre:
+   partes del día, episodios de disponibilidad, tratamientos y citas que no
+   tienen injId porque se apuntaron antes de que existiera el concepto de
+   problema. Un jugador con toda su historia por esa vía —el caso de David
+   Fernández— salía como «sin problemas», con la ficha en blanco. Aquí se
+   reúnen esos registros sueltos, sin inventar agrupaciones: se listan tal cual
+   están, y agruparlos sigue siendo una decisión de Daniel. */
+function pbSueltos(name){
+  const ev=[];
+  /* el episodio que abre el propio problema no es un registro suelto: lo crea
+     medPhysioOpen con _id 'med_<idDelProblema>' y ya se cuenta dentro de él. */
+  const deProblema={};
+  ((STATE.med||{}).inj||[]).forEach(x=>{if(x&&x.id)deProblema['med_'+x.id]=true;});
+  try{
+    physioEnsure();
+    (physioEvents(name)||[]).forEach(x=>{
+      if(!x||x.injId)return;
+      if(x._id&&deProblema[x._id])return;
+      const st=(typeof PHYSTAT!=='undefined'&&PHYSTAT[x.status])?PHYSTAT[x.status].lab:(x.status||'');
+      ev.push({dk:x.dk,tipo:x.ep?'episodio':'parte',
+        txt:st||(x.ep?'Episodio':'Parte del d\u00eda'),
+        meta:[x.zone?x.zone+(x.side?' '+x.side:''):'',
+              (x.pain!=null&&x.pain!=='')?'dolor '+x.pain+'/10':'',
+              x.ep?(x.to?'hasta '+pbFecha(x.to):'sin alta'):'',
+              x.treat||'',x.note||''].filter(Boolean).join(' \u00b7 '),
+        zona:x.zone||''});
+    });
+  }catch(e){}
+  try{
+    ((STATE.med||{}).treat||[]).forEach(t=>{
+      if(!t||t.name!==name||t.injId)return;
+      ev.push({dk:t.dk,tipo:'trat',txt:t.tipo||'Tratamiento',
+        meta:[t.dur?t.dur+"'":'',t.practitioner||t.by||'',t.bodyZone||'',t.notas||t.note||''].filter(Boolean).join(' \u00b7 '),
+        zona:t.bodyZone||''});
+    });
+  }catch(e){}
+  try{
+    let ML=(window.medLogRW?medLogRW():null);
+    if(!ML||!Object.keys(ML).length){
+      ML=(STATE.medLog&&Object.keys(STATE.medLog).length)?STATE.medLog:lsLeer('bmnava_medlog',{});
+    }
+    (ML[name]||[]).forEach(m=>{
+      if(!m||m.injId)return;
+      ev.push({dk:m.dk,tipo:'cita',txt:m.title||m.type||'Consulta',
+        meta:[m.type||'',m.who||'',m.status||''].filter(Boolean).join(' \u00b7 '),zona:''});
+    });
+  }catch(e){}
+  return ev.filter(x=>x.dk).sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+}
+window.pbSueltos=pbSueltos;
 function pbBloque(inj,abierto){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   const e=pbEstado(inj);
@@ -5758,10 +5818,7 @@ function pbBloque(inj,abierto){
   const g=pbGrupo(inj);
   const dias=pbDias(inj.dk,g.abierto?null:g.cierre);
   const q=String(inj.id).replace(/'/g,"\\'");
-  const linea=x=>'<div class="pb-ev pb-ev-'+x.tipo+'">'
-      +'<span class="pb-ev-i">'+(PB_ICONO[x.tipo]||'·')+'</span>'
-      +'<span class="pb-ev-d">'+pbFecha(x.dk)+'</span>'
-      +'<span class="pb-ev-t">'+esc(x.txt)+(x.meta?'<em>'+esc(x.meta)+'</em>':'')+'</span></div>';
+  const linea=pbLinea;
   return '<details class="pb"'+(abierto?' open':'')+'>'
     +'<summary class="pb-h">'
       +'<span class="pb-dot" style="background:'+e.col+'"></span>'
@@ -5980,6 +6037,7 @@ function renderProblemas(name){
     +'<span class="muted">hoy</span>'
     +'<span class="r"><button class="med-chipbtn" onclick="openHeroForm(\'incidencia\',\''+String(name).replace(/'/g,"\\'")+'\')">＋ Parte del día</button>'
     +'<button class="med-chipbtn" onclick="openMedInjury(\''+String(name).replace(/'/g,"\\'")+'\')">＋ Problema nuevo</button></span></div>';
+  const sueltos=pbSueltos(name);
   const sil=abiertos.length?pbSilueta(abiertos):'';
   const cuerpo=abiertos.length
     ? (sil?'<div class="pb-mapa">'+sil+'<div class="pb-mapa-lg">'
@@ -5988,14 +6046,26 @@ function renderProblemas(name){
         +'</div></div>':'')
       +abiertos.map((x,i)=>pbBloque(x,i===0)).join('')
     : (window.vacio?vacio('corazon','Sin problemas abiertos',
-        'No hay ninguna lesión ni molestia en seguimiento. Los partes del día se registran con «＋ Parte del día».')
+        sueltos.length
+          ? 'Ninguna lesión ni molestia en seguimiento ahora mismo. Sí hay '+sueltos.length+' registro'+(sueltos.length>1?'s':'')+' en el historial, aquí debajo.'
+          : 'No hay ninguna lesión ni molestia en seguimiento. Los partes del día se registran con «＋ Parte del día».')
        :'<p class="small muted">Sin problemas abiertos.</p>');
   const hist=cerrados.length
     ? '<details class="pb-hist"><summary>Historial · '+cerrados.length+' problema'+(cerrados.length>1?'s':'')+' cerrado'+(cerrados.length>1?'s':'')+'</summary>'
       +cerrados.map(x=>pbBloque(x,false)).join('')+'</details>'
     : '';
+  /* v277 · Todo lo apuntado por las vías de siempre que aún no cuelga de ningún
+     problema. Va abierto cuando no hay nada en seguimiento, para que una ficha
+     con historial no se lea nunca como una ficha vacía. */
+  const otros=sueltos.length
+    ? '<details class="pb-hist"'+(abiertos.length?'':' open')+'>'
+      +'<summary>Registros sin asociar a un problema · '+sueltos.length+'</summary>'
+      +'<p class="small muted" style="margin:-4px 0 10px">Partes del día, episodios, tratamientos y consultas apuntados por las vías de siempre. '
+      +'Para colgarlos de una lesión, usa «Agrupar historial médico» en Conexión.</p>'
+      +'<div class="pb-tl">'+sueltos.map(pbLinea).join('')+'</div></details>'
+    : '';
   box.innerHTML='<h2 style="margin-top:0">Problemas <span class="r muted">lesiones, molestias y todo lo asociado</span></h2>'
-    +cab+cuerpo+hist;
+    +cab+cuerpo+hist+otros;
 }
 window.renderProblemas=renderProblemas;
 function medEsc(t){return (t==null?'':String(t)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
