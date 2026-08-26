@@ -1382,6 +1382,20 @@ body.sb-min .sb-ver{display:none}
   font-size:11px;line-height:1.7;color:var(--muted)}
 .pb-cand-l i{font-style:normal;font-variant-numeric:tabular-nums;color:var(--muted2);margin-right:5px}
 .pb-cand-l u{text-decoration:none;font-size:9.5px;color:var(--muted2)}
+/* v280 · ausencia de varios jugadores */
+.aus-head{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;
+  letter-spacing:.02em;margin:16px 0 8px;color:var(--muted)}
+.aus-head .r{margin-left:auto;display:flex;gap:6px}
+.aus-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+.ph-f .aus-p,.aus-p{display:flex;flex-direction:row;align-items:center;gap:9px;padding:8px 10px;
+  border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:12.5px;
+  background:var(--panel);text-align:left;font-weight:500}
+.aus-p:hover{border-color:var(--accent)}
+.aus-p input[type=checkbox]{flex:none;width:15px;height:15px;min-width:15px;min-height:15px!important;padding:0;margin:0}
+.aus-p span{min-width:0;line-height:1.3}
+.aus-p em{display:block;font-style:normal;font-size:10px;color:var(--muted2);margin-top:1px}
+.aus-p--off{opacity:.5;cursor:default}
+.aus-p--off:hover{border-color:var(--line)}
 /* ══ v275 · La parte visual ══ */
 .pb-mapa{display:flex;align-items:center;gap:16px;background:var(--panel2);
   border-radius:var(--r-md);padding:12px 14px;margin-bottom:12px}
@@ -5778,6 +5792,13 @@ function pbLinea(x){
    Fernández— salía como «sin problemas», con la ficha en blanco. Aquí se
    reúnen esos registros sueltos, sin inventar agrupaciones: se listan tal cual
    están, y agruparlos sigue siendo una decisión de Daniel. */
+/* v280 · Motivos administrativos: no son historia médica y no pintan nada en el
+   panel de problemas. Extranjería, una gestión, la selección o una sanción
+   dejan al jugador fuera del entrenamiento, pero colgarlos de una lesión sería
+   falsearla —y sin esto la agrupación podía meter una cita de extranjería
+   dentro de una molestia de rodilla solo por caer en las mismas fechas—.
+   «Cita médica» NO entra aquí a propósito: esa sí puede ser de la lesión. */
+const PB_ADMIN=['extranjeria','tramite','personal','seleccion','sancion','filial'];
 function pbSueltosRaw(name){
   const out=[];
   /* el episodio que abre el propio problema no es un registro suelto: lo crea
@@ -5792,6 +5813,7 @@ function pbSueltosRaw(name){
     ((STATE.physioUser||{})[name]||[]).forEach(x=>{
       if(!x||x.injId)return;
       if(x._id&&deProblema[x._id])return;
+      if(PB_ADMIN.indexOf(x.status)>=0)return;
       const st=(typeof PHYSTAT!=='undefined'&&PHYSTAT[x.status])?PHYSTAT[x.status].lab:(x.status||'');
       out.push({src:x.ep?'ep':'parte',ref:x,dk:x.dk,zone:x.zone||'',side:x.side||'',
         status:x.status||'',
@@ -9109,6 +9131,10 @@ const PHYSTAT={
      dicen que no entrena sin decir que esté tocado. */
   cita:{lab:'Cita médica',c:'#7c9cbf'},
   tramite:{lab:'Trámite / gestión',c:'#8aa4c8'},
+  /* v280 · Extranjería tiene su propio motivo porque pasa a menudo y en grupo:
+     varios jugadores pierden el mismo entrenamiento por ir a por papeles. No es
+     una lesión ni una molestia, y no debe contarse como tal en ninguna parte. */
+  extranjeria:{lab:'Extranjería / papeles',c:'#6f8fb8'},
   personal:{lab:'Motivo personal',c:'#9b8ec4'},
   partido:{lab:'Partido',c:'var(--c-ink,#2b3543)'}
 };
@@ -9119,7 +9145,7 @@ const PHYSTAT={
    Se declaran aquí, en ámbito global, porque las usan tanto la evolución semanal
    (evWeeklyAvail) como la vista de Disponibilidad. */
 const NOAV_FIS_ST=['baja','noentto','enfermo'];                     // fuera por lo físico
-const NOFIS_ST=['seleccion','sancion','filial','cita','tramite','personal']; // fuera por otro motivo
+const NOFIS_ST=['seleccion','sancion','filial','cita','tramite','extranjeria','personal']; // fuera por otro motivo
 const NOAV_ST=NOAV_FIS_ST.concat(NOFIS_ST);                         // fuera, sea cual sea
 const CARE_ST=['trat','dolor'];
 /* v230 · Se eliminan PHYS_EX y EX_EP, los historiales de fisioterapia de
@@ -9140,7 +9166,7 @@ function physioEvents(name){const ex=(STATE.physioEx||{})[name]||[];const us=((S
 function physioPoints(name){return physioEvents(name).filter(e=>!e.ep);}
 function physioEpisodes(name){const all=physioEvents(name).filter(e=>e.ep);const closed=new Set(all.filter(e=>e._closesEx).map(e=>e._closesEx));return all.filter(e=>!closed.has(e._id)).map(e=>({...e,fromDate:dkToDate(e.dk),toDate:e.to?dkToDate(e.to):null}));}
 var MED_SEV={};
-function physioSev(s){if(MED_SEV[s]!=null)return MED_SEV[s];return {baja:5,noentto:4,readapt:3,enfermo:3,trat:2,dolor:2,seleccion:1,filial:1,sancion:1,cita:1,tramite:1,personal:1,partido:1,disp:0}[s]||0;}
+function physioSev(s){if(MED_SEV[s]!=null)return MED_SEV[s];return {baja:5,noentto:4,readapt:3,enfermo:3,trat:2,dolor:2,seleccion:1,filial:1,sancion:1,cita:1,tramite:1,extranjeria:1,personal:1,partido:1,disp:0}[s]||0;}
 function effectiveStatus(name,dk){
   /* v243 · Un episodio ABIERTO (sin fecha de alta) vale desde que se abre hasta
      que alguien lo cierra, también en días futuros. Antes se cortaba en la fecha
@@ -9821,9 +9847,10 @@ function renderAvail(){
   const planForm=`<div class="plan-form">
     <label class="small muted">Jugador<select id="avail-plan-player">${psel}</select></label>
     <label class="small muted">Fecha<input type="date" id="avail-plan-date" value="${tmrk}"></label>
-    <label class="small muted">Estado<select id="avail-plan-status"><optgroup label="Motivo físico"><option value="noentto">No entrenará · físico</option><option value="baja">Baja</option><option value="trat">Con tratamiento</option><option value="dolor">Con dolor</option></optgroup><optgroup label="No entrena · otro motivo"><option value="cita">Cita médica</option><option value="tramite">Trámite / gestión</option><option value="personal">Motivo personal</option><option value="seleccion">Selección</option><option value="sancion">Sanción</option></optgroup></select></label>
+    <label class="small muted">Estado<select id="avail-plan-status"><optgroup label="Motivo físico"><option value="noentto">No entrenará · físico</option><option value="baja">Baja</option><option value="trat">Con tratamiento</option><option value="dolor">Con dolor</option></optgroup><optgroup label="No entrena · otro motivo"><option value="cita">Cita médica</option><option value="extranjeria">Extranjería / papeles</option><option value="tramite">Trámite / gestión</option><option value="personal">Motivo personal</option><option value="seleccion">Selección</option><option value="sancion">Sanción</option></optgroup></select></label>
     <label class="small muted">Zona/motivo<input id="avail-plan-note" placeholder="rodilla, gestión carga…"></label>
-    <div class="wide"><button class="btn ghost" onclick="availAddPlan()">Registrar previsión</button></div></div>`;
+    <div class="wide" style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn ghost" onclick="availAddPlan()">Registrar previsión</button>
+      <button class="btn ghost" onclick="openAusenciaGrupo()">＋ Ausencia de varios</button></div></div>`;
   const av=n=>{const real=window.photoFor?photoFor(n):null;return real||(STATE.players[n]&&STATE.players[n].avatar)||window.__AVATAR__||'';};
   const avReal=n=>!!(window.photoFor&&photoFor(n));
   const attn=[];const seenA=new Set();
@@ -9899,6 +9926,80 @@ function availMatrix(roster){
   if(!order.length)return `<div class="phys-sec" style="margin-top:0">Matriz de disponibilidad · últimas ${W} semanas</div><p class="muted small">Ningún jugador ha tenido incidencias en este periodo.</p>`;
   return `<div class="phys-sec" style="margin-top:0">Matriz de disponibilidad · últimas ${W} semanas <span class="muted" style="font-weight:400">· ${order.length} con incidencias${sinNada?' · '+sinNada+' sin nada que mostrar':''}</span></div><div class="wrap-x"><table class="avmx"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table></div><div class="phys-legend" style="margin-top:10px">${Object.keys(PHYSTAT).map(k=>`<span class="phys-leg"><i style="background:${PHYSTAT[k].c}"></i>${PHYSTAT[k].lab}</span>`).join('')}<span class="phys-leg"><i style="background:var(--panel2);border:1px solid var(--hair)"></i>sin registro</span></div>`;
 }
+/* ══ v280 · Ausencia de varios jugadores a la vez ══
+   Cuatro jugadores se pierden el entrenamiento porque tienen cita en
+   extranjería. Hasta ahora había que abrir el parte del día cuatro veces, y el
+   único hueco cómodo era «No entrena», que la app trata como problema físico:
+   sumaba días perdidos por lesión y los pintaba como tocados. Esto registra la
+   ausencia de todos de una vez, con el motivo real, y fuera de lo médico.
+   Los estados que ofrece son solo los NO físicos: desde aquí es imposible
+   marcar una baja por error. */
+const AUS_MOTIVOS=['extranjeria','tramite','cita','personal','seleccion','sancion','filial'];
+window.openAusenciaGrupo=function(dk){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const hoy=dk||dkey(new Date());
+  const roster=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const ops=AUS_MOTIVOS.map(k=>'<option value="'+k+'"'+(k==='extranjeria'?' selected':'')+'>'
+    +esc((PHYSTAT[k]||{}).lab||k)+'</option>').join('');
+  const fila=n=>{
+    /* regla 2.4 · con un episodio médico abierto la disponibilidad la gobierna
+       Médico; aquí se ve, pero no se toca. */
+    let bloq=null;
+    try{if(typeof medOpenEpisodeOf==='function')bloq=medOpenEpisodeOf(n);}catch(e){}
+    return '<label class="aus-p'+(bloq?' aus-p--off':'')+'">'
+      +'<input type="checkbox" class="aus-ck" value="'+esc(n)+'"'+(bloq?' disabled':'')+'>'
+      +'<span>'+esc(n)+(bloq?'<em>🔒 desde Médico</em>':'')+'</span></label>';
+  };
+  const h='<h2 style="margin-top:0">Ausencia de varios jugadores'
+      +' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+    +'<p class="small muted" style="margin:-6px 0 12px">Para lo que no es una lesión: extranjería, una gestión, una cita. '
+      +'No cuenta como problema físico ni suma días perdidos por lesión.</p>'
+    +'<div class="ph-f"><div class="parte-grid">'
+      +'<label>Fecha<input type="date" id="aus-dk" value="'+hoy+'"></label>'
+      +'<label>Motivo<select id="aus-st">'+ops+'</select></label>'
+      +'<label class="parte-wide">Detalle <span class="muted" style="font-weight:400">(opcional)</span>'
+        +'<input id="aus-note" placeholder="cita en Segovia, renovación de tarjeta…"></label>'
+    +'</div>'
+    +'<div class="aus-head">Jugadores'
+      +'<span class="r"><button type="button" class="med-chipbtn" onclick="ausMarcarTodos(1)">Todos</button>'
+      +'<button type="button" class="med-chipbtn" onclick="ausMarcarTodos(0)">Ninguno</button></span></div>'
+    +'<div class="aus-grid">'+roster.map(fila).join('')+'</div>'
+    +'<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      +'<button class="btn" onclick="ausGrupoSave()">Registrar ausencia</button>'
+      +'<span class="small muted" id="aus-msg"></span>'
+    +'</div></div>';
+  document.getElementById('ph-body').innerHTML=h;
+  document.getElementById('ph-overlay').style.display='flex';
+};
+window.ausMarcarTodos=function(v){
+  document.querySelectorAll('.aus-ck:not(:disabled)').forEach(x=>{x.checked=!!v;});
+};
+window.ausGrupoSave=function(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const dk=g('aus-dk'),st=g('aus-st')||'extranjeria',nota=(g('aus-note')||'').trim();
+  const msg=document.getElementById('aus-msg');
+  if(!dk){if(msg)msg.textContent='Indica la fecha.';return;}
+  const quien=Array.from(document.querySelectorAll('.aus-ck:checked')).map(x=>x.value);
+  if(!quien.length){if(msg)msg.textContent='No has marcado a nadie.';return;}
+  physioEnsure();
+  const lab=(PHYSTAT[st]||{}).lab||st;
+  let n=0;
+  quien.forEach((nm,i)=>{
+    const arr=(STATE.physioUser[nm]=STATE.physioUser[nm]||[]);
+    /* sin duplicar: si ya está registrado ese mismo motivo ese día, se deja */
+    if(arr.some(x=>x&&x.dk===dk&&x.status===st))return;
+    arr.push({_id:'u_'+Date.now()+'_'+i,dk,status:st,zone:'',side:'',sev:'',treat:'',
+      note:nota||lab,grupo:true});
+    n++;
+  });
+  physioPersist();
+  STATE.physioEx=null;try{buildPhysio();}catch(e){}
+  closeHeroForm();
+  try{renderAvail();}catch(e){}
+  try{renderCalendar&&renderCalendar();}catch(e){}
+  try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(e){}
+  if(window.toast)toast(lab+' · '+n+' jugador'+(n===1?'':'es')+' · '+dk.split('-').reverse().join('/'));
+};
 function availAddPlan(){const g=id=>(document.getElementById(id)||{}).value;const n=g('avail-plan-player'),dk=g('avail-plan-date'),stt=g('avail-plan-status')||'noentto',note=(g('avail-plan-note')||'').trim();if(!n||!dk)return;physioEnsure();(STATE.physioUser[n]=STATE.physioUser[n]||[]).push({_id:'u_'+Date.now(),dk,status:stt,zone:note,side:'',sev:'',treat:'',note:note?('Previsión · '+note):'Previsión'});physioPersist();renderAvail();}
 function availDelPlan(name,id){const arr=(STATE.physioUser||{})[name]||[];const i=arr.findIndex(e=>e._id===id);if(i>=0){arr.splice(i,1);physioPersist();renderAvail();}}
 
