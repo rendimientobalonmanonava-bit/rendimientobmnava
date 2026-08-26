@@ -1452,6 +1452,15 @@ body.sb-min .sb-ver{display:none}
 .acr-n span{display:block;font-size:9.5px;color:var(--muted);margin-top:2px;line-height:1.3}
 .acr-l{font-size:11.5px;color:var(--muted);margin-top:10px}
 .acr--na .acr-na{font-size:12px;color:var(--muted);margin-top:7px}
+.acr-warn{margin-top:10px;padding:8px 10px;border-radius:9px;font-size:11px;line-height:1.45;
+  background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--warn);font-weight:600}
+.durf-l{display:flex;flex-direction:column;gap:5px}
+.durf{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--line);
+  border-radius:9px;font-size:12px;flex-wrap:wrap}
+.durf--all{border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
+.durf-d{flex:none;width:44px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.durf b{flex:none;font-variant-numeric:tabular-nums}
+.durf-t{flex:1;min-width:0;font-size:10.5px;color:var(--muted)}
 @media (max-width:768px){.reu-ac{opacity:1}}
 /* ══ v275 · La parte visual ══ */
 .pb-mapa{display:flex;align-items:center;gap:16px;background:var(--panel2);
@@ -3391,6 +3400,14 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div id="bkp-detalle" style="margin-top:12px"></div>
       <div class="small" id="bkp-msg" style="margin-top:10px;color:var(--accent)"></div>
     </div>
+    <!-- v284 · Comprobación de duraciones. Va arriba porque es lo que decide
+         si las cifras de carga del resto del dashboard significan algo. -->
+    <div class="panel">
+      <h2>¿Falta alguna duración? <span class="r muted">RPE sin minutos</span></h2>
+      <p class="hint">La carga es RPE × minutos. Si a un día le falta la duración, ese día vale 0 UA aunque todos hayan mandado el cuestionario, y la ventana aguda del ratio agudo:crónico se hunde. Aquí se ven los días afectados.</p>
+      <div id="dur-check" style="margin-top:10px"><p class="small muted" style="margin:0">Pulsa para comprobar.</p></div>
+      <div style="margin-top:12px"><button class="btn" onclick="renderDurCheck()">Comprobar duraciones</button></div>
+    </div>
     <!-- v276 · Agrupar el histórico médico. Va en Conexión, con las demás
          herramientas de mantenimiento: se usa una vez, no a diario. -->
     <details class="panel" id="pb-agrupar-panel">
@@ -5304,9 +5321,93 @@ function acwrRealPanel(name){
       +'<div><b>'+f(r.aguda)+'</b><span>aguda · 7 d</span></div>'
       +'<div><b>'+f(r.cronica)+'</b><span>crónica · media semanal de 28 d</span></div>'
     +'</div>'
-    +'<div class="acr-l">'+lect+'</div></div>';
+    +'<div class="acr-l">'+lect+'</div>'
+    +((typeof durAvisoAgudo==='function')?durAvisoAgudo(name):'')
+    +'</div>';
 }
 window.acwrRealPanel=acwrRealPanel;
+/* ═══ v284 · Días con cuestionario pero sin minutos ═══
+   La carga es RPE × minutos. Hasta mayo los minutos venían en la propia hoja
+   de RPE (dur0 traía valor); desde agosto la hoja ya no los trae y salen del
+   calendario, así que un día al que se le olvide la duración vale 0 aunque los
+   19 jugadores hayan mandado el cuestionario. No falla nada ni avisa nadie: la
+   carga de ese día simplemente no existe, hunde la ventana aguda y el ratio
+   agudo:crónico sale bajo en todos a la vez.
+   Esto lo detecta y lo dice. Un registro cuenta como afectado cuando tiene RPE
+   declarado y acaba con carga 0, que es el resultado final del cálculo y no una
+   suposición sobre de dónde debía salir el minutaje. */
+function durFaltantes(dias){
+  const out={dias:[],nDias:0,nRegistros:0,desde:null,hasta:null};
+  const lim=dias?(function(){const d=new Date();d.setDate(d.getDate()-dias);return dkey(d);})():null;
+  const porDia={};
+  (STATE.rpe||[]).forEach(r=>{
+    if(!r||!r.dk)return;
+    if(lim&&r.dk<lim)return;
+    if(!(r.rpe>0))return;
+    porDia[r.dk]=porDia[r.dk]||{dk:r.dk,total:0,sin:0,quien:[]};
+    porDia[r.dk].total++;
+    if(!(r.ua>0)){porDia[r.dk].sin++;porDia[r.dk].quien.push(r.name);}
+  });
+  const ks=Object.keys(porDia).sort();
+  ks.forEach(k=>{
+    const d=porDia[k];
+    if(!d.sin)return;
+    out.dias.push(d);out.nRegistros+=d.sin;
+    if(!out.desde)out.desde=k;
+    out.hasta=k;
+  });
+  out.nDias=out.dias.length;
+  out.revisados=ks.length;
+  return out;
+}
+window.durFaltantes=durFaltantes;
+/* Aviso dentro del panel del ratio: si la ventana aguda tiene días a cero por
+   esto, el número que se está leyendo no significa lo que parece. */
+function durAvisoAgudo(name){
+  try{
+    const cont=contDailyTo(name,REF());
+    if(cont.length<7)return '';
+    const ult=cont.slice(-7).map(d=>d.dk);
+    const f=durFaltantes(40);
+    const dentro=f.dias.filter(d=>ult.indexOf(d.dk)>=0);
+    if(!dentro.length)return '';
+    return '<div class="acr-warn">⚠ '+dentro.length+' día'+(dentro.length>1?'s':'')
+      +' de estos 7 sin duración registrada ('+dentro.map(d=>pbFecha(d.dk)).join(', ')
+      +'): cuentan como carga 0 y bajan la aguda.</div>';
+  }catch(e){return '';}
+}
+window.durAvisoAgudo=durAvisoAgudo;
+/* Tarjeta de comprobación, en Conexión. */
+function renderDurCheck(){
+  const box=document.getElementById('dur-check');if(!box)return;
+  const f=durFaltantes(120);
+  if(!f.nDias){
+    box.innerHTML='<p class="small" style="margin:0;color:var(--ok)">Todos los días con cuestionario tienen duración. '
+      +'Revisados '+f.revisados+' días con RPE de los últimos 120.</p>';
+    return;
+  }
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const fila=d=>{
+    const todo=d.sin===d.total;
+    return '<div class="durf'+(todo?' durf--all':'')+'">'
+      +'<span class="durf-d">'+pbFecha(d.dk)+'</span>'
+      +'<b>'+d.sin+' de '+d.total+'</b>'
+      +'<span class="durf-t">'+(todo?'ningún jugador tiene carga ese día':'algunos jugadores sin carga')+'</span>'
+      +'<button class="med-chipbtn" onclick="durIrACalendario(\'' +d.dk+ '\')">Abrir en calendario</button>'
+      +'</div>';
+  };
+  box.innerHTML='<p class="small" style="margin:0 0 10px"><b style="color:var(--warn)">'+f.nDias+' día'
+      +(f.nDias>1?'s':'')+'</b> con cuestionario de RPE pero sin duración, del '+pbFecha(f.desde)+' al '+pbFecha(f.hasta)
+      +' · '+f.nRegistros+' registro'+(f.nRegistros>1?'s':'')+' que valen 0 UA. '
+      +'La carga es RPE × minutos: sin minutos no hay carga, y la ventana aguda del ratio se hunde.</p>'
+    +'<div class="durf-l">'+f.dias.slice(-30).map(fila).join('')+'</div>'
+    +(f.nDias>30?'<p class="small muted" style="margin:8px 0 0">Se muestran los 30 más recientes.</p>':'');
+}
+window.renderDurCheck=renderDurCheck;
+window.durIrACalendario=function(dk){
+  try{if(window.calSetDay)calSetDay(dk);else if(window.STATE)STATE.calDk=dk;}catch(e){}
+  try{go('cal');}catch(e){}
+};
 function acwrToDate(name,ref,field="ua"){
   const full=contDailyTo(name,ref);
   if(!full.length)return{ratio:NaN,acute:NaN,chronic:NaN,ewma:NaN,rel:false,dias:0,minDias:CONFIG.load.minBlockDays};
