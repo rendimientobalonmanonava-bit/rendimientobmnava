@@ -1396,6 +1396,38 @@ body.sb-min .sb-ver{display:none}
 .aus-p em{display:block;font-style:normal;font-size:10px;color:var(--muted2);margin-top:1px}
 .aus-p--off{opacity:.5;cursor:default}
 .aus-p--off:hover{border-color:var(--line)}
+/* v281 · reuniones del cuerpo técnico */
+.reu-l{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.reu-it{display:flex;gap:11px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel);align-items:flex-start}
+.reu-d{flex:none;width:42px;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:2px}
+.reu-bd{flex:1;min-width:0}
+.reu-t{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.reu-tono{font-size:9.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
+  border:1px solid;border-radius:999px;padding:1px 7px;white-space:nowrap}
+.reu-q{font-size:11px;color:var(--muted);margin-top:2px}
+.reu-x{font-size:12.5px;line-height:1.45;margin-top:6px}
+.reu-a{font-size:12px;line-height:1.45;margin-top:6px;padding-left:9px;border-left:2px solid var(--hair)}
+.reu-a i{display:block;font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted2);margin-bottom:1px}
+.reu-r{font-size:10.5px;color:var(--muted);margin-top:7px}
+.reu-r--on{color:var(--warn);font-weight:700}
+.reu-ac{flex:none;display:flex;gap:3px;opacity:0;transition:opacity .15s}
+.reu-it:hover .reu-ac{opacity:1}
+.reu-b{border:none;background:none;color:var(--muted2);cursor:pointer;font-size:12px;
+  padding:2px 5px;border-radius:6px;line-height:1}
+.reu-b:hover{background:var(--panel2);color:var(--txt)}
+.reu-mini{display:flex;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid var(--hair);
+  cursor:pointer;font-size:12px}
+.reu-mini:last-child{border-bottom:none}
+.reu-mini:hover b{color:var(--accent)}
+.reu-mini-d{flex:none;width:38px;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.reu-mini b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reu-mini-m{flex:1;min-width:0;font-size:10.5px;color:var(--muted);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.reu-mini-q{flex:none;font-size:10px;color:var(--muted2)}
+.reu-mini--w .reu-mini-d{color:var(--warn);font-weight:700}
+@media (max-width:768px){.reu-ac{opacity:1}}
 /* ══ v275 · La parte visual ══ */
 .pb-mapa{display:flex;align-items:center;gap:16px;background:var(--panel2);
   border-radius:var(--r-md);padding:12px 14px;margin-bottom:12px}
@@ -2691,6 +2723,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--warn)"></span>A vigilar</div>
         <div class="panel" id="team-rings"></div>
         <div class="panel" id="team-fisio"></div>
+        <div class="panel" id="team-reuniones"></div>
       </div>
     </div>
     <!-- v232 · Reparto para que ninguna columna acabe muy por encima de la
@@ -2784,6 +2817,10 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div id="pl-fisio" class="panel" style="display:none"></div>
         <div id="player-physio" class="panel" style="display:none"></div>
         <div id="player-medical" class="panel" style="display:none"></div>
+        <!-- v281 · Las reuniones van en su propio bloque, no dentro de Estado
+             médico: una charla técnica no es una incidencia física. -->
+        <div class="pl-cab" style="margin-top:18px"><span class="pl-cab-p" style="background:var(--accent)"></span>Cuerpo técnico</div>
+        <div id="pl-reuniones" class="panel"></div>
       </div>
     </div>
     <!-- Lo que no se consulta a diario baja al final y se pliega: el detalle
@@ -4936,7 +4973,7 @@ const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava
   bmnava_meddb:'Médico',bmnava_med:'Ficha médica',bmnava_medlog:'Agenda médica',
   bmnava_physio:'Fisioterapia',bmnava_physiodict:'Diccionario de fisioterapia',
   bmnava_testlog:'Valoraciones físicas',bmnava_expl:'Jugadores históricos',
-  bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos'};
+  bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos',bmnava_reuniones:'Reuniones'};
 function lsNombre(k){return LS_NOMBRES[k]||k;}
 /* ============ v255 · Copia de seguridad ============
    Un archivo con todo lo que se rellena a mano. No sustituye a la
@@ -4945,7 +4982,7 @@ function lsNombre(k){return LS_NOMBRES[k]||k;}
    Esto es lo que permite volver atrás. */
 const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
-  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos'];
+  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones'];
 function bkpRecoger(){
   const o={};
   BKP_CLAVES.forEach(k=>{const t=localStorage.getItem(k);if(t!=null)o[k]=t;});
@@ -7046,6 +7083,7 @@ function renderTeam(){
   try{renderTeamDist();}catch(e){}
   try{renderTeamNext();}catch(e){}
   try{renderTeamFisio();}catch(e){}
+  try{renderTeamReuniones();}catch(e){}
   const posSel=document.getElementById('team-pos');
   if(posSel){const cur=posSel.value;const poss=[...new Set(all.map(p=>p.pos))];posSel.innerHTML='<option value="">Todas las posiciones</option>'+poss.map(p=>`<option ${p===cur?'selected':''}>${p}</option>`).join('');}
   const matchDks=new Set(STATE.rpe.filter(s=>s.mdx==='MD'||norm(s.tipo).includes('partido')).map(s=>s.dk));
@@ -7225,6 +7263,7 @@ function renderPlayer(name){
      problema al que pertenece, y la clasificación no aportaba nada que no
      dijera ya el estado del problema. */
   try{renderProblemas(name);}catch(e){console.error('problemas',e);}
+  try{renderReuniones(name);}catch(e){console.error('reuniones',e);}
 }
 function drawPlayerCharts(p){
   killCharts(['ch-well','ch-load','ch-pacwr']);
@@ -9926,6 +9965,164 @@ function availMatrix(roster){
   if(!order.length)return `<div class="phys-sec" style="margin-top:0">Matriz de disponibilidad · últimas ${W} semanas</div><p class="muted small">Ningún jugador ha tenido incidencias en este periodo.</p>`;
   return `<div class="phys-sec" style="margin-top:0">Matriz de disponibilidad · últimas ${W} semanas <span class="muted" style="font-weight:400">· ${order.length} con incidencias${sinNada?' · '+sinNada+' sin nada que mostrar':''}</span></div><div class="wrap-x"><table class="avmx"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table></div><div class="phys-legend" style="margin-top:10px">${Object.keys(PHYSTAT).map(k=>`<span class="phys-leg"><i style="background:${PHYSTAT[k].c}"></i>${PHYSTAT[k].lab}</span>`).join('')}<span class="phys-leg"><i style="background:var(--panel2);border:1px solid var(--hair)"></i>sin registro</span></div>`;
 }
+/* ══════════ v281 · Reuniones del cuerpo técnico con jugadores ══════════
+   Carlos (primer entrenador) y Pablo (segundo) hablan con los jugadores:
+   minutos, rol, actitud, planificación. Esas conversaciones se perdían, y son
+   contexto que explica cosas que luego se ven en los datos. Aquí quedan
+   registradas, visibles para el staff, y fuera del historial médico: una
+   charla técnica no es una incidencia física y no debe tocar la
+   disponibilidad, ni el readiness, ni los días perdidos.
+
+   Almacén propio (bmnava_reuniones), con el mismo portero de siempre
+   —lsLeer/lsGuardar— así que se sincroniza y entra en la copia de seguridad. */
+const REU_LS='bmnava_reuniones';
+const REU_QUIEN=['Carlos Villagrán','Pablo Gallego','Carlos y Pablo'];
+const REU_MOTIVOS=['Rendimiento','Minutos y rol','Actitud','Planificación',
+  'Vuelta de lesión','Personal','Seguimiento de un acuerdo','Otro'];
+const REU_TONOS=[
+  ['bien','Fue bien','var(--ok)'],
+  ['normal','Correcta','var(--muted)'],
+  ['tensa','Tensa','var(--warn)'],
+  ['pendiente','Pendiente de confirmar','#7c9cbf']
+];
+function reuLoad(){if(!STATE.reuniones)STATE.reuniones=lsLeer(REU_LS,[]);
+  if(!Array.isArray(STATE.reuniones))STATE.reuniones=[];return STATE.reuniones;}
+function reuPersist(){return lsGuardar(REU_LS,reuLoad());}
+function reuDe(name){return reuLoad().filter(x=>x&&(x.jugadores||[]).indexOf(name)>=0)
+  .sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));}
+function reuTono(k){return REU_TONOS.find(t=>t[0]===k)||REU_TONOS[1];}
+window.reuLoad=reuLoad;window.reuDe=reuDe;
+/* Abre el formulario. Con `name` viene ya marcado ese jugador; sin él, se
+   eligen los que hagan falta (una charla puede ser con varios a la vez). */
+window.openReunion=function(name,editId){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  reuLoad();
+  const R=editId?reuLoad().find(x=>x.id===editId):null;
+  const sel=R?(R.jugadores||[]):(name?[name]:[]);
+  const roster=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const h='<h2 style="margin-top:0">'+(R?'Editar reunión':'Reunión con jugador')
+      +' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+    +'<p class="small muted" style="margin:-6px 0 12px">Lo que se habla con el jugador. Queda registrado para el cuerpo técnico; '
+      +'no toca su disponibilidad ni su estado físico.</p>'
+    +'<div class="ph-f"><div class="parte-grid">'
+      +'<label>Fecha<input type="date" id="reu-dk" value="'+esc(R?R.dk:dkey(new Date()))+'"></label>'
+      +'<label>La hace<select id="reu-quien">'+REU_QUIEN.map(q=>'<option'+((R&&R.quien===q)?' selected':'')+'>'+esc(q)+'</option>').join('')+'</select></label>'
+      +'<label>Motivo<select id="reu-motivo">'+REU_MOTIVOS.map(m=>'<option'+((R&&R.motivo===m)?' selected':'')+'>'+esc(m)+'</option>').join('')+'</select></label>'
+      +'<label>Cómo salió<select id="reu-tono">'+REU_TONOS.map(t=>'<option value="'+t[0]+'"'+((R&&R.tono===t[0])?' selected':(!R&&t[0]==='normal'?' selected':''))+'>'+esc(t[1])+'</option>').join('')+'</select></label>'
+      +'<label class="parte-wide">Tema tratado<input id="reu-tema" placeholder="de qué se habló" value="'+esc(R?R.tema:'')+'"></label>'
+      +'<label class="parte-wide">Acuerdos<input id="reu-acuerdos" placeholder="a qué se llegó" value="'+esc(R?R.acuerdos:'')+'"></label>'
+      +'<label>Volver a hablarlo <span class="muted" style="font-weight:400">(opcional)</span>'
+        +'<input type="date" id="reu-rev" value="'+esc(R&&R.revision?R.revision:'')+'"></label>'
+    +'</div>'
+    +'<div class="aus-head">Con quién'
+      +'<span class="r"><button type="button" class="med-chipbtn" onclick="reuMarcar(0)">Ninguno</button></span></div>'
+    +'<div class="aus-grid">'+roster.map(n=>'<label class="aus-p">'
+        +'<input type="checkbox" class="reu-ck" value="'+esc(n)+'"'+(sel.indexOf(n)>=0?' checked':'')+'>'
+        +'<span>'+esc(n)+'</span></label>').join('')+'</div>'
+    +'<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      +'<button class="btn" onclick="reuSave('+(R?"'"+esc(R.id)+"'":'')+')">'+(R?'Guardar cambios':'Registrar reunión')+'</button>'
+      +'<span class="small muted" id="reu-msg"></span>'
+    +'</div></div>';
+  document.getElementById('ph-body').innerHTML=h;
+  document.getElementById('ph-overlay').style.display='flex';
+};
+window.reuMarcar=function(v){document.querySelectorAll('.reu-ck').forEach(x=>{x.checked=!!v;});};
+window.reuSave=function(editId){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const msg=document.getElementById('reu-msg');
+  const dk=g('reu-dk');
+  if(!dk){if(msg)msg.textContent='Indica la fecha.';return;}
+  const jug=Array.from(document.querySelectorAll('.reu-ck:checked')).map(x=>x.value);
+  if(!jug.length){if(msg)msg.textContent='Marca con qué jugador fue la reunión.';return;}
+  reuLoad();
+  const datos={dk,quien:g('reu-quien')||REU_QUIEN[0],motivo:g('reu-motivo')||'Otro',
+    tono:g('reu-tono')||'normal',tema:(g('reu-tema')||'').trim(),
+    acuerdos:(g('reu-acuerdos')||'').trim(),revision:g('reu-rev')||'',jugadores:jug};
+  if(editId){
+    const R=STATE.reuniones.find(x=>x.id===editId);
+    if(R)Object.assign(R,datos,{updatedAt:new Date().toISOString()});
+  }else{
+    STATE.reuniones.push(Object.assign({id:'reu_'+Date.now()+'_'+Math.floor(Math.random()*1e4),
+      createdAt:new Date().toISOString()},datos));
+  }
+  reuPersist();closeHeroForm();
+  try{if(STATE.curPlayer)renderReuniones(STATE.curPlayer);}catch(e){}
+  try{renderTeamReuniones&&renderTeamReuniones();}catch(e){}
+  if(window.toast)toast('Reunión registrada · '+jug.length+' jugador'+(jug.length===1?'':'es'));
+};
+window.reuDel=function(id){
+  reuLoad();
+  const i=STATE.reuniones.findIndex(x=>x.id===id);
+  if(i<0)return;
+  if(!confirm('¿Borrar esta reunión? No se puede deshacer.'))return;
+  STATE.reuniones.splice(i,1);reuPersist();
+  try{if(STATE.curPlayer)renderReuniones(STATE.curPlayer);}catch(e){}
+  try{renderTeamReuniones&&renderTeamReuniones();}catch(e){}
+};
+function reuBloque(R,name){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const t=reuTono(R.tono);
+  const otros=(R.jugadores||[]).filter(n=>n!==name);
+  const hoy=dkey(new Date());
+  const pend=R.revision&&R.revision>=hoy;
+  return '<div class="reu-it">'
+    +'<div class="reu-d">'+pbFecha(R.dk)+'</div>'
+    +'<div class="reu-bd">'
+      +'<div class="reu-t"><b>'+esc(R.motivo||'Reunión')+'</b>'
+        +'<span class="reu-tono" style="color:'+t[2]+';border-color:'+t[2]+'">'+t[1]+'</span></div>'
+      +'<div class="reu-q">'+esc(R.quien||'')
+        +(otros.length?' · con '+otros.map(esc).join(', '):'')+'</div>'
+      +(R.tema?'<div class="reu-x">'+esc(R.tema)+'</div>':'')
+      +(R.acuerdos?'<div class="reu-a"><i>Acuerdo</i>'+esc(R.acuerdos)+'</div>':'')
+      +(R.revision?'<div class="reu-r'+(pend?' reu-r--on':'')+'">'
+        +(pend?'Volver a hablarlo el ':'Revisión prevista el ')+pbFecha(R.revision)+'</div>':'')
+    +'</div>'
+    +'<div class="reu-ac">'
+      +'<button class="reu-b" title="Editar" onclick="openReunion(null,\''+String(R.id).replace(/'/g,"\\'")+'\')">✎</button>'
+      +'<button class="reu-b" title="Borrar" onclick="reuDel(\''+String(R.id).replace(/'/g,"\\'")+'\')">✕</button>'
+    +'</div></div>';
+}
+/* Panel de la ficha del jugador. */
+function renderReuniones(name){
+  const box=document.getElementById('pl-reuniones');if(!box||!name)return;
+  const rs=reuDe(name);
+  const nsafe=String(name).replace(/'/g,"\\'");
+  const cab='<h2 style="margin-top:0">Reuniones <span class="r muted">con el cuerpo técnico</span></h2>'
+    +'<div class="pb-hoy"><span class="muted small">'
+      +(rs.length?rs.length+' registrada'+(rs.length>1?'s':''):'Ninguna registrada')+'</span>'
+    +'<span class="r"><button class="med-chipbtn" onclick="openReunion(\''+nsafe+'\')">＋ Nueva reunión</button></span></div>';
+  const cuerpo=rs.length
+    ? '<div class="reu-l">'+rs.map(R=>reuBloque(R,name)).join('')+'</div>'
+    : (window.vacio?vacio('parte','Sin reuniones registradas',
+        'Aquí quedan las charlas de Carlos o Pablo con el jugador: motivo, acuerdos y si hay que volver a hablarlo.')
+       :'<p class="small muted">Sin reuniones registradas.</p>');
+  box.innerHTML=cab+cuerpo;
+}
+window.renderReuniones=renderReuniones;
+/* Panel de equipo: lo último hablado y lo que hay pendiente de retomar. */
+function renderTeamReuniones(){
+  const box=document.getElementById('team-reuniones');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const rs=reuLoad().slice().sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+  const hoy=dkey(new Date());
+  const pend=rs.filter(R=>R.revision&&R.revision>=hoy)
+    .sort((a,b)=>String(a.revision).localeCompare(String(b.revision)));
+  const ult=rs.slice(0,4);
+  const fila=R=>'<div class="reu-mini" onclick="openPlayer(\''+String((R.jugadores||[])[0]||'').replace(/'/g,"\\'")+'\')">'
+    +'<span class="reu-mini-d">'+pbFecha(R.dk)+'</span>'
+    +'<b>'+esc((R.jugadores||[]).map(n=>String(n).split(' ')[0]).join(', '))+'</b>'
+    +'<span class="reu-mini-m">'+esc(R.motivo||'')+'</span>'
+    +'<span class="reu-mini-q">'+esc(String(R.quien||'').split(' ')[0])+'</span></div>';
+  box.innerHTML='<h2>Reuniones <span class="r"><button class="med-chipbtn" onclick="openReunion()">＋ Nueva</button></span></h2>'
+    +(pend.length?'<div class="cm-sub" style="margin:8px 0 6px;color:var(--warn)">Pendiente de retomar · '+pend.length+'</div>'
+       +pend.slice(0,3).map(R=>'<div class="reu-mini reu-mini--w" onclick="openPlayer(\''+String((R.jugadores||[])[0]||'').replace(/'/g,"\\'")+'\')">'
+         +'<span class="reu-mini-d">'+pbFecha(R.revision)+'</span>'
+         +'<b>'+esc((R.jugadores||[]).map(n=>String(n).split(' ')[0]).join(', '))+'</b>'
+         +'<span class="reu-mini-m">'+esc(R.motivo||'')+'</span></div>').join(''):'')
+    +(ult.length?'<div class="cm-sub" style="margin:12px 0 6px">Últimas</div>'+ult.map(fila).join('')
+       :'<p class="small muted" style="margin:8px 0 0">Sin reuniones registradas. Aquí quedan las charlas de Carlos o Pablo con los jugadores.</p>');
+}
+window.renderTeamReuniones=renderTeamReuniones;
 /* ══ v280 · Ausencia de varios jugadores a la vez ══
    Cuatro jugadores se pierden el entrenamiento porque tienen cita en
    extranjería. Hasta ahora había que abrir el parte del día cuatro veces, y el
@@ -12982,7 +13179,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
      /* v216 · «Dato médico» y «Parte del día» eran dos botones distintos que
         guardaban en almacenes distintos y no estaba claro cuál tocaba. Ahora
         hay uno solo que pregunta qué se quiere registrar. */
-     '<div class="phero-btns"><button class="btn phero-add" onclick="openFisioReg(\''+q(name)+'\')">+ Fisio / médico</button><button class="btn phero-add" onclick="openHeroForm(\'incidencia\',\''+q(name)+'\')">+ Parte del día</button><button class="btn phero-add" onclick="openQuickTest(\''+q(name)+'\')">+ Valoración</button></div></div>';
+     '<div class="phero-btns"><button class="btn phero-add" onclick="openFisioReg(\''+q(name)+'\')">+ Fisio / médico</button><button class="btn phero-add" onclick="openHeroForm(\'incidencia\',\''+q(name)+'\')">+ Parte del día</button><button class="btn phero-add" onclick="openQuickTest(\''+q(name)+'\')">+ Valoración</button><button class="btn phero-add" onclick="openReunion(\''+q(name)+'\')">+ Reunión</button></div></div>';
  };
  const today=()=>dkey(new Date());
  window.openHeroForm=function(type,name){let h='';
