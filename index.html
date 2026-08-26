@@ -1427,6 +1427,31 @@ body.sb-min .sb-ver{display:none}
   text-overflow:ellipsis;white-space:nowrap}
 .reu-mini-q{flex:none;font-size:10px;color:var(--muted2)}
 .reu-mini--w .reu-mini-d{color:var(--warn);font-weight:700}
+/* v283 · ratio agudo:crónico desacoplado */
+.acr{border:1px solid var(--line);border-radius:14px;padding:13px 15px 12px;margin-bottom:12px;
+  background:var(--panel)}
+.acr-h{display:flex;align-items:baseline;gap:9px;font-size:11px;font-weight:800;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.acr-h span{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:none;color:var(--muted2)}
+.acr-top{display:flex;align-items:baseline;gap:14px;margin-top:8px}
+.acr-v{font-size:38px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.acr-d{min-width:0}
+.acr-d b{display:block;font-size:17px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.acr-d span{display:block;font-size:10.5px;color:var(--muted);margin-top:1px}
+.acr-bar{position:relative;height:7px;border-radius:99px;background:var(--panel2);
+  border:1px solid var(--hair);margin-top:13px}
+.acr-zona{position:absolute;left:20%;width:33.3%;top:0;bottom:0;background:color-mix(in srgb,var(--ok) 26%,transparent);
+  border-radius:99px}
+.acr-mk{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;
+  transform:translate(-50%,-50%);border:2px solid var(--panel);box-shadow:0 0 0 1px var(--hair)}
+.acr-esc{display:flex;justify-content:space-between;font-size:9px;color:var(--muted2);
+  margin-top:4px;font-variant-numeric:tabular-nums}
+.acr-n{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;
+  padding-top:11px;border-top:1px solid var(--hair)}
+.acr-n b{display:block;font-size:17px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.acr-n span{display:block;font-size:9.5px;color:var(--muted);margin-top:2px;line-height:1.3}
+.acr-l{font-size:11.5px;color:var(--muted);margin-top:10px}
+.acr--na .acr-na{font-size:12px;color:var(--muted);margin-top:7px}
 @media (max-width:768px){.reu-ac{opacity:1}}
 /* ══ v275 · La parte visual ══ */
 .pb-mapa{display:flex;align-items:center;gap:16px;background:var(--panel2);
@@ -5190,6 +5215,98 @@ function loadBlockFrom(cont,field){
   }
   return start;
 }
+/* ═══════ v283 · Ratio agudo:crónico DESACOPLADO 7:28 ═══════
+   Lo pide Daniel explícitamente (26/08/2026) y con su especificación delante,
+   porque el que había no era lo bastante sensible para decidir con él:
+
+     aguda   = suma de la carga de los últimos 7 días, hoy incluido
+     crónica = suma de los 28 días INMEDIATAMENTE ANTERIORES a esos 7, /4
+     ratio   = aguda / crónica semanal media
+     dif %   = (ratio − 1) × 100
+
+   La diferencia con el que ya existía (acoplado 7:21) no es de matiz: al meter
+   los 7 días agudos dentro del denominador, una subida de carga se sube a sí
+   misma la referencia y el ratio se comprime hacia 1. Medido sobre los datos
+   reales de febrero a mayo, 11 jugadores con histórico completo: el acoplado
+   daba 1,32 de media donde este da 1,47, y en Josu Arzoz 1,21 frente a 1,79.
+   Por eso una fase de carga creciente se leía como si no lo fuera.
+
+   Reglas de la especificación, tal cual:
+    · un jugador no se mezcla con otro, ni una variable con otra;
+    · los días de descanso cuentan como carga 0 —contDailyTo ya los rellena—;
+    · sin histórico suficiente (35 días de bloque) NO se calcula;
+    · con crónica 0, NO CALCULABLE, nunca un número inventado.
+
+   Lo que NO toca: el readiness (W50/A28/R10/D12), sus umbrales, la EWMA, ni el
+   ACWR acoplado, que siguen exactamente igual y siguen alimentando lo que
+   alimentaban. Este ratio se muestra; todavía no decide por su cuenta. */
+const ACWR_DIAS_AG=7, ACWR_DIAS_CR=28;
+function acwrReal(name,ref,field){
+  field=field||'ua';
+  const MIN=ACWR_DIAS_AG+ACWR_DIAS_CR;                 /* 35 días */
+  const vacio={ratio:null,aguda:null,cronica:null,pct:null,dias:0,minDias:MIN,
+               calculable:false,motivo:'sin datos'};
+  const full=contDailyTo(name,ref||REF());
+  if(!full.length)return vacio;
+  /* Tras un parón largo el bloque arranca de nuevo: una crónica hecha de ceros
+     de vacaciones no es la carga habitual de nadie. */
+  const cont=full.slice(loadBlockFrom(full,field));
+  const i=cont.length-1;
+  if(cont.length<MIN)
+    return Object.assign({},vacio,{dias:cont.length,
+      motivo:'faltan '+(MIN-cont.length)+' días de histórico'});
+  let aguda=0,cron=0;
+  for(let k=0;k<ACWR_DIAS_AG;k++)aguda+=cont[i-k][field]||0;
+  for(let k=ACWR_DIAS_AG;k<MIN;k++)cron+=cont[i-k][field]||0;
+  const cronSem=cron/(ACWR_DIAS_CR/7);
+  if(!(cronSem>0))
+    return Object.assign({},vacio,{dias:cont.length,aguda:aguda,cronica:0,
+      motivo:'la carga crónica es 0'});
+  const ratio=aguda/cronSem;
+  return {ratio,aguda,cronica:cronSem,pct:(ratio-1)*100,
+    dias:cont.length,minDias:MIN,calculable:true,motivo:''};
+}
+window.acwrReal=acwrReal;
+/* Los cuatro números que pide la especificación, sin esconder ninguno: si el
+   ratio no se puede calcular se dice por qué, en vez de pintar un guion. */
+function acwrRealPanel(name){
+  const r=acwrReal(name);
+  const f=(v,d)=>(typeof fmt==='function')?fmt(v,d||0):String(Math.round(v));
+  if(!r.calculable){
+    return '<div class="acr acr--na"><div class="acr-h">Ratio agudo:crónico'
+      +'<span>7d : 28d · desacoplado</span></div>'
+      +'<div class="acr-na">No calculable · '+r.motivo
+      +(r.aguda!=null?' · aguda '+f(r.aguda)+' UA':'')+'</div></div>';
+  }
+  const sev=r.ratio>=CONFIG.load.acwrRedHi?'bad'
+    :(r.ratio>=CONFIG.load.acwrYellowHi?'warn'
+    :(r.ratio<CONFIG.load.acwrYellowLo?'warn':'ok'));
+  const col='var(--'+sev+')';
+  const signo=r.pct>=0?'+':'−';
+  const lect=r.ratio>=CONFIG.load.acwrRedHi?'Salto muy grande sobre lo habitual'
+    :(r.ratio>=CONFIG.load.acwrYellowHi?'Por encima de lo habitual'
+    :(r.ratio<CONFIG.load.acwrYellowLo?'Por debajo de lo habitual'
+    :'En su carga habitual'));
+  /* la barra sitúa el ratio en el rango 0,5–2,0, con la zona 0,8–1,3 marcada */
+  const pos=Math.max(0,Math.min(100,(r.ratio-0.5)/1.5*100));
+  return '<div class="acr">'
+    +'<div class="acr-h">Ratio agudo:crónico<span>7d : 28d · desacoplado</span></div>'
+    +'<div class="acr-top">'
+      +'<div class="acr-v" style="color:'+col+'">'+f(r.ratio,2)+'</div>'
+      +'<div class="acr-d">'
+        +'<b style="color:'+col+'">'+signo+f(Math.abs(r.pct),0)+'%</b>'
+        +'<span>sobre su carga habitual</span></div>'
+    +'</div>'
+    +'<div class="acr-bar"><i class="acr-zona"></i>'
+      +'<i class="acr-mk" style="left:'+pos.toFixed(1)+'%;background:'+col+'"></i></div>'
+    +'<div class="acr-esc"><span>0,5</span><span>0,8</span><span>1,3</span><span>2,0</span></div>'
+    +'<div class="acr-n">'
+      +'<div><b>'+f(r.aguda)+'</b><span>aguda · 7 d</span></div>'
+      +'<div><b>'+f(r.cronica)+'</b><span>crónica · media semanal de 28 d</span></div>'
+    +'</div>'
+    +'<div class="acr-l">'+lect+'</div></div>';
+}
+window.acwrRealPanel=acwrRealPanel;
 function acwrToDate(name,ref,field="ua"){
   const full=contDailyTo(name,ref);
   if(!full.length)return{ratio:NaN,acute:NaN,chronic:NaN,ewma:NaN,rel:false,dias:0,minDias:CONFIG.load.minBlockDays};
@@ -7242,6 +7359,7 @@ function renderPlayer(name){
   G('pl-zrow',`<h2>Z-score por variable · último registro</h2><div class="zrow">${zc||'<p class="muted">Sin wellness.</p>'}</div>`);
   G('pl-recov',`${recoveryStrip(playerRecSeries(p,21),'Recuperación · últimas 3 semanas')||'<span class="muted">Sin histórico de recuperación.</span>'}`);
   G('pl-kpisem',`
+    ${acwrRealPanel(p.name)}
     <div class="kpis">
       ${kpi("ACWR actual",fmt(p.acwr.ratio,2),`${CONFIG.load.acute}d:${CONFIG.load.chronic}d acopl.`,acwrSev==='na'?null:acwrSev)}
       ${kpi("EWMA ACWR",fmt(p.acwr.ewma,2),`α ${CONFIG.load.ewmaAcute}/${CONFIG.load.ewmaChronic}`)}
@@ -9976,7 +10094,8 @@ function availMatrix(roster){
    Almacén propio (bmnava_reuniones), con el mismo portero de siempre
    —lsLeer/lsGuardar— así que se sincroniza y entra en la copia de seguridad. */
 const REU_LS='bmnava_reuniones';
-const REU_QUIEN=['Carlos Villagrán','Pablo Gallego','Carlos y Pablo'];
+const REU_QUIEN=['Carlos Villagrán','Pablo Gallego','Carlos y Pablo',
+  'Virginia Vírseda','Héctor Cano','Victor Recio','Daniel Gutiérrez'];
 const REU_MOTIVOS=['Rendimiento','Minutos y rol','Actitud','Planificación',
   'Vuelta de lesión','Personal','Seguimiento de un acuerdo','Otro'];
 const REU_TONOS=[
@@ -12220,6 +12339,7 @@ function buildHeaderActions(){const host=document.getElementById('hdr-actions');
       <button class="add-item" role="menuitem" onclick="addDataFisio()"><span class="ic">🩺</span><span class="tx"><b>Fisioterapia y parte médico</b><small>Tratamiento, cómo está hoy, cita o documento, lesión nueva.</small></span></button>
       <button class="add-item" role="menuitem" onclick="addDataGoHR()"><span class="ic">❤️</span><span class="tx"><b>Datos de pulsómetros</b><small>Importar sesión Polar (FC, kcal, tiempo en zonas).</small></span></button>
       <button class="add-item" role="menuitem" onclick="addDataGoTests()"><span class="ic">📏</span><span class="tx"><b>Valoración física</b><small>Cargar tests para el perfil físico (CMJ, 1RM, velocidad…).</small></span></button>
+      <button class="add-item" role="menuitem" onclick="addDataGoReunion()"><span class="ic">🗣️</span><span class="tx"><b>Reunión con jugador</b><small>Lo que se habla con él: motivo, acuerdos y si hay que retomarlo.</small></span></button>
       <div class="add-sep"></div>
       <button class="add-item" role="menuitem" onclick="addDataGoAvailPlan()"><span class="ic">📅</span><span class="tx"><b>Previsión de mañana</b><small>Quién no entrenará o estará de baja en próximas sesiones.</small></span></button>
       <button class="add-item" role="menuitem" onclick="addDataGoConfig()"><span class="ic">🔗</span><span class="tx"><b>Wellness y RPE (hojas)</b><small>Se sincronizan desde Google Sheets · ir a Conexión.</small></span></button>
@@ -12237,6 +12357,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAddData();});
 function scrollFocus(id){const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>{try{el.focus({preventScroll:true});}catch(_){}el.classList.add('flash-focus');setTimeout(()=>el.classList.remove('flash-focus'),1400);},340);}
 function addDataGoHR(){closeAddData();go('hr');setTimeout(()=>scrollFocus('hr-paste'),80);}
 function addDataGoTests(){closeAddData();openQuickTest();}
+function addDataGoReunion(){closeAddData();if(window.openReunion)openReunion();}
 function addDataGoAvailPlan(){closeAddData();go('avail');setTimeout(()=>scrollFocus('avail-plan-player'),80);}
 function addDataGoConfig(){closeAddData();go('config');}
 /* v216 · el menú ＋ ahora abre el selector único de fisioterapia. Las funciones
