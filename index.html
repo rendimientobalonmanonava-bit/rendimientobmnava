@@ -2922,7 +2922,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div class="panel"><h2>ACWR por jugador <span class="r muted">anillo por zona · toca para ver ficha</span></h2><div id="acwr-fichas"></div></div>
       <div class="panel"><h2>Ranking del equipo <span class="r muted">estado · carga aguda · ACWR</span></h2><div id="carga-ranking"></div></div>
       <div class="panel"><h2>Carga del equipo · día a día <span class="r muted">media por jugador · crónica 28 d · partidos en rojo</span></h2><div style="height:190px"><canvas id="ch-team-load"></canvas></div>
-        <div class="legend"><span><i class="led" style="background:var(--accent)"></i>carga diaria</span><span><i class="led" style="background:var(--accent2)"></i>crónica 28d</span><span><i class="led bad"></i>día de partido</span></div></div>
+        <div class="legend"><span><i class="led" style="background:var(--accent)"></i>carga diaria</span><span><i class="led" style="background:var(--accent2)"></i>crónica <span id="lg-cron">21</span>d</span><span><i class="led bad"></i>día de partido</span></div></div>
       <div class="cargacols">
         <div class="panel" id="load-matchx"></div>
         <div class="panel"><h2>Carga por tipo</h2><div style="height:170px"><canvas id="ch-type"></canvas></div></div>
@@ -7243,8 +7243,8 @@ function renderPlayer(name){
   G('pl-recov',`${recoveryStrip(playerRecSeries(p,21),'Recuperación · últimas 3 semanas')||'<span class="muted">Sin histórico de recuperación.</span>'}`);
   G('pl-kpisem',`
     <div class="kpis">
-      ${kpi("ACWR actual",fmt(p.acwr.ratio,2),"7d:28d",acwrSev==='na'?null:acwrSev)}
-      ${kpi("EWMA ACWR",fmt(p.acwr.ewma,2),"α 0.25/0.07")}
+      ${kpi("ACWR actual",fmt(p.acwr.ratio,2),`${CONFIG.load.acute}d:${CONFIG.load.chronic}d acopl.`,acwrSev==='na'?null:acwrSev)}
+      ${kpi("EWMA ACWR",fmt(p.acwr.ewma,2),`α ${CONFIG.load.ewmaAcute}/${CONFIG.load.ewmaChronic}`)}
       ${kpi("Carga aguda 7d",fmt(p.acwr.acute,0),"UA")}
       ${kpi("Carga 14d",fmt(p.load14,0),"UA acumulada")}
     </div>
@@ -7579,7 +7579,7 @@ function drawACWRInto(id,ser){
   killCharts([id]);const el=document.getElementById(id);if(!el)return;const s=ser.slice(-28);
   charts[id]=new Chart(el,{type:'line',data:{labels:s.map(d=>d.dk.slice(5)),datasets:[
     {label:'Aguda 7d',data:s.map(d=>d.acute),borderColor:PAL.accent,tension:.35,pointRadius:0,yAxisID:'y1'},
-    {label:'Crónica 28d',data:s.map(d=>d.chronic),borderColor:PAL.data2,tension:.35,pointRadius:0,yAxisID:'y1'},
+    {label:'Crónica '+CONFIG.load.chronic+'d',data:s.map(d=>d.chronic),borderColor:PAL.data2,tension:.35,pointRadius:0,yAxisID:'y1'},
     {label:'ACWR',data:s.map(d=>d.ra),borderColor:PAL.data,tension:.35,pointRadius:0,yAxisID:'y'}]},
     options:{...BASE,scales:{x:AX,y:{...AX,position:'left',suggestedMin:0,suggestedMax:2},y1:{...AX,position:'right',grid:{display:false}}}},plugins:[yBand(0.8,1.3,rgba(PAL.ok,.07))]});
 }
@@ -7591,7 +7591,7 @@ function cargaKPIs(id,s,acwrVal){
   box.innerHTML=
     kpi("Carga (UA)",fmt(totUA,0),win>500?'temporada':win+' d')+
     kpi("Media/día",fmt(winDays.length?mean(winDays.map(d=>d.ua)):NaN,0),"UA")+
-    kpi("ACWR",fmt(acwrVal,2),"7d:28d",acwrClass(acwrVal))+
+    kpi("ACWR",fmt(acwrVal,2),`${CONFIG.load.acute}d:${CONFIG.load.chronic}d acopl.`,acwrClass(acwrVal))+
     kpi("Monotonía",fmt(cur.mono,2),"sem. actual");
 }
 function renderCargaPos(){
@@ -7973,7 +7973,7 @@ function drawTeamLoad(win){
   const chr=s.map((_,i)=>mean(s.slice(Math.max(0,i-27),i+1).map(d=>d.mean)));
   charts['ch-team-load']=new Chart(document.getElementById('ch-team-load'),{data:{labels:s.map(d=>d.dk.slice(5)),datasets:[
     {type:'bar',label:'Carga diaria',data:s.map(d=>d.mean),backgroundColor:s.map(d=>d.mdx==='MD'?rgba(PAL.matchday,.5):rgba(PAL.data,.28)),borderColor:s.map(d=>d.mdx==='MD'?PAL.matchday:PAL.data),borderWidth:1.2,borderRadius:4},
-    {type:'line',label:'Crónica 28d',data:chr,borderColor:PAL.accent,tension:.35,pointRadius:0}]},options:{...BASE,plugins:{legend:{display:false}}}});
+    {type:'line',label:'Crónica '+CONFIG.load.chronic+'d',data:chr,borderColor:PAL.accent,tension:.35,pointRadius:0}]},options:{...BASE,plugins:{legend:{display:false}}}});
 }
 function drawTypeDonut(win){
   killCharts(['ch-type']);const m=teamByType(win);const labs=Object.keys(m),vals=labs.map(k=>m[k]);
@@ -14290,8 +14290,8 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    if(s.well.dolor7)add('vigilancia','Dolor declarado previo','wellness','7d');
   }
   if(s.load&&s.load.rel){any=true;
-   if(s.load.acwr!=null&&s.load.acwr>=1.5)add('riesgo','ACWR alto','ACWR '+fmt(s.load.acwr,2),'7/28d');
-   else if(s.load.acwr!=null&&s.load.acwr>=1.3)add('vigilancia','ACWR elevado','ACWR '+fmt(s.load.acwr,2),'7/28d');
+   if(s.load.acwr!=null&&s.load.acwr>=1.5)add('riesgo','ACWR alto','ACWR '+fmt(s.load.acwr,2),CONFIG.load.acute+'/'+CONFIG.load.chronic+'d');
+   else if(s.load.acwr!=null&&s.load.acwr>=1.3)add('vigilancia','ACWR elevado','ACWR '+fmt(s.load.acwr,2),CONFIG.load.acute+'/'+CONFIG.load.chronic+'d');
    if(s.load.typ&&s.load.yUA> s.load.typ*1.5)add('vigilancia','Pico de carga reciente','día -1 '+fmt(s.load.yUA)+' vs media '+fmt(s.load.typ),'1d');
    if(s.load.consec>=6)add('vigilancia','Sin descanso reciente',s.load.consec+' días consecutivos','21d');
    if(s.load.mono!=null&&s.load.mono>2)add('vigilancia','Monotonía alta','mono '+fmt(s.load.mono,2),'semana');
@@ -14438,7 +14438,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   }else blocks+=noData('Wellness previo');
   // carga
   if(s.load&&(s.load.load7!=null||s.load.acwr!=null)){var ac=s.load.acwr;var acc=ac==null?'na':(ac>=1.5||ac<0.8?'bad':(ac>=1.3?'warn':'ok'));
-   blocks+='<div class="cx-blk"><div class="cx-bh">'+dot(acc)+'Carga previa</div><div class="cx-mini">'+miniKv('7d',fmt(s.load.load7))+miniKv('28d',fmt(s.load.load28))+miniKv('ACWR',fmt(s.load.acwr,2))+miniKv('Monotonía',fmt(s.load.mono,2))+miniKv('Día -1',fmt(s.load.yUA))+miniKv('Consecutivos',s.load.consec)+miniKv('Pico 14d',fmt(s.load.peak14))+'</div></div>';
+   blocks+='<div class="cx-blk"><div class="cx-bh">'+dot(acc)+'Carga previa</div><div class="cx-mini">'+miniKv('7d',fmt(s.load.load7))+miniKv(CONFIG.load.chronic+'d',fmt(s.load.load28))+miniKv('ACWR',fmt(s.load.acwr,2))+miniKv('Monotonía',fmt(s.load.mono,2))+miniKv('Día -1',fmt(s.load.yUA))+miniKv('Consecutivos',s.load.consec)+miniKv('Pico 14d',fmt(s.load.peak14))+'</div></div>';
   }else blocks+=noData('Carga previa');
   // hr
   if(s.hr){blocks+='<div class="cx-blk"><div class="cx-bh">'+dot(s.hr.pctz45>=25?'warn':'ok')+'Carga externa · Polar (7d)</div><div class="cx-mini">'+miniKv('TRIMP',fmt(s.hr.trimp))+miniKv('Z4+Z5',s.hr.z45min+"'")+miniKv('%Z4+5',fmt(s.hr.pctz45))+miniKv('Sesiones int.',s.hr.hi)+'</div></div>';}
