@@ -9397,17 +9397,43 @@ function parteStatusOptions(sel){
 /* v274 · Opciones del desplegable: los problemas abiertos de ese jugador. Si no
    hay ninguno, el campo se queda solo con «problema nuevo», que es el
    comportamiento de siempre. */
-function pbOpcionesProblema(name,sel){
+/* v279 · El nombre con el que se reconoce un problema en los desplegables. El
+   título es lo que escribió quien lo abrió («Esguince tobillo D»), y dice
+   bastante más que la zona sola; la zona se antepone solo cuando el título no
+   la nombra ya, para no leer «Tobillo D · Tobillo D». */
+function pbNombre(inj){
+  if(!inj)return '';
+  const t=String(inj.title||'').trim();
+  const z=pbEtiqueta(inj);
+  if(!t)return z;
+  const zn=pbNorm(inj.zona||'');
+  return (zn&&pbNorm(t).indexOf(zn)>=0)?t:(z+' · '+t);
+}
+window.pbNombre=pbNombre;
+/* v279 · Opciones del desplegable «¿va asociado a?».
+   Antes solo listaba los problemas ABIERTOS, así que no había forma de colgar
+   de su lesión el informe que llega dos semanas después del alta, ni la
+   revisión de control: quedaban sueltos para siempre. Ahora salen también los
+   cerrados, en su propio grupo y por debajo.
+   Y el nombre es el mismo en los tres formularios: cada uno lo componía a su
+   manera y el mismo problema se llamaba «Tobillo D» en el parte del día y
+   «Esguince tobillo D» en el de tratamiento, que es justo lo que impedía
+   reconocerlo. */
+function pbOpcionesProblema(name,sel,vacio){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
-  let ops='<option value="">— problema nuevo, sin asociar —</option>';
+  let ops='<option value="">'+esc(vacio||'— problema nuevo, sin asociar —')+'</option>';
   if(!name)return ops;
   try{
-    pbProblemas(name).forEach(function(x){
+    const todos=pbProblemas(name,true);
+    const abiertos=[],cerrados=[];
+    todos.forEach(x=>{(pbGrupo(x).abierto?abiertos:cerrados).push(x);});
+    const linea=x=>{
       const e=pbEstado(x);
-      const f=String(x.dk||'').split('-').reverse().join('/');
-      ops+='<option value="'+esc(x.id)+'"'+(sel===x.id?' selected':'')+'>'
-        +esc(pbEtiqueta(x))+' · desde '+f+' · '+e.lab+'</option>';
-    });
+      return '<option value="'+esc(x.id)+'"'+(sel===x.id?' selected':'')+'>'
+        +esc(pbNombre(x))+' · desde '+pbFecha(x.dk)+' · '+e.lab+'</option>';
+    };
+    if(abiertos.length)ops+='<optgroup label="Abiertos">'+abiertos.map(linea).join('')+'</optgroup>';
+    if(cerrados.length)ops+='<optgroup label="Cerrados">'+cerrados.map(linea).join('')+'</optgroup>';
   }catch(e){}
   return ops;
 }
@@ -14270,7 +14296,10 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
  function PS(){medPhysioEnsureSettings();return STATE.med.settings.physio;}
 
  // ---------- lesiones abiertas de un jugador ----------
- function openInjuriesOf(name){return (STATE.med.inj||[]).filter(function(e){return e.name===name&&e.kind==='lesion'&&e.open;});}
+ /* v279 · también las molestias: filtrando por kind==='lesion' el enlace
+    automático no saltaba nunca en una molestia abierta, que es la mitad de lo
+    que registra la fisio. Los fusionados no cuentan: se leen dentro del suyo. */
+ function openInjuriesOf(name){return (STATE.med.inj||[]).filter(function(e){return e.name===name&&e.open&&!e.mergedInto;});}
  function injTitle(id){var e=(STATE.med.inj||[]).find(function(x){return x.id===id;});return e?e.title:'';}
 
  // ---------- modal rápido ----------
@@ -14280,7 +14309,12 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var s=PS();var name=ctx.name||'';var injs=name?openInjuriesOf(name):[];
   var players=Object.keys(STATE.players||{}).sort();
   var nOpts='<option value="">— jugador —</option>'+players.map(function(n){return '<option'+(n===name?' selected':'')+'>'+esc(n)+'</option>';}).join('');
-  var injSel='<option value="">General / mantenimiento</option>'+((STATE.med.inj||[]).filter(function(e){return e.name===name;})).map(function(e){var selc=(ctx.injId===e.id||(!ctx.injId&&s.autoLinkOpenInjury&&injs.length===1&&injs[0].id===e.id))?' selected':'';return '<option value="'+e.id+'"'+selc+'>'+esc(e.title)+(e.open?'':' · cerrada')+'</option>';}).join('');
+  /* v279 · mismo desplegable que el parte del día y el de citas: antes este
+     lo componía aparte y llamaba al mismo problema de otra manera. */
+  var preSel=ctx.injId||((!ctx.injId&&s.autoLinkOpenInjury&&injs.length===1)?injs[0].id:'');
+  var injSel=(window.pbOpcionesProblema)
+    ? pbOpcionesProblema(name,preSel,'General / mantenimiento')
+    : '<option value="">General / mantenimiento</option>';
   var durChips=(s.quickDurations||QD).map(function(d){return '<button type="button" class="mtq-chip dur" data-v="'+d+'" onclick="mtqSetDur('+d+')">'+d+"'"+'</button>';}).join('');
   var typeChips=(s.quickTypes||QT).map(function(v){return chip(v,'',"mtqPickSingle(this,'mtq-tipo')",false);}).join('');
   var objChips=(s.quickObjectives||QO).map(function(v){return chip(v,[],"mtqToggleMulti(this)",true);}).join('');
