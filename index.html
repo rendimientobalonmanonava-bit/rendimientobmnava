@@ -5218,6 +5218,37 @@ function applyRosterLive(rosterObj){
 
 /* ===================== FECHA DE REFERENCIA / CONTEXTO DEL DÍA ===================== */
 function REF(){return STATE.refDate||lastDate();}
+/* ═══ v285 · Fecha de cierre de la ventana de CARGA ═══
+   REF() es el último día con CUALQUIER dato, y eso incluye el wellness. El
+   wellness se manda por la mañana y el RPE por la noche, así que en cuanto un
+   jugador rellena el cuestionario matinal el día en curso entra en la ventana
+   aguda de toda la plantilla —con carga 0, porque sus RPE todavía no han
+   llegado—. No es un día de descanso: es un día sin cerrar, y contarlo como
+   descanso hunde el ratio de todos a la vez.
+
+   Medido sobre los datos del 26/08/2026, 19 jugadores: cerrando en el día en
+   curso el ACWR medio sale 0,918 y cuatro jugadores caen por debajo de 0,8;
+   cerrando en el último día con RPE sale 0,998 y ninguno. El mismo día, los
+   mismos datos, y la diferencia entera es un día que aún no había terminado.
+   Era esto lo que hacía que «saliera bajo en casi todos».
+
+   Los días de descanso de verdad siguen contando 0: son días anteriores al
+   último con RPE y están dentro de la serie. Lo único que se deja fuera es la
+   cola de días que todavía no puede tener carga.
+
+   REF() no se toca: el readiness, el wellness y todo lo demás siguen mirando
+   al día de hoy, que es lo que les corresponde. */
+function refCarga(){
+  /* el tope es el día que se está mirando, pero nunca más allá del último día
+     que puede tener carga: si se mira hoy y los RPE de hoy no han llegado, la
+     ventana cierra ayer; si se mira un día pasado, cierra en ese día. */
+  const tope=STATE.refDate||lastDate();
+  let mx=null;
+  (STATE.rpe||[]).forEach(x=>{if(x&&x.date&&(!mx||x.date>mx))mx=x.date;});
+  if(!mx)return tope;
+  return mx<tope?mx:tope;
+}
+window.refCarga=refCarga;
 function modeOf(arr){const c={};let best=null,bn=0;arr.forEach(x=>{c[x]=(c[x]||0)+1;if(c[x]>bn){bn=c[x];best=x;}});return best;}
 function contDailyTo(name,ref){const ag=dailyAgg(name).filter(a=>a.date<=ref);if(!ag.length)return[];const start=ag[0].date,map={};ag.forEach(a=>map[a.dk]=a);const out=[];for(let dd=new Date(start);dd<=ref;dd.setDate(dd.getDate()+1)){const k=dkey(dd);out.push({date:new Date(dd),dk:k,ua:map[k]?map[k].ua:0,cal:map[k]?map[k].cal:0});}return out;}
 /* v224 · Índice donde empieza el bloque de carga vigente: el primer día con carga
@@ -5263,7 +5294,7 @@ function acwrReal(name,ref,field){
   const MIN=ACWR_DIAS_AG+ACWR_DIAS_CR;                 /* 35 días */
   const vacio={ratio:null,aguda:null,cronica:null,pct:null,dias:0,minDias:MIN,
                calculable:false,motivo:'sin datos'};
-  const full=contDailyTo(name,ref||REF());
+  const full=contDailyTo(name,ref||((typeof refCarga==='function')?refCarga():REF()));
   if(!full.length)return vacio;
   /* Tras un parón largo el bloque arranca de nuevo: una crónica hecha de ceros
      de vacaciones no es la carga habitual de nadie. */
@@ -5365,7 +5396,7 @@ window.durFaltantes=durFaltantes;
    esto, el número que se está leyendo no significa lo que parece. */
 function durAvisoAgudo(name){
   try{
-    const cont=contDailyTo(name,REF());
+    const cont=contDailyTo(name,(typeof refCarga==='function')?refCarga():REF());
     if(cont.length<7)return '';
     const ult=cont.slice(-7).map(d=>d.dk);
     const f=durFaltantes(40);
@@ -5693,10 +5724,13 @@ function buildPlayers(){
     const last=onDay.length?onDay[onDay.length-1]:(wAll.length?wAll[wAll.length-1]:null);
     const stale=!!last&&last.dk!==refk;
     const histAll=last?wAll.filter(x=>x!==last):wAll;
-    const ser=acwrToDate(name,ref);
+    /* v285 · la ventana de carga cierra en el último día con RPE, no en el
+       último con wellness: un día sin cerrar no es un día de descanso. */
+    const refC=refCarga();
+    const ser=acwrToDate(name,refC);
     const p={name,pos,last,stale,w:wAll,z:{},readiness:null,factors:[],mdx:last?last.mdx:"—"};
     p.acwr={ratio:ser.ratio,acute:ser.acute,ewma:ser.ewma,rel:ser.rel,dias:ser.dias,minDias:ser.minDias};
-    p.load14=sum(contDailyTo(name,ref).slice(-14).map(d=>d.ua));
+    p.load14=sum(contDailyTo(name,refC).slice(-14).map(d=>d.ua));
     if(last){
       let Pw=0,Pd=0,Pa=0,reds=0,factors=[];
       for(const key in CONFIG.wellnessVars){const cfg=CONFIG.wellnessVars[key];
