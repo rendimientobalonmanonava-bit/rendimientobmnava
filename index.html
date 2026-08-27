@@ -5878,7 +5878,106 @@ var MED_SEL=null;
 const MED_TT_BASE=['Fisioterapia','Masaje','Medicación','Readaptación','Consulta médica','Nutrición'];
 function medDbLoad(){if(STATE.med)return;let m=lsLeer('bmnava_meddb',{})||{};
   STATE.med={inj:m.inj||[],treat:m.treat||[],cat:m.cat||[],alog:m.alog||[],statuses:m.statuses||[],ttypes:m.ttypes||[]};medApplyStatuses();
+  try{medLimpiarFalsos();}catch(e){}
+  try{medCorregirAdmin();}catch(e){}
   try{medPhysioReconcile();}catch(e){}}
+/* ═══ v293 · Los problemas que nunca debieron crearse se deshacen solos ═══
+   La herramienta de agrupar creó lesiones sobre cosas que no son partes del
+   cuerpo —«Extranjería» la primera—. Lo arreglé para que no vuelva a pasar y
+   dejé en Conexión un botón para limpiar lo ya creado, pero eso obligaba a
+   Daniel a ir a buscarlo: un destrozo que causé yo no puede depender de que él
+   lo limpie. Ahora se deshace al cargar, sin pedir nada.
+
+   Solo toca lo que creó la propia herramienta —lleva reconstruido:true— y cuya
+   zona no es una parte del cuerpo. Un problema abierto a mano por Virginia no
+   se toca jamás, aunque su zona sea rara: ahí decidió una persona, y esos se
+   listan en Conexión para que se decida a mano.
+
+   No se borra ningún registro: el problema desaparece y sus apuntes vuelven a
+   ser lo que eran —el parte del día del jugador que no fue a entrenar, el
+   tratamiento suelto de Virginia—. */
+/* v293b · Un trámite apuntado como problema físico se arrastra para siempre.
+   Un parte con estado que impide entrenar vale desde su fecha hasta el alta
+   prevista, y si no la lleva, indefinidamente. Así, la ida a extranjería del
+   04/08 dejaba al jugador «No entrena · físico» tres semanas después, contando
+   como día perdido por lesión cada uno de ellos.
+
+   Daniel lo dice claro: fue un evento puntual, un día que no entrenó, para él y
+   para todos los que tuvieran lo mismo. Cuando la ZONA dice a las claras que es
+   una gestión y el estado es físico, el estado está mal puesto: se corrige al
+   motivo que le corresponde, que no se arrastra ni cuenta como lesión.
+
+   Solo con patrones inequívocos. Nada de «mutua» ni «revisión», que pueden ser
+   médicas de verdad; esas se dejan para que las mire una persona. */
+const PB_ZONA_ADMIN=[
+  [/extranjer|papeles|\bnie\b|residencia/i,'extranjeria'],
+  [/tr[aá]mite|gesti[oó]n|papeleo|\bdni\b|pasaporte|permiso/i,'tramite'],
+  [/asuntos propios|motivo personal/i,'personal'],
+  [/selecci[oó]n absoluta|convocatoria de selecci/i,'seleccion']
+];
+function pbEstadoAdminDeZona(z){
+  const t=String(z||'');
+  if(!t)return null;
+  for(let i=0;i<PB_ZONA_ADMIN.length;i++)if(PB_ZONA_ADMIN[i][0].test(t))return PB_ZONA_ADMIN[i][1];
+  return null;
+}
+window.pbEstadoAdminDeZona=pbEstadoAdminDeZona;
+/* Devuelve a su sitio los partes que dicen ser una gestión pero están marcados
+   como problema físico. No borra ni mueve nada: solo cambia el motivo. */
+function medCorregirAdmin(){
+  let n=0;const ejemplos=[];
+  try{physioEnsure();}catch(e){return 0;}
+  Object.keys(STATE.physioUser||{}).forEach(name=>{
+    (STATE.physioUser[name]||[]).forEach(x=>{
+      if(!x||!x.zone)return;
+      const bloquea=(typeof NOAV_FIS_ST!=='undefined'&&NOAV_FIS_ST.indexOf(x.status)>=0)||x.status==='readapt';
+      if(!bloquea&&x.status!=='dolor'&&x.status!=='trat')return;
+      const st=pbEstadoAdminDeZona(x.zone);
+      if(!st||st===x.status)return;
+      x.statusPrevio=x.status;x.status=st;n++;
+      if(ejemplos.length<3)ejemplos.push(name.split(' ')[0]+' '+x.dk+' · '+x.zone);
+    });
+  });
+  if(n){
+    try{physioPersist();}catch(e){}
+    try{STATE.physioEx=null;buildPhysio();}catch(e){}
+    console.warn('bmnava · '+n+' apunte(s) de gestión que estaban marcados como problema físico, corregidos: '+ejemplos.join(' | '));
+  }
+  return n;
+}
+window.medCorregirAdmin=medCorregirAdmin;
+function medLimpiarFalsos(){
+  const malos=(STATE.med.inj||[]).filter(x=>x&&x.reconstruido&&!pbZonaDelCuerpo(x.zona));
+  if(!malos.length)return 0;
+  try{physioEnsure();}catch(e){}
+  try{if(window.medLogRW)medLogRW();}catch(e){}
+  let nP=0,nT=0,nC=0;const nombres=[];
+  malos.forEach(inj=>{
+    const id=inj.id;
+    try{((STATE.physioUser||{})[inj.name]||[]).forEach(x=>{if(x&&x.injId===id){delete x.injId;nP++;}});}catch(e){}
+    try{(STATE.med.treat||[]).forEach(t=>{if(t&&t.injId===id){delete t.injId;nT++;}});}catch(e){}
+    try{((STATE.medLog||{})[inj.name]||[]).forEach(c=>{if(c&&c.injId===id){delete c.injId;nC++;}});}catch(e){}
+    /* el espejo de disponibilidad que hubiera creado, fuera */
+    try{const arr=(STATE.physioUser||{})[inj.name]||[];
+      for(let i=arr.length-1;i>=0;i--)if(arr[i]&&arr[i]._id==='med_'+id)arr.splice(i,1);}catch(e){}
+    (STATE.med.inj||[]).forEach(x=>{if(x&&x.mergedInto===id)delete x.mergedInto;});
+    nombres.push(inj.name+' · '+(inj.zona||inj.title||''));
+  });
+  const ids=malos.map(x=>x.id);
+  STATE.med.inj=(STATE.med.inj||[]).filter(x=>x&&ids.indexOf(x.id)<0);
+  try{medPersist();}catch(e){}
+  try{physioPersist();}catch(e){}
+  try{if(nC&&STATE.medLog)lsGuardar('bmnava_medlog',STATE.medLog);}catch(e){}
+  console.warn('bmnava · deshechos '+malos.length+' problema(s) creados sobre algo que no es una zona del cuerpo: '+nombres.join(' | '));
+  /* se dice, para que no sea un cambio silencioso en los datos de nadie */
+  setTimeout(function(){
+    try{if(window.toast)toast(malos.length+' problema'+(malos.length>1?'s':'')
+      +' mal creado'+(malos.length>1?'s':'')+' deshecho'+(malos.length>1?'s':'')
+      +' ('+nombres[0]+(malos.length>1?' y '+(malos.length-1)+' más':'')+'). Los apuntes siguen ahí, sueltos.');}catch(e){}
+  },2200);
+  return malos.length;
+}
+window.medLimpiarFalsos=medLimpiarFalsos;
 /* v245 · Reconciliación Médico → Disponibilidad.
    Los dos módulos guardan en claves distintas (bmnava_meddb y bmnava_physio) y
    el enlace es un espejo que Médico crea en la segunda. Si ese espejo falta
@@ -6750,7 +6849,10 @@ window.pbAplicarAgrupacion=function(){
    entrenar, el tratamiento suelto—. No se borra ni un registro. */
 function pbFalsosProblemas(){
   try{medDbLoad();}catch(e){}
-  return ((STATE.med||{}).inj||[]).filter(x=>x&&x.reconstruido&&!pbZonaDelCuerpo(x.zona));
+  /* los reconstruidos se deshacen solos al cargar, así que aquí lo que queda
+     son los creados a mano con una zona que no es del cuerpo: esos los revisa
+     una persona, porque los abrió una persona. */
+  return ((STATE.med||{}).inj||[]).filter(x=>x&&!pbZonaDelCuerpo(x.zona));
 }
 window.pbFalsosProblemas=pbFalsosProblemas;
 function pbApuntesDe(injId,name){
