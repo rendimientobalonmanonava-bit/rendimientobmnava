@@ -1362,6 +1362,15 @@ body.sb-min .sb-ver{display:none}
 .pb-ev-cita .pb-ev-i{font-size:10px}
 .pb-ev-alta .pb-ev-i{color:var(--ok)}
 .pb-ev-cierre .pb-ev-i{color:var(--muted2)}
+/* v292 · acciones por línea de la cronología */
+.pb-ev{padding-right:2px}
+.pb-ev-a{flex:none;display:flex;gap:1px;opacity:0;transition:opacity .12s;margin-left:6px}
+.pb-ev:hover .pb-ev-a,.pb-ev-a:focus-within{opacity:1}
+.pb-ev-b{border:none;background:none;color:var(--muted2);cursor:pointer;font-size:11px;
+  padding:2px 5px;border-radius:6px;line-height:1}
+.pb-ev-b:hover{background:var(--panel2);color:var(--txt)}
+.pb-ev-b--del:hover{color:var(--bad)}
+@media (max-width:768px){.pb-ev-a{opacity:1}}
 .pb-hist{margin-top:14px;border-top:1px solid var(--hair);padding-top:12px}
 .pb-hist>summary{cursor:pointer;font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:10px}
 /* v276 · candidatos a agrupar */
@@ -6123,13 +6132,174 @@ function pbDias(desde,hasta){
     return Math.max(0,Math.round((b-a)/864e5));}catch(e){return 0;}
 }
 const PB_ICONO={inicio:'●',parte:'◆',trat:'✚',cita:'🩺',nota:'✎',alta:'✓',cierre:'□',episodio:'■'};
-function pbLinea(x){
+/* v292 · Cada línea de la cronología lleva sus acciones.
+   Virginia decía que no puede editar algunas partes, y tenía razón: los
+   editores existían, pero vivían en los cuatro paneles de la ficha que se
+   retiraron al montar el panel único de problemas. La cronología quedó como un
+   mural de solo lectura, así que ella veía el registro mal puesto y no podía
+   tocarlo. Ahora se edita, se borra y se cambia de problema sin salir de la
+   ficha, que es donde trabaja. */
+function pbLinea(x,ctx){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
+  let acc='';
+  if(ctx&&ctx.name&&x.id!=null&&['parte','trat','cita','episodio'].indexOf(x.tipo)>=0){
+    const n=q(ctx.name),i=q(x.id);
+    acc='<span class="pb-ev-a">'
+      +'<button class="pb-ev-b" title="Editar" onclick="pbEditar(\''+x.tipo+'\',\''+n+'\',\''+i+'\')">\u270e</button>'
+      +'<button class="pb-ev-b" title="Cambiar de problema o soltarlo" onclick="pbMover(\''+x.tipo+'\',\''+n+'\',\''+i+'\')">\u21c4</button>'
+      +'<button class="pb-ev-b pb-ev-b--del" title="Borrar" onclick="pbBorrar(\''+x.tipo+'\',\''+n+'\',\''+i+'\')">\u2715</button>'
+      +'</span>';
+  }
   return '<div class="pb-ev pb-ev-'+x.tipo+'">'
     +'<span class="pb-ev-i">'+(PB_ICONO[x.tipo]||'\u00b7')+'</span>'
     +'<span class="pb-ev-d">'+pbFecha(x.dk)+'</span>'
-    +'<span class="pb-ev-t">'+esc(x.txt)+(x.meta?'<em>'+esc(x.meta)+'</em>':'')+'</span></div>';
+    +'<span class="pb-ev-t">'+esc(x.txt)+(x.meta?'<em>'+esc(x.meta)+'</em>':'')+'</span>'
+    +acc+'</div>';
 }
+/* Los tres verbos, cada uno delegando en el editor que ya existe para ese tipo. */
+window.pbEditar=function(tipo,name,id){
+  if(tipo==='parte'||tipo==='episodio'){
+    if(window.physioEdit)return physioEdit(name,id);
+    return toast&&toast('El editor de partes no está disponible');
+  }
+  if(tipo==='trat'){
+    if(window.openMedTreatEdit)return openMedTreatEdit(id);
+    return toast&&toast('El editor de tratamientos no está disponible');
+  }
+  if(tipo==='cita'){
+    if(window.openCitaEdit)return openCitaEdit(name,id);
+    return toast&&toast('El editor de consultas no está disponible');
+  }
+};
+window.pbBorrar=function(tipo,name,id){
+  if(tipo==='parte'||tipo==='episodio'){
+    if(!confirm('¿Borrar este parte del día? No se puede deshacer.'))return;
+    physioEnsure();
+    const arr=(STATE.physioUser||{})[name]||[];
+    const i=arr.findIndex(e=>e&&e._id===id);
+    if(i<0){if(window.toast)toast('No se encuentra ese registro');return;}
+    arr.splice(i,1);physioPersist();
+    STATE.physioEx=null;try{buildPhysio();}catch(e){}
+  }else if(tipo==='trat'){
+    if(!confirm('¿Borrar este tratamiento? No se puede deshacer.'))return;
+    STATE.med.treat=(STATE.med.treat||[]).filter(t=>t&&t.id!==id);medPersist();
+  }else if(tipo==='cita'){
+    if(!confirm('¿Borrar esta consulta? No se puede deshacer.'))return;
+    if(window.medLogRW)medLogRW();
+    if(STATE.medLog&&STATE.medLog[name])
+      STATE.medLog[name]=STATE.medLog[name].filter(m=>m&&m.id!==id);
+    lsGuardar('bmnava_medlog',STATE.medLog);
+  }
+  try{renderProblemas(name);}catch(e){}
+  try{renderMedico&&renderMedico();}catch(e){}
+  try{renderAvail&&renderAvail();}catch(e){}
+  if(window.toast)toast('Registro borrado');
+};
+/* Cambiar de problema, o soltarlo del todo. Es lo que faltaba para arreglar a
+   mano una asociación equivocada sin borrar y volver a crear el registro. */
+window.pbMover=function(tipo,name,id){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const actual=pbInjIdDe(tipo,name,id);
+  const h='<h2 style="margin-top:0">¿A qué problema pertenece? <span class="r">'
+      +'<button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+    +'<p class="small muted" style="margin:-6px 0 12px">Cambia el registro de problema, o déjalo suelto si no pertenece a ninguno. '
+      +'El registro no se mueve de sitio ni se borra: solo cambia de quién cuelga.</p>'
+    +'<div class="ph-f"><div class="parte-grid">'
+      +'<label class="parte-wide">Problema<select id="pbmv-inj">'
+        +pbOpcionesProblema(name,actual||'','— suelto, sin asociar a ningún problema —')+'</select></label>'
+    +'</div><div style="margin-top:12px">'
+      +'<button class="btn" onclick="pbMoverGuardar(\''+tipo+'\',\''+String(name).replace(/'/g,"\\'")+'\',\''+String(id).replace(/'/g,"\\'")+'\')">Guardar</button>'
+    +'</div></div>';
+  document.getElementById('ph-body').innerHTML=h;
+  document.getElementById('ph-overlay').style.display='flex';
+};
+function pbInjIdDe(tipo,name,id){
+  try{
+    if(tipo==='parte'||tipo==='episodio'){
+      const e=((STATE.physioUser||{})[name]||[]).find(x=>x&&x._id===id);return e?(e.injId||''):'';}
+    if(tipo==='trat'){const t=((STATE.med||{}).treat||[]).find(x=>x&&x.id===id);return t?(t.injId||''):'';}
+    if(tipo==='cita'){if(window.medLogRW)medLogRW();
+      const m=((STATE.medLog||{})[name]||[]).find(x=>x&&x.id===id);return m?(m.injId||''):'';}
+  }catch(e){}
+  return '';
+}
+/* v292 · Editor de consultas. No existía: las citas, pruebas y reconocimientos
+   solo se podían crear y borrar, nunca corregir. Cambiar la fecha de una prueba
+   o añadir el resultado cuando llega obligaba a borrarla y rehacerla entera. */
+window.openCitaEdit=function(name,id){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  if(window.medLogRW)medLogRW();
+  const m=((STATE.medLog||{})[name]||[]).find(x=>x&&x.id===id);
+  if(!m){if(window.toast)toast('No se encuentra esa consulta');return;}
+  const TY=[['lesion','Lesión'],['cita','Cita médica'],['recon','Reconocimiento'],
+    ['prueba','Prueba diagnóstica'],['trat','Tratamiento / fisio']];
+  const AF=[['no','No afecta · entrena igual'],['parcial','Entrena parcial / llega tarde'],
+    ['pierde','Se pierde el entrenamiento']];
+  const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
+  const h='<h2 style="margin-top:0">Editar consulta · '+esc(name)
+      +' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+    +'<div class="ph-f"><div class="parte-grid">'
+      +'<label>Tipo<select id="ce-type">'+TY.map(t=>'<option value="'+t[0]+'"'+(m.type===t[0]?' selected':'')+'>'+t[1]+'</option>').join('')+'</select></label>'
+      +'<label>Fecha<input type="date" id="ce-dk" value="'+esc(m.dk||'')+'"></label>'
+      +'<label>Hora<input type="time" id="ce-time" value="'+esc(m.time||'')+'"></label>'
+      +'<label class="parte-wide">¿Afecta al entrenamiento?<select id="ce-afecta">'
+        +AF.map(a=>'<option value="'+a[0]+'"'+((m.afecta||'no')===a[0]?' selected':'')+'>'+a[1]+'</option>').join('')+'</select></label>'
+      +'<label class="parte-wide">Detalle / título<input id="ce-title" value="'+esc(m.title||'')+'"></label>'
+      +'<label>Profesional o centro<input id="ce-who" value="'+esc(m.who||'')+'"></label>'
+      +'<label>Estado o resultado<input id="ce-status" value="'+esc(m.status||'')+'" placeholder="pendiente, realizada, apto…"></label>'
+      +'<label>Próxima cita<input type="date" id="ce-next" value="'+esc(m.next||'')+'"></label>'
+      +'<label class="parte-wide">Enlace al documento<input id="ce-link" value="'+esc(m.link||'')+'" placeholder="https://drive.google.com/…"></label>'
+      +'<label class="parte-wide">Nota<input id="ce-note" value="'+esc(m.note||'')+'"></label>'
+      +'<label class="parte-wide">¿Va asociado a?<select id="ce-inj">'
+        +pbOpcionesProblema(name,m.injId||'','— suelto, sin asociar —')+'</select></label>'
+    +'</div><div style="margin-top:12px">'
+      +'<button class="btn" onclick="citaEditSave(\''+q(name)+'\',\''+q(id)+'\')">Guardar cambios</button>'
+    +'</div></div>';
+  document.getElementById('ph-body').innerHTML=h;
+  document.getElementById('ph-overlay').style.display='flex';
+};
+window.citaEditSave=function(name,id){
+  const g=k=>{const el=document.getElementById(k);return el?el.value:'';};
+  if(window.medLogRW)medLogRW();
+  const m=((STATE.medLog||{})[name]||[]).find(x=>x&&x.id===id);
+  if(!m)return;
+  const dk=g('ce-dk');
+  if(!dk){alert('Indica la fecha.');return;}
+  m.type=g('ce-type')||m.type;m.dk=dk;m.time=g('ce-time')||'';
+  m.afecta=g('ce-afecta')||'no';m.title=(g('ce-title')||'').trim();
+  m.who=(g('ce-who')||'').trim();m.status=(g('ce-status')||'').trim();
+  m.next=g('ce-next')||'';m.link=(g('ce-link')||'').trim();m.note=(g('ce-note')||'').trim();
+  const inj=g('ce-inj');if(inj)m.injId=inj;else delete m.injId;
+  lsGuardar('bmnava_medlog',STATE.medLog);
+  closeHeroForm();
+  try{renderProblemas(name);}catch(e){}
+  try{if(window.medRenderPlayer&&document.getElementById('player-medical'))medRenderPlayer(name);}catch(e){}
+  if(window.toast)toast('Consulta actualizada');
+};
+window.pbMoverGuardar=function(tipo,name,id){
+  const sel=document.getElementById('pbmv-inj');
+  const destino=sel?sel.value:'';
+  let ok=false;
+  try{
+    if(tipo==='parte'||tipo==='episodio'){
+      const e=((STATE.physioUser||{})[name]||[]).find(x=>x&&x._id===id);
+      if(e){if(destino)e.injId=destino;else delete e.injId;physioPersist();ok=true;}
+    }else if(tipo==='trat'){
+      const t=((STATE.med||{}).treat||[]).find(x=>x&&x.id===id);
+      if(t){if(destino)t.injId=destino;else delete t.injId;medPersist();ok=true;}
+    }else if(tipo==='cita'){
+      if(window.medLogRW)medLogRW();
+      const m=((STATE.medLog||{})[name]||[]).find(x=>x&&x.id===id);
+      if(m){if(destino)m.injId=destino;else delete m.injId;lsGuardar('bmnava_medlog',STATE.medLog);ok=true;}
+    }
+  }catch(e){}
+  closeHeroForm();
+  if(!ok){if(window.toast)toast('No se ha podido cambiar');return;}
+  try{renderProblemas(name);}catch(e){}
+  try{renderMedico&&renderMedico();}catch(e){}
+  if(window.toast)toast(destino?'Movido a otro problema':'El registro queda suelto');
+};
 /* v277 · Lo que no cuelga de ningún problema TAMBIÉN es historia del jugador.
    Al pasar la ficha al panel único de problemas se retiraron los cuatro paneles
    antiguos (fisioterapia, incidencias, historial médico y seguimiento del día a
@@ -6197,7 +6367,10 @@ function pbSueltosRaw(name){
 }
 function pbSueltos(name){
   const TIPO={ep:'episodio',parte:'parte',trat:'trat',cita:'cita'};
-  return pbSueltosRaw(name).map(x=>({dk:x.dk,tipo:TIPO[x.src]||'parte',txt:x.txt,meta:x.meta,zona:x.zone}));
+  /* v292 · con su id, para que también se puedan editar, borrar y asociar desde
+     la ficha: un apunte suelto mal puesto es justo el que hay que poder mover. */
+  return pbSueltosRaw(name).map(x=>({dk:x.dk,tipo:TIPO[x.src]||'parte',txt:x.txt,meta:x.meta,
+    zona:x.zone,id:(x.ref&&(x.ref._id||x.ref.id))||null}));
 }
 window.pbSueltos=pbSueltos;window.pbSueltosRaw=pbSueltosRaw;
 function pbBloque(inj,abierto){
@@ -6208,7 +6381,7 @@ function pbBloque(inj,abierto){
   const g=pbGrupo(inj);
   const dias=pbDias(inj.dk,g.abierto?null:g.cierre);
   const q=String(inj.id).replace(/'/g,"\\'");
-  const linea=pbLinea;
+  const linea=x=>pbLinea(x,{name:inj.name});
   return '<details class="pb"'+(abierto?' open':'')+'>'
     +'<summary class="pb-h">'
       +'<span class="pb-dot" style="background:'+e.col+'"></span>'
@@ -6715,7 +6888,7 @@ function renderProblemas(name){
       +'<summary>Registros sin asociar a un problema · '+sueltos.length+'</summary>'
       +'<p class="small muted" style="margin:-4px 0 10px">Partes del día, episodios, tratamientos y consultas apuntados por las vías de siempre. '
       +'Para colgarlos de una lesión, usa «Agrupar historial médico» en Conexión.</p>'
-      +'<div class="pb-tl">'+sueltos.map(pbLinea).join('')+'</div></details>'
+      +'<div class="pb-tl">'+sueltos.map(x=>pbLinea(x,{name:name})).join('')+'</div></details>'
     : '';
   box.innerHTML='<h2 style="margin-top:0">Problemas <span class="r muted">lesiones, molestias y todo lo asociado</span></h2>'
     +cab+cuerpo+hist+otros;
