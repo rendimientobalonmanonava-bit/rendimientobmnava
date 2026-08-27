@@ -3400,6 +3400,15 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div id="bkp-detalle" style="margin-top:12px"></div>
       <div class="small" id="bkp-msg" style="margin-top:10px;color:var(--accent)"></div>
     </div>
+    <!-- v289 · Deshacer problemas creados sobre algo que no es una zona del
+         cuerpo. Va arriba del todo porque es una corrección, no una herramienta
+         de uso diario. -->
+    <div class="panel">
+      <h2>Problemas mal creados <span class="r muted">gestiones convertidas en lesión</span></h2>
+      <p class="hint">Si una gestión —extranjería, papeles, una cita— se apuntó en su día escribiendo el motivo en el campo de la zona, la herramienta de agrupar pudo tomarla por una lesión. Aquí se detectan y se deshacen: los apuntes vuelven a quedar sueltos, tal como estaban, sin borrar ningún registro.</p>
+      <div id="pb-falsos" style="margin-top:10px"><p class="small muted" style="margin:0">Pulsa para comprobar.</p></div>
+      <div style="margin-top:12px"><button class="btn" onclick="pbRenderFalsos()">Buscar problemas mal creados</button></div>
+    </div>
     <!-- v284 · Comprobación de duraciones. Va arriba porque es lo que decide
          si las cifras de carga del resto del dashboard significan algo. -->
     <div class="panel">
@@ -6289,6 +6298,36 @@ function pbMismaZona(a,b){
    La zona se compara por región anatómica (zoneRegion), no por el texto: es lo
    que hace que «Tobillo», «Tobillo D» y «esguince» sean lo mismo, y «trapecio»
    y «zona escapular» sean el hombro. */
+/* ═══ v289 · Qué es una zona del cuerpo y qué no ═══
+   La agrupación decide si unos apuntes son una lesión mirando la zona. Cuando
+   alguien escribió «Extranjería» en ese campo —porque el motivo para trámites
+   todavía no existía—, para el programa era una zona más, igual que «tobillo»,
+   y creó una lesión de 24 días con el jugador marcado como no disponible.
+
+   El primer parche miraba el ESTADO del apunte y descartaba los
+   administrativos. No sirvió: esos apuntes son anteriores a que ese estado
+   existiera y llevan «Con dolor». Miraba donde no era.
+
+   Esto le da la vuelta. En vez de una lista de palabras prohibidas —que
+   siempre se queda corta— solo se considera zona del cuerpo lo que la
+   aplicación reconoce como tal: su diccionario anatómico (zoneRegion) o el
+   catálogo de zonas del club (PARTE_ZONAS). Todo lo demás no crea ningún
+   problema, nunca. Por defecto no inventa.
+
+   Comprobado: pasan tobillo, Tobillo D, rodilla, gemelo, zona escapular,
+   trapecio, isquios, aductor, lumbar, fascia plantar, LCA, menisco, hombro,
+   muñeca, psoas, sóleo, cuádriceps, aquiles y esguince. Se descartan
+   Extranjería, Trámite, gestión, papeles, DNI, mutua, permiso, viaje, asuntos
+   propios y selección —incluidas las que no se me habían ocurrido—. */
+function pbZonaDelCuerpo(z){
+  const t=String(z||'').toLowerCase().trim();
+  if(!t)return false;
+  try{if(typeof zoneRegion==='function'&&zoneRegion(t))return true;}catch(e){}
+  try{if(typeof PARTE_ZONAS!=='undefined')
+    return PARTE_ZONAS.some(p=>t.indexOf(p)>=0||p.indexOf(t)>=0);}catch(e){}
+  return false;
+}
+window.pbZonaDelCuerpo=pbZonaDelCuerpo;
 function pbRegion(z){
   const r=(typeof zoneRegion==='function')?zoneRegion(z||''):null;
   return r||pbNorm(z)||'';
@@ -6308,7 +6347,9 @@ function pbNuevos(){
     /* 1 · por región anatómica; lo que no lleva zona se reparte después */
     const porReg={},sinZona=[];
     regs.forEach(r=>{
-      const reg=r.zone?pbRegion(r.zone):'';
+      /* v289 · si lo escrito en «zona» no es una parte del cuerpo, esto no es
+         una lesión: se trata como un apunte sin zona y nunca funda un problema. */
+      const reg=(r.zone&&pbZonaDelCuerpo(r.zone))?pbRegion(r.zone):'';
       if(!reg){sinZona.push(r);return;}
       (porReg[reg]=porReg[reg]||[]).push(r);
     });
@@ -6491,6 +6532,104 @@ window.pbAplicarAgrupacion=function(){
     +'<b>'+nF+'</b> fusionado(s) y <b>'+nE+'</b> parte(s) enlazado(s). '
     +'Míralo en la ficha de los jugadores.';
   try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}
+};
+/* ═══ v289 · Deshacer un problema que nunca debió crearse ═══
+   Cuando presenté la agrupación dije que se podía deshacer. Era verdad para las
+   fusiones y falso para las creaciones: un problema creado por la herramienta
+   solo se quitaba a mano desde Médico, y justo eso es lo que falló con
+   «Extranjería». Esto lo arregla.
+
+   Solo toca los que creó la propia herramienta —llevan reconstruido:true— y
+   cuya zona no es una parte del cuerpo. Un problema abierto a mano por Virginia
+   no se toca jamás, aunque su zona sea rara: ahí decidió una persona.
+
+   Deshacer devuelve las cosas donde estaban: el problema desaparece y sus
+   apuntes vuelven a ser lo que eran —el parte del día del jugador que no fue a
+   entrenar, el tratamiento suelto—. No se borra ni un registro. */
+function pbFalsosProblemas(){
+  try{medDbLoad();}catch(e){}
+  return ((STATE.med||{}).inj||[]).filter(x=>x&&x.reconstruido&&!pbZonaDelCuerpo(x.zona));
+}
+window.pbFalsosProblemas=pbFalsosProblemas;
+function pbApuntesDe(injId,name){
+  const out={partes:[],trat:[],citas:[]};
+  try{physioEnsure();((STATE.physioUser||{})[name]||[]).forEach(x=>{if(x&&x.injId===injId)out.partes.push(x);});}catch(e){}
+  try{((STATE.med||{}).treat||[]).forEach(t=>{if(t&&t.injId===injId)out.trat.push(t);});}catch(e){}
+  try{if(window.medLogRW)medLogRW();
+    ((STATE.medLog||{})[name]||[]).forEach(m=>{if(m&&m.injId===injId)out.citas.push(m);});}catch(e){}
+  return out;
+}
+function pbRenderFalsos(){
+  const box=document.getElementById('pb-falsos');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const f=pbFalsosProblemas();
+  if(!f.length){
+    box.innerHTML='<p class="small" style="margin:0;color:var(--ok)">No hay ningún problema creado sobre algo que no sea una zona del cuerpo.</p>';
+    return;
+  }
+  const fila=x=>{
+    const a=pbApuntesDe(x.id,x.name);
+    const n=a.partes.length+a.trat.length+a.citas.length;
+    return '<label class="pb-cand">'
+      +'<input type="checkbox" class="pb-fk" value="'+esc(x.id)+'" checked>'
+      +'<span><b>'+esc(x.name)+' · '+esc(pbEtiqueta(x))
+        +'  <span class="pb-cand-tag">no es una zona del cuerpo</span></b>'
+      +'<em>Se creó el '+pbFecha(x.dk)+' agrupando apuntes. Al deshacerlo, sus '+n
+        +' apunte'+(n===1?'':'s')+' vuelven a quedar sueltos, tal como estaban. No se borra ningún registro.</em>'
+      +'<span class="pb-cand-l">'
+        +a.partes.map(p=>'<i>'+pbFecha(p.dk)+'</i> parte del día').join('<br>')
+        +(a.partes.length&&(a.trat.length||a.citas.length)?'<br>':'')
+        +a.trat.map(t=>'<i>'+pbFecha(t.dk)+'</i> '+esc(t.tipo||'tratamiento')).join('<br>')
+        +(a.trat.length&&a.citas.length?'<br>':'')
+        +a.citas.map(c=>'<i>'+pbFecha(c.dk)+'</i> '+esc(c.title||'consulta')).join('<br>')
+      +'</span></span></label>';
+  };
+  box.innerHTML='<p class="small" style="margin:0 0 12px"><b style="color:var(--warn)">'+f.length+' problema'
+      +(f.length>1?'s':'')+'</b> que la agrupación creó sobre algo que no es una parte del cuerpo. '
+      +'Suelen ser gestiones —extranjería, papeles, una cita— que en su día se apuntaron escribiendo el motivo en el campo de la zona.</p>'
+    +f.map(fila).join('')
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center">'
+      +'<button class="btn" onclick="pbDeshacerFalsos()">Deshacer lo marcado</button>'
+      +'<span class="small muted">Los apuntes se quedan donde están; solo dejan de colgar de una lesión.</span>'
+    +'</div><p class="hint" id="pb-falsos-msg" style="margin-top:10px"></p>';
+}
+window.pbRenderFalsos=pbRenderFalsos;
+window.pbDeshacerFalsos=function(){
+  const marcados=Array.from(document.querySelectorAll('.pb-fk:checked')).map(x=>x.value);
+  const msg=document.getElementById('pb-falsos-msg');
+  if(!marcados.length){if(msg)msg.textContent='No has marcado nada.';return;}
+  let nP=0,nT=0,nC=0,nI=0;
+  marcados.forEach(id=>{
+    const inj=((STATE.med||{}).inj||[]).find(x=>x&&x.id===id);
+    if(!inj)return;
+    const a=pbApuntesDe(id,inj.name);
+    a.partes.forEach(x=>{delete x.injId;nP++;});
+    a.trat.forEach(t=>{delete t.injId;nT++;});
+    a.citas.forEach(c=>{delete c.injId;nC++;});
+    /* el espejo de disponibilidad que pudiera haber creado, fuera también */
+    try{physioEnsure();
+      const arr=(STATE.physioUser||{})[inj.name]||[];
+      for(let i=arr.length-1;i>=0;i--)if(arr[i]&&arr[i]._id==='med_'+id)arr.splice(i,1);
+    }catch(e){}
+    /* los que se fusionaron dentro vuelven a estar por su cuenta */
+    ((STATE.med||{}).inj||[]).forEach(x=>{if(x&&x.mergedInto===id)delete x.mergedInto;});
+    STATE.med.inj=(STATE.med.inj||[]).filter(x=>x&&x.id!==id);nI++;
+  });
+  medPersist();physioPersist();
+  if(nC&&STATE.medLog)lsGuardar('bmnava_medlog',STATE.medLog);
+  STATE.physioEx=null;try{buildPhysio();}catch(e){}
+  try{renderMedico&&renderMedico();}catch(e){}
+  try{renderAvail&&renderAvail();}catch(e){}
+  pbRenderFalsos();
+  /* el resumen va por toast además de en el panel: cuando no queda ninguno, el
+     repintado sustituye el panel entero y el mensaje se perdía justo en el caso
+     en que todo ha ido bien. */
+  const resumen=nI+' problema'+(nI===1?'':'s')+' deshecho'+(nI===1?'':'s')+' · vuelven a estar sueltos '
+    +nP+' parte(s), '+nT+' tratamiento(s) y '+nC+' consulta(s)';
+  const m2=document.getElementById('pb-falsos-msg');
+  if(m2)m2.innerHTML=resumen+'. No se ha borrado ningún registro.';
+  if(window.toast)toast(resumen);
+  try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(e){}
 };
 /* Deshacer todas las fusiones, por si alguna no era correcta. */
 window.pbDeshacerFusiones=function(){
