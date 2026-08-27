@@ -15112,7 +15112,8 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var nOpts='<option value="">— jugador —</option>'+players.map(function(n){return '<option'+(n===name?' selected':'')+'>'+esc(n)+'</option>';}).join('');
   /* v279 · mismo desplegable que el parte del día y el de citas: antes este
      lo componía aparte y llamaba al mismo problema de otra manera. */
-  var preSel=ctx.injId||((!ctx.injId&&s.autoLinkOpenInjury&&injs.length===1)?injs[0].id:'');
+  /* v290 · solo se rellena solo con UN problema abierto: con varios, elige la fisio */
+  var preSel=ctx.injId||((s.autoLinkOpenInjury&&injs.length===1)?injs[0].id:'');
   var injSel=(window.pbOpcionesProblema)
     ? pbOpcionesProblema(name,preSel,'General / mantenimiento')
     : '<option value="">General / mantenimiento</option>';
@@ -15125,7 +15126,8 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var body='<div class="mtq-wrap"><div class="mtq-main med-form">'
    +'<div class="mf3"><label>Jugador<select id="mtq-name" onchange="mtqOnPlayer()">'+nOpts+'</select></label><label>Fecha<input type="date" id="mtq-dk" value="'+(ctx.dk||today())+'"></label><label>Hora<input type="time" id="mtq-time" value="'+(ctx.time||nowHM())+'"></label></div>'
    +'<div class="mf2"><label>Duración<div class="mtq-chips" id="mtq-durchips">'+durChips+'</div><input type="number" id="mtq-dur" min="0" step="5" placeholder="min" style="margin-top:4px"></label><label>Profesional<input type="text" id="mtq-by" value="'+esc(ctx.by||s.defaultPractitioner)+'"></label></div>'
-   +'<label>Vinculado a<select id="mtq-inj">'+injSel+'</select></label>'
+   +'<label>Vinculado a<select id="mtq-inj" onchange="mtqAvisoInj()">'+injSel+'</select>'
+     +'<span class="parte-hint" id="mtq-injhint"></span></label>'
    +'<label>Tipo de intervención<div class="mtq-chips" id="mtq-typechips">'+typeChips+'</div><input type="hidden" id="mtq-tipo"><input type="text" id="mtq-newtipo" placeholder="otro tipo (se guarda en el catálogo)" style="margin-top:4px"></label>'
    +'<div class="mf2"><label>Zona tratada<input type="text" id="mtq-zone" placeholder="hombro, rodilla, gemelo, aductor…"></label><label>Lado<select id="mtq-side"><option value="">—</option><option value="I">Izquierdo</option><option value="D">Derecho</option><option value="B">Bilateral</option></select></label></div>'
    +'<label>Objetivo del tratamiento<div class="mtq-chips" id="mtq-objs">'+objChips+'</div></label>'
@@ -15147,10 +15149,41 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   window.__mtqCtx=ctx;
   window.rhModal?rhModal('Registrar tratamiento · '+esc(PS().defaultPractitioner),medPhysioModalBody(ctx)):(function(){var ov=ensureInfoOverlay();document.getElementById('info-mtitle').textContent='Registrar tratamiento';var head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';document.getElementById('info-mbody').innerHTML=medPhysioModalBody(ctx);ov.style.display='flex';})();
   setTimeout(mtqAutoType,0);
+  setTimeout(function(){try{mtqAvisoInj();}catch(e){}},0);
  };
  window.openMedTreat=function(name,injId){return openMedTreatQuick(name,injId);};
- window.mtqOnPlayer=function(){var name=g('mtq-name');var sel=document.getElementById('mtq-inj');if(!sel)return;var s=PS();var injs=openInjuriesOf(name);
-  sel.innerHTML='<option value="">General / mantenimiento</option>'+((STATE.med.inj||[]).filter(function(e){return e.name===name;})).map(function(e){var selc=(s.autoLinkOpenInjury&&injs.length&&injs[0].id===e.id)?' selected':'';return '<option value="'+e.id+'"'+selc+'>'+esc(e.title)+(e.open?'':' · cerrada')+'</option>';}).join('');
+ /* v290 · Al cambiar de jugador el desplegable se rehacía a mano, y con dos
+    fallos que explican los tratamientos colgados de la lesión equivocada:
+    preseleccionaba la PRIMERA lesión abierta con solo comprobar que hubiera
+    alguna —no que hubiera exactamente una—, y además volvía al formato viejo,
+    sin agrupar abiertos y cerrados y llamando al problema de otra manera que en
+    los demás formularios.
+    Ahora usa el mismo desplegable que el resto, y solo se rellena solo cuando
+    hay UN problema abierto, que es cuando no hay duda posible. Con varios,
+    elige Virginia. Decisión suya (27/08/2026). */
+ window.mtqOnPlayer=function(){var name=g('mtq-name');var sel=document.getElementById('mtq-inj');if(!sel)return;
+  var s=PS();var injs=openInjuriesOf(name);
+  var pre=(s.autoLinkOpenInjury&&injs.length===1)?injs[0].id:'';
+  sel.innerHTML=(window.pbOpcionesProblema)
+    ? pbOpcionesProblema(name,pre,'General / mantenimiento')
+    : '<option value="">General / mantenimiento</option>';
+  try{mtqAvisoInj();}catch(e){}
+ };
+ /* Deja dicho de qué problema va a colgar, o que hay que elegirlo. */
+ window.mtqAvisoInj=function(){
+  var sel=document.getElementById('mtq-inj');var h=document.getElementById('mtq-injhint');
+  if(!sel||!h)return;
+  var name=g('mtq-name');var injs=name?openInjuriesOf(name):[];
+  if(sel.value){
+   var e=(STATE.med.inj||[]).find(function(x){return x.id===sel.value;});
+   h.className='parte-hint';
+   h.textContent=e?('Se registrará dentro de «'+(window.pbNombre?pbNombre(e):e.title)+'».'):'';
+   return;
+  }
+  if(injs.length>1){
+   h.className='parte-hint activa';
+   h.textContent='Este jugador tiene '+injs.length+' problemas abiertos. Elige a cuál pertenece, o déjalo en General si es mantenimiento.';
+  }else{h.className='parte-hint';h.textContent='';}
  };
  window.mtqSetDur=function(d){var i=document.getElementById('mtq-dur');if(i)i.value=d;document.querySelectorAll('#mtq-durchips .mtq-chip').forEach(function(b){b.classList.toggle('on',+b.dataset.v===d);});};
  window.mtqPickSingle=function(el,hid){var p=el.parentNode;p.querySelectorAll('.mtq-chip').forEach(function(b){b.classList.remove('on');});el.classList.add('on');var h=document.getElementById(hid);if(h)h.value=el.dataset.v;};
