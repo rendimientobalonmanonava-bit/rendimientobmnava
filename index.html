@@ -1361,6 +1361,7 @@ body.sb-min .sb-ver{display:none}
 .pb-ev-trat .pb-ev-i{color:var(--ok)}
 .pb-ev-cita .pb-ev-i{font-size:10px}
 .pb-ev-alta .pb-ev-i{color:var(--ok)}
+.pb-ev-cierre .pb-ev-i{color:var(--muted2)}
 .pb-hist{margin-top:14px;border-top:1px solid var(--hair);padding-top:12px}
 .pb-hist>summary{cursor:pointer;font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:10px}
 /* v276 · candidatos a agrupar */
@@ -6010,13 +6011,28 @@ function pbGrupo(inj){
   });
   let cierre='';
   if(!abierto)todos.forEach(x=>{if(x.closeDk&&x.closeDk>cierre)cierre=x.closeDk;});
-  return {abierto,status:est,cierre,n:todos.length};
+  /* v291 · El alta deportiva y el cierre del caso son dos cosas distintas.
+     Un jugador puede estar de alta —entrena con normalidad— y seguir en
+     tratamiento por esa misma lesión semanas después, porque una lesión sigue
+     teniendo consecuencias cuando el deportista ya está bien. Antes el alta
+     cerraba el caso y lo mandaba al historial, así que dejaba de verse justo
+     cuando había que seguir trabajándolo. */
+  let alta='';
+  todos.forEach(x=>{if(x.altaDk&&x.altaDk>alta)alta=x.altaDk;});
+  const deAlta=!!alta&&abierto;
+  return {abierto,status:est,cierre,alta,deAlta,n:todos.length};
 }
 function pbEstado(inj){
   if(!inj)return null;
   const g=pbGrupo(inj);
+  /* v291 · cuatro estados, no dos:
+       Activo       el jugador no entrena por esto
+       En seguimiento  entrena, pero seguimos tratándolo
+       De alta      alta deportiva dada, el caso sigue vivo
+       Cerrado      archivado a mano, se acabó de verdad          */
   if(!g.abierto)return {k:'cerrado',lab:'Cerrado',col:'var(--muted)'};
   if(g.status)return {k:'activo',lab:'Activo',col:'var(--bad)'};
+  if(g.deAlta)return {k:'alta',lab:'De alta · en seguimiento',col:'var(--ok)'};
   return {k:'seguimiento',lab:'En seguimiento',col:'var(--warn)'};
 }
 function pbEtiqueta(inj){
@@ -6085,8 +6101,13 @@ function pbCronologia(inj){
   (inj.notes||[]).forEach((n,i)=>{
     ev.push({dk:n.dk||inj.dk,tipo:'nota',id:i,txt:n.txt||n,meta:''});
   });
-  if(!inj.open&&inj.closeDk)
-    ev.push({dk:inj.closeDk,tipo:'alta',txt:'Alta · problema cerrado',meta:''});
+  /* v291 · el alta y el cierre son dos hitos distintos y se leen por separado */
+  const fus2=((STATE.med||{}).inj||[]).filter(x=>x&&x.mergedInto===inj.id);
+  [inj].concat(fus2).forEach(x=>{
+    if(x.altaDk)ev.push({dk:x.altaDk,tipo:'alta',
+      txt:'Alta deportiva · vuelve a entrenar',meta:'el caso sigue abierto'});
+    if(!x.open&&x.closeDk)ev.push({dk:x.closeDk,tipo:'cierre',txt:'Caso cerrado',meta:''});
+  });
   return ev.sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
 }
 window.pbProblemas=pbProblemas;window.pbEstado=pbEstado;window.pbEtiqueta=pbEtiqueta;
@@ -6101,7 +6122,7 @@ function pbDias(desde,hasta){
   try{const a=new Date(desde+'T00:00:00'),b=hasta?new Date(hasta+'T00:00:00'):new Date();
     return Math.max(0,Math.round((b-a)/864e5));}catch(e){return 0;}
 }
-const PB_ICONO={inicio:'●',parte:'◆',trat:'✚',cita:'🩺',nota:'✎',alta:'✓',episodio:'■'};
+const PB_ICONO={inicio:'●',parte:'◆',trat:'✚',cita:'🩺',nota:'✎',alta:'✓',cierre:'□',episodio:'■'};
 function pbLinea(x){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   return '<div class="pb-ev pb-ev-'+x.tipo+'">'
@@ -6194,6 +6215,7 @@ function pbBloque(inj,abierto){
       +'<span class="pb-t">'+esc(pbEtiqueta(inj))+'</span>'
       +'<span class="pb-st" style="color:'+e.col+'">'+e.lab+'</span>'
       +'<span class="pb-meta">desde '+pbFecha(inj.dk)+' · '+dias+' d'
+        +(g.alta?' · alta '+pbFecha(g.alta):'')
         +(brotes>1?' · '+brotes+' brotes':'')
         +(g.n>1?' · '+g.n+' episodios unidos':'')
         +(inj.kind==='lesion'&&(inj.phases||[]).length?' · con readaptación':'')+'</span>'
@@ -6210,7 +6232,14 @@ function pbBloque(inj,abierto){
       +'<div class="pb-acts">'
         +'<button class="med-chipbtn" onclick="pbNuevoBrote(\''+q+'\')">＋ Nuevo brote</button>'
         +'<button class="med-chipbtn" onclick="medOpenEpisode&&medOpenEpisode(\''+q+'\')">Abrir en Médico</button>'
-        +(inj.open?'<button class="med-chipbtn" style="border-color:#1ea863;color:#1ea863" onclick="medClose&&medClose(\''+q+'\')">✓ Alta</button>':'')
+        /* v291 · mientras no hay alta, el botón la da; una vez dada, lo que
+           queda es cerrar el caso, que es una decisión aparte. */
+        +(inj.open&&!pbGrupo(inj).alta
+           ?'<button class="med-chipbtn" style="border-color:#1ea863;color:#1ea863" onclick="medClose&&medClose(\''+q+'\')">✓ Dar el alta</button>':'')
+        +(inj.open&&pbGrupo(inj).alta
+           ?'<button class="med-chipbtn" onclick="medArchivar&&medArchivar(\''+q+'\')">Cerrar caso</button>':'')
+        +(!inj.open
+           ?'<button class="med-chipbtn" onclick="medReopen&&medReopen(\''+q+'\')">Reabrir</button>':'')
       +'</div>'
       +'<div class="pb-tl">'+cr.map(linea).join('')+'</div>'
     +'</div></details>';
@@ -7038,7 +7067,9 @@ function medDetailHtml(e){if(!e)return '';
   +'<span class="r" style="margin-left:auto"></span>'
   +'<button class="med-chipbtn" onclick="openMedTreat(\''+medEsc(e.name)+'\',\''+e.id+'\')">＋ Tratamiento</button>'
   +'<button class="med-chipbtn" onclick="medInjuryEdit(\''+e.id+'\')" title="Cambiar diagnóstico, zona, fechas o alta prevista">✎ Editar episodio</button>'
-  +(e.open?'<button class="med-chipbtn" onclick="medClose(\''+e.id+'\')" style="border-color:#1ea863;color:#1ea863">✓ Alta / cerrar</button>':'<button class="med-chipbtn" onclick="medReopen(\''+e.id+'\')">Reabrir</button>')
+  +(e.open&&!e.altaDk?'<button class="med-chipbtn" onclick="medClose(\''+e.id+'\')" style="border-color:#1ea863;color:#1ea863">✓ Dar el alta</button>':'')
+  +(e.open&&e.altaDk?'<button class="med-chipbtn" onclick="medArchivar(\''+e.id+'\')">Cerrar caso</button>':'')
+  +(!e.open?'<button class="med-chipbtn" onclick="medReopen(\''+e.id+'\')">Reabrir</button>':'')
   +'<button class="med-chipbtn" onclick="medDelete(\''+e.id+'\')" style="color:var(--bad)">Eliminar</button>'
   +'</div>';
  let phasesHtml='';
@@ -7233,9 +7264,28 @@ window.medNoteDel=function(injId,idx){
 };
 function medSetStatus(injId,st){const e=medInj(injId);if(!e)return;e.status=st;medPhysioSet(e,st);medPersist();renderMedico();toast('Estado: '+(PHYSTAT[st]||{}).lab);}
 function medSetRtp(injId,v){const e=medInj(injId);if(!e)return;e.rtp=v||null;medPersist();renderMedico();}
-function medClose(injId){const e=medInj(injId);if(!e)return;if(!confirm('¿Dar el alta y cerrar «'+e.title+'»? El jugador pasa a Disponible.'))return;
- e.open=false;e.closeDk=medToday();medPhysioClose(e);medPersist();renderMedico();toast('Alta registrada · '+e.name);}
-function medReopen(injId){const e=medInj(injId);if(!e)return;e.open=true;e.closeDk=null;if(e.status)medPhysioOpen(e.name,e.status,e.zona,e.lado,e.title,e.id,e.dk);medPersist();renderMedico();}
+/* v291 · Dar el alta ya NO cierra el caso. El jugador vuelve a entrenar y su
+   disponibilidad se libera, pero el problema sigue abierto y a la vista, porque
+   una lesión sigue necesitando tratamiento y seguimiento cuando el deportista
+   ya está bien. Cerrar el caso es otra acción, medArchivar, y se hace a mano
+   cuando de verdad se ha terminado. */
+function medClose(injId){const e=medInj(injId);if(!e)return;
+ if(!confirm('¿Dar el alta a «'+e.title+'»? El jugador vuelve a entrenar con normalidad.\n\nEl caso NO se cierra: sigue abierto para poder seguir tratándolo.'))return;
+ e.altaDk=medToday();e.status='';medPhysioClose(e);medPersist();
+ try{renderMedico();}catch(err){}
+ try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}
+ try{renderAvail&&renderAvail();}catch(err){}
+ toast('Alta deportiva · '+e.name+' · el caso sigue abierto');}
+/* Archivar de verdad: el caso se acabó y pasa al historial. */
+function medArchivar(injId){const e=medInj(injId);if(!e)return;
+ if(!confirm('¿Cerrar definitivamente «'+e.title+'»?\n\nPasa al historial y deja de aparecer entre los problemas abiertos. Se puede reabrir.'))return;
+ e.open=false;e.closeDk=medToday();if(!e.altaDk)e.altaDk=medToday();
+ medPhysioClose(e);medPersist();
+ try{renderMedico();}catch(err){}
+ try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}
+ toast('Caso cerrado · '+e.title);}
+window.medArchivar=medArchivar;
+function medReopen(injId){const e=medInj(injId);if(!e)return;e.open=true;e.closeDk=null;e.altaDk=null;if(e.status)medPhysioOpen(e.name,e.status,e.zona,e.lado,e.title,e.id,e.dk);medPersist();try{renderMedico();}catch(err){}try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}}
 function medDelete(injId){const e=medInj(injId);if(!e)return;if(!confirm('¿Eliminar definitivamente «'+e.title+'» y todo su registro?'))return;
  medPhysioClose(e);STATE.med.inj=STATE.med.inj.filter(x=>x.id!==injId);STATE.med.treat=STATE.med.treat.filter(t=>t.injId!==injId);if(MED_SEL===injId)MED_SEL=null;medPersist();renderMedico();}
 function medTreatDel(id){if(!confirm('¿Eliminar tratamiento?'))return;STATE.med.treat=STATE.med.treat.filter(t=>t.id!==id);medPersist();renderMedico();}
