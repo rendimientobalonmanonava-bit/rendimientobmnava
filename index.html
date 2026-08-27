@@ -6345,6 +6345,99 @@ function pbLinea(x,ctx){
     +acc+'</div>';
 }
 /* Los tres verbos, cada uno delegando en el editor que ya existe para ese tipo. */
+/* v295 · Todo lo que registra Virginia se puede corregir. Faltaban dos cosas
+   que solo se podían añadir: los valores de dolor de una lesión y sus notas.
+   Un 7 apuntado donde iba un 4 quedaba ahí para siempre, torciendo la curva. */
+window.pbDolor=function(injId){
+  const e=medInj(injId);if(!e)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const man=(e.pain||[]).map((p,i)=>({p,i})).filter(x=>x.p&&x.p.src==='manual')
+    .sort((a,b)=>String(b.p.dk).localeCompare(String(a.p.dk)));
+  const filas=man.length?man.map(x=>
+    '<div class="fd-ev"><span class="fd-ic" style="color:var(--warn)">◆</span>'
+    +'<div class="fd-bd"><div class="fd-t"><b>'+pbFecha(x.p.dk)+'</b></div>'
+    +'<div class="fd-x"><input type="number" min="0" max="10" step="1" class="pd-v" '
+      +'data-i="'+x.i+'" value="'+(x.p.v!=null?x.p.v:'')+'" style="width:74px"> / 10</div></div>'
+    +'<span class="fd-a"><button class="pb-ev-b pb-ev-b--del" title="Borrar" '
+      +'onclick="pbDolorDel(\''+injId+'\','+x.i+')">✕</button></span></div>').join('')
+    :'<p class="small muted" style="margin:0">Sin valores de dolor apuntados a mano.</p>';
+  const h='<h2 style="margin-top:0">Dolor · '+esc(pbNombre(e))
+      +' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+    +'<p class="small muted" style="margin:-6px 0 12px">Los valores que se apuntan a mano. '
+      +'Los que vienen del cuestionario de wellness no se tocan desde aquí.</p>'
+    +'<div class="ph-f"><div class="fd-l">'+filas+'</div>'
+    +'<div class="fd-add">'
+      +'<label style="flex:1;min-width:150px">Añadir hoy<input type="number" min="0" max="10" step="1" id="pd-nuevo" placeholder="0–10"></label>'
+      +'<button class="btn" onclick="pbDolorGuardar(\''+injId+'\')">Guardar</button>'
+    +'</div></div>';
+  document.getElementById('ph-body').innerHTML=h;
+  document.getElementById('ph-overlay').style.display='flex';
+};
+window.pbDolorDel=function(injId,i){
+  const e=medInj(injId);if(!e||!e.pain)return;
+  if(!confirm('¿Borrar este valor de dolor?'))return;
+  e.pain.splice(i,1);medPersist();pbDolor(injId);
+  try{renderMedico&&renderMedico();}catch(err){}
+};
+window.pbDolorGuardar=function(injId){
+  const e=medInj(injId);if(!e)return;
+  e.pain=e.pain||[];
+  document.querySelectorAll('.pd-v').forEach(el=>{
+    const i=+el.dataset.i;const v=parseFloat(el.value);
+    if(e.pain[i]&&!isNaN(v))e.pain[i].v=Math.max(0,Math.min(10,v));});
+  const nv=parseFloat((document.getElementById('pd-nuevo')||{}).value);
+  if(!isNaN(nv)){
+    const dk=medToday();
+    const ex=e.pain.find(p=>p.dk===dk&&p.src==='manual');
+    if(ex)ex.v=Math.max(0,Math.min(10,nv));
+    else e.pain.push({dk,v:Math.max(0,Math.min(10,nv)),src:'manual'});
+  }
+  medPersist();closeHeroForm();
+  try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}
+  try{renderMedico&&renderMedico();}catch(err){}
+  if(window.toast)toast('Dolor actualizado');
+};
+window.pbNotas=function(injId){
+  const e=medInj(injId);if(!e)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const ns=(e.notes||[]).map((n,i)=>({n,i})).reverse();
+  const filas=ns.length?ns.map(x=>
+    '<div class="fd-ev"><span class="fd-ic">✎</span>'
+    +'<div class="fd-bd"><div class="fd-t"><b>'+pbFecha(x.n.dk||e.dk)+'</b></div>'
+    +'<div class="fd-x"><input class="pn-t" data-i="'+x.i+'" value="'
+      +esc(typeof x.n==='string'?x.n:(x.n.txt||''))+'" style="width:100%"></div></div>'
+    +'<span class="fd-a"><button class="pb-ev-b pb-ev-b--del" title="Borrar" '
+      +'onclick="pbNotaDel(\''+injId+'\','+x.i+')">✕</button></span></div>').join('')
+    :'<p class="small muted" style="margin:0">Sin notas todavía.</p>';
+  const h='<h2 style="margin-top:0">Notas · '+esc(pbNombre(e))
+      +' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+    +'<div class="ph-f"><div class="fd-l">'+filas+'</div>'
+    +'<div class="fd-add">'
+      +'<label style="flex:1;min-width:200px">Nueva nota<input id="pn-nueva" placeholder="qué ha pasado, cómo evoluciona…"></label>'
+      +'<button class="btn" onclick="pbNotasGuardar(\''+injId+'\')">Guardar</button>'
+    +'</div></div>';
+  document.getElementById('ph-body').innerHTML=h;
+  document.getElementById('ph-overlay').style.display='flex';
+};
+window.pbNotaDel=function(injId,i){
+  const e=medInj(injId);if(!e||!e.notes)return;
+  if(!confirm('¿Borrar esta nota?'))return;
+  e.notes.splice(i,1);medPersist();pbNotas(injId);
+};
+window.pbNotasGuardar=function(injId){
+  const e=medInj(injId);if(!e)return;
+  e.notes=e.notes||[];
+  document.querySelectorAll('.pn-t').forEach(el=>{
+    const i=+el.dataset.i;const t=el.value.trim();
+    if(!e.notes[i])return;
+    if(typeof e.notes[i]==='string')e.notes[i]=t;else e.notes[i].txt=t;});
+  const nueva=((document.getElementById('pn-nueva')||{}).value||'').trim();
+  if(nueva)e.notes.push({dk:medToday(),txt:nueva});
+  medPersist();closeHeroForm();
+  try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}
+  try{renderMedico&&renderMedico();}catch(err){}
+  if(window.toast)toast('Notas guardadas');
+};
 window.pbEditar=function(tipo,name,id){
   if(tipo==='parte'||tipo==='episodio'){
     if(window.physioEdit)return physioEdit(name,id);
@@ -6591,6 +6684,9 @@ function pbBloque(inj,abierto){
       +(inj.desc?'<p class="pb-desc">'+esc(inj.desc)+'</p>':'')
       +'<div class="pb-acts">'
         +'<button class="med-chipbtn" onclick="pbNuevoBrote(\''+q+'\')">＋ Nuevo brote</button>'
+        +'<button class="med-chipbtn" onclick="medInjuryEdit&&medInjuryEdit(\''+q+'\')">✎ Editar</button>'
+        +'<button class="med-chipbtn" onclick="pbNotas&&pbNotas(\''+q+'\')">≡ Notas</button>'
+        +'<button class="med-chipbtn" onclick="pbDolor&&pbDolor(\''+q+'\')">Dolor</button>'
         +'<button class="med-chipbtn" onclick="medOpenEpisode&&medOpenEpisode(\''+q+'\')">Abrir en Médico</button>'
         /* v291 · mientras no hay alta, el botón la da; una vez dada, lo que
            queda es cerrar el caso, que es una decisión aparte. */
@@ -7544,7 +7640,25 @@ function medCritHtml(injId,c){
   ?('objetivo '+(c.low?'≤':'≥')+' '+c.obj+(c.unidad?' '+medEsc(c.unidad):'')+(c.med.length?' · última: '+c.med[c.med.length-1].v+(c.unidad?' '+medEsc(c.unidad):'')+' ('+c.med[c.med.length-1].dk+')':' · sin medidas'))
   :'criterio de confirmación manual';
  return '<div class="med-crit'+(ok?' ok':'')+'"><div class="mcr-chk" onclick="medCritCheck(\''+injId+'\',\''+c.id+'\')">'+(ok?'✓':'')+'</div>'
-  +'<div><div class="mcr-txt">'+medEsc(c.txt)+' <button class="med-chipbtn" style="padding:0 6px;font-size:10px" onclick="medCritDel(\''+injId+'\',\''+c.id+'\')" title="Eliminar criterio">✕</button></div><div class="mcr-meta">'+meta+'</div></div>'+right+'</div>';}
+  +'<div><div class="mcr-txt">'+medEsc(c.txt)
+    +' <button class="med-chipbtn" style="padding:0 6px;font-size:10px" onclick="medCritEdit(\''+injId+'\',\''+c.id+'\')" title="Corregir el texto del criterio">✎</button>'
+    +'<button class="med-chipbtn" style="padding:0 6px;font-size:10px" onclick="medCritDel(\''+injId+'\',\''+c.id+'\')" title="Eliminar criterio">✕</button></div><div class="mcr-meta">'+meta+'</div></div>'+right+'</div>';}
+/* v295 · Un criterio mal escrito solo se podía borrar y volver a crear, y con él
+   se perdían sus mediciones. Ahora se corrige el texto y el objetivo. */
+function medCritEdit(injId,cid){
+  const {c}=medFindCrit(injId,cid);if(!c)return;
+  const t=prompt('Texto del criterio:',c.txt);
+  if(t===null)return;
+  if(!t.trim()){if(window.toast)toast('El criterio necesita un texto');return;}
+  c.txt=t.trim();
+  if(c.tipo==='num'){
+    const o=prompt('Objetivo'+(c.unidad?' ('+c.unidad+')':'')+':',c.obj!=null?c.obj:'');
+    if(o!==null&&o.trim()!==''){const n=parseFloat(o);if(!isNaN(n))c.obj=n;}
+  }
+  medPersist();try{renderMedico();}catch(e){}
+  if(window.toast)toast('Criterio actualizado');
+}
+window.medCritEdit=medCritEdit;
 function medFindCrit(injId,cid){const e=medInj(injId);if(!e)return{};const f=e.phases[e.phaseIdx]||{crit:[]};return {e,f,c:f.crit.find(x=>x.id===cid)};}
 function medCritCheck(injId,cid){const {c}=medFindCrit(injId,cid);if(!c)return;if(c.tipo==='num'&&c.med.length){toast('Este criterio se evalúa por medidas');return;}c.done=!c.done;medPersist();renderMedico();}
 function medCritMeasure(injId,cid){const {c}=medFindCrit(injId,cid);if(!c)return;const el=document.getElementById('cm-'+cid);const v=parseFloat(el&&el.value);if(isNaN(v)){toast('Introduce el valor');return;}c.med.push({dk:medToday(),v});medPersist();renderMedico();toast('Medida registrada');}
