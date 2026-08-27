@@ -7246,6 +7246,57 @@ function twVal(x){return TW_KEYS.reduce((a,k)=>a+(isNaN(x[k])?0:x[k]),0);}
 function freshSeries(p,n){return (p&&p.w||[]).slice(-(n||10)).map(x=>-twVal(x));}// invertido: arriba = mejor
 function teamFreshSeries(n){const byDk={};STATE.wellness.forEach(w=>{(byDk[w.dk]=byDk[w.dk]||[]).push(twVal(w));});
   const dks=Object.keys(byDk).sort();return dks.slice(-(n||12)).map(dk=>-mean(byDk[dk]));}
+/* ═══ v287 · Readiness del equipo, día a día ═══
+   Un solo índice, por decisión de Daniel (27/08/2026). Antes el Resumen daba el
+   readiness —wellness, carga, RPE y dolor— y el Parte wellness un «índice de
+   bienestar» que era solo wellness en valor absoluto: dos números de 0 a 100 en
+   dos pantallas, sin decir en ninguna que medían cosas distintas. Con los datos
+   del 27/08 uno daba 87 y el otro 64, y no había forma de saber cuál mirar.
+
+   NO reimplementa la fórmula. Recalcula con buildPlayers moviendo la fecha de
+   referencia, que es la única manera de que el readiness de hace diez días sea
+   exactamente el mismo cálculo que el de hoy —W50/A28/R10/D12, sus z-scores,
+   sus techos— y no una copia que se desincroniza al primer ajuste.
+
+   Cuesta unos 110 ms por día, así que se cachea y solo se rehace cuando cambian
+   los datos. Comprobado que llamar a buildPlayers en bucle no acumula registros
+   ni alertas: seis pasadas dejan STATE.rpe y STATE.alerts exactamente igual. */
+let RD_SERIE_CACHE=null;
+function teamReadinessSeries(n){
+  n=n||14;
+  const dks=[...new Set((STATE.wellness||[]).map(w=>w.dk).filter(Boolean))].sort().slice(-n);
+  if(!dks.length)return [];
+  const clave=(STATE.wellness||[]).length+'|'+(STATE.rpe||[]).length+'|'+dks.join(',');
+  if(RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave)return RD_SERIE_CACHE.datos;
+  const orig=STATE.refDate;
+  const out=[];
+  try{
+    dks.forEach(dk=>{
+      STATE.refDate=dkToDate(dk);
+      buildPlayers();
+      const v=Object.values(STATE.players).map(p=>p.readiness).filter(x=>x!=null);
+      out.push({dk,rd:v.length?Math.round(mean(v)):null,n:v.length});
+    });
+  }catch(e){console.error('bmnava · serie de readiness',e);}
+  finally{
+    /* pase lo que pase, el estado vuelve al día que se estaba mirando */
+    STATE.refDate=orig;
+    try{buildPlayers();}catch(e2){}
+  }
+  RD_SERIE_CACHE={clave,datos:out};
+  return out;
+}
+window.teamReadinessSeries=teamReadinessSeries;
+/* La serie si ya está calculada, sin ponerse a calcularla: el parte se pinta al
+   instante y el gráfico se rellena en cuanto está, en vez de congelar la
+   pantalla segundo y medio en el primer render. */
+function teamReadinessSerieCache(n){
+  n=n||14;
+  const dks=[...new Set((STATE.wellness||[]).map(w=>w.dk).filter(Boolean))].sort().slice(-n);
+  const clave=(STATE.wellness||[]).length+'|'+(STATE.rpe||[]).length+'|'+dks.join(',');
+  return (RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave)?RD_SERIE_CACHE.datos:null;
+}
+window.teamReadinessSerieCache=teamReadinessSerieCache;
 function teamAcwrSeries(n){const byDk={};Object.keys(STATE.players).forEach(nm=>{try{acwrSeries(nm,'ua',REF()).slice(-(n||12)).forEach(d=>{if(!isNaN(d.ra))(byDk[d.dk]=byDk[d.dk]||[]).push(d.ra);});}catch(e){}});
   const dks=Object.keys(byDk).sort();return dks.slice(-(n||12)).map(dk=>mean(byDk[dk]));}
 function kpi(l,v,s,sev,opts){opts=opts||{};
@@ -10496,6 +10547,17 @@ function renderParte(){
   const clubLogo=window.__LOGO_CLUB__?`<img src="${window.__LOGO_CLUB__}">`:`BM NAVA`;
   const hpLogo=window.__LOGO_HP__?`<img src="${window.__LOGO_HP__}">`:`Handball Performance`;
   const last14=dayTeam.slice(-14);
+  /* v287 · un solo índice: el readiness, que ya incluye wellness, carga, RPE y
+     dolor. El «índice de bienestar» que había aquí era solo wellness absoluto y
+     convivía con el readiness del Resumen sin que nada dijera que eran cosas
+     distintas: 87 en una pantalla y 64 en la otra el mismo día. */
+  const rdSerie=(typeof teamReadinessSerieCache==='function')?teamReadinessSerieCache(14):null;
+  const rdPorDk={};(rdSerie||[]).forEach(x=>{rdPorDk[x.dk]=x.rd;});
+  const idx=last14.map(d=>rdPorDk[d.dk]!=null?rdPorDk[d.dk]:null);
+  /* primera vez: se pinta ya y se vuelve a pintar cuando la serie está lista */
+  if(!rdSerie&&typeof teamReadinessSeries==='function'){
+    setTimeout(function(){try{teamReadinessSeries(14);renderParte();}catch(e){}},40);
+  }
   wrap.innerHTML=`<div class="parte-card" id="parte-card">
     <div class="pt-head">
       <div class="pt-chip">${clubLogo}</div>
@@ -10505,7 +10567,7 @@ function renderParte(){
     <div class="pt-body">
       <div class="kpi-grid">${headCells}</div>
       <div class="pt-main">
-        <div class="card-pro pt-evo"><div class="eyebrow">Información grupal</div><div class="pro-title sm">Índice de bienestar del equipo <span style="float:right;font-weight:400;color:var(--muted);font-size:11px">14 días · 100 = óptimo</span></div><div class="pt-evo-canvas"><canvas id="ch-parte-evo"></canvas></div></div>
+        <div class="card-pro pt-evo"><div class="eyebrow">Información grupal</div><div class="pro-title sm">Readiness del equipo <span style="float:right;font-weight:400;color:var(--muted);font-size:11px">${rdSerie?'14 días · wellness + carga + RPE + dolor':'calculando 14 días…'}</span></div><div class="pt-evo-canvas"><canvas id="ch-parte-evo"></canvas></div></div>
         <div class="pt-side">
           <div class="card-pro"><div class="mini-h">Estado grupal</div><div class="pt-lights">
             <div class="pt-light">${tl(lvl(todayT.sueno))}<span>Sueño</span></div>
@@ -10523,13 +10585,15 @@ function renderParte(){
     </div>
     <div class="pt-foot"><span>Generado automáticamente</span><span>BM Nava · Control de cargas</span></div>
   </div>`;
-  const idxOf=d=>{const ms=['fatiga','sueno','doms','stress','mood'].map(k=>d[k]).filter(x=>!isNaN(x));if(!ms.length)return null;return Math.round(Math.max(0,Math.min(100,(5-mean(ms))/4*100)));};
-  const idx=last14.map(idxOf);const blabels=last14.map(d=>{const a=d.dk.split('-');return a[2]+'/'+a[1];});
-  const barCol=v=>v==null?'#cbd5e1':v>=70?'#16a34a':v>=50?'#e0a800':'#dc2626';
+  const blabels=last14.map(d=>{const a=d.dk.split('-');return a[2]+'/'+a[1];});
+  /* v287 · los cortes son los del readiness (75 verde · 55 ámbar), no los 70/50
+   que usaba el índice de bienestar: el color tiene que decir lo mismo que en el
+   resto de la aplicación. */
+const barCol=v=>v==null?'#cbd5e1':v>=75?'#16a34a':v>=55?'#e0a800':'#dc2626';
   const mc=cssVar('--muted')||'#8a93a0';const gc=cssVar('--hair')||'rgba(120,130,145,.18)';
   const dl={id:'dl',afterDatasetsDraw(c){const ctx=c.ctx;const m=c.getDatasetMeta(0);ctx.save();ctx.font='800 10px Inter,system-ui,sans-serif';ctx.fillStyle=mc;ctx.textAlign='center';m.data.forEach((b,i)=>{const v=idx[i];if(v==null)return;ctx.fillText(v,b.x,b.y-5);});ctx.restore();}};
   killCharts(['ch-parte-evo']);const el=document.getElementById('ch-parte-evo');
-  if(el)charts['ch-parte-evo']=new Chart(el,{type:'bar',data:{labels:blabels,datasets:[{data:idx,backgroundColor:idx.map(barCol),borderRadius:5,maxBarThickness:30}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:18}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Índice '+c.parsed.y+' / 100'}}},scales:{x:{ticks:{color:mc,font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},y:{min:0,max:100,ticks:{color:mc,font:{size:10},stepSize:25},grid:{color:gc}}}},plugins:[dl]});
+  if(el)charts['ch-parte-evo']=new Chart(el,{type:'bar',data:{labels:blabels,datasets:[{data:idx,backgroundColor:idx.map(barCol),borderRadius:5,maxBarThickness:30}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:18}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Readiness '+c.parsed.y+' / 100'}}},scales:{x:{ticks:{color:mc,font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},y:{min:0,max:100,ticks:{color:mc,font:{size:10},stepSize:25},grid:{color:gc}}}},plugins:[dl]});
 }
 function exportNodePNG(id,filename){
   const el=document.getElementById(id);
