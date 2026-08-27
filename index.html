@@ -11816,7 +11816,18 @@ function partidoEtiqueta(e){
   const r=evRival(e);
   return (r?'vs '+r:'Partido')+' · '+(PARTIDO_COMP[evComp(e)]||evComp(e)).toLowerCase();
 }
-const CAL_RPE=[0,4,6,8];
+/* v286 · RPE que se le supone a cada color del semáforo al planificar.
+   El verde estaba en 4 y un verde de 90' salían 360 UA, mucho menos de lo que
+   luego se declara. Calibrado contra 156 sesiones de grupo reales: el mínimo
+   absoluto de RPE medio del equipo es 3,91 —una sola sesión en 156, del 23/04—,
+   el percentil 10 está en 5,91 y la mediana en 7,05. Un verde de 4 era un día
+   que en la práctica no existe.
+   Verde pasa a 5,5, que es el suelo de las sesiones suaves de verdad. Ámbar y
+   rojo se quedan como estaban por decisión de Daniel (26/08/2026): el rojo en 8
+   cuadra con el percentil 90 real, 7,81.
+   Escala única para pista y gimnasio, también decisión suya, aunque el gimnasio
+   nunca haya bajado de 5,82: el color significa lo mismo en los dos sitios. */
+const CAL_RPE=[0,5.5,6,8];
 const CAL_MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let CALVIEW=null, CAL_CUR=null, CAL_EDIT=null, CAL_FORM={intens:2,dur:75,contacto:3}, CALMODE='mes', CALWEEK=null, CAL_CLIP=null;
 function calLoad(){
@@ -12031,7 +12042,7 @@ function calDurAll(dk,val){
 }
 function calRealManual(dk){const meta=(STATE.calMeta||{})[dk];return meta&&meta.real!=null&&meta.real!==''?Math.round(+meta.real):null;}
 function calZonesGet(dk){const meta=(STATE.calMeta||{})[dk]||{};return {z4:meta.z4,z5:meta.z5};}
-function calPlanUA(dk){const evs=(STATE.calendar||{})[dk]||[];return evs.reduce((a,e)=>a+CAL_RPE[evIntens(e)]*evDur(e),0);}
+function calPlanUA(dk){const evs=(STATE.calendar||{})[dk]||[];return Math.round(evs.reduce((a,e)=>a+CAL_RPE[evIntens(e)]*evDur(e),0));}
 function calDev(planUA,realUA){if(!planUA||realUA==null)return null;const pct=Math.round((realUA-planUA)/planUA*100);const a=Math.abs(pct);const tier=a<=15?'ok':a<=30?'warn':'bad';const col=tier==='ok'?'#1ea863':tier==='warn'?'#e08a00':'#e23b32';const lab=a<=15?'Según lo previsto':pct>0?'Por encima del plan':'Por debajo del plan';return{pct,col,lab,tier,arrow:pct>3?'▲':pct<-3?'▼':'≈'};}
 /* v241 · las sesiones sin programar quedan fuera del cálculo de carga: sumar
    su duración y su intensidad por defecto daría un plan que nadie ha decidido.
