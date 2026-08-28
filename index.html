@@ -1440,6 +1440,28 @@ body.sb-min .sb-ver{display:none}
 .fis-r-x{flex:none;font-size:11px;font-variant-numeric:tabular-nums;color:var(--muted)}
 .fis-bar{height:5px;border-radius:99px;background:var(--panel2);margin-top:3px;overflow:hidden}
 .fis-bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+/* ══ v296 · Fisioterapia, cabecera con cifras y caras ══ */
+.fis-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:14px}
+.fis-kpis .kpi-l{font-size:11px;color:var(--muted);font-weight:600;margin-top:2px}
+.fis-kpis .kpi-s{font-size:10px;color:var(--muted2);margin-top:3px}
+.fis-h{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.pro-title.sm{font-size:17px;font-weight:800;letter-spacing:-.01em}
+.fis-athrow{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start}
+.fis-ath{width:92px}
+@media (max-width:560px){.fis-ath{width:80px}}
+/* franja de color del día */
+.fc-d{position:relative}
+.fc-tira{position:absolute;top:0;left:0;right:0;height:3px;display:flex;gap:1px;
+  border-radius:9px 9px 0 0;overflow:hidden}
+.fc-tira i{display:block;height:100%}
+.fc-hoy{font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--accent);background:color-mix(in srgb,var(--accent) 13%,transparent);
+  border-radius:99px;padding:1px 5px}
+.fc-av{width:13px;height:13px;border-radius:50%;object-fit:cover;flex:none;
+  border:1px solid var(--hair)}
+.fc-ev{align-items:center}
+.fc-d--con{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 3%,transparent),transparent 42%)}
+.fc-d--hoy{background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
 /* v294 · Con la cuarta pestaña —Fisioterapia— la barra de Estado del equipo ya
    no cabe en un móvil de 390 px y sacaba scroll horizontal a toda la página.
    El segmentado se desliza solo, que es lo que se espera de unas pestañas. */
@@ -11320,18 +11342,26 @@ function fisCalendario(){
     const fuera=(!semana&&d.getMonth()!==R.mes);
     const es=ev[dk]||[];
     const cuenta={};es.forEach(e=>{cuenta[e.tipo]=(cuenta[e.tipo]||0)+1;});
-    const lineas=es.slice(0,semana?8:3).map(e=>{
+    const tope=semana?9:3;
+    const lineas=es.slice(0,tope).map(e=>{
       const t=FIS_TIPO[e.tipo]||{ic:'·',col:'var(--muted)'};
+      const foto=(window.photoFor?photoFor(e.name):null);
       return '<div class="fc-ev fc-ev--'+e.tipo+'" title="'+esc(e.name+' · '+e.txt+(e.meta?' · '+e.meta:''))+'">'
-        +'<i style="background:'+t.col+'"></i>'
+        +(foto?'<img class="fc-av" src="'+foto+'" alt="">':'<i style="background:'+t.col+'"></i>')
         +'<b>'+esc(String(e.name||'').split(' ')[0])+'</b>'
-        +'<span>'+esc(e.txt)+'</span></div>';
+        +'<span>'+(e.hora?esc(e.hora)+' · ':'')+esc(e.txt)+'</span></div>';
     }).join('');
-    const mas=es.length>(semana?8:3)?'<div class="fc-mas">+'+(es.length-(semana?8:3))+' más</div>':'';
+    const mas=es.length>tope?'<div class="fc-mas">+'+(es.length-tope)+' más</div>':'';
+    /* v296 · franja de color con lo que hay ese día, para que el mes se lea sin
+       entrar en ninguna celda */
+    const barras=Object.keys(cuenta).map(k=>'<i style="background:'+((FIS_TIPO[k]||{}).col||'var(--muted)')
+      +';flex:'+cuenta[k]+'"></i>').join('');
     celdas+='<div class="fc-d'+(fuera?' fc-d--fuera':'')+(dk===hoy?' fc-d--hoy':'')
       +(es.length?' fc-d--con':'')+'" onclick="fisDia(\''+dk+'\')">'
+      +(es.length?'<div class="fc-tira">'+barras+'</div>':'')
       +'<div class="fc-dh"><span class="fc-num">'+d.getDate()+'</span>'
       +(semana?'<span class="fc-dow">'+DOW[i]+'</span>':'')
+      +(dk===hoy?'<span class="fc-hoy">hoy</span>':'')
       +(es.length?'<span class="fc-n">'+es.length+'</span>':'')+'</div>'
       +'<div class="fc-evs">'+lineas+mas+'</div></div>';
   }
@@ -11535,9 +11565,96 @@ function fisPanelDatos(){
     +bloque('d8','Cómo responden','30 días',respHtml,false,'')
   +'</div>';
 }
+/* ── v296 · cabecera: cuatro cifras y la plantilla en tratamiento, con fotos ──
+   El calendario solo era una rejilla y Daniel lo ve soso. Encima va ahora lo
+   que se mira de un vistazo: cuánto trabajo hay hoy y esta semana, qué viene, y
+   sobre todo QUIÉN está en tratamiento, con su cara, el anillo del estado de su
+   problema y los días que lleva. Mismo lenguaje que el Resumen —anillos, fotos,
+   píldoras— para que no parezcan dos aplicaciones distintas. */
+function fisKpiFila(){
+  const hoy=dkey(new Date());
+  const d=n=>fisDkSuma(hoy,n);
+  try{medDbLoad();physioEnsure();if(window.medLogRW)medLogRW();}catch(e){}
+  const TR=((STATE.med||{}).treat||[]).filter(t=>t&&t.dk);
+  const hoyT=TR.filter(t=>t.dk===hoy);
+  const sem=TR.filter(t=>t.dk>=fisDkSuma(hoy,-6)&&t.dk<=hoy);
+  const min=sem.reduce((a,t)=>a+(+t.dur||0),0);
+  let citas=0;
+  Object.keys(STATE.medLog||{}).forEach(n=>{(STATE.medLog[n]||[]).forEach(m=>{
+    if(!m)return;
+    if(m.dk&&m.dk>=hoy&&m.dk<=d(7))citas++;
+    if(m.next&&m.next>=hoy&&m.next<=d(7))citas++;});});
+  const abiertos=((STATE.med||{}).inj||[]).filter(x=>x&&x.open&&!x.mergedInto);
+  const kpi=(v,l,s,col)=>'<div class="kpi"><div class="kpi-v"'+(col?' style="color:'+col+'"':'')+'>'+v+'</div>'
+    +'<div class="kpi-l">'+l+'</div>'+(s?'<div class="kpi-s">'+s+'</div>':'')+'</div>';
+  return '<div class="fis-kpis">'
+    +kpi(hoyT.length,'Tratamientos hoy',hoyT.length?hoyT.reduce((a,t)=>a+(+t.dur||0),0)+' min':'sin sesiones',
+      hoyT.length?'var(--ok)':'var(--muted)')
+    +kpi(sem.length,'Esta semana',Math.round(min/60*10)/10+' h de camilla')
+    +kpi(citas,'Citas en 7 días',citas?'médico y mutua':'nada por delante',citas?'var(--warn)':'var(--muted)')
+    +kpi(abiertos.length,'Problemas abiertos',abiertos.length?'en seguimiento':'plantilla limpia',
+      abiertos.length?'var(--warn)':'var(--ok)')
+  +'</div>';
+}
+/* Quién está en tratamiento, con su foto y el estado de su problema. */
+function fisEnTratamiento(){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const hoy=dkey(new Date());
+  const TR=((STATE.med||{}).treat||[]).filter(t=>t&&t.dk);
+  const abiertos=((STATE.med||{}).inj||[]).filter(x=>x&&x.open&&!x.mergedInto)
+    .sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+  if(!abiertos.length)
+    return '<div class="panel"><div class="eyebrow">Fisioterapia</div>'
+      +'<div class="pro-title sm" style="margin-bottom:4px">En tratamiento</div>'
+      +'<p class="small" style="margin:0;color:var(--ok)">Ningún problema abierto. Plantilla limpia.</p></div>';
+  const av=n=>{const r=window.photoFor?photoFor(n):null;
+    return r||((STATE.players[n]||{}).avatar)||window.__AVATAR__||'';};
+  const real=n=>!!(window.photoFor&&photoFor(n));
+  const ficha=e=>{
+    const st=pbEstado(e);
+    const g=pbGrupo(e);
+    const suyos=TR.filter(t=>t.injId===e.id).map(t=>t.dk).sort();
+    const ult=suyos.length?suyos[suyos.length-1]:null;
+    const sinTratar=ult?pbDias(ult,hoy):pbDias(e.dk,hoy);
+    /* el anillo mide lo reciente que es el último tratamiento: lleno si es de
+       hoy, vacío si lleva dos semanas sin tocarse */
+    const pct=Math.max(6,Math.min(100,Math.round((1-Math.min(sinTratar,14)/14)*100)));
+    const dias=pbDias(e.dk,hoy);
+    const n=e.name;
+    return '<div class="ath fis-ath" title="'+esc(n+' · '+pbNombre(e))+'" onclick="openPlayer(\''
+        +String(n).replace(/'/g,"\\'")+'\')">'
+      +'<div class="ath-ph'+(real(n)?' ath-ph--photo':'')+'">'
+        +ringSVG(pct,st.col,74,5)
+        +'<img src="'+av(n)+'" class="ath-img'+(real(n)?' ath-img--photo':'')+'">'
+        +'<span class="ath-rd" style="color:'+st.col+'">'+dias+'d</span>'
+      +'</div>'
+      +'<div class="ath-nm">'+esc(String(n).split(' ')[0])+'</div>'
+      +'<div class="ath-pillwrap"><span class="pillT" style="color:'+st.col
+        +';background:color-mix(in srgb,'+st.col+' 15%,transparent)">'
+        +'<span class="pillT-dot" style="background:'+st.col+'"></span>'
+        +'<span class="pillT-tx">'+esc(e.zona||e.title||'')+(e.lado?' '+e.lado:'')+'</span></span></div>'
+      +'<div class="ath-mt">'+(ult?'tratado hace '+sinTratar+' d':'sin tratar aún')+'</div>'
+    +'</div>';
+  };
+  const nAlerta=abiertos.filter(e=>{
+    const suyos=TR.filter(t=>t.injId===e.id).map(t=>t.dk).sort();
+    const ult=suyos.length?suyos[suyos.length-1]:null;
+    return (ult?pbDias(ult,hoy):pbDias(e.dk,hoy))>=7;}).length;
+  return '<div class="panel">'
+    +'<div class="fis-h"><div><div class="eyebrow">Fisioterapia</div>'
+      +'<div class="pro-title sm">En tratamiento <span class="muted" style="font-weight:400;font-size:12px">· '
+        +abiertos.length+' problema'+(abiertos.length>1?'s':'')+' abierto'+(abiertos.length>1?'s':'')+'</span></div></div>'
+      +(nAlerta?'<span class="pillT" style="color:var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent);margin-left:auto">'
+        +'<span class="pillT-dot" style="background:var(--warn)"></span><span class="pillT-tx">'
+        +nAlerta+' sin tratar en 7 días</span></span>':'')
+    +'</div>'
+    +'<div class="fis-athrow">'+abiertos.map(ficha).join('')+'</div>'
+    +'<p class="hint" style="margin:12px 0 0">El anillo marca cuándo se trató por última vez: lleno hoy, vacío a los catorce días. Dentro, los días que lleva abierto el problema.</p>'
+  +'</div>';
+}
 function renderFisio(){
   const box=document.getElementById('fisio-body');if(!box)return;
-  box.innerHTML=fisCalendario()+fisPanelDatos();
+  box.innerHTML=fisKpiFila()+fisEnTratamiento()+fisCalendario()+fisPanelDatos();
 }
 window.renderFisio=renderFisio;
 /* ===================== WELLNESS · PARTE DIARIO ===================== */
