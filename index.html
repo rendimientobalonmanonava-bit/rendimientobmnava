@@ -1462,6 +1462,39 @@ body.sb-min .sb-ver{display:none}
 .fc-ev{align-items:center}
 .fc-d--con{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 3%,transparent),transparent 42%)}
 .fc-d--hoy{background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
+/* ══ v297 · Ficha médica ══ */
+.mdh{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.mdh-ph{position:relative;flex:none;width:72px;height:72px}
+.mdh-ph .ring{display:block}
+.mdh-img{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:54px;height:54px;border-radius:50%;object-fit:cover;background:var(--panel2)}
+.mdh-tx{flex:1;min-width:200px}
+.mdh-t{font-size:20px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+.mdh-m{font-size:12px;color:var(--muted);margin-top:3px}
+.mdh-p{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.mdk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;margin-bottom:12px}
+.mdk{background:var(--panel2);border:1px solid var(--hair);border-radius:11px;padding:10px 12px}
+.mdk-v{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.05}
+.mdk-l{font-size:10.5px;font-weight:600;color:var(--muted);margin-top:3px}
+.mdk-s{font-size:9.5px;color:var(--muted2);margin-top:2px}
+.mdt{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.mdt-f{flex:none;font-size:9.5px;color:var(--muted2);font-variant-numeric:tabular-nums}
+.mdt-l{flex:1;position:relative;height:7px;border-radius:99px;background:var(--panel2);
+  border:1px solid var(--hair)}
+.mdt-l i{position:absolute;top:50%;transform:translate(-50%,-50%);width:8px;height:8px;
+  border-radius:50%;border:1.5px solid var(--panel)}
+.mdh-desc{background:var(--panel2);border-radius:10px;padding:10px 13px;margin-bottom:12px;
+  display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
+.mdh-desc b{color:var(--txt);font-weight:600}
+.mdh-desc p{flex:1 1 100%;margin:4px 0 0;font-size:12px;line-height:1.5}
+.mdh-acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px;
+  padding-bottom:14px;border-bottom:1px solid var(--hair)}
+.mdh-acts label{font-weight:700;display:inline-flex;align-items:center;gap:5px}
+.mdh-acts select,.mdh-acts input{padding:5px 8px;border:1px solid var(--line);
+  border-radius:8px;background:var(--panel);color:var(--txt);font-size:12px;width:auto}
+.med-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;margin-top:16px}
+.med-col{min-width:0}
+@media (max-width:900px){.med-cols{grid-template-columns:1fr;gap:8px}}
 /* v294 · Con la cuarta pestaña —Fisioterapia— la barra de Estado del equipo ya
    no cabe en un móvil de 390 px y sacaba scroll horizontal a toda la página.
    El segmentado se desliza solo, que es lo que se espera de unas pestañas. */
@@ -1655,7 +1688,7 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 .mcr-num input{width:74px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px}
 .mcr-spark{height:26px;width:110px}
 /* dolor */
-.med-pain{height:120px;width:100%}
+.med-pain{height:158px;width:100%;display:block}
 /* body map */
 .bm-wrap{display:flex;gap:14px;justify-content:center}
 .bm-fig{text-align:center}
@@ -7537,23 +7570,101 @@ function renderMedico(){medDbLoad();
  if(det)det.innerHTML=MED_SEL?medDetailHtml(medInj(MED_SEL)):'<p class="small muted" style="padding:6px">Selecciona un episodio para ver su detalle.</p>';
  medAssessRender();medConfigRender();}
 /* ---------- Detalle de episodio ---------- */
+/* ══ v297 · Cabecera de la ficha médica ══
+   Daniel: «la información está muy dispersa, mucho espacio en blanco, pocas
+   gráficas, colores, semáforos». La cabecera era una foto de 44 px, tres líneas
+   de texto corrido y una fila de botones; había que leerla entera para saber
+   cómo iba el caso.
+
+   Ahora lo primero que se ve es el estado: la cara del jugador con el anillo
+   del caso, y seis cifras con semáforo —días, dolor, cuándo se le trató por
+   última vez, sesiones, próxima cita y disponibilidad—. Debajo, una línea de
+   tiempo con los hitos reales del episodio. */
+function medSem(v,verde,ambar){
+  if(v==null||isNaN(v))return 'var(--muted2)';
+  return v<=verde?'var(--ok)':(v<=ambar?'var(--warn)':'var(--bad)');
+}
 function medDetailHtml(e){if(!e)return '';
- const p=STATE.players[e.name]||{};const ph=p.avatar||window.__AVATAR__;
+ const p=STATE.players[e.name]||{};
+ const foto=(window.photoFor?photoFor(e.name):null)||p.avatar||window.__AVATAR__||'';
  const st=e.status&&PHYSTAT[e.status]?PHYSTAT[e.status]:null;
  const stOpts=Object.keys(PHYSTAT).map(k=>'<option value="'+k+'"'+(k===e.status?' selected':'')+'>'+PHYSTAT[k].lab+'</option>').join('');
- let rtpHtml='';
- if(e.rtp){const d=medDaysBetween(medToday(),e.rtp);rtpHtml='<span class="med-rtp" title="Retorno estimado '+e.rtp+'">RTP <b>'+(d>=0?d:'+'+(-d))+'</b> '+(d>=0?'días':'días pasados')+'</span>';}
- let head='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
-  +'<img src="'+ph+'" style="width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--panel2)">'
-  +'<div style="flex:1;min-width:180px"><div style="font-size:17px;font-weight:800">'+medEsc(e.title)+'</div>'
-  +'<div class="med-kv"><span><b>'+medEsc(e.name)+'</b></span><span>'+e.dk+'</span><span>'+medEsc(e.zona)+(e.lado?' ('+e.lado+')':'')+'</span>'+(e.tipo?'<span>'+medEsc(e.tipo)+' · '+medEsc(e.clasif)+'</span>':'')+(e.by?'<span>por '+medEsc(e.by)+'</span>':'')+'</div></div>'
-  +rtpHtml+'</div>';
- head+='<div class="med-kv" style="margin-top:10px">'
-  +(e.act?'<span>Actividad: <b>'+medEsc(e.act)+'</b></span>':'')+(e.accion?'<span>Acción: <b>'+medEsc(e.accion)+'</b></span>':'')+(e.mom&&e.mom!=='—'?'<span>Momento: <b>'+medEsc(e.mom)+'</b></span>':'')+(e.tejido?'<span>Tejido: <b>'+medEsc(e.tejido)+'</b></span>':'')+'</div>'
-  +(e.desc?'<div class="small" style="margin-top:8px;color:var(--muted);line-height:1.5">'+medEsc(e.desc)+'</div>':'');
- head+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">'
-  +(e.open?'<label class="small" style="font-weight:700">Estado <select onchange="medSetStatus(\''+e.id+'\',this.value)" style="margin-left:4px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'+stOpts+'</select></label>':'')
-  +(e.open?'<label class="small" style="font-weight:700">RTP est. <input type="date" value="'+(e.rtp||'')+'" onchange="medSetRtp(\''+e.id+'\',this.value)" style="margin-left:4px;padding:4px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px"></label>':'')
+ const hoyDk2=medToday();
+ const est=(window.pbEstado?pbEstado(e):null)||{lab:e.open?'Abierto':'Cerrado',col:'var(--muted)'};
+ const dias=medDaysBetween(e.dk,e.open?hoyDk2:(e.closeDk||hoyDk2));
+ /* dolor: el último valor apuntado a mano */
+ const man=(e.pain||[]).filter(x=>x&&x.src==='manual').sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+ const dolor=man.length?man[man.length-1].v:null;
+ const dolor0=man.length?man[0].v:null;
+ /* tratamientos del episodio */
+ const trs=((STATE.med||{}).treat||[]).filter(t=>t&&t.injId===e.id).sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+ const ultTr=trs.length?trs[trs.length-1].dk:null;
+ const sinTratar=ultTr?medDaysBetween(ultTr,hoyDk2):null;
+ const minTot=trs.reduce((a,t)=>a+(+t.dur||0),0);
+ /* próxima cita */
+ let prox=null;
+ try{(citasOfPlayer?citasOfPlayer(e.name):[]).forEach(c=>{
+   if(c.dk>=hoyDk2&&(!prox||c.dk<prox.dk))prox={dk:c.dk,t:c.title||''};});}catch(err){}
+ let dispo='—',dispoCol='var(--muted2)';
+ try{const ev=effectiveStatus(e.name,dkEstado());
+   if(ev&&ev.status&&PHYSTAT[ev.status]){dispo=PHYSTAT[ev.status].lab;dispoCol=PHYSTAT[ev.status].c;}
+   else{dispo='Disponible';dispoCol='var(--ok)';}}catch(err){}
+ const rtpD=e.rtp?medDaysBetween(hoyDk2,e.rtp):null;
+ const kpi=(v,l,s,col)=>'<div class="mdk"><div class="mdk-v"'+(col?' style="color:'+col+'"':'')+'>'+v+'</div>'
+   +'<div class="mdk-l">'+l+'</div>'+(s?'<div class="mdk-s">'+s+'</div>':'')+'</div>';
+ const flecha=(dolor!=null&&dolor0!=null&&man.length>1)
+   ? (dolor<dolor0?' ▼':(dolor>dolor0?' ▲':' ≈')) : '';
+ const kpis='<div class="mdk-row">'
+   +kpi(dias,'días',e.open?'abierto':'hasta el alta','var(--txt)')
+   +kpi(dolor!=null?dolor+flecha:'—','dolor',dolor!=null?('de '+dolor0+' al inicio'):'sin apuntar',
+       medSem(dolor,3,6))
+   +kpi(sinTratar!=null?sinTratar:'—','días sin tratar',ultTr?('último '+pbFecha(ultTr)):'nunca tratado',
+       medSem(sinTratar,6,13))
+   +kpi(trs.length,'sesiones',minTot?Math.round(minTot/60*10)/10+' h':'—','var(--accent)')
+   +kpi(prox?pbFecha(prox.dk):'—','próxima cita',prox?(medDaysBetween(hoyDk2,prox.dk)+' d'):'nada agendado',
+       prox?'var(--warn)':'var(--muted2)')
+   +kpi(rtpD!=null?(rtpD>=0?rtpD:'+'+(-rtpD)):'—','días para el RTP',e.rtp?pbFecha(e.rtp):'sin fijar',
+       rtpD!=null?(rtpD<0?'var(--bad)':'var(--accent)'):'var(--muted2)')
+ +'</div>';
+ /* línea de tiempo con los hitos que hay de verdad */
+ const finTl=e.open?hoyDk2:(e.closeDk||hoyDk2);
+ const spanTl=Math.max(1,medDaysBetween(e.dk,finTl));
+ const pos=dk=>Math.max(0,Math.min(100,medDaysBetween(e.dk,dk)/spanTl*100));
+ const hitos=[{dk:e.dk,c:'var(--bad)',t:'lesión'}];
+ trs.forEach(t=>hitos.push({dk:t.dk,c:'var(--ok)',t:'tratamiento'}));
+ try{(citasOfPlayer?citasOfPlayer(e.name,e.dk,e.open?null:e.closeDk):[]).forEach(c=>{
+   if(c.dk<=finTl)hitos.push({dk:c.dk,c:'#7c9cbf',t:'cita'});});}catch(err){}
+ if(e.altaDk)hitos.push({dk:e.altaDk,c:'var(--accent)',t:'alta deportiva'});
+ if(!e.open&&e.closeDk)hitos.push({dk:e.closeDk,c:'var(--muted)',t:'caso cerrado'});
+ const tl='<div class="mdt"><span class="mdt-f">'+pbFecha(e.dk)+'</span>'
+   +'<div class="mdt-l">'+hitos.map(h=>'<i style="left:'+pos(h.dk).toFixed(1)+'%;background:'+h.c
+     +'" title="'+medEsc(h.t+' · '+pbFecha(h.dk))+'"></i>').join('')+'</div>'
+   +'<span class="mdt-f">'+(e.open?'hoy':pbFecha(e.closeDk||hoyDk2))+'</span></div>';
+ let head='<div class="mdh">'
+  +'<div class="mdh-ph">'+ringSVG(Math.max(8,100-Math.min(100,(sinTratar==null?100:sinTratar/14*100))),est.col,72,5)
+    +'<img src="'+foto+'" class="mdh-img">'+'</div>'
+  +'<div class="mdh-tx">'
+    +'<div class="mdh-t">'+medEsc(e.title)+'</div>'
+    +'<div class="mdh-m"><b>'+medEsc(e.name)+'</b> · '+medEsc(e.zona||'')+(e.lado?' ('+e.lado+')':'')
+      +' · desde el '+pbFecha(e.dk)+(e.tipo?' · '+medEsc(e.tipo):'')+'</div>'
+    +'<div class="mdh-p">'
+      +'<span class="pillT" style="color:'+est.col+';background:color-mix(in srgb,'+est.col+' 15%,transparent)">'
+        +'<span class="pillT-dot" style="background:'+est.col+'"></span><span class="pillT-tx">'+est.lab+'</span></span>'
+      +'<span class="pillT" style="color:'+dispoCol+';background:color-mix(in srgb,'+dispoCol+' 15%,transparent)">'
+        +'<span class="pillT-dot" style="background:'+dispoCol+'"></span><span class="pillT-tx">'+medEsc(dispo)+' hoy</span></span>'
+      +(e.kind==='lesion'?'<span class="pillT" style="color:var(--muted);background:var(--panel2)"><span class="pillT-tx">Lesión</span></span>'
+        :'<span class="pillT" style="color:var(--muted);background:var(--panel2)"><span class="pillT-tx">Molestia</span></span>')
+    +'</div>'
+  +'</div></div>'
+  +kpis+tl
+  +((e.act||e.accion||(e.mom&&e.mom!=='—')||e.desc)?'<div class="mdh-desc">'
+    +[e.act?'<span>Actividad <b>'+medEsc(e.act)+'</b></span>':'',
+      e.accion?'<span>Acción <b>'+medEsc(e.accion)+'</b></span>':'',
+      (e.mom&&e.mom!=='—')?'<span>Momento <b>'+medEsc(e.mom)+'</b></span>':''].filter(Boolean).join('')
+    +(e.desc?'<p>'+medEsc(e.desc)+'</p>':'')+'</div>':'');
+ head+='<div class="mdh-acts">'
+  +(e.open?'<label class="small">Estado <select onchange="medSetStatus(\''+e.id+'\',this.value)">'+stOpts+'</select></label>':'')
+  +(e.open?'<label class="small">RTP est. <input type="date" value="'+(e.rtp||'')+'" onchange="medSetRtp(\''+e.id+'\',this.value)"></label>':'')
   +'<span class="r" style="margin-left:auto"></span>'
   +'<button class="med-chipbtn" onclick="openMedTreat(\''+medEsc(e.name)+'\',\''+e.id+'\')">＋ Tratamiento</button>'
   +'<button class="med-chipbtn" onclick="medInjuryEdit(\''+e.id+'\')" title="Cambiar diagnóstico, zona, fechas o alta prevista">✎ Editar episodio</button>'
@@ -7646,7 +7757,13 @@ function medDetailHtml(e){if(!e)return '';
        +'<div class="med-note-txt">'+medEsc(n.txt)+'</div></div>';
    }).join('')
   +'<div style="display:flex;gap:8px;margin-top:6px"><input type="text" id="mn-t-'+e.id+'" placeholder="p. ej. Introducimos carrera asistida y plyo bajo impacto" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12.5px"><button class="med-chipbtn" onclick="medNoteAdd(\''+e.id+'\')">＋ Nota</button></div>';
- return head+phasesHtml+painHtml+citasHtml+treatHtml+notesHtml;}
+ /* v297 · Dos columnas: el seguimiento clínico a la izquierda —fases y dolor— y
+    lo que se le ha hecho a la derecha. Antes iba todo apilado en una sola
+    columna estrecha, con la gráfica de dolor perdida en medio de mucho blanco. */
+ return head+'<div class="med-cols">'
+   +'<div class="med-col">'+phasesHtml+painHtml+'</div>'
+   +'<div class="med-col">'+citasHtml+treatHtml+notesHtml+'</div>'
+ +'</div>';}
 /* ---------- Criterios ---------- */
 function medCritOk(c){if(c.tipo==='num'){if(!c.med.length)return c.done;const last=c.med[c.med.length-1].v;return c.low?last<=c.obj:last>=c.obj;}return c.done;}
 function medCritHtml(injId,c){
@@ -7713,22 +7830,60 @@ function medPainAdd(injId){const e=medInj(injId);if(!e)return;const el=document.
  e.pain.sort((a,b)=>a.dk<b.dk?-1:1);medPersist();renderMedico();}
 function medWellnessPain(e){const zn=norm(e.zona||'');
  return (STATE.wellness||[]).filter(w=>w.name===e.name&&w.dolor&&w.dk>=e.dk&&(!e.closeDk||w.dk<=e.closeDk)&&(zn===''||!w.zona||norm(w.zona).includes(zn)||zn.includes(norm(w.zona)))).map(w=>({dk:w.dk,zona:w.zona||''}));}
+/* v297 · La curva de dolor era una polilínea roja sobre blanco. Ahora lleva
+   bandas de fondo que dicen qué es mucho y qué es poco —verde hasta 3, ámbar
+   hasta 6, rojo por encima—, área bajo la línea, el último valor destacado y
+   los tratamientos marcados abajo, para ver si el dolor baja cuando se trata.
+   Los rombos del wellness diario se quedan como estaban. */
 function medPainSvg(e){
  const man=(e.pain||[]).filter(p=>p.src==='manual').sort((a,b)=>a.dk<b.dk?-1:1);
  const wel=medWellnessPain(e);
+ const trs=((STATE.med||{}).treat||[]).filter(t=>t&&t.injId===e.id);
  const end=e.closeDk||medToday();
  const span=Math.max(7,medDaysBetween(e.dk,end));
- const W=560,H=110,L=26,R=8,T=8,B=22;
- const x=dk=>L+(medDaysBetween(e.dk,dk)/span)*(W-L-R);
+ const W=560,H=132,L=26,R=10,T=10,B=30;
+ const x=dk=>L+Math.max(0,Math.min(1,medDaysBetween(e.dk,dk)/span))*(W-L-R);
  const y=v=>T+(1-v/10)*(H-T-B);
- let g='';[0,5,10].forEach(v=>{g+='<line x1="'+L+'" y1="'+y(v)+'" x2="'+(W-R)+'" y2="'+y(v)+'" stroke="var(--hair)" stroke-dasharray="3 3"/><text x="'+(L-6)+'" y="'+(y(v)+3.5)+'" font-size="9" fill="var(--muted2)" text-anchor="end">'+v+'</text>';});
+ /* bandas: el color dice el nivel sin tener que leer el eje */
+ const banda=(a,b,c)=>'<rect x="'+L+'" y="'+y(b)+'" width="'+(W-L-R)+'" height="'+(y(a)-y(b))
+   +'" fill="'+c+'" opacity=".13"/>';
+ let g=banda(0,3,'#1ea863')+banda(3,6,'#e0a800')+banda(6,10,'#e23b32');
+ [0,5,10].forEach(v=>{g+='<line x1="'+L+'" y1="'+y(v)+'" x2="'+(W-R)+'" y2="'+y(v)
+   +'" stroke="var(--hair)" stroke-dasharray="3 3"/><text x="'+(L-6)+'" y="'+(y(v)+3.5)
+   +'" font-size="9" fill="var(--muted2)" text-anchor="end">'+v+'</text>';});
  let line='';
- if(man.length){const pts=man.map(p=>x(p.dk).toFixed(1)+','+y(p.v).toFixed(1)).join(' ');
-  line='<polyline points="'+pts+'" fill="none" stroke="#8c1d34" stroke-width="2"/>'
-   +man.map(p=>'<circle cx="'+x(p.dk).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="3.5" fill="#8c1d34"><title>'+p.dk+' · dolor '+p.v+'/10</title></circle>').join('');}
- const wl=wel.map(w=>'<path d="M '+x(w.dk).toFixed(1)+' '+(H-B+6)+' l 4 5 l -4 5 l -4 -5 Z" fill="#e08a00"><title>'+w.dk+' · dolor reportado en wellness'+(w.zona?' ('+medEsc(w.zona)+')':'')+'</title></path>').join('');
- const x0='<text x="'+L+'" y="'+(H-2)+'" font-size="9" fill="var(--muted2)">'+e.dk+'</text><text x="'+(W-R)+'" y="'+(H-2)+'" font-size="9" fill="var(--muted2)" text-anchor="end">'+end+'</text>';
- return '<svg class="med-pain" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="max-width:100%">'+g+line+wl+x0+(man.length||wel.length?'':'<text x="'+(W/2)+'" y="'+(H/2)+'" font-size="11" fill="var(--muted2)" text-anchor="middle">Sin registros de dolor todavía</text>')+'</svg>';}
+ if(man.length){
+  const pts=man.map(p=>x(p.dk).toFixed(1)+','+y(p.v).toFixed(1)).join(' ');
+  if(man.length>1){
+   const area=L+','+y(0).toFixed(1)+' '+pts+' '+x(man[man.length-1].dk).toFixed(1)+','+y(0).toFixed(1);
+   line+='<polygon points="'+area+'" fill="#8c1d34" opacity=".10"/>';
+  }
+  line+='<polyline points="'+pts+'" fill="none" stroke="#8c1d34" stroke-width="2.2" stroke-linejoin="round"/>';
+  line+=man.map((p,i)=>{
+   const ult=i===man.length-1;
+   return '<circle cx="'+x(p.dk).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="'+(ult?5:3.4)
+     +'" fill="'+(ult?'#8c1d34':'var(--panel)')+'" stroke="#8c1d34" stroke-width="2">'
+     +'<title>'+p.dk+' · dolor '+p.v+'/10</title></circle>';}).join('');
+  /* el último valor, en grande y con su color */
+  const u=man[man.length-1];
+  const col=u.v<=3?'#1ea863':(u.v<=6?'#a06a00':'#c0392f');
+  line+='<text x="'+(W-R)+'" y="'+(T+16)+'" font-size="22" font-weight="800" text-anchor="end" fill="'+col+'">'+u.v+'</text>'
+    +'<text x="'+(W-R)+'" y="'+(T+27)+'" font-size="8.5" text-anchor="end" fill="var(--muted2)">último · '+pbFecha(u.dk)+'</text>';
+ }
+ /* tratamientos, para ver si el dolor baja cuando se trata */
+ const tr=trs.map(t=>'<line x1="'+x(t.dk).toFixed(1)+'" y1="'+(H-B+2)+'" x2="'+x(t.dk).toFixed(1)
+   +'" y2="'+(H-B+9)+'" stroke="#1ea863" stroke-width="2" stroke-linecap="round">'
+   +'<title>'+t.dk+' · '+medEsc(t.tipo||'tratamiento')+'</title></line>').join('');
+ const wl=wel.map(w=>'<path d="M '+x(w.dk).toFixed(1)+' '+(H-B+13)+' l 4 5 l -4 5 l -4 -5 Z" fill="#e08a00">'
+   +'<title>'+w.dk+' · dolor reportado en wellness'+(w.zona?' ('+medEsc(w.zona)+')':'')+'</title></path>').join('');
+ const x0='<text x="'+L+'" y="'+(H-2)+'" font-size="9" fill="var(--muted2)">'+pbFecha(e.dk)+'</text>'
+   +'<text x="'+(W-R)+'" y="'+(H-2)+'" font-size="9" fill="var(--muted2)" text-anchor="end">'
+   +(e.open?'hoy':pbFecha(end))+'</text>';
+ const vacio=(man.length||wel.length)?'':'<text x="'+(W/2)+'" y="'+(H/2)
+   +'" font-size="11" fill="var(--muted2)" text-anchor="middle">Sin dolor registrado todavía</text>';
+ return '<svg class="med-pain" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="max-width:100%">'
+   +g+line+tr+wl+x0+vacio+'</svg>';
+}
 function medSparkSvg(c){
  const W=110,H=26,n=c.med.length;if(n<2)return '';
  const vs=c.med.map(m=>m.v);const lo=Math.min(...vs,c.obj),hi=Math.max(...vs,c.obj);const rg=(hi-lo)||1;
