@@ -2976,6 +2976,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--warn)"></span>A vigilar</div>
         <div class="panel" id="team-rings"></div>
         <div class="panel" id="team-fisio"></div>
+        <div class="panel" id="team-citas"></div>
         <div class="panel" id="team-reuniones"></div>
       </div>
     </div>
@@ -6710,6 +6711,9 @@ window.citaEditSave=function(name,id){
   closeHeroForm();
   try{renderProblemas(name);}catch(e){}
   try{if(window.medRenderPlayer&&document.getElementById('player-medical'))medRenderPlayer(name);}catch(e){}
+  /* v302 · el panel del Resumen y la agenda se enteran sin recargar */
+  try{renderTeamCitas&&renderTeamCitas();}catch(e){}
+  try{renderFisio&&renderFisio();}catch(e){}
   if(window.toast)toast('Consulta actualizada');
 };
 window.pbMoverGuardar=function(tipo,name,id){
@@ -8189,7 +8193,7 @@ function go(v){const ESUB={dispo:1,medico:1,parte:1,fisio:1};const realV=ESUB[v]
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'||v==='unif'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
-  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
+  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
 function writeHash(){const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){history.replaceState(null,'',h);}}
 function readHash(){const h=decodeURIComponent(location.hash.replace(/^#/,''));if(!h)return null;const p=h.split('/');const v=p[0];if(!TABS.some(t=>t[0]===v))return null;return{view:v,date:p[1]||null};}
 const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["unif","Carga integrada"],["avail","Disponibilidad"],["parte","Parte wellness"],["fisio","Fisioterapia"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
@@ -8372,6 +8376,7 @@ function renderTeam(){
   try{renderTeamNext();}catch(e){}
   try{renderTeamFisio();}catch(e){}
   try{renderTeamReuniones();}catch(e){}
+  try{renderTeamCitas();}catch(e){}
   const posSel=document.getElementById('team-pos');
   if(posSel){const cur=posSel.value;const poss=[...new Set(all.map(p=>p.pos))];posSel.innerHTML='<option value="">Todas las posiciones</option>'+poss.map(p=>`<option ${p===cur?'selected':''}>${p}</option>`).join('');}
   const matchDks=new Set(STATE.rpe.filter(s=>s.mdx==='MD'||norm(s.tipo).includes('partido')).map(s=>s.dk));
@@ -11413,6 +11418,50 @@ function renderTeamReuniones(){
        :'<p class="small muted" style="margin:8px 0 0">Sin reuniones registradas. Aquí quedan las charlas de Carlos o Pablo con los jugadores.</p>');
 }
 window.renderTeamReuniones=renderTeamReuniones;
+/* v302 · Las citas de la semana en el Resumen. Carlos mira el Resumen antes de
+   entrenar; que un jugador tenga médico el jueves y llegue tarde o se pierda la
+   sesión es justo lo que necesita saber sin entrar en Fisioterapia. */
+function renderTeamCitas(){
+  const box=document.getElementById('team-citas');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const hoy=dkey(new Date());
+  const hasta=(function(){const d=new Date();d.setDate(d.getDate()+7);return dkey(d);})();
+  /* v302 · el almacén se lee perezosamente, y en el primer render del Resumen
+     todavía puede estar sin cargar: entonces el panel salía vacío teniendo
+     citas. Se pide aquí, como hace el resto de lectores. */
+  try{if(window.medLogRW)medLogRW();}catch(e){}
+  try{if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});}catch(e){}
+  const out=[];
+  Object.keys(STATE.medLog||{}).forEach(n=>{(STATE.medLog[n]||[]).forEach(m=>{
+    if(!m)return;
+    if(m.dk&&m.dk>=hoy&&m.dk<=hasta)out.push({dk:m.dk,n,t:m.title||m.type||'Consulta',
+      who:m.who||'',af:m.afecta||'',hora:m.time||''});
+    if(m.next&&m.next>=hoy&&m.next<=hasta)out.push({dk:m.next,n,t:'Próxima · '+(m.title||m.type||'consulta'),
+      who:m.who||'',af:'',hora:''});});});
+  out.sort((a,b)=>a.dk.localeCompare(b.dk)||String(a.hora).localeCompare(String(b.hora)));
+  const AF={parcial:['Entrena parcial','var(--warn)'],pierde:['Se pierde el entreno','var(--bad)']};
+  const av=n=>{const r=window.photoFor?photoFor(n):null;
+    return r||((STATE.players[n]||{}).avatar)||window.__AVATAR__||'';};
+  const afecta=out.filter(x=>AF[x.af]).length;
+  box.innerHTML='<h2>Médico esta semana '
+      +'<span class="r"><button class="med-chipbtn" onclick="go(\'fisio\')">Ver agenda</button></span></h2>'
+    +(out.length
+      ? (afecta?'<div class="cm-sub" style="margin:8px 0 6px;color:var(--warn)">'+afecta
+          +' afecta'+(afecta>1?'n':'')+' al entrenamiento</div>':'')
+        +out.slice(0,6).map(x=>{
+          const a=AF[x.af];
+          return '<div class="fh-it" onclick="openPlayer(\''+String(x.n).replace(/'/g,"\\'")+'\')" style="cursor:pointer">'
+            +'<img class="fh-av" src="'+av(x.n)+'" alt="">'
+            +'<div class="fh-bd"><div class="fh-n">'+esc(x.n)+'</div>'
+            +'<div class="fh-x">'+pbFecha(x.dk)+(x.hora?' · '+esc(x.hora):'')+' · '+esc(x.t)
+              +(x.who?' <span class="muted">· '+esc(x.who)+'</span>':'')+'</div></div>'
+            +(a?'<span class="pillT" style="color:'+a[1]+';background:color-mix(in srgb,'+a[1]
+              +' 15%,transparent)"><span class="pillT-tx">'+a[0]+'</span></span>':'')
+          +'</div>';}).join('')
+        +(out.length>6?'<p class="small muted" style="margin:6px 0 0">y '+(out.length-6)+' más</p>':'')
+      : '<p class="small muted" style="margin:8px 0 0">Ninguna cita médica en los próximos siete días.</p>');
+}
+window.renderTeamCitas=renderTeamCitas;
 /* ══ v280 · Ausencia de varios jugadores a la vez ══
    Cuatro jugadores se pierden el entrenamiento porque tienen cita en
    extranjería. Hasta ahora había que abrir el parte del día cuatro veces, y el
@@ -11905,7 +11954,9 @@ function fisCalendario(){
         +'<button class="'+(FIS_MODO==='semana'?'on':'')+'" onclick="fisModo(\'semana\')">Semana</button>'
         +'<button class="'+(FIS_MODO==='agenda'?'on':'')+'" onclick="fisModo(\'agenda\')">Agenda</button>'
       +'</div>'
-      +'<span class="r fc-fil"><select onchange="fisFiltro(this.value)" title="Ver solo un jugador">'
+      +'<span class="r fc-fil">'
+      +'<button class="iconbtn" onclick="fisExportar()" title="Guardar la vista como imagen">⤓</button>'
+      +'<select onchange="fisFiltro(this.value)" title="Ver solo un jugador">'
         +'<option value="">Toda la plantilla</option>'
         +Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es')).map(n=>
           '<option'+(FIS_JUG===n?' selected':'')+'>'+esc(n)+'</option>').join('')
@@ -11961,6 +12012,37 @@ window.fisAddParte=function(dk){closeHeroForm();
   if(window.openHeroForm){openHeroForm('incidencia','');
     setTimeout(function(){const i=document.querySelector('#ph-body [id$="date"]');if(i)i.value=dk;},120);}};
 window.fisNuevo=function(){fisDia(dkey(new Date()));};
+/* v302 · Exportar la agenda como imagen, igual que el parte de wellness, para
+   pasarla por WhatsApp sin capturas de pantalla. Se envuelve en un contenedor
+   propio para no arrastrar el resto de la página. */
+window.fisExportar=function(){
+  const box=document.getElementById('fisio-body');if(!box)return;
+  if(!window.html2canvas){
+    alert('El exportador no está disponible sin conexión. Alternativa: Imprimir → Guardar como PDF.');
+    return;}
+  const cap=document.createElement('div');
+  cap.id='fis-export';
+  cap.style.cssText='position:fixed;left:-10000px;top:0;width:1040px;padding:22px;'
+    +'background:'+(cssVar('--bg')||'#eef1f6')+';z-index:-1';
+  const hoy=new Date();
+  cap.innerHTML='<div style="font:700 19px Inter,system-ui;margin-bottom:3px">Fisioterapia · BM Nava</div>'
+    +'<div style="font:400 12px Inter,system-ui;color:#6b7480;margin-bottom:14px">'
+    +hoy.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+    +(FIS_JUG?' · '+FIS_JUG:'')+'</div>'
+    +box.innerHTML;
+  /* fuera lo que no tiene sentido en una imagen */
+  document.body.appendChild(cap);
+  cap.querySelectorAll('button,select,.fc-fil,.fis-kpis .kpi-s').forEach(x=>x.remove());
+  cap.querySelectorAll('details').forEach(d=>{d.open=true;});
+  html2canvas(cap,{scale:2,useCORS:true,backgroundColor:cssVar('--bg')||'#eef1f6',logging:false})
+    .then(function(cv){
+      cap.remove();
+      const a=document.createElement('a');
+      a.download='fisioterapia_'+dkey(hoy)+'.png';
+      a.href=cv.toDataURL('image/png');a.click();
+      if(window.toast)toast('Imagen guardada');
+    }).catch(function(){cap.remove();if(window.toast)toast('No se ha podido exportar');});
+};
 /* ── los datos que le sirven a Virginia para trabajar ── */
 function fisPanelDatos(){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
@@ -12027,13 +12109,21 @@ function fisPanelDatos(){
       v.n+' · '+Math.round(v.min)+"'");})):vacio('Sin tratamientos registrados.');
 
   /* 5 · a quién se trata más · 30 días */
+  /* v302 · contar sesiones no dice quién consume la semana: media hora de
+     readaptación no es lo mismo que un vendaje de cinco minutos. La barra mide
+     ya los MINUTOS, y al lado van las sesiones y el tiempo. */
   const porJug={};
-  TR.filter(t=>t.dk>=hace(30)).forEach(t=>{porJug[t.name]=(porJug[t.name]||0)+1;});
-  const jugK=Object.keys(porJug).sort((a,b)=>porJug[b]-porJug[a]).slice(0,10);
-  const maxJ=Math.max(1,...jugK.map(k=>porJug[k]));
+  TR.filter(t=>t.dk>=hace(30)).forEach(t=>{
+    porJug[t.name]=porJug[t.name]||{n:0,min:0};
+    porJug[t.name].n++;porJug[t.name].min+=(+t.dur||0);});
+  const jugK=Object.keys(porJug).sort((a,b)=>porJug[b].min-porJug[a].min).slice(0,10);
+  const maxJ=Math.max(1,...jugK.map(k=>porJug[k].min));
+  const hm=m=>m>=60?(Math.round(m/60*10)/10+' h'):(Math.round(m)+" '");
   const jugHtml=jugK.length?lista(jugK.map(n=>fila('',
-    '<b>'+esc(n)+'</b><div class="fis-bar"><i style="width:'+Math.round(porJug[n]/maxJ*100)+'%"></i></div>',
-    porJug[n]))):vacio('Sin tratamientos en 30 días.');
+    '<b>'+esc(n)+'</b><div class="fis-bar"><i style="width:'
+      +Math.round(porJug[n].min/maxJ*100)+'%"></i></div>'
+      +'<span>'+porJug[n].n+' sesion'+(porJug[n].n===1?'':'es')+'</span>',
+    hm(porJug[n].min)))):vacio('Sin tratamientos en 30 días.');
 
   /* 6 · qué zonas · 30 días */
   const porZona={};
@@ -12088,7 +12178,7 @@ function fisPanelDatos(){
     +bloque('d4','Últimos tratamientos','7 días',recHtml,false,rec.length?rec.length+'':'')
     +bloque('d5','Carga de trabajo','sesiones y minutos por semana',cargaHtml,false,
       hoyN?hoyN+' hoy':'')
-    +bloque('d6','A quién se trata más','30 días',jugHtml,false,'')
+    +bloque('d6','A quién se le dedica más tiempo','30 días · minutos',jugHtml,false,'')
     +bloque('d7','Zonas más tratadas','30 días',zonaHtml,false,'')
     +bloque('d8','Cómo responden','30 días',respHtml,false,'')
   +'</div>';
@@ -15298,6 +15388,8 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   closeHeroForm();
   try{if(window.renderAvail&&document.getElementById('v-estado'))renderAvail();}catch(e){}
   try{if(window.renderCalendar)renderCalendar();}catch(e){}
+  try{renderTeamCitas&&renderTeamCitas();}catch(e){}
+  try{renderFisio&&renderFisio();}catch(e){}
   if(marcado&&window.toast)toast(ev.afecta==='pierde'?'Cita guardada · marcado como no disponible ese día':'Cita guardada · marcado como entrenamiento modificado');};
  /* v228 · heroSavePart se elimina: «Cómo está hoy» era un tercer formulario para
     lo mismo y ya está fusionado en el parte del día. El guardado y el refresco
