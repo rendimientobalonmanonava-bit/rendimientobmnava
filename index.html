@@ -1520,6 +1520,19 @@ body.sb-min .sb-ver{display:none}
 .mtq-varios>summary{cursor:pointer;font-size:12.5px;font-weight:700;list-style:none}
 .mtq-varios>summary::-webkit-details-marker{display:none}
 .mtq-varios .aus-grid{max-height:210px;overflow-y:auto}
+/* ══ v301 · series y arrastrar ══ */
+.fs-dow{display:flex;gap:6px;flex-wrap:wrap}
+.fs-d{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border:1px solid var(--line);
+  border-radius:999px;cursor:pointer;font-size:12.5px;font-weight:600;background:var(--panel);
+  flex-direction:row}
+.fs-d:has(input:checked){border-color:var(--accent);color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.fs-d input{width:14px;height:14px;min-width:14px;min-height:14px!important;padding:0;margin:0;flex:none}
+.fc-ev--drag{cursor:grab}
+.fc-ev--drag:active{cursor:grabbing}
+.fc-ev--moving{opacity:.35}
+.fc-d--over{outline:2px dashed var(--accent);outline-offset:-2px;
+  background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
 /* ══ v297 · Ficha médica ══ */
 .mdh{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .mdh-ph{position:relative;flex:none;width:72px;height:72px}
@@ -11630,10 +11643,166 @@ function fisHoyPanel(){
       +'<span class="r" style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">'
         +'<button class="btn" onclick="fisTratarA(\'\')">＋ Tratamiento</button>'
         +'<button class="btn ghost" onclick="fisAddCita(\''+hoy+'\')">＋ Cita</button>'
+        +'<button class="btn ghost" onclick="fisSerie(\'\',\''+hoy+'\')">＋ Serie</button>'
       +'</span></div>'
     +cuerpo+pend
   +'</div>';
 }
+/* ═══ v301 · Series de sesiones ═══
+   «Readaptación lunes, miércoles y viernes durante tres semanas» eran nueve
+   registros creados a mano, uno por uno. Aquí se define una vez: jugador, tipo,
+   duración, qué días de la semana y cuántas semanas, y se crean todas de golpe
+   con su fecha. Son tratamientos normales, así que se editan y se borran uno a
+   uno como cualquier otro; no hay ningún objeto «serie» que mantener. */
+const FIS_DOW=[['1','L'],['2','M'],['3','X'],['4','J'],['5','V'],['6','S'],['0','D']];
+window.fisSerie=function(name,dkIni){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  try{medDbLoad();}catch(e){}
+  const players=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const tipos=(typeof MED_TT_BASE!=='undefined'?MED_TT_BASE:[]).concat((STATE.med||{}).ttypes||[]);
+  const hoy=dkIni||dkey(new Date());
+  const dow=dkToDate(hoy).getDay();
+  const h='<h2 style="margin-top:0">Serie de sesiones'
+      +' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
+    +'<p class="small muted" style="margin:-6px 0 12px">Se crean todas las sesiones de golpe. Después se editan o se borran una a una, como cualquier tratamiento.</p>'
+    +'<div class="ph-f"><div class="parte-grid">'
+      +'<label class="parte-wide">Jugador<select id="fs-name">'
+        +players.map(n=>'<option'+(n===name?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></label>'
+      +'<label>Empieza el<input type="date" id="fs-dk" value="'+hoy+'"></label>'
+      +'<label>Hora<input type="time" id="fs-time" value="09:00"></label>'
+      +'<label>Tipo<input id="fs-tipo" list="fs-tipos" placeholder="Readaptación, terapia manual…">'
+        +'<datalist id="fs-tipos">'+[...new Set(tipos)].map(t=>'<option value="'+esc(t)+'">').join('')+'</datalist></label>'
+      +'<label>Duración<input type="number" id="fs-dur" min="0" step="5" placeholder="min" value="30"></label>'
+      +'<label>Zona<input id="fs-zone" placeholder="tobillo, isquios…"></label>'
+      +'<label>Semanas<input type="number" id="fs-sem" min="1" max="12" value="3"></label>'
+    +'</div>'
+    +'<div class="aus-head">Días de la semana</div>'
+    +'<div class="fs-dow">'+FIS_DOW.map(d=>
+      '<label class="fs-d"><input type="checkbox" class="fs-dk" value="'+d[0]+'"'
+      +(String(dow)===d[0]?' checked':'')+'><span>'+d[1]+'</span></label>').join('')+'</div>'
+    +'<p class="hint" id="fs-prev" style="margin-top:10px"></p>'
+    +'<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      +'<button class="btn" onclick="fisSerieCrear()">Crear las sesiones</button>'
+      +'<span class="small muted" id="fs-msg"></span>'
+    +'</div></div>';
+  document.getElementById('ph-body').innerHTML=h;
+  document.getElementById('ph-overlay').style.display='flex';
+  ['fs-dk','fs-sem'].forEach(id=>{const e=document.getElementById(id);if(e)e.onchange=fisSeriePrev;});
+  document.querySelectorAll('.fs-dk').forEach(c=>{c.onchange=fisSeriePrev;});
+  fisSeriePrev();
+};
+function fisSerieFechas(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
+  const ini=g('fs-dk');const sem=Math.max(1,Math.min(12,parseInt(g('fs-sem'),10)||1));
+  const dias=Array.from(document.querySelectorAll('.fs-dk:checked')).map(x=>+x.value);
+  if(!ini||!dias.length)return [];
+  const out=[];const d=dkToDate(ini);
+  /* se recorre semana a semana desde el lunes de la semana de inicio, y se
+     descartan los días anteriores a la fecha de comienzo */
+  const lunes=new Date(d);lunes.setDate(lunes.getDate()-((d.getDay()+6)%7));
+  for(let w=0;w<sem;w++){
+    for(let i=0;i<7;i++){
+      const x=new Date(lunes);x.setDate(x.getDate()+w*7+i);
+      if(dias.indexOf(x.getDay())<0)continue;
+      const k=dkey(x);
+      if(k<ini)continue;
+      out.push(k);
+    }
+  }
+  return out;
+}
+window.fisSeriePrev=function(){
+  const f=fisSerieFechas();
+  const el=document.getElementById('fs-prev');if(!el)return;
+  if(!f.length){el.textContent='Marca al menos un día de la semana.';el.className='hint';return;}
+  el.className='hint';
+  el.innerHTML='Se crearán <b>'+f.length+'</b> sesiones, del '+pbFecha(f[0])+' al '+pbFecha(f[f.length-1])
+    +'.<br><span class="muted">'+f.slice(0,10).map(pbFecha).join(' · ')+(f.length>10?' …':'')+'</span>';
+};
+window.fisSerieCrear=function(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
+  const msg=document.getElementById('fs-msg');
+  const name=g('fs-name');
+  const tipo=(g('fs-tipo')||'').trim();
+  if(!name){if(msg)msg.textContent='Elige el jugador.';return;}
+  if(!tipo){if(msg)msg.textContent='Indica el tipo de sesión.';return;}
+  const f=fisSerieFechas();
+  if(!f.length){if(msg)msg.textContent='Marca al menos un día de la semana.';return;}
+  if(!confirm('¿Crear '+f.length+' sesiones de «'+tipo+'» para '+name+'?'))return;
+  medDbLoad();
+  let inj='';
+  try{const oi=openInjuriesOf(name);if(oi.length===1)inj=oi[0].id;}catch(e){}
+  const dur=parseFloat(g('fs-dur'))||null;
+  const zone=(g('fs-zone')||'').trim();
+  const hora=g('fs-time')||'';
+  const by=(typeof PS==='function'?PS().defaultPractitioner:'')||'';
+  f.forEach((dk,i)=>{
+    STATE.med.treat.push({id:medUid('t'),name,dk,time:hora,tipo,dur,by,practitioner:by,
+      role:'Fisioterapeuta',bodyZone:zone,side:'',injId:inj,techniques:[],objectives:[],
+      notas:'',response:'',nextStep:'',visibility:'staff',serie:true,
+      createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),source:'serie'});
+  });
+  medPersist();
+  closeHeroForm();
+  try{renderFisio();}catch(e){}
+  try{renderMedico&&renderMedico();}catch(e){}
+  if(window.toast)toast(f.length+' sesiones creadas · '+name);
+};
+/* ═══ v301 · Mover una sesión de día arrastrándola ═══
+   Cambiar una cita de día era abrir el registro, editar la fecha y guardar.
+   Arrastrar y soltar sobre otro día hace lo mismo en un gesto. Solo se mueve la
+   fecha: ni el jugador, ni el tipo, ni a qué problema pertenece. */
+let FIS_ARRASTRE=null;
+window.fisDragIni=function(ev){
+  const el=ev.currentTarget;
+  FIS_ARRASTRE={tipo:el.dataset.t,id:el.dataset.i,name:el.dataset.n};
+  el.classList.add('fc-ev--moving');
+  try{ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',el.dataset.i);}catch(e){}
+  ev.stopPropagation();
+};
+window.fisDragFin=function(ev){
+  ev.currentTarget.classList.remove('fc-ev--moving');
+  document.querySelectorAll('.fc-d--over').forEach(d=>d.classList.remove('fc-d--over'));
+};
+window.fisDragSobre=function(ev){
+  if(!FIS_ARRASTRE)return;
+  ev.preventDefault();
+  try{ev.dataTransfer.dropEffect='move';}catch(e){}
+  ev.currentTarget.classList.add('fc-d--over');
+};
+window.fisDragSale=function(ev){ev.currentTarget.classList.remove('fc-d--over');};
+window.fisSoltar=function(ev){
+  ev.preventDefault();ev.stopPropagation();
+  const celda=ev.currentTarget;
+  celda.classList.remove('fc-d--over');
+  const dk=celda.dataset.dk;
+  const a=FIS_ARRASTRE;FIS_ARRASTRE=null;
+  if(!a||!dk)return;
+  if(!fisMoverFecha(a.tipo,a.name,a.id,dk))return;
+  renderFisio();
+  if(window.toast)toast('Movido al '+pbFecha(dk));
+};
+/* Cambia solo la fecha del registro, sea del tipo que sea. */
+window.fisMoverFecha=function(tipo,name,id,dk){
+  let ok=false;
+  try{
+    if(tipo==='trat'){
+      const t=((STATE.med||{}).treat||[]).find(x=>x&&x.id===id);
+      if(t&&t.dk!==dk){t.dk=dk;t.updatedAt=new Date().toISOString();medPersist();ok=true;}
+    }else if(tipo==='cita'){
+      if(window.medLogRW)medLogRW();
+      const m=((STATE.medLog||{})[name]||[]).find(x=>x&&x.id===id);
+      if(m&&m.dk!==dk){m.dk=dk;lsGuardar('bmnava_medlog',STATE.medLog);ok=true;}
+    }else if(tipo==='parte'||tipo==='episodio'){
+      physioEnsure();
+      const e=((STATE.physioUser||{})[name]||[]).find(x=>x&&x._id===id);
+      if(e&&e.dk!==dk){e.dk=dk;physioPersist();STATE.physioEx=null;try{buildPhysio();}catch(err){}ok=true;}
+    }
+  }catch(e){}
+  if(ok){try{renderMedico&&renderMedico();}catch(e){}
+    try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(e){}}
+  return ok;
+};
 window.fisTratarA=function(name){
   if(window.openMedTreatQuick)openMedTreatQuick(name||'');
 };
@@ -11688,7 +11857,13 @@ function fisCalendario(){
     const lineas=es.slice(0,tope).map(e=>{
       const t=FIS_TIPO[e.tipo]||{ic:'·',col:'var(--muted)'};
       const foto=(window.photoFor?photoFor(e.name):null);
-      return '<div class="fc-ev fc-ev--'+e.tipo+'" title="'+esc(e.name+' · '+e.txt+(e.meta?' · '+e.meta:''))+'">'
+      /* v301 · arrastrable si es un registro con fecha propia que se puede mover;
+         una «próxima cita» o un alta prevista se cambian desde su formulario. */
+      const mueve=['trat','cita','parte'].indexOf(e.tipo)>=0&&e.id&&!e.prox&&!e.prev;
+      return '<div class="fc-ev fc-ev--'+e.tipo+(mueve?' fc-ev--drag':'')+'"'
+        +(mueve?' draggable="true" data-t="'+e.tipo+'" data-i="'+esc(e.id)+'" data-n="'+esc(e.name)+'"'
+          +' ondragstart="fisDragIni(event)" ondragend="fisDragFin(event)"':'')
+        +' title="'+esc(e.name+' · '+e.txt+(e.meta?' · '+e.meta:'')+(mueve?' — arrastra para cambiar de día':''))+'">'
         +(foto?'<img class="fc-av" src="'+foto+'" alt="">':'<i style="background:'+t.col+'"></i>')
         +'<b>'+esc(String(e.name||'').split(' ')[0])+'</b>'
         +'<span>'+(e.hora?esc(e.hora)+' · ':'')+esc(e.txt)+'</span></div>';
@@ -11699,7 +11874,8 @@ function fisCalendario(){
     const barras=Object.keys(cuenta).map(k=>'<i style="background:'+((FIS_TIPO[k]||{}).col||'var(--muted)')
       +';flex:'+cuenta[k]+'"></i>').join('');
     celdas+='<div class="fc-d'+(fuera?' fc-d--fuera':'')+(dk===hoy?' fc-d--hoy':'')
-      +(es.length?' fc-d--con':'')+'" onclick="fisDia(\''+dk+'\')">'
+      +(es.length?' fc-d--con':'')+'" data-dk="'+dk+'" onclick="fisDia(\''+dk+'\')"'
+      +' ondragover="fisDragSobre(event)" ondragleave="fisDragSale(event)" ondrop="fisSoltar(event)">'
       +(es.length?'<div class="fc-tira">'+barras+'</div>':'')
       +'<div class="fc-dh"><span class="fc-num">'+d.getDate()+'</span>'
       +(semana?'<span class="fc-dow">'+DOW[i]+'</span>':'')
@@ -11770,6 +11946,7 @@ window.fisDia=function(dk){
       +'<button class="btn" onclick="fisAddTrat(\''+dk+'\')">＋ Tratamiento</button>'
       +'<button class="btn ghost" onclick="fisAddCita(\''+dk+'\')">＋ Cita o prueba</button>'
       +'<button class="btn ghost" onclick="fisAddParte(\''+dk+'\')">＋ Parte del día</button>'
+      +'<button class="btn ghost" onclick="closeHeroForm();fisSerie(\'\',\''+dk+'\')">＋ Serie de sesiones</button>'
     +'</div></div>';
   document.getElementById('ph-body').innerHTML=h;
   document.getElementById('ph-overlay').style.display='flex';
