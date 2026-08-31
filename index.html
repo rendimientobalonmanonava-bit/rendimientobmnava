@@ -1503,6 +1503,23 @@ body.sb-min .sb-ver{display:none}
   background:var(--panel);color:var(--txt);font-size:12.5px;font-family:inherit;max-width:190px}
 .ath-nm a{color:inherit;text-decoration:none}
 .ath-nm a:hover{color:var(--accent);text-decoration:underline}
+/* ══ v300 · atajos del modal de tratamiento ══ */
+.mtq-atajos{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding-bottom:12px;
+  border-bottom:1px solid var(--hair)}
+.mtq-atj{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+  border:1px solid var(--line);background:var(--panel);color:var(--txt);cursor:pointer;
+  font-size:12px;font-weight:600;font-family:inherit;line-height:1.3}
+.mtq-atj:hover{border-color:var(--accent);color:var(--accent)}
+.mtq-atj span{font-weight:400;font-size:10.5px;color:var(--muted)}
+.mtq-atj i{font-style:normal;font-size:10px;color:var(--muted2);padding:0 2px;border-radius:4px}
+.mtq-atj i:hover{color:var(--bad);background:var(--panel2)}
+.mtq-atj--rep{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));color:var(--accent)}
+.mtq-atj--new{border-style:dashed;color:var(--muted)}
+.mtq-varios{margin:12px 0 4px;border:1px solid var(--hair);border-radius:10px;padding:10px 12px;
+  background:var(--panel2)}
+.mtq-varios>summary{cursor:pointer;font-size:12.5px;font-weight:700;list-style:none}
+.mtq-varios>summary::-webkit-details-marker{display:none}
+.mtq-varios .aus-grid{max-height:210px;overflow-y:auto}
 /* ══ v297 · Ficha médica ══ */
 .mdh{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .mdh-ph{position:relative;flex:none;width:72px;height:72px}
@@ -5225,7 +5242,8 @@ const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava
   bmnava_meddb:'Médico',bmnava_med:'Ficha médica',bmnava_medlog:'Agenda médica',
   bmnava_physio:'Fisioterapia',bmnava_physiodict:'Diccionario de fisioterapia',
   bmnava_testlog:'Valoraciones físicas',bmnava_expl:'Jugadores históricos',
-  bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos',bmnava_reuniones:'Reuniones'};
+  bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos',bmnava_reuniones:'Reuniones',
+  bmnava_fisiotpl:'Plantillas de fisioterapia'};
 function lsNombre(k){return LS_NOMBRES[k]||k;}
 /* ============ v255 · Copia de seguridad ============
    Un archivo con todo lo que se rellena a mano. No sustituye a la
@@ -5234,7 +5252,7 @@ function lsNombre(k){return LS_NOMBRES[k]||k;}
    Esto es lo que permite volver atrás. */
 const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
-  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones'];
+  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl'];
 function bkpRecoger(){
   const o={};
   BKP_CLAVES.forEach(k=>{const t=localStorage.getItem(k);if(t!=null)o[k]=t;});
@@ -16443,7 +16461,11 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var respChips=(s.quickResponses||QR).map(function(v){return chip(v,'',"mtqPickSingle(this,'mtq-resp')",false);}).join('');
   var painRow=s.showPainFields?'<div class="mf2"><label>Dolor antes (0-10)<input type="number" id="mtq-painpre" min="0" max="10" step="1"></label><label>Dolor después (0-10)<input type="number" id="mtq-painpost" min="0" max="10" step="1"></label></div>':'';
   var nextRow=s.showNextStep?'<label>Próximo paso<textarea id="mtq-next" rows="2" placeholder="Revisar mañana, mantener pauta, progresar carrera, evitar contacto…"></textarea></label>':'';
+  /* v300 · Atajos: repetir lo último y plantillas. Lo que más se repite en el
+     día a día es exactamente el mismo tratamiento al mismo jugador, y hasta
+     ahora había que volver a teclearlo entero. */
   var body='<div class="mtq-wrap"><div class="mtq-main med-form">'
+   +'<div class="mtq-atajos" id="mtq-atajos">'+medTplBarra(name)+'</div>'
    +'<div class="mf3"><label>Jugador<select id="mtq-name" onchange="mtqOnPlayer()">'+nOpts+'</select></label><label>Fecha<input type="date" id="mtq-dk" value="'+(ctx.dk||today())+'"></label><label>Hora<input type="time" id="mtq-time" value="'+(ctx.time||nowHM())+'"></label></div>'
    +'<div class="mf2"><label>Duración<div class="mtq-chips" id="mtq-durchips">'+durChips+'</div><input type="number" id="mtq-dur" min="0" step="5" placeholder="min" style="margin-top:4px"></label><label>Profesional<input type="text" id="mtq-by" value="'+esc(ctx.by||s.defaultPractitioner)+'"></label></div>'
    +'<label>Vinculado a<select id="mtq-inj" onchange="mtqAvisoInj()">'+injSel+'</select>'
@@ -16455,6 +16477,11 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    +'<label>Respuesta del jugador<div class="mtq-chips" id="mtq-respchips">'+respChips+'</div><input type="hidden" id="mtq-resp"></label>'
    +'<label>Observaciones<textarea id="mtq-notas" rows="3" placeholder="Qué se ha hecho, respuesta, tolerancia, sensaciones, puntos a vigilar…"></textarea></label>'
    +nextRow
+   +'<details class="mtq-varios"><summary>Aplicar a varios jugadores a la vez</summary>'
+     +'<p class="hint" style="margin:6px 0 8px">Se guarda el mismo tratamiento para todos los marcados, con esta fecha y hora. El jugador de arriba se incluye siempre.</p>'
+     +'<div class="aus-grid">'+Object.keys(STATE.players||{}).sort(function(a,b){return a.localeCompare(b,'es');})
+       .map(function(n){return '<label class="aus-p"><input type="checkbox" class="mtq-vk" value="'+esc(n)+'"><span>'+esc(n)+'</span></label>';}).join('')
+     +'</div></details>'
    +'<div class="mtq-btns"><button class="btn" onclick="medTreatSaveQuick(\'close\')">Guardar</button><button class="btn ghost" onclick="medTreatSaveQuick(\'another\')">Guardar y añadir otro</button><button class="btn ghost" onclick="medTreatSaveQuick(\'ficha\')">Guardar y abrir ficha</button><button class="med-chipbtn" onclick="closeInfoEdit()">Cancelar</button></div>'
    +'</div>'
    +'<div class="mtq-side"><div class="mtq-sh">Registros añadidos hoy</div><div id="mtq-today">'+medPhysioModalTodayList()+'</div></div>'
@@ -16464,6 +16491,93 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
  function medPhysioModalTodayList(){var list=window.__mtqAdded||[];if(!list.length)return '<div class="small muted">Aún nada. Los que registres aparecerán aquí.</div>';
   return list.slice().reverse().map(function(t){return '<div class="mtq-ti"><b>'+esc(t.name)+'</b> · '+esc(t.tipo||'—')+' · '+(t.dur?t.dur+"'":'—')+'<span class="small muted"> '+(t.time||'')+'</span></div>';}).join('');
  }
+ /* ═══ v300 · Repetir lo último y plantillas de tratamiento ═══
+    Lo que más se repite es el mismo tratamiento al mismo jugador dos días
+    seguidos, y había que teclearlo entero cada vez. Dos atajos:
+     · «Igual que la última vez» copia el último tratamiento de ese jugador
+       —tipo, duración, zona, lado, objetivos y próximo paso—, dejando la fecha
+       y la hora de hoy.
+     · Las plantillas guardan una combinación con nombre («Descarga gemelo 20'»)
+       y la aplican de un clic. Se guardan en su propio almacén, así que entran
+       en la copia de seguridad y se sincronizan con el resto del staff. */
+ var TPL_LS='bmnava_fisiotpl';
+ function tplLoad(){if(!STATE.fisioTpl)STATE.fisioTpl=lsLeer(TPL_LS,[]);
+  if(!Array.isArray(STATE.fisioTpl))STATE.fisioTpl=[];return STATE.fisioTpl;}
+ function tplSave(){return lsGuardar(TPL_LS,tplLoad());}
+ window.medTplBarra=function(name){
+  var tpl=tplLoad();
+  var ult=name?medUltimoTrat(name):null;
+  var h='';
+  if(ult)h+='<button type="button" class="mtq-atj mtq-atj--rep" onclick="medRepetirUltimo()">'
+    +'↻ Igual que la última vez<span>'+esc(ult.tipo||'')+(ult.dur?' · '+ult.dur+"'":'')+'</span></button>';
+  h+=tpl.map(function(t,i){return '<button type="button" class="mtq-atj" onclick="medTplAplicar('+i+')" '
+    +'title="'+esc((t.tipo||'')+(t.dur?' · '+t.dur+"'":'')+(t.zone?' · '+t.zone:''))+'">'
+    +esc(t.nom)+'<i onclick="event.stopPropagation();medTplBorrar('+i+')" title="Borrar plantilla">✕</i></button>';}).join('');
+  h+='<button type="button" class="mtq-atj mtq-atj--new" onclick="medTplGuardar()">＋ Guardar como plantilla</button>';
+  return h;
+ };
+ window.medUltimoTrat=function(name){
+  var t=((STATE.med||{}).treat||[]).filter(function(x){return x&&x.name===name;})
+    .sort(function(a,b){return String(a.dk+(a.time||'')).localeCompare(String(b.dk+(b.time||'')));});
+  return t.length?t[t.length-1]:null;
+ };
+ function mtqPonerCampos(o){
+  var set=function(id,v){var el=document.getElementById(id);if(el&&v!=null)el.value=v;};
+  set('mtq-dur',o.dur||'');
+  set('mtq-newtipo','');
+  set('mtq-tipo',o.tipo||'');
+  set('mtq-zone',o.zone||o.bodyZone||'');
+  set('mtq-side',o.side||'');
+  set('mtq-next',o.nextStep||'');
+  /* el tipo se elige por chips: se marca el que toque, y si no está se escribe */
+  var hallado=false;
+  document.querySelectorAll('#mtq-typechips .mtq-chip').forEach(function(b){
+   var on=(b.dataset.v===(o.tipo||''));b.classList.toggle('on',on);if(on)hallado=true;});
+  if(!hallado&&o.tipo)set('mtq-newtipo',o.tipo);
+  document.querySelectorAll('#mtq-durchips .mtq-chip').forEach(function(b){
+   b.classList.toggle('on',+b.dataset.v===+(o.dur||0));});
+  var objs=(o.objectives||[]);
+  document.querySelectorAll('#mtq-objs .mtq-chip').forEach(function(b){
+   b.classList.toggle('on',objs.indexOf(b.dataset.v)>=0);});
+  if(window.toast)toast('Campos rellenados · revisa y guarda');
+ }
+ window.medRepetirUltimo=function(){
+  var name=(document.getElementById('mtq-name')||{}).value||'';
+  var u=name?medUltimoTrat(name):null;
+  if(!u){if(window.toast)toast('Ese jugador no tiene ningún tratamiento anterior');return;}
+  mtqPonerCampos({tipo:u.tipo,dur:u.dur,zone:u.bodyZone,side:u.side,
+    nextStep:u.nextStep,objectives:u.objectives});
+ };
+ window.medTplAplicar=function(i){
+  var t=tplLoad()[i];if(!t)return;
+  mtqPonerCampos(t);
+ };
+ window.medTplGuardar=function(){
+  var g=function(id){var el=document.getElementById(id);return el?el.value:'';};
+  var tipo=(g('mtq-newtipo')||'').trim()||g('mtq-tipo')||'';
+  if(!tipo){if(window.toast)toast('Elige el tipo de intervención antes de guardar la plantilla');return;}
+  var dur=parseFloat(g('mtq-dur'))||null;
+  var zone=(g('mtq-zone')||'').trim();
+  var sug=tipo+(zone?' '+zone:'')+(dur?" "+dur+"'":'');
+  var nom=prompt('Nombre de la plantilla:',sug);
+  if(nom===null)return;
+  nom=nom.trim();if(!nom){if(window.toast)toast('La plantilla necesita un nombre');return;}
+  var objs=[];document.querySelectorAll('#mtq-objs .mtq-chip.on').forEach(function(b){objs.push(b.dataset.v);});
+  var tpl=tplLoad();
+  tpl.push({nom:nom,tipo:tipo,dur:dur,zone:zone,side:g('mtq-side')||'',
+    nextStep:(g('mtq-next')||'').trim(),objectives:objs});
+  tplSave();
+  var barra=document.getElementById('mtq-atajos');
+  if(barra)barra.innerHTML=medTplBarra((document.getElementById('mtq-name')||{}).value||'');
+  if(window.toast)toast('Plantilla guardada · '+nom);
+ };
+ window.medTplBorrar=function(i){
+  var tpl=tplLoad();if(!tpl[i])return;
+  if(!confirm('¿Borrar la plantilla «'+tpl[i].nom+'»?'))return;
+  tpl.splice(i,1);tplSave();
+  var barra=document.getElementById('mtq-atajos');
+  if(barra)barra.innerHTML=medTplBarra((document.getElementById('mtq-name')||{}).value||'');
+ };
  window.openMedTreatQuick=function(name,injId){medDbLoad();medPhysioEnsureSettings();window.__mtqAdded=[];
   var ctx={name:name||'',injId:injId||'',dk:today(),time:nowHM(),by:PS().defaultPractitioner};
   window.__mtqCtx=ctx;
@@ -16488,6 +16602,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
     ? pbOpcionesProblema(name,pre,'General / mantenimiento')
     : '<option value="">General / mantenimiento</option>';
   try{mtqAvisoInj();}catch(e){}
+  try{var b=document.getElementById('mtq-atajos');if(b)b.innerHTML=medTplBarra(name);}catch(e){}
  };
  /* Deja dicho de qué problema va a colgar, o que hay que elegirlo. */
  window.mtqAvisoInj=function(){
@@ -16523,10 +16638,27 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    response:g('mtq-resp')||'',nextStep:(g('mtq-next')||'').trim(),visibility:'staff',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),source:'physio_daily'};
   // auto-link si procede y no se eligió
   if(!t.injId&&PS().autoLinkOpenInjury){var oi=openInjuriesOf(name);if(oi.length===1)t.injId=oi[0].id;}
-  STATE.med.treat.push(t);medPersist();
+  STATE.med.treat.push(t);
   window.__mtqAdded.push({name:name,tipo:tipo,dur:t.dur,time:t.time});
+  /* v300 · el mismo tratamiento a varios jugadores de una vez. Cuando hace la
+     misma descarga a tres seguidos, marcarlos y guardar una sola vez. Cada uno
+     recibe su propio registro, con su enlace a su lesión si procede: no se
+     comparte nada entre ellos. */
+  var otros=Array.from(document.querySelectorAll('.mtq-vk:checked')).map(function(x){return x.value;})
+    .filter(function(n){return n&&n!==name;});
+  otros.forEach(function(n){
+    var c=JSON.parse(JSON.stringify(t));
+    c.id=medUid('t');c.name=n;c.injId='';
+    if(PS().autoLinkOpenInjury){var oi2=openInjuriesOf(n);if(oi2.length===1)c.injId=oi2[0].id;}
+    c.createdAt=new Date().toISOString();c.updatedAt=c.createdAt;
+    STATE.med.treat.push(c);
+    window.__mtqAdded.push({name:n,tipo:tipo,dur:c.dur,time:c.time});
+  });
+  medPersist();
   try{renderMedico();}catch(e){}
-  if(mode==='close'){closeInfoEdit();toast('Tratamiento guardado · '+name);return;}
+  try{renderFisio&&renderFisio();}catch(e){}
+  if(mode==='close'){closeInfoEdit();
+    toast(otros.length?('Tratamiento guardado · '+(otros.length+1)+' jugadores'):('Tratamiento guardado · '+name));return;}
   if(mode==='ficha'){closeInfoEdit();toast('Guardado · abriendo ficha');try{if(window.openPlayer)openPlayer(name);}catch(e){}return;}
   // another: mantener fecha/hora/profesional, limpiar jugador y campos
   var ctx={name:'',injId:'',dk:g('mtq-dk')||today(),time:g('mtq-time')||nowHM(),by:(g('mtq-by')||'').trim()};
