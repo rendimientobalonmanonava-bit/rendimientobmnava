@@ -1519,6 +1519,17 @@ body.sb-min .sb-ver{display:none}
 .fis-zr .fis-bar{margin-top:3px}
 .fis-mapa .bm-svg{max-width:104px}
 .fis-dias{flex:none;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+/* ══ v305 · carga vs dolor y el día teñido por trabajo ══ */
+.fis-cd{width:100%;height:150px;display:block;margin-top:8px}
+.fis-leg2{display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;color:var(--muted);margin-top:6px}
+.fis-leg2 span{display:inline-flex;align-items:center;gap:5px}
+.fis-leg2 i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.fc-d[style*="--cg"]{background:
+  linear-gradient(180deg,color-mix(in srgb,var(--accent) calc(var(--cg)*16%),transparent),transparent 60%),
+  var(--panel)}
+.fc-d--hoy[style*="--cg"]{background:
+  linear-gradient(180deg,color-mix(in srgb,var(--accent) calc(var(--cg)*16%),transparent),transparent 60%),
+  color-mix(in srgb,var(--accent) 6%,var(--panel))}
 /* agenda */
 .fa-l{display:flex;flex-direction:column;gap:14px}
 .fa-d--pas{opacity:.55}
@@ -11760,6 +11771,26 @@ function fisEfecto(dias){
     pre:por[k].pre/por[k].n, post:por[k].post/por[k].n,
     baja:por[k].dif/por[k].n})).sort((a,b)=>b.baja-a.baja);
 }
+/* ═══ v305 · Carga del equipo contra dolor declarado ═══
+   La pregunta que nadie podía contestar: ¿el pico de carga del martes se paga
+   el jueves? Dos series sobre los mismos días: las UA del equipo y cuánta gente
+   declara dolor a la mañana siguiente. */
+function fisCargaDolor(dias){
+  dias=dias||21;
+  const hasta=dkey(REF());
+  const desde=fisDkSuma(hasta,-(dias-1));
+  const out=[];
+  for(let i=0;i<dias;i++){
+    const dk=fisDkSuma(desde,i);
+    let ua=0,n=0;
+    (STATE.rpe||[]).forEach(r=>{if(r&&r.dk===dk&&r.ua>0){ua+=r.ua;n++;}});
+    const dol=(STATE.wellness||[]).filter(w=>w&&w.dk===dk&&w.dolor).length;
+    const partes=(STATE.wellness||[]).filter(w=>w&&w.dk===dk).length;
+    out.push({dk,ua:n?Math.round(ua/n):0,total:Math.round(ua),dolor:dol,partes});
+  }
+  return out;
+}
+window.fisCargaDolor=fisCargaDolor;
 window.fisMapaCuentas=fisMapaCuentas;window.fisRachas=fisRachas;window.fisEfecto=fisEfecto;
 /* ═══ v303 · A quién mirar hoy ═══
    Antes solo se proponían los jugadores con un problema abierto. Pero Virginia
@@ -12073,6 +12104,12 @@ function fisCalendario(){
   const hoy=dkey(new Date());
   const semana=FIS_MODO==='semana';
   const DOW=['L','M','X','J','V','S','D'];
+  /* el día más cargado del periodo, para teñir el resto en proporción */
+  let maxMin=0;
+  Object.keys(ev).forEach(k=>{
+    const m=ev[k].filter(x=>x.tipo==='trat').reduce((a,x)=>{
+      const mm=String(x.meta||'').match(/(\d+)'/);return a+(mm?+mm[1]:0);},0);
+    if(m>maxMin)maxMin=m;});
   let celdas='';
   for(let i=0;i<R.dias;i++){
     const d=new Date(R.ini);d.setDate(d.getDate()+i);
@@ -12100,8 +12137,16 @@ function fisCalendario(){
        entrar en ninguna celda */
     const barras=Object.keys(cuenta).map(k=>'<i style="background:'+((FIS_TIPO[k]||{}).col||'var(--muted)')
       +';flex:'+cuenta[k]+'"></i>').join('');
+    /* v305 · y el fondo del día dice cuánto trabajo hay: los minutos de camilla
+       de esa jornada contra el día más cargado del periodo. Sirve para elegir
+       dónde meter una sesión nueva sin contar eventos. */
+    const minDia=es.filter(x=>x.tipo==='trat').reduce((a,x)=>{
+      const m=String(x.meta||'').match(/(\d+)'/);return a+(m?+m[1]:0);},0);
+    const carga=maxMin?Math.min(1,minDia/maxMin):0;
     celdas+='<div class="fc-d'+(fuera?' fc-d--fuera':'')+(dk===hoy?' fc-d--hoy':'')
-      +(es.length?' fc-d--con':'')+'" data-dk="'+dk+'" onclick="fisDia(\''+dk+'\')"'
+      +(es.length?' fc-d--con':'')+'" data-dk="'+dk+'"'
+      +(carga>0.02?' style="--cg:'+carga.toFixed(2)+'"':'')
+      +' onclick="fisDia(\''+dk+'\')"'
       +' ondragover="fisDragSobre(event)" ondragleave="fisDragSale(event)" ondrop="fisSoltar(event)">'
       +(es.length?'<div class="fc-tira">'+barras+'</div>':'')
       +'<div class="fc-dh"><span class="fc-num">'+d.getDate()+'</span>'
@@ -12501,7 +12546,44 @@ function fisPanelGraficos(){
         +'<p class="hint" style="margin:10px 0 0">Cuánto baja el dolor de media con cada tipo de sesión, con el dolor de antes y de después que se anota al registrarla.</p>'
       : '<p class="small muted" style="margin:8px 0 0">Todavía sin datos. Se calcula con el dolor de antes y después que se anota al registrar un tratamiento.</p>')
   +'</div>';
-  return '<div class="fis-gs">'+mapa+rachas+efecto+'</div>';
+  /* carga contra dolor, en un SVG propio: dos ejes distintos —UA y personas— así
+     que se normaliza cada serie a su propio máximo y se dice en la leyenda. */
+  const CD=fisCargaDolor(21);
+  const maxUA=Math.max(1,...CD.map(d=>d.ua));
+  const maxDol=Math.max(1,...CD.map(d=>d.dolor));
+  const W=520,H=132,L=6,Rr=6,T=12,B=20;
+  const px=i=>L+(i/(CD.length-1||1))*(W-L-Rr);
+  const pyU=v=>T+(1-v/maxUA)*(H-T-B);
+  const pyD=v=>T+(1-v/maxDol)*(H-T-B);
+  const barras=CD.map((d,i)=>{
+    const w=(W-L-Rr)/CD.length*0.62;
+    const x=px(i)-w/2;const y=pyU(d.ua);
+    return d.ua?'<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)
+      +'" height="'+(pyU(0)-y).toFixed(1)+'" rx="2" fill="var(--accent)" opacity=".5">'
+      +'<title>'+pbFecha(d.dk)+' · '+d.ua+' UA de media</title></rect>':'';}).join('');
+  const linea=CD.map((d,i)=>px(i).toFixed(1)+','+pyD(d.dolor).toFixed(1)).join(' ');
+  const puntos=CD.map((d,i)=>d.dolor?'<circle cx="'+px(i).toFixed(1)+'" cy="'+pyD(d.dolor).toFixed(1)
+    +'" r="2.6" fill="var(--bad)"><title>'+pbFecha(d.dk)+' · '+d.dolor+' con dolor</title></circle>':'').join('');
+  const ejes=CD.map((d,i)=>{
+    if(!(i%5===0||i===CD.length-1))return '';
+    const fin=(i===CD.length-1), ini=(i===0);
+    return '<text x="'+px(i).toFixed(1)+'" y="'+(H-4)+'" font-size="8" fill="var(--muted2)" text-anchor="'
+      +(fin?'end':(ini?'start':'middle'))+'">'+pbFecha(d.dk)+'</text>';}).join('');
+  const cd='<div class="panel fis-g"><div class="eyebrow">21 días</div>'
+    +'<div class="pro-title sm">Carga y dolor</div>'
+    +'<div class="fis-leg2"><span><i style="background:var(--accent);opacity:.5"></i>UA medias del equipo</span>'
+      +'<span><i style="background:var(--bad)"></i>jugadores con dolor</span></div>'
+    +'<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" class="fis-cd">'
+      +barras+'<polyline points="'+linea+'" fill="none" stroke="var(--bad)" stroke-width="1.8"/>'
+      +puntos+ejes+'</svg>'
+    +'<p class="hint" style="margin:8px 0 0">'
+      +(CD.some(d=>d.ua>0)
+        ? 'Cada serie va a su propia escala: las barras llegan a '+maxUA+' UA y la línea a '
+          +maxDol+' jugador'+(maxDol===1?'':'es')+'. Sirve para ver si el dolor sube tras los picos, no para comparar las dos cifras entre sí.'
+        : '<b style="color:var(--warn)">Sin carga en estos 21 días.</b> La carga es RPE × minutos: si falta la duración de las sesiones, no hay barras que pintar. Se comprueba en Conexión.')
+      +'</p>'
+  +'</div>';
+  return '<div class="fis-gs">'+mapa+rachas+efecto+cd+'</div>';
 }
 function renderFisio(){
   const box=document.getElementById('fisio-body');if(!box)return;
