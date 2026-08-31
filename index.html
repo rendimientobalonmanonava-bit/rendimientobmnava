@@ -1488,6 +1488,24 @@ body.sb-min .sb-ver{display:none}
 .fh-chip:hover{border-color:var(--accent);color:var(--accent)}
 .fh-chip img{width:24px;height:24px;border-radius:50%;object-fit:cover;background:var(--panel2)}
 .fh-chip b{color:var(--accent);font-size:14px;line-height:1}
+/* ══ v303 · a quién mirar hoy ══ */
+.fh-cand{display:flex;flex-direction:column;gap:6px}
+.fh-c{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--hair);
+  border-left-width:3px;border-radius:10px;background:var(--panel)}
+.fh-mot{display:flex;gap:5px;flex-wrap:wrap;margin-top:3px}
+.fh-m{font-size:10px;font-weight:700;letter-spacing:.02em;border:1px solid;border-radius:999px;
+  padding:1px 8px;white-space:nowrap}
+.fh-z{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.fh-z span{font-size:10px;color:var(--muted);background:var(--panel2);border-radius:6px;
+  padding:2px 7px;white-space:nowrap}
+.fh-tratar{flex:none;border:1px solid var(--line);background:var(--panel);color:var(--txt);
+  border-radius:999px;padding:6px 13px;font-size:12px;font-weight:700;cursor:pointer;
+  font-family:inherit;white-space:nowrap}
+.fh-tratar:hover{border-color:var(--accent);color:var(--accent)}
+@media (max-width:560px){
+  .fh-c{flex-wrap:wrap}
+  .fh-tratar{width:100%;margin-top:4px}
+}
 /* agenda */
 .fa-l{display:flex;flex-direction:column;gap:14px}
 .fa-d--pas{opacity:.55}
@@ -11641,6 +11659,56 @@ window.fisMover=function(n){
 };
 window.fisHoy=function(){FIS_ANCLA=new Date();renderFisio();};
 window.fisFiltro=function(n){FIS_JUG=n||'';renderFisio();};
+/* ═══ v303 · A quién mirar hoy ═══
+   Antes solo se proponían los jugadores con un problema abierto. Pero Virginia
+   decide a quién tratar mirando también el parte de la mañana: quién declara
+   dolor y DÓNDE, quién viene con agujetas y quién está fundido. Eso estaba en
+   los datos —el cuestionario recoge dolor, zona, golpe, DOMS y fatiga— y no se
+   usaba en ninguna parte de su pantalla.
+
+   Cada jugador aparece una sola vez con todos sus motivos, ordenados por lo que
+   más urge: un golpe primero, luego el dolor declarado y los problemas abiertos
+   sin tratar, después las agujetas y la fatiga. Los ya tratados hoy no se
+   proponen: salen arriba, en «Tratados».
+
+   La escala del cuestionario es 1 óptimo y 5 peor, así que 4 y 5 son los
+   valores que piden mirada. */
+const FIS_UMBRAL_DOMS=4, FIS_UMBRAL_FATIGA=4;
+function fisZonas(txt){
+  return String(txt||'').split(/[,;]+/).map(z=>z.trim()).filter(Boolean);
+}
+function fisCandidatos(){
+  const hoy=dkey(new Date());
+  const refk=dkey(REF());
+  const out={};
+  const mete=(n,m)=>{(out[n]=out[n]||{name:n,motivos:[],pri:0});
+    out[n].motivos.push(m);out[n].pri=Math.max(out[n].pri,m.pri);};
+  /* del parte de wellness del día */
+  (STATE.wellness||[]).filter(w=>w&&w.dk===refk).forEach(w=>{
+    if(w.dolor){
+      const zs=fisZonas(w.zona);
+      mete(w.name,{k:'dolor',pri:w.golpe?5:4,
+        txt:w.golpe?'Golpe':'Dolor declarado',zonas:zs,
+        col:w.golpe?'var(--bad)':'var(--bad)'});
+    }
+    if(w.doms>=FIS_UMBRAL_DOMS)
+      mete(w.name,{k:'doms',pri:2,txt:'Agujetas '+w.doms+'/5',zonas:[],col:'var(--warn)'});
+    if(w.fatiga>=FIS_UMBRAL_FATIGA)
+      mete(w.name,{k:'fatiga',pri:1,txt:'Fatiga '+w.fatiga+'/5',zonas:[],col:'var(--warn)'});
+  });
+  /* problemas abiertos */
+  ((STATE.med||{}).inj||[]).forEach(e=>{
+    if(!e||!e.open||e.mergedInto)return;
+    const st=(window.pbEstado?pbEstado(e):null)||{col:'var(--warn)'};
+    mete(e.name,{k:'problema',pri:3,txt:'Problema abierto',
+      zonas:[(e.zona||e.title||'')+(e.lado?' '+e.lado:'')].filter(Boolean),col:st.col});
+  });
+  /* los ya tratados hoy no se proponen */
+  const tratados=new Set(((STATE.med||{}).treat||[]).filter(t=>t&&t.dk===hoy).map(t=>t.name));
+  return Object.values(out).filter(x=>!tratados.has(x.name))
+    .sort((a,b)=>b.pri-a.pri||a.name.localeCompare(b.name,'es'));
+}
+window.fisCandidatos=fisCandidatos;
 /* ── v299 · Lo de hoy, arriba y con un clic para registrar ──
    Virginia entra por la mañana y lo que necesita es la lista de a quién toca.
    Antes había que buscar el día en la rejilla y abrirlo. */
@@ -11669,16 +11737,24 @@ function fisHoyPanel(){
         +'</span>':'')
     +'</div>';
   };
-  /* a quién habría que tratar hoy y todavía no se ha tocado */
-  const yaTratados=new Set(hechos.map(e=>e.name));
-  const abiertos=((STATE.med||{}).inj||[]).filter(x=>x&&x.open&&!x.mergedInto&&!yaTratados.has(x.name));
-  const vistos=new Set();
-  const pendientes=abiertos.filter(x=>{if(vistos.has(x.name))return false;vistos.add(x.name);return true;});
-  const pend=pendientes.length?'<div class="fh-sec">Aún sin tratar hoy · '+pendientes.length+'</div>'
-    +'<div class="fh-pend">'+pendientes.map(x=>
-      '<button class="fh-chip" onclick="fisTratarA(\''+q(x.name)+'\')" title="Registrar tratamiento para '+esc(x.name)+'">'
-      +'<img src="'+av(x.name)+'" alt="">'+esc(String(x.name).split(' ')[0])
-      +'<b>＋</b></button>').join('')+'</div>':'';
+  /* v303 · a quién mirar hoy: problemas abiertos, pero también quién declara
+     dolor y dónde, quién viene con agujetas y quién está fundido. */
+  const cand=fisCandidatos();
+  const pend=cand.length?'<div class="fh-sec">A quién mirar hoy · '+cand.length+'</div>'
+    +'<div class="fh-cand">'+cand.map(c=>{
+      const top=c.motivos.slice().sort((a,b)=>b.pri-a.pri)[0];
+      const zonas=[...new Set([].concat.apply([],c.motivos.map(m=>m.zonas||[])))];
+      return '<div class="fh-c" style="border-left-color:'+top.col+'">'
+        +'<img class="fh-av" src="'+av(c.name)+'" alt="">'
+        +'<div class="fh-bd"><div class="fh-n">'+esc(c.name)+'</div>'
+        +'<div class="fh-mot">'+c.motivos.slice().sort((a,b)=>b.pri-a.pri).map(m=>
+            '<span class="fh-m" style="color:'+m.col+';border-color:'+m.col+'">'+esc(m.txt)+'</span>').join('')
+          +'</div>'
+        +(zonas.length?'<div class="fh-z">'+zonas.map(z=>'<span>'+esc(z)+'</span>').join('')+'</div>':'')
+        +'</div>'
+        +'<button class="fh-tratar" onclick="fisTratarA(\''+q(c.name)+'\')" title="Registrar tratamiento">＋ Tratar</button>'
+      +'</div>';}).join('')+'</div>'
+    :'<div class="fh-sec">A quién mirar hoy</div><p class="small" style="margin:0;color:var(--ok)">Nadie con dolor, agujetas ni problemas pendientes.</p>';
   const cuerpo=ev.length
     ? (hechos.length?'<div class="fh-sec">Tratados · '+hechos.length+'</div>'+hechos.map(linea).join(''):'')
       +(citas.length?'<div class="fh-sec">Citas y pruebas</div>'+citas.map(linea).join(''):'')
