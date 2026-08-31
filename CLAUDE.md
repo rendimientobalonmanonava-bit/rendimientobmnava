@@ -33,10 +33,13 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 | Elemento | Valor fijado |
 |---|---|
 | Readiness — pesos | Wellness 45 · ACWR 35 · RPE última sesión 8 · Dolor 12 (W45/A35/R8/D12) · *cambiado el 27/08/2026 por decisión de Daniel; antes W50/A28/R10/D12* |
+| Readiness — componente wellness | Media entre el z-score relativo y el valor absoluto (escala 1–5), sin poder superar nunca al relativo. *Cambiado el 28/08/2026 por decisión de Daniel; antes solo relativo, que saturaba en 100 en bloques largos de carga alta porque la línea base del jugador se desplazaba* |
 | Readiness — curva del componente carga | 100 hasta ACWR 1,0 · baja a 75 en 1,3 · cae 250/punto por encima de 1,3 · por debajo de 0,8 pendiente 160. *No es plana dentro de la banda: eso hacía el readiness insensible a la carga* |
 | Readiness — umbrales | Verde ≥75 · Ámbar 55–74 · Rojo <55 |
 | Readiness — techo de señal única | Una sola variable mala no puede bajar el readiness por debajo de ~54 |
 | ACWR | EWMA 7:21, `ewmaChronic = 0.0909` |
+| ACWR — días mínimos de bloque | 21 (`minBlockDays`). *Bajado de 28 el 28/08/2026 por decisión de Daniel: con 28 la carga no entraba en el readiness hasta el cuarto fin de semana de pretemporada* |
+| Ratio agudo:crónico mostrado | 7:28 desacoplado, con aguda, crónica, ratio y % de diferencia. Se muestra; NO alimenta readiness ni alertas, que siguen con el acoplado 7:21 |
 | Cuadrantes — umbral | 58 |
 | z-scores valoraciones | Escalado robusto por MAD, suelo del 2 % para evitar z absurdos |
 | TSA | Bloqueado |
