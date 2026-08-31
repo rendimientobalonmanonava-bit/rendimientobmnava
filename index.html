@@ -1506,6 +1506,19 @@ body.sb-min .sb-ver{display:none}
   .fh-c{flex-wrap:wrap}
   .fh-tratar{width:100%;margin-top:4px}
 }
+/* ══ v304 · los tres gráficos ══ */
+.fis-gs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;margin-bottom:14px}
+.fis-g{margin:0}
+.fis-mapa{display:flex;gap:14px;align-items:flex-start;margin-top:10px}
+.fis-mapa .bm-svg{flex:none;max-width:120px}
+.fis-zl{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.fis-zr{font-size:11.5px}
+.fis-zt{display:flex;align-items:baseline;gap:8px}
+.fis-zt span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fis-zt b{flex:none;font-variant-numeric:tabular-nums;font-size:11px}
+.fis-zr .fis-bar{margin-top:3px}
+.fis-mapa .bm-svg{max-width:104px}
+.fis-dias{flex:none;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
 /* agenda */
 .fa-l{display:flex;flex-direction:column;gap:14px}
 .fa-d--pas{opacity:.55}
@@ -10568,14 +10581,23 @@ function physioPersist(){
   return lsGuardar('bmnava_physio',STATE.physioUser);
 }
 function zoneRegion(z){z=(z||'').toLowerCase();
+  /* v304 · Tres agujeros encontrados al llevar las zonas del cuestionario al mapa
+     corporal, y los tres afectaban también a las estadísticas por zona y a la
+     detección de recaídas, no solo al mapa:
+      · «pantorrilla» no estaba en ningún patrón, y son 213 registros: la tercera
+        zona más declarada de la plantilla, ignorada por completo.
+      · «brazo» a secas tampoco, aunque sí «antebrazo».
+      · «isquiotibial» caía en pierna porque el patrón de pierna incluye
+        «tibial», y es muslo posterior. Se comprueba antes de llegar ahí. */
+  if(/isquiotibial|izquiotibial/.test(z))return'muslo';
   if(/rodilla|rotulian|menisco|lca|ligament/.test(z))return'rodilla';
-  if(/aquiles|gemelo|sóleo|soleo|sural|fascia plant|tibial|peroneo|popliteo|poplíteo/.test(z))return'pierna';
+  if(/aquiles|gemelo|pantorrilla|sóleo|soleo|sural|fascia plant|tibial|peroneo|popliteo|poplíteo/.test(z))return'pierna';
   if(/tobillo|esguince|talón|talon|calcán|haglund|^pie|dedo.*pie|metatars/.test(z))return'pie';
   if(/glúteo|gluteo|cadera|psoas|sacroil|tfl/.test(z))return'cadera';
   if(/cuádric|cuadric|isquio|femoral|recto ant|vasto|aductor|add|muslo/.test(z))return'muslo';
   if(/lumbar|dorsal|espalda|abdom|oblicuo|costal|charnela/.test(z))return'tronco';
   if(/hombro|escápula|escapula|supra|trapecio|angular|rotador|deltoid|subescap|infraesp/.test(z))return'hombro';
-  if(/codo|braquial|antebrazo|tríceps b/.test(z))return'brazo';
+  if(/codo|braquial|antebrazo|brazo|tríceps b/.test(z))return'brazo';
   if(/muñeca|muneca|mano|carpo|pulgar|panadizo|metacarp/.test(z))return'mano';
   if(/cuello|cervical|tortícolis|torticolis|suboccipital|migraña|migrana|nariz|pómulo|pomulo|ojo|córnea|cornea|maxilo|cabeza/.test(z))return'cabeza';
   return null;}
@@ -11659,6 +11681,86 @@ window.fisMover=function(n){
 };
 window.fisHoy=function(){FIS_ANCLA=new Date();renderFisio();};
 window.fisFiltro=function(n){FIS_JUG=n||'';renderFisio();};
+/* ═══ v304 · Lado de una zona escrita a mano ═══
+   El cuestionario devuelve «Hombro izquierdo», «Isquio derecha»: la región la
+   da zoneRegion y el lado hay que sacarlo del texto. */
+function fisLado(z){
+  const t=String(z||'').toLowerCase();
+  if(/izquierd|\bizq\b|\bi\b/.test(t))return 'I';
+  if(/derech|\bder\b|\bd\b/.test(t))return 'D';
+  return '';
+}
+/* Cuenta por región y lado lo que la plantilla declara en una ventana de días,
+   con el formato que espera bodyMapSVG. */
+function fisMapaCuentas(dias){
+  const hasta=dkey(REF());
+  const desde=fisDkSuma(hasta,-(dias||6));
+  const c={};const porZona={};
+  (STATE.wellness||[]).forEach(w=>{
+    if(!w||!w.dolor||!w.dk||w.dk<desde||w.dk>hasta)return;
+    fisZonas(w.zona).forEach(z=>{
+      porZona[z]=(porZona[z]||0)+1;
+      const r=zoneRegion(z);if(!r)return;
+      const lado=fisLado(z);
+      const conLado=['hombro','brazo','mano','cadera','muslo','rodilla','pierna','pie'];
+      const k=(conLado.indexOf(r)>=0&&lado)?(r+'_'+lado):r;
+      c[k]=(c[k]||0)+1;
+    });
+  });
+  return {counts:c,porZona,desde,hasta};
+}
+/* ═══ v304 · Rachas: quién lleva días seguidos con la misma zona ═══
+   Un dolor que aparece un día y otro que lleva cinco se veían igual. */
+function fisRachas(minDias){
+  minDias=minDias||3;
+  const hasta=dkey(REF());
+  const porJug={};
+  (STATE.wellness||[]).forEach(w=>{
+    if(!w||!w.dolor||!w.dk||w.dk>hasta)return;
+    if(w.dk<fisDkSuma(hasta,-29))return;
+    fisZonas(w.zona).forEach(z=>{
+      const k=w.name+'|'+z.toLowerCase();
+      (porJug[k]=porJug[k]||{name:w.name,zona:z,dks:[]}).dks.push(w.dk);
+    });
+  });
+  const out=[];
+  Object.values(porJug).forEach(o=>{
+    const d=[...new Set(o.dks)].sort();
+    /* la racha se cuenta hacia atrás desde el último día declarado, admitiendo
+       un hueco de un día: no rellenar el cuestionario un domingo no la rompe */
+    let n=1,fin=d[d.length-1];
+    for(let i=d.length-1;i>0;i--){
+      const salto=Math.round((dkToDate(d[i])-dkToDate(d[i-1]))/864e5);
+      if(salto<=2)n++;else break;
+    }
+    /* la ventana son 30 días: si la racha llega al borde, se dice «30+», que no
+       es lo mismo que saber que empezó justo ese día. */
+    const ini=d[d.length-n];
+    const tope=(ini<=fisDkSuma(hasta,-29));
+    if(n>=minDias)out.push({name:o.name,zona:o.zona,dias:n,ini,fin,tope});
+  });
+  return out.sort((a,b)=>b.dias-a.dias);
+}
+/* ═══ v304 · ¿Qué tratamiento funciona? ═══
+   Virginia anota dolor antes y después de cada sesión y ese dato no lo miraba
+   nadie. Agrupado por tipo dice cuánto baja el dolor con cada cosa. */
+function fisEfecto(dias){
+  const hasta=dkey(REF());
+  const desde=fisDkSuma(hasta,-(dias||89));
+  const por={};
+  ((STATE.med||{}).treat||[]).forEach(t=>{
+    if(!t||!t.dk||t.dk<desde||t.dk>hasta)return;
+    if(t.painPre==null||t.painPost==null)return;
+    const k=t.tipo||'Sin tipo';
+    (por[k]=por[k]||{n:0,pre:0,post:0,dif:0});
+    por[k].n++;por[k].pre+=t.painPre;por[k].post+=t.painPost;
+    por[k].dif+=(t.painPre-t.painPost);
+  });
+  return Object.keys(por).map(k=>({tipo:k,n:por[k].n,
+    pre:por[k].pre/por[k].n, post:por[k].post/por[k].n,
+    baja:por[k].dif/por[k].n})).sort((a,b)=>b.baja-a.baja);
+}
+window.fisMapaCuentas=fisMapaCuentas;window.fisRachas=fisRachas;window.fisEfecto=fisEfecto;
 /* ═══ v303 · A quién mirar hoy ═══
    Antes solo se proponían los jugadores con un problema abierto. Pero Virginia
    decide a quién tratar mirando también el parte de la mañana: quién declara
@@ -12350,9 +12452,60 @@ function fisEnTratamiento(){
     +'<p class="hint" style="margin:12px 0 0">El anillo marca cuándo se trató por última vez: lleno hoy, vacío a los catorce días. Dentro, los días que lleva abierto el problema.</p>'
   +'</div>';
 }
+/* Los tres bloques nuevos, en una fila de tarjetas. */
+function fisPanelGraficos(){
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const M=fisMapaCuentas(6);
+  const total=Object.values(M.counts).reduce((a,b)=>a+b,0);
+  const zonas=Object.keys(M.porZona).sort((a,b)=>M.porZona[b]-M.porZona[a]).slice(0,6);
+  const maxZ=Math.max(1,...zonas.map(z=>M.porZona[z]));
+  const mapa='<div class="panel fis-g"><div class="eyebrow">Última semana</div>'
+    +'<div class="pro-title sm">Dónde le duele al equipo</div>'
+    +(total
+      ? '<div class="fis-mapa">'+bodyMapSVG(M.counts)
+        +'<div class="fis-zl">'+zonas.map(z=>'<div class="fis-zr">'
+          +'<div class="fis-zt"><span>'+esc(z)+'</span><b>'+M.porZona[z]+'</b></div>'
+          +'<div class="fis-bar"><i style="width:'+Math.round(M.porZona[z]/maxZ*100)+'%;background:var(--bad)"></i></div>'
+          +'</div>').join('')+'</div></div>'
+        +'<p class="hint" style="margin:10px 0 0">Cuántas veces se ha declarado cada zona en siete días. Cuanto más intenso, más gente.</p>'
+      : '<p class="small" style="margin:8px 0 0;color:var(--ok)">Nadie ha declarado dolor esta semana.</p>')
+  +'</div>';
+  const R=fisRachas(3);
+  const av=n=>{const r=window.photoFor?photoFor(n):null;
+    return r||((STATE.players[n]||{}).avatar)||window.__AVATAR__||'';};
+  const rachas='<div class="panel fis-g"><div class="eyebrow">Persistencia</div>'
+    +'<div class="pro-title sm">Dolor que no se va <span class="muted" style="font-weight:400;font-size:12px">· 3 días o más</span></div>'
+    +(R.length
+      ? '<div class="fis-l" style="margin-top:10px">'+R.slice(0,8).map(r=>{
+          const col=r.dias>=7?'var(--bad)':(r.dias>=5?'var(--warn)':'var(--muted)');
+          return '<div class="fh-it" onclick="openPlayer(\''+String(r.name).replace(/'/g,"\\'")+'\')" style="cursor:pointer">'
+            +'<img class="fh-av" src="'+av(r.name)+'" alt="">'
+            +'<div class="fh-bd"><div class="fh-n">'+esc(r.name)+'</div>'
+            +'<div class="fh-x">'+esc(r.zona)+' <span class="muted">· '+(r.tope?'ya en':'desde el')+' '+pbFecha(r.ini)+'</span></div></div>'
+            +'<span class="fis-dias" style="color:'+col+'">'+r.dias+(r.tope?'+':'')+' d</span></div>';}).join('')+'</div>'
+        +'<p class="hint" style="margin:10px 0 0">Días seguidos declarando la misma zona. Se admite un día sin rellenar sin romper la racha.</p>'
+      : '<p class="small" style="margin:8px 0 0;color:var(--ok)">Ningún dolor que se repita tres días seguidos.</p>')
+  +'</div>';
+  const E=fisEfecto(90);
+  const maxB=Math.max(0.5,...E.map(e=>Math.abs(e.baja)));
+  const efecto='<div class="panel fis-g"><div class="eyebrow">90 días</div>'
+    +'<div class="pro-title sm">Qué está funcionando</div>'
+    +(E.length
+      ? '<div class="fis-l" style="margin-top:10px">'+E.map(e=>{
+          const col=e.baja>=1?'var(--ok)':(e.baja>0?'var(--warn)':'var(--bad)');
+          return '<div class="fis-r"><div class="fis-r-b"><b>'+esc(e.tipo)+'</b>'
+            +'<div class="fis-bar"><i style="width:'+Math.round(Math.abs(e.baja)/maxB*100)+'%;background:'+col+'"></i></div>'
+            +'<span>'+e.n+' con dolor anotado · de '+e.pre.toFixed(1)+' a '+e.post.toFixed(1)+'</span></div>'
+            +'<span class="fis-r-x" style="color:'+col+';font-weight:700">'
+              +(e.baja>0?'−':'+')+Math.abs(e.baja).toFixed(1)+'</span></div>';}).join('')+'</div>'
+        +'<p class="hint" style="margin:10px 0 0">Cuánto baja el dolor de media con cada tipo de sesión, con el dolor de antes y de después que se anota al registrarla.</p>'
+      : '<p class="small muted" style="margin:8px 0 0">Todavía sin datos. Se calcula con el dolor de antes y después que se anota al registrar un tratamiento.</p>')
+  +'</div>';
+  return '<div class="fis-gs">'+mapa+rachas+efecto+'</div>';
+}
 function renderFisio(){
   const box=document.getElementById('fisio-body');if(!box)return;
-  box.innerHTML=fisKpiFila()+fisHoyPanel()+fisEnTratamiento()+fisCalendario()+fisPanelDatos();
+  box.innerHTML=fisKpiFila()+fisHoyPanel()+fisPanelGraficos()+fisEnTratamiento()+fisCalendario()+fisPanelDatos();
 }
 window.renderFisio=renderFisio;
 /* ===================== WELLNESS · PARTE DIARIO ===================== */
