@@ -1578,6 +1578,40 @@ body.sb-min .sb-ver{display:none}
 .mtq-mic:hover{border-color:var(--accent);color:var(--accent)}
 .mtq-mic.on{border-color:var(--bad);color:var(--bad);
   background:color-mix(in srgb,var(--bad) 10%,transparent)}
+/* ══════════ v308 · Fisioterapia · estructura y densidad ══════════ */
+/* cabecera pegajosa: las cifras y las pestañas no se pierden al bajar */
+.fis-cab{position:sticky;top:0;z-index:12;padding:8px 0 10px;margin-bottom:6px;
+  background:linear-gradient(180deg,var(--bg) 78%,transparent);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.fis-tabs{margin-top:2px}
+.fis-tabs button{position:relative;padding-right:9px}
+.fis-tabs button i{display:inline-block;font-style:normal;margin-left:6px;font-size:9.5px;
+  font-weight:800;background:var(--accent);color:#fff;border-radius:999px;padding:1px 6px;
+  vertical-align:1px}
+.fis-tabs button.on i{background:var(--accent)}
+/* miniatura de tendencia en las cifras */
+.kpi-spk{display:block;width:100%;height:20px;margin-top:6px;overflow:visible}
+/* los cuatro gráficos, de dos en dos en pantalla ancha */
+@media (min-width:1080px){.fis-gs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* anillo de urgencia y silueta en las fichas de «a quién mirar» */
+.fh-avw{position:relative;flex:none;display:inline-flex;border-radius:50%;padding:2px;
+  background:var(--uc,var(--muted2))}
+.fh-avw .fh-av{display:block;border:2px solid var(--panel)}
+.fh-silw{flex:none;display:flex;align-items:center;padding-left:4px}
+.fis-sil{width:34px;height:48px;display:block}
+.fh-c--fuera{opacity:0;transform:translateX(14px);transition:opacity .24s ease,transform .24s ease}
+/* quién hay detrás de cada zona del mapa */
+.fis-zq{font-size:9.5px;color:var(--muted2);margin-top:2px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+/* la hora en columna propia en la agenda */
+.fa-hh{flex:none;width:42px;font-size:11px;font-variant-numeric:tabular-nums;
+  color:var(--muted);font-weight:600}
+.fa-hh i{font-style:normal;color:var(--muted2);font-weight:400}
+@media (max-width:560px){
+  .fis-cab{position:static;backdrop-filter:none;-webkit-backdrop-filter:none;background:none}
+  .fh-silw{display:none}
+}
+@media (prefers-reduced-motion:reduce){.fh-c--fuera{transition:none}}
 .fc-d[style*="--cg"]{background:
   linear-gradient(180deg,color-mix(in srgb,var(--accent) calc(var(--cg)*16%),transparent),transparent 60%),
   var(--panel)}
@@ -2836,6 +2870,28 @@ header{
 html[data-theme="dark"] .datepick input,html[data-theme="dark"] .datepick button,
 html[data-theme="dark"] .iconbtn:not(.primary),html[data-theme="dark"] .estado-seg{
   background:rgba(255,255,255,.06)!important;
+}
+/* v308 · En oscuro la pestaña activa quedaba con texto claro sobre un fondo
+   blanco al 90%: ilegible. Había override para el contenedor del segmentado
+   pero no para el botón seleccionado. Afecta a todas las pestañas de Estado del
+   equipo, no solo a las de Fisioterapia. */
+html[data-theme="dark"] .estado-seg button.on,
+html[data-theme="dark"] .med-seg button.on,
+html[data-theme="dark"] .seg button.on{
+  background:rgba(255,255,255,.14)!important;
+  border-color:rgba(255,255,255,.16)!important;
+  color:var(--txt)!important;
+  box-shadow:none!important;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme="light"]) .estado-seg button.on,
+  html:not([data-theme="light"]) .med-seg button.on,
+  html:not([data-theme="light"]) .seg button.on{
+    background:rgba(255,255,255,.14);
+    border-color:rgba(255,255,255,.16);
+    color:var(--txt);
+    box-shadow:none;
+  }
 }
 .btn:not(.ghost){box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 6px 18px -6px rgba(48,86,196,.5)}
 /* fallback si el navegador no soporta desenfoque */
@@ -11760,7 +11816,7 @@ function fisLado(z){
 function fisMapaCuentas(dias){
   const hasta=dkey(REF());
   const desde=fisDkSuma(hasta,-(dias||6));
-  const c={};const porZona={};
+  const c={};const porZona={};const quien={};
   (STATE.wellness||[]).forEach(w=>{
     if(!w||!w.dolor||!w.dk||w.dk<desde||w.dk>hasta)return;
     fisZonas(w.zona).forEach(z=>{
@@ -11770,9 +11826,11 @@ function fisMapaCuentas(dias){
       const conLado=['hombro','brazo','mano','cadera','muslo','rodilla','pierna','pie'];
       const k=(conLado.indexOf(r)>=0&&lado)?(r+'_'+lado):r;
       c[k]=(c[k]||0)+1;
+      /* v308 · quién está detrás de cada zona, para poder decirlo al pasar */
+      (quien[z]=quien[z]||{})[w.name]=(quien[z][w.name]||0)+1;
     });
   });
-  return {counts:c,porZona,desde,hasta};
+  return {counts:c,porZona,quien,desde,hasta};
 }
 /* ═══ v304 · Rachas: quién lleva días seguidos con la misma zona ═══
    Un dolor que aparece un día y otro que lleva cinco se veían igual. */
@@ -11862,6 +11920,21 @@ function fisVistoHoy(name){
   return !!(v&&v.dk===dkey(new Date()));
 }
 window.fisMarcarVisto=function(name){
+  /* v308 · la ficha se desvanece antes de repintar, para que se vea cuál se ha
+     quitado en vez de que la lista salte de golpe. */
+  try{
+    const el=Array.from(document.querySelectorAll('.fh-c')).find(x=>{
+      const n=x.querySelector('.fh-n');return n&&n.textContent===name;});
+    if(el&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      el.classList.add('fh-c--fuera');
+      const v0=fisVistos();
+      v0[name]={dk:dkey(new Date()),por:(typeof PS==='function'?PS().defaultPractitioner:'')||''};
+      lsGuardar(FIS_VISTO_LS,v0);
+      setTimeout(function(){renderFisio();},260);
+      if(window.toast)toast(String(name).split(' ')[0]+' · visto, no necesita tratamiento hoy');
+      return;
+    }
+  }catch(e){}
   const v=fisVistos();
   v[name]={dk:dkey(new Date()),por:(typeof PS==='function'?PS().defaultPractitioner:'')||''};
   lsGuardar(FIS_VISTO_LS,v);
@@ -11907,6 +11980,40 @@ const FIS_UMBRAL_DOMS=4, FIS_UMBRAL_FATIGA=4;
 function fisZonas(txt){
   return String(txt||'').split(/[,;]+/).map(z=>z.trim()).filter(Boolean);
 }
+/* ═══ v308 · Silueta mínima para una ficha ═══
+   Las zonas iban en texto y hay que leerlas. Un cuerpo de 34 px con el punto
+   donde le duele se lee de un vistazo, y el texto se queda debajo para el
+   detalle. Mismas regiones que el mapa grande. */
+const FIS_PT={cabeza:[50,10],hombro_I:[33,26],hombro_D:[67,26],brazo_I:[22,48],brazo_D:[78,48],
+  mano_I:[19,64],mano_D:[81,64],tronco:[50,42],cadera_I:[41,63],cadera_D:[59,63],
+  muslo_I:[41,80],muslo_D:[59,80],rodilla_I:[41,100],rodilla_D:[59,100],
+  pierna_I:[41,116],pierna_D:[59,116],pie_I:[41,131],pie_D:[59,131]};
+function fisSilueta(zonas,col){
+  const marca={};
+  (zonas||[]).forEach(z=>{
+    const r=zoneRegion(z);if(!r)return;
+    const lado=fisLado(z);
+    const conLado=['hombro','brazo','mano','cadera','muslo','rodilla','pierna','pie'];
+    const k=(conLado.indexOf(r)>=0&&lado)?(r+'_'+lado):r;
+    if(FIS_PT[k])marca[k]=1;
+    else if(FIS_PT[r+'_I']){marca[r+'_I']=1;marca[r+'_D']=1;}
+  });
+  const f='var(--hair)';
+  const cuerpo='<g fill="'+f+'">'
+    +'<circle cx="50" cy="10" r="7"/><rect x="47" y="15" width="6" height="5" rx="2"/>'
+    +'<path d="M36,24 Q50,20 64,24 L61,63 Q50,68 39,63 Z"/>'
+    +'<rect x="25" y="25" width="7" height="42" rx="3.5" transform="rotate(7 28 28)"/>'
+    +'<rect x="68" y="25" width="7" height="42" rx="3.5" transform="rotate(-7 71 28)"/>'
+    +'<rect x="39" y="64" width="9" height="70" rx="4" transform="rotate(2 43 64)"/>'
+    +'<rect x="52" y="64" width="9" height="70" rx="4" transform="rotate(-2 56 64)"/>'
+    +'</g>';
+  const pts=Object.keys(marca).map(k=>{
+    const[x,y]=FIS_PT[k];
+    return '<circle cx="'+x+'" cy="'+y+'" r="6" fill="'+(col||'var(--bad)')+'" opacity=".85"/>';
+  }).join('');
+  return '<svg viewBox="0 0 100 142" class="fis-sil">'+cuerpo+pts+'</svg>';
+}
+window.fisSilueta=fisSilueta;
 function fisCandidatos(){
   const hoy=dkey(new Date());
   const refk=dkey(REF());
@@ -11984,13 +12091,14 @@ function fisHoyPanel(){
       const top=c.motivos.slice().sort((a,b)=>b.pri-a.pri)[0];
       const zonas=[...new Set([].concat.apply([],c.motivos.map(m=>m.zonas||[])))];
       return '<div class="fh-c" style="border-left-color:'+top.col+'">'
-        +'<img class="fh-av" src="'+av(c.name)+'" alt="">'
+        +'<span class="fh-avw" style="--uc:'+top.col+'"><img class="fh-av" src="'+av(c.name)+'" alt=""></span>'
         +'<div class="fh-bd"><div class="fh-n">'+esc(c.name)+'</div>'
         +'<div class="fh-mot">'+c.motivos.slice().sort((a,b)=>b.pri-a.pri).map(m=>
             '<span class="fh-m" style="color:'+m.col+';border-color:'+m.col+'">'+esc(m.txt)+'</span>').join('')
           +'</div>'
         +(zonas.length?'<div class="fh-z">'+zonas.map(z=>'<span>'+esc(z)+'</span>').join('')+'</div>':'')
         +'</div>'
+        +(zonas.length?'<span class="fh-silw">'+fisSilueta(zonas,top.col)+'</span>':'')
         +'<span class="fh-acc">'
           +'<button class="fh-tratar" onclick="fisTratarA(\''+q(c.name)+'\')" title="Registrar tratamiento">＋ Tratar</button>'
           +'<button class="fh-visto" onclick="fisMarcarVisto(\''+q(c.name)+'\')" title="Lo he mirado y no necesita tratamiento hoy">✓ Visto</button>'
@@ -12352,13 +12460,16 @@ function fisAgenda(){
       +'<div class="fa-dh" onclick="fisDia(\''+dk+'\')">'
         +'<b>'+esc(cap)+'</b>'+(dk===hoy?'<span class="fc-hoy">hoy</span>':'')
         +'<span class="fa-n">'+es.length+'</span></div>'
+      /* v308 · la hora a la izquierda y en columna propia: así se ven los huecos
+         del día de un vistazo, que es lo que se mira al encajar una sesión. */
       +es.map(e=>{
         const t=FIS_TIPO[e.tipo]||{col:'var(--muted)'};
-        return '<div class="fa-e"><img class="fh-av" src="'+av(e.name)+'" alt="">'
+        return '<div class="fa-e">'
+          +'<span class="fa-hh">'+(e.hora?esc(e.hora):'<i>—</i>')+'</span>'
+          +'<img class="fh-av" src="'+av(e.name)+'" alt="">'
           +'<div class="fh-bd"><div class="fh-n">'+esc(e.name)+'</div>'
           +'<div class="fh-x"><i style="background:'+t.col+'"></i>'+esc(e.txt)
-            +(e.meta?' <span class="muted">· '+esc(e.meta)+'</span>':'')+'</div></div>'
-          +(e.hora?'<span class="fh-h">'+esc(e.hora)+'</span>':'')+'</div>';
+            +(e.meta?' <span class="muted">· '+esc(e.meta)+'</span>':'')+'</div></div></div>';
       }).join('')
     +'</div>';
   }).join('');
@@ -12694,15 +12805,34 @@ function fisKpiFila(){
     if(m.dk&&m.dk>=hoy&&m.dk<=d(7))citas++;
     if(m.next&&m.next>=hoy&&m.next<=d(7))citas++;});});
   const abiertos=((STATE.med||{}).inj||[]).filter(x=>x&&x.open&&!x.mergedInto);
-  const kpi=(v,l,s,col)=>'<div class="kpi"><div class="kpi-v"'+(col?' style="color:'+col+'"':'')+'>'+v+'</div>'
-    +'<div class="kpi-l">'+l+'</div>'+(s?'<div class="kpi-s">'+s+'</div>':'')+'</div>';
+  /* v308 · una línea de siete días bajo cada cifra: dice si sube o baja sin
+     tener que recordar cómo estaba ayer. */
+  const spark=(vals,col)=>{
+    if(!vals||vals.length<2)return '';
+    const mx=Math.max(1,...vals),W=88,H=20;
+    const pts=vals.map((v,i)=>((i/(vals.length-1))*W).toFixed(1)+','
+      +(H-2-(v/mx)*(H-4)).toFixed(1)).join(' ');
+    const ult=vals[vals.length-1];
+    return '<svg class="kpi-spk" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+      +'<polyline points="'+pts+'" fill="none" stroke="'+(col||'var(--muted2)')+'" stroke-width="1.6"'
+      +' stroke-linejoin="round" opacity=".65"/>'
+      +'<circle cx="'+W+'" cy="'+(H-2-(ult/mx)*(H-4)).toFixed(1)+'" r="2.2" fill="'+(col||'var(--muted2)')+'"/></svg>';
+  };
+  const serie7=f=>{const o=[];for(let i=6;i>=0;i--)o.push(f(fisDkSuma(hoy,-i)));return o;};
+  const kpi=(v,l,s,col,sp)=>'<div class="kpi"><div class="kpi-v"'+(col?' style="color:'+col+'"':'')+'>'+v+'</div>'
+    +'<div class="kpi-l">'+l+'</div>'+(s?'<div class="kpi-s">'+s+'</div>':'')
+    +(sp||'')+'</div>';
+  const nDia=dk=>TR.filter(t=>t.dk===dk).length;
+  const minDia=dk=>TR.filter(t=>t.dk===dk).reduce((a,t)=>a+(+t.dur||0),0);
+  const dolorDia=dk=>(STATE.wellness||[]).filter(w=>w&&w.dk===dk&&w.dolor).length;
   return '<div class="fis-kpis">'
     +kpi(hoyT.length,'Tratamientos hoy',hoyT.length?hoyT.reduce((a,t)=>a+(+t.dur||0),0)+' min':'sin sesiones',
-      hoyT.length?'var(--ok)':'var(--muted)')
-    +kpi(sem.length,'Esta semana',Math.round(min/60*10)/10+' h de camilla')
+      hoyT.length?'var(--ok)':'var(--muted)',spark(serie7(nDia),'var(--ok)'))
+    +kpi(sem.length,'Esta semana',Math.round(min/60*10)/10+' h de camilla',null,
+      spark(serie7(minDia),'var(--accent)'))
     +kpi(citas,'Citas en 7 días',citas?'médico y mutua':'nada por delante',citas?'var(--warn)':'var(--muted)')
     +kpi(abiertos.length,'Problemas abiertos',abiertos.length?'en seguimiento':'plantilla limpia',
-      abiertos.length?'var(--warn)':'var(--ok)')
+      abiertos.length?'var(--warn)':'var(--ok)',spark(serie7(dolorDia),'var(--bad)'))
   +'</div>';
 }
 /* Quién está en tratamiento, con su foto y el estado de su problema. */
@@ -12776,10 +12906,16 @@ function fisPanelGraficos(){
     +'<div class="pro-title sm">Dónde le duele al equipo</div>'
     +(total
       ? '<div class="fis-mapa">'+bodyMapSVG(M.counts)
-        +'<div class="fis-zl">'+zonas.map(z=>'<div class="fis-zr">'
+        +'<div class="fis-zl">'+zonas.map(z=>{
+          const q=M.quien[z]||{};
+          const nn=Object.keys(q).sort((a,b)=>q[b]-q[a]);
+          const tip=nn.map(n=>String(n).split(' ')[0]+(q[n]>1?' ('+q[n]+' días)':'')).join(' · ');
+          return '<div class="fis-zr" title="'+esc(tip)+'">'
           +'<div class="fis-zt"><span>'+esc(z)+'</span><b>'+M.porZona[z]+'</b></div>'
           +'<div class="fis-bar"><i style="width:'+Math.round(M.porZona[z]/maxZ*100)+'%;background:var(--bad)"></i></div>'
-          +'</div>').join('')+'</div></div>'
+          +'<div class="fis-zq">'+esc(nn.slice(0,3).map(n=>String(n).split(' ')[0]).join(' · '))
+            +(nn.length>3?' +'+(nn.length-3):'')+'</div>'
+          +'</div>';}).join('')+'</div></div>'
         +'<p class="hint" style="margin:10px 0 0">Cuántas veces se ha declarado cada zona en siete días. Cuanto más intenso, más gente.</p>'
       : '<p class="small" style="margin:8px 0 0;color:var(--ok)">Nadie ha declarado dolor esta semana.</p>')
   +'</div>';
@@ -12853,9 +12989,38 @@ function fisPanelGraficos(){
   +'</div>';
   return '<div class="fis-gs">'+mapa+rachas+efecto+cd+'</div>';
 }
+/* ═══ v308 · Tres pestañas ═══
+   La página había crecido a cinco bloques apilados y obligaba a bajar mucho
+   para llegar al calendario o a los datos. Se reparte por lo que se va a hacer:
+   HOY para trabajar, CALENDARIO para planificar y ANÁLISIS para mirar. La
+   pestaña elegida se recuerda, como en Cargas y en Médico. */
+const FIS_TAB_LS='bmnava_fisiotab';
+let FIS_TAB=(function(){try{return localStorage.getItem(FIS_TAB_LS)||'hoy';}catch(e){return 'hoy';}})();
+window.fisTab=function(k){
+  FIS_TAB=['hoy','cal','datos'].indexOf(k)>=0?k:'hoy';
+  try{localStorage.setItem(FIS_TAB_LS,FIS_TAB);}catch(e){}
+  renderFisio();
+  try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}
+};
+function fisBarraTabs(){
+  const cand=(typeof fisCandidatos==='function')?fisCandidatos().length:0;
+  const hoy=dkey(new Date());
+  const citas=(function(){let n=0;
+    try{Object.keys(STATE.medLog||{}).forEach(x=>{(STATE.medLog[x]||[]).forEach(m=>{
+      if(m&&m.dk&&m.dk>=hoy&&m.dk<=fisDkSuma(hoy,7))n++;});});}catch(e){}
+    return n;})();
+  const b=(k,l,n)=>'<button class="'+(FIS_TAB===k?'on':'')+'" onclick="fisTab(\''+k+'\')">'+l
+    +(n?'<i>'+n+'</i>':'')+'</button>';
+  return '<div class="seg estado-seg fis-tabs">'
+    +b('hoy','Hoy',cand)+b('cal','Calendario',citas)+b('datos','Análisis',0)+'</div>';
+}
 function renderFisio(){
   const box=document.getElementById('fisio-body');if(!box)return;
-  box.innerHTML=fisKpiFila()+fisHoyPanel()+fisPanelGraficos()+fisEnTratamiento()+fisCalendario()+fisPanelDatos();
+  let cuerpo='';
+  if(FIS_TAB==='cal')cuerpo=fisCalendario();
+  else if(FIS_TAB==='datos')cuerpo=fisPanelGraficos()+fisPanelDatos();
+  else cuerpo=fisHoyPanel()+fisEnTratamiento();
+  box.innerHTML='<div class="fis-cab">'+fisKpiFila()+fisBarraTabs()+'</div>'+cuerpo;
 }
 window.renderFisio=renderFisio;
 /* ===================== WELLNESS · PARTE DIARIO ===================== */
