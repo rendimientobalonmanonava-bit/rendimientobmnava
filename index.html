@@ -12092,7 +12092,13 @@ function fisSerieFechas(){
 window.fisSeriePrev=function(){
   const f=fisSerieFechas();
   const el=document.getElementById('fs-prev');if(!el)return;
-  if(!f.length){el.textContent='Marca al menos un día de la semana.';el.className='hint';return;}
+  if(!f.length){
+    const marcados=document.querySelectorAll('.fs-dk:checked').length;
+    el.className='hint';
+    el.textContent=marcados
+      ? 'Ningún día marcado cae desde la fecha de inicio. Empieza antes o añade semanas.'
+      : 'Marca al menos un día de la semana.';
+    return;}
   el.className='hint';
   el.innerHTML='Se crearán <b>'+f.length+'</b> sesiones, del '+pbFecha(f[0])+' al '+pbFecha(f[f.length-1])
     +'.<br><span class="muted">'+f.slice(0,10).map(pbFecha).join(' · ')+(f.length>10?' …':'')+'</span>';
@@ -12105,11 +12111,21 @@ window.fisSerieCrear=function(){
   if(!name){if(msg)msg.textContent='Elige el jugador.';return;}
   if(!tipo){if(msg)msg.textContent='Indica el tipo de sesión.';return;}
   const f=fisSerieFechas();
-  if(!f.length){if(msg)msg.textContent='Marca al menos un día de la semana.';return;}
+  if(!f.length){
+    const marcados=document.querySelectorAll('.fs-dk:checked').length;
+    if(msg)msg.textContent=marcados
+      ? 'Ningún día marcado cae desde la fecha de inicio. Empieza antes o añade semanas.'
+      : 'Marca al menos un día de la semana.';
+    return;}
   if(!confirm('¿Crear '+f.length+' sesiones de «'+tipo+'» para '+name+'?'))return;
   medDbLoad();
   let inj='';
-  try{const oi=openInjuriesOf(name);if(oi.length===1)inj=oi[0].id;}catch(e){}
+  /* mismo criterio que el resto: solo se cuelga solo si hay UN problema abierto */
+  try{
+    const oi=(window.openInjuriesOf?openInjuriesOf(name)
+      :((STATE.med||{}).inj||[]).filter(e=>e&&e.name===name&&e.open&&!e.mergedInto));
+    if(oi.length===1)inj=oi[0].id;
+  }catch(e){}
   const dur=parseFloat(g('fs-dur'))||null;
   const zone=(g('fs-zone')||'').trim();
   const hora=g('fs-time')||'';
@@ -15854,8 +15870,19 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
  };
  const today=()=>dkey(new Date());
  window.openHeroForm=function(type,name){let h='';
-   if(type==='med'){h='<h2 style="margin-top:0">Añadir dato médico · '+name+' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'+
-     '<div class="ph-f"><div class="ph-grid">'+
+   if(type==='med'){
+     /* v307 · El formulario de citas no tenía selector de jugador: el nombre
+        venía fijado por quien lo abría. Al abrirlo desde el calendario de
+        Fisioterapia, que no sabe de quién es la cita todavía, se guardaba en un
+        jugador vacío y el registro se perdía. Ahora, cuando se abre sin nombre,
+        se elige aquí, y el desplegable de problemas se rehace al elegirlo. */
+     const selJug=!name?('<label style="grid-column:1/3">Jugador<select id="mh-name" onchange="mhCambiaJugador()">'
+       +'<option value="">— elige jugador —</option>'
+       +Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'))
+         .map(n=>'<option>'+String(n).replace(/</g,'&lt;')+'</option>').join('')
+       +'</select></label>'):'';
+     h='<h2 style="margin-top:0">Añadir dato médico'+(name?' · '+name:'')+' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'+
+     '<div class="ph-f"><div class="ph-grid">'+selJug+
      '<label>Tipo<select id="mh-type"><option value="lesion">Lesión</option><option value="cita">Cita médica</option><option value="recon">Reconocimiento</option><option value="prueba">Prueba diagnóstica</option><option value="trat">Tratamiento / fisio</option></select></label>'+
      '<label>Fecha<input type="date" id="mh-date" value="'+today()+'"></label>'+
      '<label>Hora <span class="muted" style="font-weight:400">(opcional)</span><input type="time" id="mh-time"></label>'+
@@ -15943,7 +15970,17 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});
   return STATE.medLog;
  }
- window.heroSaveMed=function(name){const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}const ML=medLogRW();const ev={id:'m_'+Date.now(),type:ty,dk,time:g('mh-time')||'',afecta:g('mh-afecta')||'no',injId:g('mh-inj')||null,title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()};
+ /* v307 · si el formulario trae selector de jugador, manda el selector. */
+ window.mhCambiaJugador=function(){
+  const n=(document.getElementById('mh-name')||{}).value||'';
+  const sel=document.getElementById('mh-inj');
+  if(sel&&window.pbOpcionesProblema)sel.innerHTML=pbOpcionesProblema(n,'');
+ };
+ window.heroSaveMed=function(name){
+  const selN=document.getElementById('mh-name');
+  if(selN)name=selN.value||'';
+  if(!name){alert('Elige el jugador.');return;}
+  const ty=g('mh-type'),dk=g('mh-date');if(!ty||!dk){alert('Indica tipo y fecha.');return;}const ML=medLogRW();const ev={id:'m_'+Date.now(),type:ty,dk,time:g('mh-time')||'',afecta:g('mh-afecta')||'no',injId:g('mh-inj')||null,title:(g('mh-title')||'').trim(),who:(g('mh-who')||'').trim(),status:(g('mh-status')||'').trim(),next:g('mh-next')||'',link:(g('mh-link')||'').trim(),note:(g('mh-note')||'').trim()};
   (ML[name]=ML[name]||[]).push(ev);
   lsGuardar('bmnava_medlog',ML);
   var marcado=false;try{if(window.citaSync)marcado=citaSync(name,ev);}catch(e){}
@@ -17271,6 +17308,11 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
     automático no saltaba nunca en una molestia abierta, que es la mitad de lo
     que registra la fisio. Los fusionados no cuentan: se leen dentro del suyo. */
  function openInjuriesOf(name){return (STATE.med.inj||[]).filter(function(e){return e.name===name&&e.open&&!e.mergedInto;});}
+ /* v307 · se expone: vive dentro de este módulo y la usan también la serie de
+    sesiones y el calendario de Fisioterapia, que están fuera. Sin esto la
+    llamada lanzaba, el catch se la tragaba y las trece sesiones de una serie
+    nacían sueltas en vez de colgadas de la lesión abierta del jugador. */
+ window.openInjuriesOf=openInjuriesOf;
  function injTitle(id){var e=(STATE.med.inj||[]).find(function(x){return x.id===id;});return e?e.title:'';}
 
  // ---------- modal rápido ----------
