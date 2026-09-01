@@ -1489,9 +1489,18 @@ body.sb-min .sb-ver{display:none}
 .fh-chip img{width:24px;height:24px;border-radius:50%;object-fit:cover;background:var(--panel2)}
 .fh-chip b{color:var(--accent);font-size:14px;line-height:1}
 /* ══ v303 · a quién mirar hoy ══ */
-.fh-cand{display:flex;flex-direction:column;gap:6px}
-.fh-c{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--hair);
-  border-left-width:3px;border-radius:10px;background:var(--panel)}
+/* v309 · rejilla de tarjetas cuadradas */
+.fh-cand{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:10px}
+.fh-c{display:flex;flex-direction:column;gap:7px;padding:13px;border:1px solid var(--hair);
+  border-top:3px solid var(--uc,var(--hair));border-radius:12px;background:var(--panel);
+  min-width:0}
+.fh-c-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fh-c .fh-av{width:44px;height:44px}
+.fh-c .fh-n{font-size:13.5px;font-weight:700;white-space:normal;line-height:1.25}
+.fh-c .fis-sil{width:30px;height:42px;opacity:.9}
+.fh-c .fh-acc{width:100%;margin-top:auto;padding-top:9px;border-top:1px solid var(--hair);
+  display:flex;gap:6px}
+.fh-c .fh-acc button{flex:1;padding:6px 4px;font-size:11.5px}
 .fh-mot{display:flex;gap:5px;flex-wrap:wrap;margin-top:3px}
 .fh-m{font-size:10px;font-weight:700;letter-spacing:.02em;border:1px solid;border-radius:999px;
   padding:1px 8px;white-space:nowrap}
@@ -1607,6 +1616,21 @@ body.sb-min .sb-ver{display:none}
 .fa-hh{flex:none;width:42px;font-size:11px;font-variant-numeric:tabular-nums;
   color:var(--muted);font-weight:600}
 .fa-hh i{font-style:normal;color:var(--muted2);font-weight:400}
+/* v309 · las cifras con el aspecto del perfil físico, más el sparkline */
+.fis-kpis.tsum-k{margin-bottom:0}
+.fis-k .kpi-spk{margin-top:8px;height:22px}
+.fis-k .s{min-height:14px}
+/* inventario de lo guardado */
+.inv-l{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:9px}
+.inv-r{border:1px solid var(--hair);border-radius:10px;padding:10px 12px;background:var(--panel2);min-width:0}
+.inv-t{display:flex;align-items:baseline;gap:9px}
+.inv-t b{flex:1;min-width:0;font-size:12.5px;font-weight:600}
+.inv-n{flex:none;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.inv-d{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.inv-m{font-size:10px;color:var(--muted);background:var(--panel);border:1px solid var(--hair);
+  border-radius:6px;padding:1px 7px;white-space:nowrap}
+.inv-m b{font-variant-numeric:tabular-nums;color:var(--txt)}
+.inv-k{font-size:9.5px;color:var(--muted2);margin-top:6px;font-family:ui-monospace,monospace}
 @media (max-width:560px){
   .fis-cab{position:static;backdrop-filter:none;-webkit-backdrop-filter:none;background:none}
   .fh-silw{display:none}
@@ -3777,6 +3801,14 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div id="bkp-detalle" style="margin-top:12px"></div>
       <div class="small" id="bkp-msg" style="margin-top:10px;color:var(--accent)"></div>
     </div>
+    <!-- v309 · Qué hay guardado de verdad. Sirve para distinguir «no se ve» de
+         «no está» cuando algo parece haber desaparecido. -->
+    <div class="panel">
+      <h2>¿Qué hay guardado? <span class="r muted">inventario de los datos</span></h2>
+      <p class="hint">Cuenta lo que hay en este dispositivo, almacén por almacén y mes por mes. Si algo parece haber desaparecido, aquí se ve si de verdad falta o solo es que la pantalla está mirando otra fecha.</p>
+      <div id="inv-body" style="margin-top:10px"><p class="small muted" style="margin:0">Pulsa para contar.</p></div>
+      <div style="margin-top:12px"><button class="btn" onclick="invRender()">Contar lo guardado</button></div>
+    </div>
     <!-- v289 · Deshacer problemas creados sobre algo que no es una zona del
          cuerpo. Va arriba del todo porque es una corrección, no una herramienta
          de uso diario. -->
@@ -5419,6 +5451,78 @@ function lsNombre(k){return LS_NOMBRES[k]||k;}
 const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
   'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto'];
+/* ═══ v309 · Inventario de lo guardado ═══
+   Cuando algo «desaparece» hay dos posibilidades muy distintas: que se haya
+   borrado, o que la pantalla esté mirando otra fecha. Esto las separa: cuenta
+   lo que hay en este dispositivo, almacén por almacén, y en los que van por
+   fecha reparte por mes para que se vea de un vistazo dónde está cada cosa. */
+function invLeer(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}}
+function invPorMes(obj,saca){
+  const m={};
+  if(!obj)return m;
+  const mete=dk=>{if(!dk)return;const k=String(dk).slice(0,7);m[k]=(m[k]||0)+1;};
+  if(Array.isArray(obj))obj.forEach(x=>mete(saca?saca(x):x&&x.dk));
+  else Object.keys(obj).forEach(k=>{
+    const v=obj[k];
+    if(/^\d{4}-\d{2}-\d{2}$/.test(k)){
+      const n=Array.isArray(v)?v.length:1;
+      const mk=k.slice(0,7);m[mk]=(m[mk]||0)+n;
+    }else if(Array.isArray(v))v.forEach(x=>mete(saca?saca(x):x&&x.dk));
+  });
+  return m;
+}
+function invRender(){
+  const box=document.getElementById('inv-body');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const F=[
+    {k:'bmnava_cal',      lab:'Calendario · sesiones programadas', porMes:true},
+    {k:'bmnava_calmeta',  lab:'Datos del día',                     porMes:true},
+    {k:'bmnava_sessdur',  lab:'Duraciones de sesión',              porMes:true},
+    {k:'bmnava_asist',    lab:'Asistencia',                        porMes:false},
+    {k:'bmnava_meddb',    lab:'Médico · problemas y tratamientos', porMes:false},
+    {k:'bmnava_physio',   lab:'Fisioterapia · partes del día',     porMes:true},
+    {k:'bmnava_medlog',   lab:'Agenda médica · citas y pruebas',   porMes:true},
+    {k:'bmnava_reuniones',lab:'Reuniones',                         porMes:true},
+    {k:'bmnava_hr',       lab:'Sesiones de Polar',                 porMes:false},
+    {k:'bmnava_testlog',  lab:'Valoraciones físicas',              porMes:false},
+    {k:'bmnava_caltpl',   lab:'Plantillas de microciclo',          porMes:false},
+    {k:'bmnava_fisiotpl', lab:'Plantillas de fisioterapia',        porMes:false},
+    {k:'bmnava_photos',   lab:'Fotos',                             porMes:false},
+    {k:'bmnava_info',     lab:'Datos personales',                  porMes:false}
+  ];
+  const filas=F.map(f=>{
+    const o=invLeer(f.k);
+    let n=0,detalle='';
+    if(o==null)n=0;
+    else if(Array.isArray(o))n=o.length;
+    else if(f.k==='bmnava_meddb')n=((o.inj||[]).length)+((o.treat||[]).length);
+    else{
+      n=Object.keys(o).reduce((a,k)=>a+(Array.isArray(o[k])?o[k].length:1),0);
+    }
+    if(f.porMes){
+      const m=invPorMes(o);
+      const ks=Object.keys(m).sort();
+      if(ks.length)detalle=ks.map(k=>'<span class="inv-m">'+k.split('-').reverse().join('/')
+        +' <b>'+m[k]+'</b></span>').join('');
+    }
+    if(f.k==='bmnava_meddb'&&o)
+      detalle='<span class="inv-m">problemas <b>'+((o.inj||[]).length)+'</b></span>'
+        +'<span class="inv-m">tratamientos <b>'+((o.treat||[]).length)+'</b></span>';
+    const col=n?'var(--ok)':'var(--muted2)';
+    return '<div class="inv-r"><div class="inv-t"><b>'+esc(f.lab)+'</b>'
+      +'<span class="inv-n" style="color:'+col+'">'+n+'</span></div>'
+      +(detalle?'<div class="inv-d">'+detalle+'</div>':'')
+      +'<div class="inv-k">'+f.k+'</div></div>';
+  }).join('');
+  const cal=invLeer('bmnava_cal');
+  const nCal=cal?Object.keys(cal).reduce((a,k)=>a+(Array.isArray(cal[k])?cal[k].length:0),0):0;
+  const aviso=nCal
+    ? '<p class="small" style="margin:0 0 12px;color:var(--ok)">El calendario tiene <b>'+nCal
+      +'</b> sesiones programadas guardadas en este dispositivo. Si no las ves en pantalla, comprueba el mes que estás mirando.</p>'
+    : '<p class="small" style="margin:0 0 12px;color:var(--warn)">El calendario está vacío en este dispositivo. Si tenías sesiones programadas, restaura la copia de seguridad de más abajo antes de tocar nada más, y no pulses «Actualizar» hasta hacerlo.</p>';
+  box.innerHTML=aviso+'<div class="inv-l">'+filas+'</div>';
+}
+window.invRender=invRender;
 function bkpRecoger(){
   const o={};
   BKP_CLAVES.forEach(k=>{const t=localStorage.getItem(k);if(t!=null)o[k]=t;});
@@ -12090,15 +12194,19 @@ function fisHoyPanel(){
     +'<div class="fh-cand">'+cand.map(c=>{
       const top=c.motivos.slice().sort((a,b)=>b.pri-a.pri)[0];
       const zonas=[...new Set([].concat.apply([],c.motivos.map(m=>m.zonas||[])))];
-      return '<div class="fh-c" style="border-left-color:'+top.col+'">'
-        +'<span class="fh-avw" style="--uc:'+top.col+'"><img class="fh-av" src="'+av(c.name)+'" alt=""></span>'
-        +'<div class="fh-bd"><div class="fh-n">'+esc(c.name)+'</div>'
+      /* v309 · tarjeta cuadrada en rejilla en vez de una fila larga: la cara y la
+         silueta arriba, los motivos debajo y las dos acciones al pie. Se ven
+         varios jugadores de un vistazo sin recorrer la pantalla a lo largo. */
+      return '<div class="fh-c" style="--uc:'+top.col+'">'
+        +'<div class="fh-c-top">'
+          +'<span class="fh-avw" style="--uc:'+top.col+'"><img class="fh-av" src="'+av(c.name)+'" alt=""></span>'
+          +(zonas.length?'<span class="fh-silw">'+fisSilueta(zonas,top.col)+'</span>':'')
+        +'</div>'
+        +'<div class="fh-n">'+esc(c.name)+'</div>'
         +'<div class="fh-mot">'+c.motivos.slice().sort((a,b)=>b.pri-a.pri).map(m=>
             '<span class="fh-m" style="color:'+m.col+';border-color:'+m.col+'">'+esc(m.txt)+'</span>').join('')
           +'</div>'
         +(zonas.length?'<div class="fh-z">'+zonas.map(z=>'<span>'+esc(z)+'</span>').join('')+'</div>':'')
-        +'</div>'
-        +(zonas.length?'<span class="fh-silw">'+fisSilueta(zonas,top.col)+'</span>':'')
         +'<span class="fh-acc">'
           +'<button class="fh-tratar" onclick="fisTratarA(\''+q(c.name)+'\')" title="Registrar tratamiento">＋ Tratar</button>'
           +'<button class="fh-visto" onclick="fisMarcarVisto(\''+q(c.name)+'\')" title="Lo he mirado y no necesita tratamiento hoy">✓ Visto</button>'
@@ -12819,13 +12927,18 @@ function fisKpiFila(){
       +'<circle cx="'+W+'" cy="'+(H-2-(ult/mx)*(H-4)).toFixed(1)+'" r="2.2" fill="'+(col||'var(--muted2)')+'"/></svg>';
   };
   const serie7=f=>{const o=[];for(let i=6;i>=0;i--)o.push(f(fisDkSuma(hoy,-i)));return o;};
-  const kpi=(v,l,s,col,sp)=>'<div class="kpi"><div class="kpi-v"'+(col?' style="color:'+col+'"':'')+'>'+v+'</div>'
-    +'<div class="kpi-l">'+l+'</div>'+(s?'<div class="kpi-s">'+s+'</div>':'')
+  /* v309 · mismo patrón que las tarjetas del perfil físico (.tsum-t): etiqueta
+     arriba en versalitas, valor grande debajo y subtítulo, sobre panel suave.
+     Solo cambia el aspecto; las cifras y sus colores son los mismos. */
+  const kpi=(v,l,s,col,sp)=>'<div class="tsum-t fis-k">'
+    +'<div class="l">'+l+'</div>'
+    +'<div class="v"'+(col?' style="color:'+col+'"':'')+'>'+v+'</div>'
+    +(s?'<div class="s">'+s+'</div>':'')
     +(sp||'')+'</div>';
   const nDia=dk=>TR.filter(t=>t.dk===dk).length;
   const minDia=dk=>TR.filter(t=>t.dk===dk).reduce((a,t)=>a+(+t.dur||0),0);
   const dolorDia=dk=>(STATE.wellness||[]).filter(w=>w&&w.dk===dk&&w.dolor).length;
-  return '<div class="fis-kpis">'
+  return '<div class="tsum-k fis-kpis">'
     +kpi(hoyT.length,'Tratamientos hoy',hoyT.length?hoyT.reduce((a,t)=>a+(+t.dur||0),0)+' min':'sin sesiones',
       hoyT.length?'var(--ok)':'var(--muted)',spark(serie7(nDia),'var(--ok)'))
     +kpi(sem.length,'Esta semana',Math.round(min/60*10)/10+' h de camilla',null,
@@ -14351,6 +14464,17 @@ let _toastT;
 /* ===================== CALENDARIO MENSUAL ===================== */
 const CAL_TYPES={entreno:{lab:'Entreno',col:'#0071e3',intens:2,dur:75},fuerza:{lab:'Fuerza',col:'#7a5af8',intens:2,dur:60},partido:{lab:'Partido',col:'#3056c4',intens:3,dur:60},evento:{lab:'Evento',col:'#6b7280',intens:1,dur:0},descanso:{lab:'Descanso',col:'#1ea863',intens:1,dur:0}};
 const CAL_INT=[null,{lab:'Baja',col:'#1ea863'},{lab:'Media',col:'#e0a800'},{lab:'Alta',col:'#e23b32'}];
+/* ═══ v309 · Un tipo desconocido no puede tumbar el calendario ═══
+   CAL_TYPES tiene cinco tipos. Si un evento guardado trae uno que no está —de
+   una versión anterior, de una sincronización, de un renombrado— la búsqueda
+   devolvía undefined y al leer su color la vista Calendario entera reventaba:
+   la pantalla quedaba en blanco y parecía que las sesiones programadas se
+   habían borrado, cuando seguían guardadas. Ahora se cae a un tipo neutro que
+   conserva el nombre original, para que se vea qué es y se pueda corregir. */
+function calTipo(t){
+  return CAL_TYPES[t]||{lab:(t||'Sesión'),col:'var(--muted2)',intens:2,dur:75,_desconocido:true};
+}
+function calIntens(i){return CAL_INT[i]||CAL_INT[2];}
 /* ============ v256 · PARTIDOS · paso 1 ============
    Un partido es una sesión más —entra en carga, en sRPE y en el calendario—
    pero con datos propios. El tipo 'partido' ya existía en CAL_TYPES; lo que no
@@ -14720,7 +14844,7 @@ function renderCalendar(){
     const matchEv=hasMatch?(evs.find(e=>e.type==='partido')||{}):null;
     /* v241 · una sesión sin programar se pinta en trazo discontinuo y sin duración:
        está puesta en el calendario, pero su volumen no lo ha decidido nadie. */
-    const chips=evs.slice(0,3).map(e=>{const t=CAL_TYPES[e.type],sp=evSP(e),du=sp?0:evDur(e);return `<div class="cal-chip${sp?' sp':''}" style="--c:${t.col}"><span class="cal-chip-dot" style="background:${t.col}"></span><span class="cal-chip-tx">${e.title||t.lab}</span>${du?`<span class="cal-chip-dur">${du}′</span>`:''}</div>`;}).join('')+(evs.length>3?`<div class="cal-more">+${evs.length-3} más</div>`:'');
+    const chips=evs.slice(0,3).map(e=>{const t=calTipo(e.type),sp=evSP(e),du=sp?0:evDur(e);return `<div class="cal-chip${sp?' sp':''}" style="--c:${t.col}"><span class="cal-chip-dot" style="background:${t.col}"></span><span class="cal-chip-tx">${e.title||t.lab}</span>${du?`<span class="cal-chip-dur">${du}′</span>`:''}</div>`;}).join('')+(evs.length>3?`<div class="cal-more">+${evs.length-3} más</div>`:'');
     const corner=hasMatch?'':(dev?`<span class="cal-dev" style="color:${dev.col};border-color:${dev.col}" title="Desviación plan vs real: ${dev.lab}">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:(rv!=null?`<span class="cal-realbadge" title="Carga real (RPE): ${rv} UA">${rv}</span>`:''));
     cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" onclick="calOpenDay('${dk}')">
       <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${citas.length?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length}): ${citas.map(c=>c.name+(c.e.time?' '+c.e.time:'')+(c.e.afecta==='pierde'?' · pierde entreno':c.e.afecta==='parcial'?' · parcial':'')).join(' · ')}">🩺 ${citas.length}</span>`:''}${corner}</div>
@@ -14766,7 +14890,7 @@ function renderCalWeek(box){
   const cols=dks.map((dk,i)=>{
     const evs=(STATE.calendar[dk]||[]);const pl=calDayPlan(dk);const rv=real[dk];const dev=pl.n?calDev(pl.planUA,rv):null;
     const bajas=calBajas(dk);const z=calZonesGet(dk);const md=mdMap[dk];const a=dk.split('-');
-    const evList=evs.length?evs.map(e=>{const t=CAL_TYPES[e.type],ci=CAL_INT[evIntens(e)],du=evDur(e),os=evObjs(e);const esP=evEsPartido(e);
+    const evList=evs.length?evs.map(e=>{const t=calTipo(e.type),ci=calIntens(evIntens(e)),du=evDur(e),os=evObjs(e);const esP=evEsPartido(e);
       return `<div class="cw-ev${esP?' cw-ev-p':''}" style="--c:${t.col}"><span class="cw-ev-dot" style="background:${ci.col}"></span>${esP?'<span class="cw-ev-badge">PARTIDO</span>':''}<span class="cw-ev-tx">${esP?partidoEtiqueta(e).replace(/</g,'&lt;'):(e.title||t.lab)}</span>${du?`<span class="cw-ev-du">${du}′</span>`:''}</div>${os.length?`<div class="cw-ev-objs">${os.map(o=>`<div class="cw-ev-obj">${o.replace(/</g,'&lt;')}</div>`).join('')}</div>`:''}`;}).join(''):'<div class="empty-lite">Libre</div>';
     const zoneStr=(z.z4!=null&&z.z4!=='')||(z.z5!=null&&z.z5!=='')?`<div class="cw-zones">${z.z5!=null&&z.z5!==''?`<span>Z5 <b>${z.z5}%</b></span>`:''}${z.z4!=null&&z.z4!==''?`<span>Z4 <b>${z.z4}%</b></span>`:''}</div>`:'';
     return `<div class="cw-col${dk===todayDk?' cw-today':''}${md==='MD'?' cw-md':''}${pl.n?' cw-haspl':''}" style="--cwc:${pl.n?pl.col:'transparent'}" onclick="calOpenDay('${dk}')">
@@ -14809,7 +14933,7 @@ function renderCalWeek(box){
 }
 function calDayBody(dk){
   const evs=(STATE.calendar[dk]||[]);const real=calRealMap()[dk];const pl=calDayPlan(dk);const dev=pl.n?calDev(pl.planUA,real):null;
-  const list=evs.length?evs.map(e=>{const t=CAL_TYPES[e.type],ci=CAL_INT[evIntens(e)],du=evDur(e),ct=evContacto(e),os=evObjs(e);const sp=evSP(e);
+  const list=evs.length?evs.map(e=>{const t=calTipo(e.type),ci=calIntens(evIntens(e)),du=evDur(e),ct=evContacto(e),os=evObjs(e);const sp=evSP(e);
     const detalle=sp
       ? `<div class="small"><span class="cal-sp">sin programar</span> <span class="muted">${t.lab} · falta volumen, intensidad y contacto</span></div>`
       : `<div class="small muted"><span style="color:${ci.col};font-weight:700">●</span> ${t.lab} · ${ci.lab} intensidad${du?` · ${du}′`:''}${e.type!=='descanso'&&e.type!=='evento'?` · contacto ${ct}/5`:''}</div>`
