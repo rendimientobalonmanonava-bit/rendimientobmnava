@@ -2605,6 +2605,12 @@ body.modal-open #sidebar{overflow:hidden}
 .ph-name{font-size:11px;font-weight:600;margin-top:6px;line-height:1.25;word-break:break-word}
 .ph-src{font-size:10px;color:var(--muted)}
 .ph-del{font-size:10px;padding:2px 8px;margin-top:4px}
+.ph-aviso{border:1px solid color-mix(in srgb,var(--warn) 40%,var(--hair));
+  background:color-mix(in srgb,var(--warn) 8%,transparent);border-radius:12px;
+  padding:13px 15px;margin-bottom:14px}
+.ph-aviso b{display:block;font-size:13.5px;color:var(--warn-text,var(--warn))}
+.ph-aviso p{margin:5px 0 10px;font-size:12.5px;color:var(--muted);line-height:1.5;max-width:64ch}
+.ph-aviso-b{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .ath-img{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:54px;height:54px;border-radius:50%;object-fit:cover;background:var(--panel2)}
 .ath-rd{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--hair);border-radius:10px;font-size:10px;font-weight:800;padding:0 6px;line-height:15px}
 .ath-nm{font-size:12px;font-weight:700;margin:14px 0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -21431,6 +21437,21 @@ function phPersist(){
   }
 }
 function phSet(name,dataUrl){const m=phLoad();m[name]=dataUrl;return phPersist();}
+/* v312 · Devolver el mando a la carpeta. Solo borra las guardadas de jugadores
+   que TIENEN foto en la carpeta: si alguien solo tiene la subida a mano, se
+   queda, porque quitarla lo dejaría sin cara. */
+window.phUsarCarpeta=function(){
+  const m=phLoad();
+  const quitar=Object.keys(m).filter(n=>PH_FILE[n]);
+  if(!quitar.length){if(window.toast)toast('No hay ninguna foto guardada que tape a la carpeta');return;}
+  if(!confirm('¿Usar las fotos de la carpeta para '+quitar.length+' jugador'+(quitar.length>1?'es':'')+'?\n\n'
+    +'Se quitan las guardadas en este navegador. Los archivos de la carpeta no se tocan, y puedes volver a subir una a mano cuando quieras.'))return;
+  quitar.forEach(n=>{delete m[n];});
+  phPersist();
+  phApply();phRepaint();
+  try{phRender();}catch(e){}
+  if(window.toast)toast(quitar.length+' foto(s) ahora se leen de la carpeta');
+};
 function phDel(name){const m=phLoad();delete m[name];phPersist();}
 /* Orden de preferencia: lo subido en este navegador manda sobre la carpeta,
    para que se pueda corregir una foto sin tocar el hosting. */
@@ -21639,6 +21660,23 @@ function phRender(){
     '<div class="qd-kpi"><div class="qd-kpi-v">'+Object.keys(PH_FILE).length+'</div><div class="qd-kpi-l">en la carpeta</div></div>'+
     '<div class="qd-kpi"><div class="qd-kpi-v">'+Math.round(bytes/1024)+'<span style="font-size:12px"> KB</span></div><div class="qd-kpi-l">ocupado</div></div>'+
     '</div>';
+  /* ═══ v312 · Las guardadas a mano TAPAN a las de la carpeta ═══
+     phOf() mira primero el almacén del navegador y solo después la carpeta. Es
+     lo correcto —una foto subida a mano gana— pero deja de serlo cuando se
+     cambian las fotos de la carpeta: se sustituyen los archivos, se recarga, y
+     no se ve nada nuevo porque las de dentro del navegador siguen mandando. No
+     había forma de saberlo desde la pantalla. */
+  const tapadas=names.filter(n=>local[n]&&PH_FILE[n]);
+  if(tapadas.length){
+    html+='<div class="ph-aviso">'
+      +'<b>'+tapadas.length+' foto'+(tapadas.length>1?'s':'')+' de este navegador tapa'
+      +(tapadas.length>1?'n':'')+' a la'+(tapadas.length>1?'s':'')+' de la carpeta.</b>'
+      +'<p>Se subieron a mano en su día y mandan sobre los archivos. Si has cambiado las fotos de la carpeta y no ves las nuevas, es por esto.</p>'
+      +'<div class="ph-aviso-b">'
+        +'<button class="btn" onclick="phUsarCarpeta()">Usar las de la carpeta</button>'
+        +'<span class="small muted">Quita las guardadas aquí. Los archivos de la carpeta no se tocan.</span>'
+      +'</div></div>';
+  }
   html+='<div class="ph-grid">'+names.map(n=>{
     const u=phOf(n);
     const src=local[n]?'local':(PH_FILE[n]?'carpeta':null);
@@ -21716,5 +21754,91 @@ setInterval(function(){
 })();
 
 </script>
+
+<script>
+/* ============================================================
+   VER · Detector de versión desplegada (v312)
+
+   El proyecto no tiene compilación: se sirve un index.html suelto desde GitHub
+   Pages, que lo entrega con `cache-control: max-age=600`. Durante esos diez
+   minutos el navegador da por buena su copia y ni siquiera pregunta al
+   servidor, así que recargar no trae nada nuevo. Esto ya nos ha costado dos
+   diagnósticos en falso: un cambio subido y verificado en el servidor que
+   sobre la pantalla "seguía exactamente igual", porque lo que corría era el
+   archivo de antes.
+
+   Aquí la app comprueba su propia versión: se pide el index al servidor
+   saltándose la caché y se compara la marca de abajo con la del archivo que
+   está corriendo. Si no coinciden, se avisa con un botón para recargar. Y como
+   la petición se hace con cache:'reload', esa misma petición deja ya la copia
+   nueva en la caché del navegador: la recarga posterior la coge sin trucos.
+   ============================================================ */
+(function(){
+'use strict';
+/*BUILD:2026-09-02.1*/
+const VER_ACTUAL='2026-09-02.1';
+window.__BUILD=VER_ACTUAL;
+
+function verBanner(otra){
+  if(document.getElementById('ver-nueva'))return;
+  const d=document.createElement('div');
+  d.id='ver-nueva';
+  d.innerHTML='<span class="ver-t"><b>Hay una versión nueva</b>'
+    +'<span class="ver-s">Estás viendo una copia guardada del '+VER_ACTUAL+'.</span></span>'
+    +'<button class="ver-b" id="ver-go">Actualizar</button>'
+    +'<button class="ver-x" id="ver-no" title="Ahora no">✕</button>';
+  document.body.appendChild(d);
+  document.getElementById('ver-go').addEventListener('click',()=>{
+    try{location.reload();}catch(e){}
+  });
+  document.getElementById('ver-no').addEventListener('click',()=>d.remove());
+}
+
+/* Devuelve la marca del archivo que hay ahora mismo en el servidor, o null si
+   no se puede saber (sin conexión, protocolo file://, respuesta rara). */
+async function verDelServidor(){
+  if(location.protocol==='file:')return null;
+  try{
+    const r=await fetch(location.pathname+'?_ver='+Date.now(),{cache:'reload'});
+    if(!r.ok)return null;
+    const t=await r.text();
+    const m=t.match(/\/\*BUILD:([^*]+)\*\//);
+    return m?m[1].trim():null;
+  }catch(e){return null;}
+}
+
+async function verComprobar(){
+  if(document.hidden)return;
+  const remota=await verDelServidor();
+  if(remota&&remota!==VER_ACTUAL)verBanner(remota);
+}
+window.verComprobar=verComprobar;
+/* Para mirarlo desde la consola cuando algo "sigue exactamente igual". */
+window.verEstado=async function(){
+  return {corriendo:VER_ACTUAL, enServidor:await verDelServidor()};
+};
+
+/* Primera comprobación con la app ya pintada, y luego cada diez minutos, que es
+   justo lo que dura la caché de GitHub Pages. */
+setTimeout(verComprobar,9000);
+setInterval(verComprobar,600000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)verComprobar();});
+})();
+</script>
+<style>
+#ver-nueva{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:99998;
+  display:flex;align-items:center;gap:14px;max-width:calc(100vw - 24px);
+  background:var(--panel,#fff);border:1px solid var(--line,#e3e6ee);
+  border-radius:14px;padding:11px 13px 11px 16px;
+  box-shadow:0 14px 40px rgba(15,23,42,.18);animation:fade .25s ease}
+#ver-nueva .ver-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+#ver-nueva b{font-size:13.5px}
+#ver-nueva .ver-s{font-size:11.5px;color:var(--muted,#77809a)}
+#ver-nueva .ver-b{background:var(--accent,#3056c4);color:#fff;border:none;border-radius:9px;
+  padding:8px 15px;font-size:13px;font-weight:600;cursor:pointer;flex:none}
+#ver-nueva .ver-x{background:none;border:none;color:var(--muted,#77809a);
+  font-size:14px;cursor:pointer;padding:4px 6px;flex:none}
+@media(max-width:430px){#ver-nueva{left:12px;right:12px;transform:none;bottom:12px}}
+</style>
 </body>
 </html>
