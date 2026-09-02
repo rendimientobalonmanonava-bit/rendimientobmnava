@@ -2940,23 +2940,27 @@ html[data-theme="dark"] .seg button.on{
    El modo ligero quita esos efectos y deja superficies opacas. Se ve casi igual
    —mismos colores, sombras y radios— pero deja de repintar sin parar. */
 body.perf-lite::before{animation:none!important;filter:none!important;opacity:.55}
-body.perf-lite .panel,body.perf-lite .kpi,body.perf-lite .card-pro,body.perf-lite .zc,
-body.perf-lite .pcard,body.perf-lite .add-menu,body.perf-lite .drawer,body.perf-lite header,
-body.perf-lite #sidebar,body.perf-lite .drawer-ov,body.perf-lite .dp-pop,body.perf-lite .dp-trigger,
-body.perf-lite .datepick input,body.perf-lite .datepick button,body.perf-lite .datepick .dp-nav,
-body.perf-lite .datepick .dp-today,body.perf-lite .iconbtn,body.perf-lite .estado-seg,
-body.perf-lite .med-modal,body.perf-lite .info-modal{
+/* v313 · Esto era una lista de clases escrita a mano en v216. Cada superficie de
+   vidrio añadida después quedaba fuera sin que nadie se diera cuenta: al revisarlo
+   se escapaban .eq-tile, .crs-tile, .pl-tile y la cabecera de Fisioterapia, y el
+   modo ligero dejaba seis capas de desenfoque vivas justo en el Resumen. Una
+   regla global no se queda obsoleta: lo que se añada mañana entra solo. */
+body.perf-lite *,body.perf-lite *::before,body.perf-lite *::after{
   backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 body.perf-lite .panel,body.perf-lite .kpi,body.perf-lite .card-pro,
-body.perf-lite .zc,body.perf-lite .pcard,body.perf-lite .add-menu,body.perf-lite .drawer{
+body.perf-lite .zc,body.perf-lite .pcard,body.perf-lite .add-menu,body.perf-lite .drawer,
+body.perf-lite .eq-tile,body.perf-lite .crs-tile,body.perf-lite .pl-tile{
   background:rgba(255,255,255,.94)!important}
+body.perf-lite .fis-cab{background:var(--bg)!important}
 body.perf-lite header{background:rgba(255,255,255,.93)!important}
 body.perf-lite .dp-pop{background:rgba(255,255,255,.97)!important}
 body.perf-lite .dp-trigger,body.perf-lite .datepick .dp-nav,
 body.perf-lite .datepick .dp-today,body.perf-lite .iconbtn:not(.primary){
   background:rgba(255,255,255,.95)!important}
 html[data-theme="dark"] body.perf-lite .panel,html[data-theme="dark"] body.perf-lite .kpi,
-html[data-theme="dark"] body.perf-lite .card-pro,html[data-theme="dark"] body.perf-lite .drawer{
+html[data-theme="dark"] body.perf-lite .card-pro,html[data-theme="dark"] body.perf-lite .drawer,
+html[data-theme="dark"] body.perf-lite .eq-tile,html[data-theme="dark"] body.perf-lite .crs-tile,
+html[data-theme="dark"] body.perf-lite .pl-tile{
   background:rgba(28,34,46,.96)!important}
 html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!important}
 </style>
@@ -15210,7 +15214,7 @@ function perfApply(){
 function perfSet(v){
   try{localStorage.setItem(PERF_LS,v);}catch(e){}
   perfApply();
-  if(v==='auto')perfProbe();
+  if(v==='auto'){perfProbe();perfVigilarScroll();}
   else toast(v==='lite'?'Modo ligero activado':'Efectos visuales completos activados');
 }
 /* Mide fps reales. Se hace tarde (la carga inicial siempre va a tirones) y se
@@ -15239,6 +15243,57 @@ function perfProbe(){
     }catch(e){}
   },3000);
 }
+/* v313 · La prueba de arriba mide con la página quieta, una sola vez, a los tres
+   segundos de arrancar. El problema que busca no sale quieto: 206 elementos de
+   la pantalla llevan backdrop-filter y el fondo lleva un blur(52px) animado en
+   bucle, así que el compositor solo se satura cuando hay que recomponer —al
+   desplazarse y al cambiar de vista—. Un equipo que en reposo va a 60 fps y al
+   scrollear se hunde pasaba la prueba y se quedaba en efectos completos, con
+   destellos en blanco cada vez que el compositor no llega a tiempo.
+
+   Esto mide durante los desplazamientos que hace el usuario: no provoca ningún
+   movimiento, solo cuenta fotogramas mientras se mueve la página de verdad.
+   Hacen falta tres desplazamientos malos para cambiar de modo, para que un
+   tirón suelto —una pestaña de fondo comiéndose la CPU— no decida por nadie. */
+let PERF_MAL=0, PERF_BIEN=0, PERF_MIDIENDO=false, PERF_ONSCROLL=null;
+function perfVigilarScroll(){
+  if(PERF_ONSCROLL){window.removeEventListener('scroll',PERF_ONSCROLL);PERF_ONSCROLL=null;}
+  PERF_MAL=0;PERF_BIEN=0;
+  if(perfGet()!=='auto')return;
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  const parar=()=>{if(PERF_ONSCROLL){window.removeEventListener('scroll',PERF_ONSCROLL);PERF_ONSCROLL=null;}};
+  PERF_ONSCROLL=function(){
+    if(PERF_MIDIENDO)return;
+    PERF_MIDIENDO=true;
+    let n=0,t0=null;
+    requestAnimationFrame(function tick(t){
+      if(t0===null)t0=t;
+      n++;
+      if(t-t0<500){requestAnimationFrame(tick);return;}
+      PERF_MIDIENDO=false;
+      const f=n/((t-t0)/1000);
+      if(f<35)PERF_MAL++;else PERF_BIEN++;
+      if(PERF_MAL>=3){
+        parar();
+        if(perfGet()!=='auto')return;
+        try{localStorage.setItem(PERF_LS,'lite');}catch(e){}
+        perfApply();
+        if(window.toast)toast('Modo ligero activado: las transparencias iban a tirones al desplazarte. Se cambia en Ajustes ⚙');
+      }else if(PERF_BIEN>=10)parar();   // este equipo va sobrado: se deja de medir
+    });
+  };
+  window.addEventListener('scroll',PERF_ONSCROLL,{passive:true});
+}
+window.perfVigilarScroll=perfVigilarScroll;
+/* Para verlo desde la consola cuando alguien reporte tirones. */
+window.perfEstado=function(){
+  return {modo:perfGet(), ligeroActivo:document.body.classList.contains('perf-lite'),
+    desplazamientosMalos:PERF_MAL, desplazamientosBuenos:PERF_BIEN,
+    midiendo:!!PERF_ONSCROLL,
+    capasDeVidrio:(function(){let n=0;document.querySelectorAll('*').forEach(el=>{
+      const st=getComputedStyle(el),bf=st.backdropFilter||st.webkitBackdropFilter;
+      if(bf&&bf!=='none')n++;});return n;})()};
+};
 window.perfSet=perfSet;window.perfApply=perfApply;
 function applyTheme(t){const dark=t==='dark';document.documentElement.setAttribute('data-theme',dark?'dark':'light');lsSet('bmnava-theme',dark?'dark':'light');buildChartTheme();const b=document.getElementById('btn-theme');if(b){b.innerHTML=(dark?'☀️':'🌙')+'<span class="t">'+(dark?'Claro':'Oscuro')+'</span>';}}
 function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';applyTheme(cur==='dark'?'light':'dark');rerenderCurrent();}
@@ -15359,7 +15414,7 @@ function restoreFromHash(){const h=readHash();if(!h)return;if(h.date){const inp=
 
 /* aplica el tema guardado antes del primer render */
 applyTheme(lsGet('bmnava-theme')==='dark'?'dark':'light');
-try{perfApply();perfProbe();}catch(e){}
+try{perfApply();perfProbe();perfVigilarScroll();}catch(e){}
 try{modalWatchAll();modalWatchBody();}catch(e){}
 
 
@@ -21775,8 +21830,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-02.1*/
-const VER_ACTUAL='2026-09-02.1';
+/*BUILD:2026-09-02.2*/
+const VER_ACTUAL='2026-09-02.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
