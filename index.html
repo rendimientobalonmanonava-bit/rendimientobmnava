@@ -21602,12 +21602,38 @@ function phBoot(){
   phScanFolder();
   /* Reintento acotado por si la plantilla llega tarde. Se detiene solo en cuanto
      el escaneo se da por hecho. */
-  let intentos=0;
+  /* v310 · El reintento se rendía a los 18 segundos —doce pasadas de 1,5 s— y
+     si la plantilla tardaba más en llegar, no había fotos en TODA la sesión.
+     Con las hojas lentas o muchos datos pasa de verdad. Ahora no cuenta
+     intentos: espera a que haya plantilla, que es el único momento en que el
+     escaneo puede hacer algo, y se detiene en cuanto termina. El tope de cinco
+     minutos existe solo para no dejar un temporizador vivo eternamente si la
+     conexión nunca llega. */
+  const t0=Date.now();
   const t=setInterval(function(){
-    if(PH_SCANNED||++intentos>12){clearInterval(t);return;}
+    if(PH_SCANNED){clearInterval(t);return;}
+    if(Date.now()-t0>300000){clearInterval(t);
+      console.warn('bmnava · fotos: la plantilla no llegó en cinco minutos, se deja de buscar');return;}
     phScanFolder();
   },1500);
 }
+/* v310 · Reescanear a mano, para cuando se cambian las fotos de la carpeta sin
+   recargar, o si algo salió mal. Expuesto para poder llamarlo desde Conexión. */
+window.phReescanear=async function(){
+  PH_SCANNED=false;
+  for(const k in PH_FILE)delete PH_FILE[k];
+  await phScanFolder();
+  phApply();phRepaint();
+  const n=Object.keys(PH_FILE).length;
+  if(window.toast)toast(n?(n+' fotos encontradas en la carpeta'):'No se ha encontrado ninguna foto');
+  return n;
+};
+window.phEstado=function(){
+  const ps=Object.keys(STATE.players||{});
+  return {plantilla:ps.length,enCarpeta:Object.keys(PH_FILE).length,
+    guardadas:Object.keys(phLoad()||{}).length,escaneado:PH_SCANNED,
+    sinFoto:ps.filter(n=>!phOf(n))};
+};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(phBoot,1400));
 else setTimeout(phBoot,1400);
 /* buildPlayers() se ejecuta en cada refresco de datos y borra el campo avatar;
