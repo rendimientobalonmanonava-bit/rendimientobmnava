@@ -8511,6 +8511,7 @@ function teamReadinessSeries(n){
   if(RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave)return RD_SERIE_CACHE.datos;
   const orig=STATE.refDate;
   const out=[];
+  window.__RD_CALC=true;
   try{
     dks.forEach(dk=>{
       STATE.refDate=dkToDate(dk);
@@ -8523,10 +8524,62 @@ function teamReadinessSeries(n){
     /* pase lo que pase, el estado vuelve al día que se estaba mirando */
     STATE.refDate=orig;
     try{buildPlayers();}catch(e2){}
+    window.__RD_CALC=false;
   }
   RD_SERIE_CACHE={clave,datos:out};
   return out;
 }
+/* ═══ v311 · La misma serie, sin congelar la pantalla ═══
+   La versión de arriba encadena catorce buildPlayers() y bloquea el hilo 1,6
+   segundos: la interfaz se queda muerta y al soltarse repinta de golpe, que es
+   el «temblor» y los pantallazos en blanco. Aquí se hace lo mismo pero cediendo
+   el hilo entre día y día, así que el navegador puede pintar y responder
+   mientras. Tarda lo mismo en total y no se nota.
+   Si otra pasada ya está en marcha se espera a esa en vez de lanzar otra: dos
+   cálculos a la vez se pisarían STATE.refDate el uno al otro. */
+let RD_SERIE_PROM=null;
+/* v311 · Mientras la serie recorre días hacia atrás, STATE.refDate apunta a una
+   fecha que NO es la que mira el usuario. Cualquier repintado automático que
+   caiga en medio pinta la pantalla con los datos de otro día y luego vuelve:
+   eso es el parpadeo. Con esta bandera, los repintados automáticos esperan. */
+window.__RD_CALC=false;
+function teamReadinessSerieAsync(n){
+  n=n||14;
+  const ya=teamReadinessSerieCache(n);
+  if(ya)return Promise.resolve(ya);
+  if(RD_SERIE_PROM)return RD_SERIE_PROM;
+  const dks=[...new Set((STATE.wellness||[]).map(w=>w.dk).filter(Boolean))].sort().slice(-n);
+  if(!dks.length)return Promise.resolve([]);
+  const clave=(STATE.wellness||[]).length+'|'+(STATE.rpe||[]).length+'|'+dks.join(',');
+  const orig=STATE.refDate;
+  const out=[];
+  const respira=()=>new Promise(r=>{
+    if(window.requestIdleCallback)requestIdleCallback(()=>r(),{timeout:60});
+    else setTimeout(r,0);
+  });
+  RD_SERIE_PROM=(async function(){
+    window.__RD_CALC=true;
+    try{
+      for(const dk of dks){
+        STATE.refDate=dkToDate(dk);
+        buildPlayers();
+        const v=Object.values(STATE.players).map(p=>p.readiness).filter(x=>x!=null);
+        out.push({dk,rd:v.length?Math.round(mean(v)):null,n:v.length});
+        await respira();
+      }
+    }catch(e){console.error('bmnava · serie de readiness',e);}
+    finally{
+      STATE.refDate=orig;
+      try{buildPlayers();}catch(e2){}
+      window.__RD_CALC=false;
+      RD_SERIE_PROM=null;
+    }
+    RD_SERIE_CACHE={clave,datos:out};
+    return out;
+  })();
+  return RD_SERIE_PROM;
+}
+window.teamReadinessSerieAsync=teamReadinessSerieAsync;
 window.teamReadinessSeries=teamReadinessSeries;
 /* La serie si ya está calculada, sin ponerse a calcularla: el parte se pinta al
    instante y el gráfico se rellena en cuanto está, en vez de congelar la
@@ -13181,8 +13234,10 @@ function renderParte(){
   const rdPorDk={};(rdSerie||[]).forEach(x=>{rdPorDk[x.dk]=x.rd;});
   const idx=last14.map(d=>rdPorDk[d.dk]!=null?rdPorDk[d.dk]:null);
   /* primera vez: se pinta ya y se vuelve a pintar cuando la serie está lista */
-  if(!rdSerie&&typeof teamReadinessSeries==='function'){
-    setTimeout(function(){try{teamReadinessSeries(14);renderParte();}catch(e){}},40);
+  if(!rdSerie&&typeof teamReadinessSerieAsync==='function'){
+    /* v311 · asíncrono y troceado: la tarjeta se pinta ya y el gráfico entra
+       cuando está, sin dejar la pantalla muerta segundo y medio. */
+    teamReadinessSerieAsync(14).then(function(){try{renderParte();}catch(e){}});
   }
   wrap.innerHTML=`<div class="parte-card" id="parte-card">
     <div class="pt-head">
@@ -21342,6 +21397,13 @@ if(window.__PH_LOADED__)return; window.__PH_LOADED__=true;
 
 const PH_LS='bmnava_photos';
 const PH_DIR='fotos/';
+/* v311 · Sello de versión en la URL de las fotos. Los archivos se llaman igual
+   cuando se cambian —«Hugo Lima.png» sigue siendo «Hugo Lima.png»— así que el
+   navegador servía la copia vieja de su caché y parecía que el cambio no había
+   llegado. Subiendo este número, la URL cambia y las pide de nuevo.
+   SUBIR ESTE NÚMERO CADA VEZ QUE SE CAMBIEN LAS FOTOS DE LA CARPETA. */
+const PH_VER='2';
+const PH_QS=PH_VER?('?v='+PH_VER):'';
 const PH_EXT=['png','webp','jpg','jpeg','PNG','JPG'];
 const PH_SIZE=220;          // lado del recorte cuadrado guardado
 let PH_MEM=null;            // caché en memoria de lo guardado en localStorage
@@ -21402,7 +21464,7 @@ async function phScanFolder(){
     (typeof exNames==='function'?exNames():[]).filter(n=>!(STATE.players||{})[n]));
   for(const n of names){
     for(const ext of PH_EXT){
-      const url=PH_DIR+encodeURIComponent(n)+'.'+ext;
+      const url=PH_DIR+encodeURIComponent(n)+'.'+ext+PH_QS;
       if(await phTry(url)){PH_FILE[n]=url;break;}
     }
   }
@@ -21639,7 +21701,17 @@ else setTimeout(phBoot,1400);
 /* buildPlayers() se ejecuta en cada refresco de datos y borra el campo avatar;
    este repaso periódico lo repone. Solo repinta cuando algo cambia de verdad,
    para no interrumpir al usuario cada dos segundos. */
-setInterval(function(){if(phApply())phRepaint();},2500);
+/* v311 · Dos cambios sobre el repaso periódico:
+   · No corre mientras se recalcula la serie de readiness, porque en ese rato
+     STATE.players está construido con la fecha de otro día y repintar deja la
+     pantalla mostrando algo que no es.
+   · Y no corre con la pestaña en segundo plano: repintar lo que nadie está
+     mirando solo gasta batería. */
+setInterval(function(){
+  if(window.__RD_CALC)return;
+  if(document.hidden)return;
+  if(phApply())phRepaint();
+},2500);
 
 })();
 
