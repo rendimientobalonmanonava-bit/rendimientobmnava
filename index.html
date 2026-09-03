@@ -3901,7 +3901,7 @@ const SY_TABLE='bmnava_state';
 const SY_PREFIX=/^bmnava_/;
 /* Claves que NO se comparten: son preferencias de cada persona, no datos del
    equipo. Sincronizarlas haría que el tema oscuro de uno cambiara el del otro. */
-const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto','bmnava_symeta','bmnava_fotoslimpias',
+const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto','bmnava_symeta','bmnava_fotoslimpias','bmnava_pendiente',
   /* v320 · Las fotos salen de la sincronización, con el visto bueno de Daniel.
      Eran 1613 KB de los 1823 que ocupa todo: el 88 %. Y están duplicadas, porque
      desde hace tiempo se sirven de la carpeta fotos/ del repositorio, que ve
@@ -4376,17 +4376,20 @@ function syFlushPending(opts){
   SY.pending={};
   clearTimeout(SY.timer);
   if(opts&&opts.keepalive){
-    const payload=keys.map(k=>{
-      let v=null;
-      try{v=JSON.parse(localStorage.getItem(k)||'null');}catch(e){v=localStorage.getItem(k);}
-      return {k,v,updated_at:new Date().toISOString(),updated_by:SY.email||'staff'};
-    });
+    /* v322 · Aquí se mandaba el bloque local ENTERO, sin fusionar. Con la
+       pestaña cerrándose no hay margen para leer antes lo del servidor —haría
+       falta ida y vuelta—, así que ese envío podía destruir lo que otro
+       acabase de escribir. Era el último sitio por donde se perdían datos.
+
+       Ya no se manda nada: se anota qué quedó a medias y se sube, fusionando
+       como todo lo demás, en cuanto se vuelva a abrir la app. El dato no se
+       pierde —está en este navegador— y nadie pisa a nadie. Lo que se paga es
+       que ese cambio tarda en llegar al resto hasta la próxima apertura, y con
+       el debounce en 500 ms la ventana para caer aquí es medio segundo. */
     try{
-      fetch(SY.url+'/rest/v1/'+SY_TABLE+'?on_conflict=k',{
-        method:'POST',keepalive:true,
-        headers:Object.assign(syHeaders(true),{'Prefer':'resolution=merge-duplicates'}),
-        body:JSON.stringify(payload)
-      });
+      const y=JSON.parse(localStorage.getItem(SY_PEND)||'[]')||[];
+      const todas=Array.from(new Set(y.concat(keys)));
+      _setItem.call(localStorage,SY_PEND,JSON.stringify(todas));
     }catch(e){}
     return;
   }
@@ -4399,7 +4402,23 @@ function syQueue(k){
   SY.pending[k]=1;
   syStatus('sync','Guardando…');
   clearTimeout(SY.timer);
-  SY.timer=setTimeout(()=>syFlushPending(),1200);
+  /* v322 · Eran 1200 ms. Cuanto antes salga, menos posibilidades de que la
+     pestaña se cierre con algo a medias; y ahora que solo viaja lo que cambia,
+     salir pronto no cuesta nada. */
+  SY.timer=setTimeout(()=>syFlushPending(),500);
+}
+/* Lo que quedó sin subir porque la pestaña se cerró. Se reintenta al abrir. */
+const SY_PEND='bmnava_pendiente';
+async function syPendientes(){
+  let ks=[];
+  try{ks=JSON.parse(localStorage.getItem(SY_PEND)||'[]')||[];}catch(e){}
+  if(!ks.length)return 0;
+  try{
+    const n=await syPushKeys(ks.filter(syIsShared));
+    localStorage.removeItem(SY_PEND);
+    if(n)console.info('bmnava · subido al abrir lo que quedó pendiente al cerrar: '+n+' bloque(s)');
+    return n;
+  }catch(e){return 0;}   // sigue anotado: se reintenta la próxima vez
 }
 Storage.prototype.setItem=function(k,v){
   _setItem.call(this,k,v);
@@ -4424,6 +4443,11 @@ window.syConnect=async function(silent){
   try{
     await syPull();
     SY.on=true;
+    /* v322 · Esto estaba solo en syEnsureAuth y en el login. Por aquí se pasa
+       también —el botón de conectar del panel— y lo que hubiera quedado
+       pendiente al cerrar se quedaba sin subir indefinidamente. */
+    try{await syPendientes();}catch(e){}
+    try{syVigilar();}catch(e){}
     if(!silent){
       try{if(typeof location!=='undefined')location.reload();}catch(e){}
     }
@@ -4575,6 +4599,8 @@ function syShowGate(){
         await syLogin(em,pw);
         await syPull();
         SY.on=true;
+        try{await syPendientes();}catch(e){}
+        try{syVigilar();}catch(e){}
         overlay.remove();
         resolve();
       }catch(e){
@@ -4596,6 +4622,8 @@ window.syEnsureAuth=async function(){
     try{
       await syPull();
       SY.on=true;
+      try{await syPendientes();}catch(e){}   // lo que quedó a medias al cerrar
+      try{syVigilar();}catch(e){}
       try{syRenderPanel();}catch(e){}
       return true;
     }catch(e){
@@ -4607,6 +4635,70 @@ window.syEnsureAuth=async function(){
   return SY.on;
 };
 window.syState=()=>({on:SY.on,status:SY.status,email:SY.email,url:!!SY.url});
+
+/* ═══ v322 · Que lo del otro llegue solo ═══
+   Hasta ahora, lo que escribía Virginia no aparecía en la pantalla de Daniel
+   hasta que él pulsaba Actualizar o recargaba. Con dos personas trabajando a la
+   vez sobre los mismos jugadores, eso es media hora mirando datos viejos sin
+   saberlo, y es también lo que multiplica las probabilidades de pisarse.
+
+   Ahora se mira cada 25 segundos. Se puede hacer porque la comprobación ya no
+   cuesta nada: baja la lista de nombres y fechas —en torno a 1 KB— y solo pide
+   el contenido de lo que haya cambiado de verdad. Si no ha cambiado nada, no se
+   repinta ni se avisa: el usuario no se entera de que esto existe. */
+function syPuedeRepintar(){
+  const a=document.activeElement;
+  if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return false;   // está escribiendo
+  if(a&&a.isContentEditable)return false;
+  /* Comprobar que EXISTE el modal no vale: .med-modal está en el DOM siempre,
+     abierta o cerrada, así que esto daba «no repintes» eternamente y dejaba la
+     función muerta. Hay que mirar si de verdad se está viendo. */
+  const seVe=el=>{
+    if(!el)return false;
+    if(el.offsetParent===null&&getComputedStyle(el).position!=='fixed')return false;
+    const cs=getComputedStyle(el);
+    if(cs.display==='none'||cs.visibility==='hidden'||parseFloat(cs.opacity||'1')<0.05)return false;
+    const r=el.getBoundingClientRect();
+    if(r.width<=0||r.height<=0)return false;
+    /* Y que esté dentro de la pantalla: el cajón de ajustes cerrado sigue
+       siendo un fixed de 360x900, solo que aparcado fuera del borde. Sin esto
+       contaba como abierto siempre y volvía a dejar la función muerta. */
+    return r.right>0&&r.left<innerWidth&&r.bottom>0&&r.top<innerHeight;
+  };
+  if(Array.prototype.some.call(document.querySelectorAll('.med-modal,.info-modal,.drawer,.dp-pop,.modal'),seVe))return false;
+  if(window.getSelection&&String(window.getSelection()).length>2)return false;
+  return true;
+}
+function syRepintar(){
+  syInvalidateAppCaches();
+  try{buildPlayers();}catch(e){}
+  try{renderAll();}catch(e){}
+  try{rerenderCurrent();}catch(e){}
+}
+let SY_PEDIENTE_REPINTAR=false;
+async function syMirar(){
+  if(!SY.on||document.hidden)return;
+  if(Object.keys(SY.pending).length)return;        // hay algo saliendo: no interrumpir
+  let r=null;
+  try{r=await syPull();}catch(e){return;}
+  if(r&&r.n>0)SY_PEDIENTE_REPINTAR=true;
+  if(SY_PEDIENTE_REPINTAR&&syPuedeRepintar()){
+    SY_PEDIENTE_REPINTAR=false;
+    syRepintar();
+    if(window.toast)toast('Actualizado con lo que ha registrado el equipo');
+  }
+}
+window.syMirar=syMirar;
+let SY_VIG=null;
+function syVigilar(){
+  if(SY_VIG)clearInterval(SY_VIG);
+  SY_VIG=setInterval(()=>{syMirar().catch(()=>{});},25000);
+}
+/* Al volver a la pestaña se mira ya, sin esperar al turno: es justo cuando uno
+   quiere ver lo que ha pasado mientras no miraba. */
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden&&SY.on)setTimeout(()=>{syMirar().catch(()=>{});},400);
+});
 /* v204 · usado por el botón Actualizar de la barra: sube lo propio y baja lo del
    resto del staff, sin recargar la página. */
 window.syRefreshShared=async function(){
@@ -22324,8 +22416,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-03.7*/
-const VER_ACTUAL='2026-09-03.7';
+/*BUILD:2026-09-03.9*/
+const VER_ACTUAL='2026-09-03.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
