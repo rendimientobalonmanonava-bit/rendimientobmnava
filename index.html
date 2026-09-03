@@ -3901,7 +3901,7 @@ const SY_TABLE='bmnava_state';
 const SY_PREFIX=/^bmnava_/;
 /* Claves que NO se comparten: son preferencias de cada persona, no datos del
    equipo. Sincronizarlas haría que el tema oscuro de uno cambiara el del otro. */
-const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull'];
+const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto'];
 
 /* URL y clave pública (anon) fijas en el código: son datos públicos por diseño
    (protegidos por RLS en Supabase), así que cada persona ya no tiene que
@@ -4044,6 +4044,69 @@ window.syQueHay=function(){
   return o;
 };
 
+/* ═══ v315 · Fusión por registro ═══
+   Hasta aquí, sincronizar era sustituir bloques enteros. Y un bloque no es un
+   dato: bmnava_meddb es UNO solo con las lesiones y los tratamientos de toda
+   la plantilla. Con eso, Virginia apuntando un tratamiento y Daniel otro a la
+   vez no era un caso raro con mala suerte: el segundo en subir borraba el
+   trabajo del primero, siempre, y sin decir nada. Eso es lo que se lleva
+   semanas enteras.
+
+   El sello de hora de v314 evita que lo viejo pise a lo nuevo, pero sigue
+   eligiendo un ganador y tirando al otro. Aquí ya no se elige: se fusiona
+   registro a registro. Los datos lo permiten porque todos los bloques tienen
+   identidad dentro (id, _id, o fecha+jugador).
+
+   La regla es deliberadamente asimétrica: ante la duda se conserva. Un registro
+   que está en un lado y no en el otro SE QUEDA. Solo cuando el mismo registro
+   existe en los dos y difiere hay que elegir, y ahí manda el bloque con el
+   sello más reciente. El precio es que un borrado hecho en un sitio puede
+   reaparecer desde la copia del otro. Se acepta a propósito: un registro que
+   reaparece se ve y se vuelve a borrar en diez segundos; uno que desaparece no
+   se echa en falta hasta que hace semanas que no está. */
+function syClaveRegistro(o,i){
+  if(o==null||typeof o!=='object')return 'v:'+JSON.stringify(o);
+  if(o.id!=null)return 'id:'+o.id;
+  if(o._id!=null)return 'id:'+o._id;
+  /* Sin identificador propio: se compone con los campos que de hecho lo
+     identifican en este proyecto (las sesiones de Polar son el caso). Si no hay
+     ninguno, el propio contenido hace de identidad, que al menos deduplica lo
+     idéntico en vez de multiplicarlo. */
+  const p=['dk','date','name','jugador','session','tipo','zone'].filter(k=>o[k]!=null);
+  if(p.length>=2)return 'c:'+p.map(k=>k+'='+o[k]).join('|');
+  return 'j:'+JSON.stringify(o);
+}
+function syFusionarListas(a,b,aGana){
+  const orden=[],mapa=Object.create(null);
+  const meter=(arr,esA)=>arr.forEach((o,i)=>{
+    const k=syClaveRegistro(o,i);
+    if(!(k in mapa)){mapa[k]={v:o,deA:esA};orden.push(k);return;}
+    const y=mapa[k];
+    if(y.deA===esA)return;                       // repetido dentro del mismo lado
+    const distintos=JSON.stringify(y.v)!==JSON.stringify(o);
+    if(distintos&&((esA&&aGana)||(!esA&&!aGana)))mapa[k]={v:o,deA:esA};
+  });
+  meter(a,true);meter(b,false);
+  return orden.map(k=>mapa[k].v);
+}
+function syFusionar(a,b,aGana){
+  if(a===undefined||a===null)return b;
+  if(b===undefined||b===null)return a;
+  const ta=Array.isArray(a)?'l':typeof a, tb=Array.isArray(b)?'l':typeof b;
+  if(ta!==tb)return aGana?a:b;                   // formas distintas: no hay fusión posible
+  if(ta==='l')return syFusionarListas(a,b,aGana);
+  if(ta==='object'){
+    const out={};
+    Object.keys(a).forEach(k=>{out[k]=a[k];});
+    Object.keys(b).forEach(k=>{
+      out[k]=(k in a)?syFusionar(a[k],b[k],aGana):b[k];
+    });
+    return out;
+  }
+  return aGana?a:b;
+}
+window.syFusionar=syFusionar;
+
 async function syPull(){
   if(!SY.url||!SY.key||!SY.token)return {n:0};
   syStatus('sync','Descargando…');
@@ -4052,7 +4115,7 @@ async function syPull(){
     r=await fetch(SY.url+'/rest/v1/'+SY_TABLE+'?select=k,v,updated_at,updated_by',{headers:syHeaders()});
   if(!r.ok){syStatus('err','No se pudo descargar ('+r.status+')');throw new Error('HTTP '+r.status);}
   const rows=await r.json();
-  let n=0;const protegidos=[],masNuevos=[],antes={};
+  let n=0;const protegidos=[],masNuevos=[],fusionados=[],antes={};
   const mloc=syMtimeLeer();
   rows.forEach(row=>{
     if(!row||!row.k||!syIsShared(row.k))return;
@@ -4066,19 +4129,42 @@ async function syPull(){
       if(lsVacioTexto(val)&&lsTieneDatos(row.k)){protegidos.push(row.k);return;}
       const actual=localStorage.getItem(row.k);
       if(actual===val){LS_LEIDAS[row.k]=true;return;}   // idéntico: nada que hacer
-      /* v314 · Lo de aquí gana si se escribió después de lo que trae el servidor.
-         El margen de dos segundos evita que el reloj del portátil, que nunca va
-         exactamente igual que el del servidor, decida por su cuenta. Y no se
-         descarta lo remoto: el bloque se marca para subirlo, que es lo que
-         debió pasar y no pasó. */
+      if(lsVacioTexto(actual)){                          // aquí no hay nada: se acepta lo remoto
+        _setItem.call(localStorage,row.k,val);LS_LEIDAS[row.k]=true;n++;return;
+      }
+      /* v314 · El sello dice cuál de los dos se escribió después. Sirve para
+         decidir los empates dentro de la fusión, no para elegir un bloque
+         entero y tirar el otro. */
       const tLocal=mloc[row.k]||0;
       const tRemoto=row.updated_at?Date.parse(row.updated_at):0;
-      if(tLocal&&tRemoto&&tLocal>tRemoto+2000&&lsTieneDatos(row.k)){
+      const localGana=(tLocal&&tRemoto)?(tLocal>tRemoto+2000):true;
+      /* v315 · Los dos lados tienen datos: se fusionan registro a registro en
+         vez de que uno pise al otro. Si algo no es JSON o la fusión falla, se
+         cae al criterio de v314 —conservar lo de aquí si es más reciente— que
+         al menos no borra. */
+      let escrito=null;
+      try{
+        const fus=syFusionar(JSON.parse(actual),JSON.parse(val),localGana);
+        escrito=JSON.stringify(fus);
+      }catch(e){escrito=null;}
+      if(escrito!=null){
+        if(escrito!==actual){
+          antes[row.k]=actual;
+          _setItem.call(localStorage,row.k,escrito);
+          n++;
+        }
+        LS_LEIDAS[row.k]=true;
+        /* La fusión solo existe aquí hasta que se sube: sin esto, el otro
+           equipo se queda con su mitad y volvemos a empezar. */
+        if(escrito!==val){fusionados.push(row.k);try{syQueue(row.k);}catch(e){}}
+        return;
+      }
+      if(localGana&&lsTieneDatos(row.k)){
         masNuevos.push(row.k);
         try{syQueue(row.k);}catch(e){}
         return;
       }
-      if(!lsVacioTexto(actual))antes[row.k]=actual;     // se va a pisar: copia primero
+      antes[row.k]=actual;                               // se va a pisar: copia primero
       _setItem.call(localStorage,row.k,val);
       LS_LEIDAS[row.k]=true;
       n++;
@@ -4095,7 +4181,8 @@ async function syPull(){
     console.warn('bmnava · descarga: lo de este navegador es más reciente en →',masNuevos.join(', '),'· se conserva y se sube');
     if(window.toast)toast('Se ha conservado lo de este dispositivo en '+masNuevos.length+' bloque(s): era más reciente que el servidor.');
   }
-  return {n,rows:rows.length,protegidos:protegidos,masNuevos:masNuevos};
+  if(fusionados.length)console.info('bmnava · descarga: fusionado con lo del equipo en →',fusionados.join(', '));
+  return {n,rows:rows.length,protegidos:protegidos,masNuevos:masNuevos,fusionados:fusionados};
 }
 
 /* ---------- subida ---------- */
@@ -5537,6 +5624,57 @@ function lsNombre(k){return LS_NOMBRES[k]||k;}
 const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
   'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto'];
+/* ═══ v315 · Copia automática diaria ═══
+   La copia de seguridad de v255 es buena, pero hay que acordarse de pulsarla.
+   Nadie se acuerda de hacer una copia el día antes de perder los datos. Esta se
+   hace sola, una vez al día al arrancar, y guarda las siete últimas.
+
+   Las fotos se quedan fuera a propósito: son 1,6 MB de los 1,9 que ocupa todo,
+   y meterlas significaría guardar una o dos copias en vez de siete. Se pueden
+   volver a poner desde la carpeta; una semana de partes médicos, no. */
+const BKPA='bmnava_bkpauto', BKPA_MAX=7;
+function bkpAutoHacer(){
+  try{
+    const hoy=new Date().toISOString().slice(0,10);
+    let hist=[];try{hist=JSON.parse(localStorage.getItem(BKPA)||'[]');}catch(e){hist=[];}
+    if(!Array.isArray(hist))hist=[];
+    if(hist.some(x=>x&&x.dia===hoy))return false;          // ya hay una de hoy
+    const datos={};
+    BKP_CLAVES.forEach(k=>{
+      if(k==='bmnava_photos')return;
+      const t=localStorage.getItem(k);
+      if(t!=null&&!lsVacioTexto(t))datos[k]=t;
+    });
+    if(!Object.keys(datos).length)return false;            // nada que guardar todavía
+    hist.push({dia:hoy,fecha:new Date().toISOString(),datos});
+    while(hist.length>BKPA_MAX)hist.shift();
+    /* Si no cabe, se van soltando las más antiguas antes que renunciar a la de
+       hoy: la copia útil es siempre la reciente. */
+    for(;;){
+      try{localStorage.setItem(BKPA,JSON.stringify(hist));return true;}
+      catch(e){ if(hist.length<=1){console.warn('bmnava · no cabe la copia automática');return false;} hist.shift(); }
+    }
+  }catch(e){return false;}
+}
+window.bkpAutoListar=function(){
+  let hist=[];try{hist=JSON.parse(localStorage.getItem(BKPA)||'[]');}catch(e){}
+  return (hist||[]).map(x=>({dia:x.dia,fecha:x.fecha,
+    bloques:Object.keys(x.datos||{}).length,
+    registros:Object.keys(x.datos||{}).reduce((a,k)=>a+bkpCuenta(x.datos[k]),0)}));
+};
+window.bkpAutoRestaurar=function(dia){
+  let hist=[];try{hist=JSON.parse(localStorage.getItem(BKPA)||'[]');}catch(e){}
+  const c=(hist||[]).filter(x=>x&&x.dia===dia).pop()||(hist||[])[hist.length-1];
+  if(!c)return 'No hay ninguna copia automática guardada.';
+  const ks=Object.keys(c.datos||{});
+  const det=ks.map(k=>'· '+lsNombre(k)+': '+(lsTieneDatos(k)?bkpCuenta(localStorage.getItem(k)):0)+' → '+bkpCuenta(c.datos[k])).join('\n');
+  if(!confirm('Restaurar la copia automática del '+c.dia+'.\n\nSe SUSTITUYE lo que hay ahora:\n\n'+det
+    +'\n\nSi la sincronización está activa, esto se repartirá al resto del staff.\n¿Continuar?'))return 'Cancelado.';
+  ks.forEach(k=>{try{LS_LEIDAS[k]=true;localStorage.setItem(k,c.datos[k]);}catch(e){}});
+  return 'Restaurada la copia del '+c.dia+' ('+ks.length+' bloques). Recarga la página.';
+};
+window.bkpAutoHacer=bkpAutoHacer;
+
 /* ═══ v309 · Inventario de lo guardado ═══
    Cuando algo «desaparece» hay dos posibilidades muy distintas: que se haya
    borrado, o que la pantalla esté mirando otra fecha. Esto las separa: cuenta
@@ -16010,6 +16148,10 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
      algo de arriba hubiera fallado, su propio tope de 5s la retira igual. */
   try{if(window.__splashOff)window.__splashOff();}catch(e){}
   try{if(window.rfIdle)rfIdle();}catch(e){}
+  /* v315 · Copia automática del día, con los datos ya asentados: después del
+     pull y de que cada módulo haya leído lo suyo. Antes de esto, guardaría un
+     retrato a medio hacer. */
+  try{if(window.bkpAutoHacer)setTimeout(window.bkpAutoHacer,4000);}catch(e){}
 })();
 </script>
 <style>
@@ -21906,8 +22048,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-02.3*/
-const VER_ACTUAL='2026-09-02.3';
+/*BUILD:2026-09-03.1*/
+const VER_ACTUAL='2026-09-03.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
