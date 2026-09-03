@@ -3901,7 +3901,17 @@ const SY_TABLE='bmnava_state';
 const SY_PREFIX=/^bmnava_/;
 /* Claves que NO se comparten: son preferencias de cada persona, no datos del
    equipo. Sincronizarlas haría que el tema oscuro de uno cambiara el del otro. */
-const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto','bmnava_symeta'];
+const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto','bmnava_symeta','bmnava_fotoslimpias',
+  /* v320 · Las fotos salen de la sincronización, con el visto bueno de Daniel.
+     Eran 1613 KB de los 1823 que ocupa todo: el 88 %. Y están duplicadas, porque
+     desde hace tiempo se sirven de la carpeta fotos/ del repositorio, que ve
+     todo el mundo sin necesidad de sincronizar nada. Mandarlas en base64 por la
+     base de datos era la causa de fondo de los sustos de espacio de hoy y de que
+     el botón Actualizar tardase una eternidad.
+     Lo que se pierde: una foto subida a mano en un navegador deja de verse en
+     los demás. Se repone dejando el archivo en fotos/ con el nombre del jugador,
+     que es como se hace ya. */
+  'bmnava_photos'];
 
 /* URL y clave pública (anon) fijas en el código: son datos públicos por diseño
    (protegidos por RLS en Supabase), así que cada persona ya no tiene que
@@ -4460,8 +4470,9 @@ function syRenderPanel(){
   const conectado=!!SY.token;
   box.innerHTML=
     '<div class="small muted" style="margin-bottom:8px">Con esto, lo que registráis dentro de la app '+
-    '—médico, calendario, Polar, duraciones, cuadrantes, valoraciones manuales y fotos— deja de vivir en '+
-    'cada navegador y pasa a una base de datos común. Lo que escribe uno lo ve el otro.</div>'+
+    '—médico, calendario, Polar, duraciones, cuadrantes y valoraciones manuales— deja de vivir en '+
+    'cada navegador y pasa a una base de datos común. Lo que escribe uno lo ve el otro. '+
+    'Las fotos no: se sirven de la carpeta <b>fotos/</b>, igual para todos, y por eso no viajan.</div>'+
     (conectado
       ? '<div class="ctrlrow" style="margin:10px 0;align-items:center;gap:10px">'+
         '<span class="chip ok">Sesión iniciada · '+(SY.email||'')+'</span>'+
@@ -4470,7 +4481,11 @@ function syRenderPanel(){
         '<button class="btn ghost" onclick="syLogout()">Cerrar sesión</button>'+
         '</div>'+
         '<div class="small muted">Última descarga: '+(SY.lastPull?SY.lastPull.toLocaleTimeString():'—')+
-        ' · última subida: '+(SY.lastPush?SY.lastPush.toLocaleTimeString():'—')+'</div>'
+        ' · última subida: '+(SY.lastPush?SY.lastPush.toLocaleTimeString():'—')+'</div>'+
+        /* v320 · Hoy hemos perdido tres diagnósticos por no saber qué versión
+           estaba corriendo cada uno. Que se lea sin abrir la consola. */
+        '<div class="small muted" style="margin-top:6px">Versión de la app: <b>'+(window.__BUILD||'?')+'</b>'+
+        ' · ocupa '+(function(){let n=0;try{for(let i=0;i<localStorage.length;i++){const kk=localStorage.key(i);n+=kk.length+(localStorage.getItem(kk)||'').length;}}catch(e){}return Math.round(n/1024);})()+' KB en este navegador</div>'
       : '<label>Tu correo</label><input id="sy-email" placeholder="daniel@bmnava.es" value="'+(SY.email||'')+'">'+
         '<label>Contraseña</label><input id="sy-pass" type="password" placeholder="••••••••">'+
         '<div class="ctrlrow" style="margin-top:12px"><button class="btn" onclick="syLoginFromForm()">Conectar y sincronizar</button></div>')+
@@ -21952,6 +21967,24 @@ async function phScanFolder(){
       if(await phTry(url)){PH_FILE[n]=url;break;}
     }
   }
+  /* v320 · Con las fotos ya fuera de la sincronización, las copias en base64 que
+     quedan en este navegador son puro peso muerto: el mismo jugador tiene su
+     archivo en la carpeta, que es de donde se sirven ahora. Se retiran una sola
+     vez, y solo las de quien SÍ tiene archivo, para no dejar a nadie sin cara.
+     Con los datos de Daniel esto libera unos 1,6 MB. */
+  try{
+    if(!localStorage.getItem('bmnava_fotoslimpias')){
+      const m=phLoad();
+      const sobran=Object.keys(m).filter(n=>PH_FILE[n]);
+      if(sobran.length){
+        let bytes=0;sobran.forEach(n=>{bytes+=(m[n]||'').length;delete m[n];});
+        phPersist();
+        console.info('bmnava · fotos: retiradas '+sobran.length+' copias del navegador ('
+          +Math.round(bytes/1024)+' KB); se sirven desde la carpeta');
+      }
+      localStorage.setItem('bmnava_fotoslimpias','1');
+    }
+  }catch(e){}
   phApply();phRepaint();
   /* v253 · renderAll() no repinta Perfil físico, así que sus podios y su ranking
      se quedaban con las iniciales aunque las fotos ya estuvieran resueltas. */
@@ -22238,8 +22271,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-03.5*/
-const VER_ACTUAL='2026-09-03.5';
+/*BUILD:2026-09-03.6*/
+const VER_ACTUAL='2026-09-03.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
