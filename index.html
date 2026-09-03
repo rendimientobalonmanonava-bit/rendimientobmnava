@@ -3901,7 +3901,7 @@ const SY_TABLE='bmnava_state';
 const SY_PREFIX=/^bmnava_/;
 /* Claves que NO se comparten: son preferencias de cada persona, no datos del
    equipo. Sincronizarlas haría que el tema oscuro de uno cambiara el del otro. */
-const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto'];
+const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto','bmnava_symeta'];
 
 /* URL y clave pública (anon) fijas en el código: son datos públicos por diseño
    (protegidos por RLS en Supabase), así que cada persona ya no tiene que
@@ -4124,14 +4124,53 @@ window.syFusionar=syFusionar;
    Aquí manda el sello: el más reciente gana, y se acabó. */
 const SY_NO_FUSION=['bmnava_photos'];
 
+/* ═══ v319 · Mover solo lo que ha cambiado ═══
+   Cada pulsación de «Actualizar» se bajaba las 21 claves compartidas y volvía a
+   subirlas todas, hubiera cambiado algo o no. Con los datos de Daniel son 3647
+   KB por pulsación, de los cuales 3226 son las fotos en base64. De ahí que el
+   botón se quedara girando eternamente.
+
+   Se lleva la cuenta, en este navegador, de qué versión del servidor tenemos ya
+   vista y con qué contenido: si el updated_at remoto no ha cambiado y lo de
+   aquí sigue igual, no hace falta ni bajarlo ni subirlo. Es una pista local: si
+   se pierde o no cuadra, se vuelve a mover todo, que es como funcionaba antes. */
+const SY_META='bmnava_symeta';
+function syHash(t){
+  let h=2166136261;
+  for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619);}
+  return ((h>>>0).toString(36))+'.'+t.length;
+}
+function syMetaLeer(){try{return JSON.parse(localStorage.getItem(SY_META)||'{}')||{};}catch(e){return{};}}
+function syMetaSet(k,hash,remoto){
+  try{const m=syMetaLeer();m[k]={hash,remoto};_setItem.call(localStorage,SY_META,JSON.stringify(m));}catch(e){}
+}
+
 async function syPull(){
   if(!SY.url||!SY.key||!SY.token)return {n:0};
   syStatus('sync','Descargando…');
-  let r=await fetch(SY.url+'/rest/v1/'+SY_TABLE+'?select=k,v,updated_at,updated_by',{headers:syHeaders()});
-  if(r.status===401&&await syRefresh())
-    r=await fetch(SY.url+'/rest/v1/'+SY_TABLE+'?select=k,v,updated_at,updated_by',{headers:syHeaders()});
+  const pedir=async q=>{
+    let x=await fetch(SY.url+'/rest/v1/'+SY_TABLE+q,{headers:syHeaders()});
+    if(x.status===401&&await syRefresh())x=await fetch(SY.url+'/rest/v1/'+SY_TABLE+q,{headers:syHeaders()});
+    return x;
+  };
+  /* Primero solo los nombres y las fechas, que pesan nada, para saber qué ha
+     cambiado de verdad; después el contenido de esas pocas. */
+  const meta=syMetaLeer();
+  let r=await pedir('?select=k,updated_at');
   if(!r.ok){syStatus('err','No se pudo descargar ('+r.status+')');throw new Error('HTTP '+r.status);}
-  const rows=await r.json();
+  const hacenFalta=[];
+  (await r.json()).forEach(row=>{
+    if(!row||!row.k||!syIsShared(row.k))return;
+    const m=meta[row.k], txt=localStorage.getItem(row.k);
+    if(m&&m.remoto===row.updated_at&&txt!=null&&m.hash===syHash(txt))return;   // ya lo tenemos igual
+    hacenFalta.push(row.k);
+  });
+  let rows=[];
+  if(hacenFalta.length){
+    r=await pedir('?select=k,v,updated_at,updated_by&k=in.('+encodeURIComponent(hacenFalta.join(','))+')');
+    if(!r.ok){syStatus('err','No se pudo descargar ('+r.status+')');throw new Error('HTTP '+r.status);}
+    rows=await r.json();
+  }
   let n=0;const protegidos=[],masNuevos=[],fusionados=[],sinSitio=[],antes={};
   const mloc=syMtimeLeer();
   rows.forEach(row=>{
@@ -4192,6 +4231,16 @@ async function syPull(){
       n++;
     }catch(e){}
   });
+  /* Queda anotado qué versión del servidor hemos visto y con qué contenido.
+     Si hubo fusión, lo de aquí ya no coincide con lo de allí: el hash guardado
+     es el del servidor, así que la subida lo detecta y manda la unión. */
+  rows.forEach(row=>{
+    if(!row||!row.k||!syIsShared(row.k))return;
+    try{
+      const val=typeof row.v==='string'?row.v:JSON.stringify(row.v);
+      syMetaSet(row.k,syHash(val),row.updated_at);
+    }catch(e){}
+  });
   syGuardarAntes(antes);
   SY.lastPull=new Date();
   if(protegidos.length){
@@ -4240,9 +4289,23 @@ async function syLeerRemoto(keys){
 
 async function syPushKeys(keys){
   if(!SY.url||!SY.key||!SY.token||!keys.length)return 0;
+  keys=keys.slice();
   /* v255 · La otra mitad del mismo problema: subir un bloque vacío que esta
      sesión no ha llegado a leer lo borra para todo el equipo. Se queda sin
      enviar hasta que haya algo real que enviar. */
+  /* v319 · Solo se sube lo que ha cambiado desde la última vez que este
+     navegador y el servidor coincidieron. Antes se subían las 21 claves en cada
+     pulsación —1823 KB, de ellos 1613 de fotos— aunque no se hubiera tocado
+     nada. */
+  const meta=syMetaLeer();
+  const cambiadas=keys.filter(k=>{
+    const txt=localStorage.getItem(k);
+    if(txt==null)return false;
+    const m=meta[k];
+    return !(m&&m.hash===syHash(txt));
+  });
+  if(!cambiadas.length)return 0;
+  keys=cambiadas;
   const fusionables=keys.filter(k=>syIsShared(k)&&SY_NO_FUSION.indexOf(k)<0&&lsTieneDatos(k));
   const remoto=await syLeerRemoto(fusionables);
   const payload=[];
@@ -4283,6 +4346,8 @@ async function syPushKeys(keys){
     r=await fetch(url,opts);
   }
   if(!r.ok){syStatus('err','No se pudo guardar ('+r.status+')');throw new Error('HTTP '+r.status);}
+  /* Ya coinciden: se anota, y la próxima pulsación no vuelve a mandarlo. */
+  payload.forEach(p=>{try{syMetaSet(p.k,syHash(localStorage.getItem(p.k)||''),p.updated_at);}catch(e){}});
   SY.lastPush=new Date();
   return payload.length;
 }
@@ -22173,8 +22238,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-03.4*/
-const VER_ACTUAL='2026-09-03.4';
+/*BUILD:2026-09-03.5*/
+const VER_ACTUAL='2026-09-03.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
