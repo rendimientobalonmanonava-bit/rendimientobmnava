@@ -4484,8 +4484,25 @@ function syRenderPanel(){
         ' · última subida: '+(SY.lastPush?SY.lastPush.toLocaleTimeString():'—')+'</div>'+
         /* v320 · Hoy hemos perdido tres diagnósticos por no saber qué versión
            estaba corriendo cada uno. Que se lea sin abrir la consola. */
-        '<div class="small muted" style="margin-top:6px">Versión de la app: <b>'+(window.__BUILD||'?')+'</b>'+
-        ' · ocupa '+(function(){let n=0;try{for(let i=0;i<localStorage.length;i++){const kk=localStorage.key(i);n+=kk.length+(localStorage.getItem(kk)||'').length;}}catch(e){}return Math.round(n/1024);})()+' KB en este navegador</div>'
+        /* v321 · Además del total, qué lo ocupa. Saber que «ocupa 2205 KB» no
+           sirve para nada si no se ve de qué; con el desglose delante, un
+           bloque que no debería estar ahí canta a la primera. */
+        (function(){
+          let n=0;const filas=[];
+          try{
+            for(let i=0;i<localStorage.length;i++){
+              const kk=localStorage.key(i);const t=(localStorage.getItem(kk)||'').length;
+              n+=kk.length+t; if(t>30000)filas.push([kk,Math.round(t/1024)]);
+            }
+          }catch(e){}
+          filas.sort((a,b)=>b[1]-a[1]);
+          return '<div class="small muted" style="margin-top:6px">Versión de la app: <b>'+(window.__BUILD||'?')+'</b>'+
+            ' · ocupa <b>'+Math.round(n/1024)+' KB</b> en este navegador</div>'+
+            (filas.length
+              ? '<div class="small muted" style="margin-top:3px">Lo que más ocupa: '
+                +filas.slice(0,4).map(f=>lsNombre(f[0])+' '+f[1]+' KB').join(' · ')+'</div>'
+              : '');
+        })()
       : '<label>Tu correo</label><input id="sy-email" placeholder="daniel@bmnava.es" value="'+(SY.email||'')+'">'+
         '<label>Contraseña</label><input id="sy-pass" type="password" placeholder="••••••••">'+
         '<div class="ctrlrow" style="margin-top:12px"><button class="btn" onclick="syLoginFromForm()">Conectar y sincronizar</button></div>')+
@@ -5768,7 +5785,13 @@ const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava
   bmnava_testlog:'Valoraciones físicas',bmnava_expl:'Jugadores históricos',
   bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos',bmnava_reuniones:'Reuniones',
   bmnava_fisiotpl:'Plantillas de fisioterapia',bmnava_fisiovisto:'Revisados del día'};
-function lsNombre(k){return LS_NOMBRES[k]||k;}
+/* v321 · Estas no son datos del equipo: son las copias y apuntes que lleva la
+   propia app. Salen en el desglose de Conexión, así que necesitan un nombre que
+   se entienda. */
+const LS_NOMBRES_INT={bmnava_bkpauto:'Copias de seguridad automáticas',
+  bmnava_antespull:'Copia previa a la última descarga',bmnava_photos:'Fotos guardadas aquí',
+  bmnava_symeta:'Control de sincronización',bmnava_mtime:'Fechas de guardado'};
+function lsNombre(k){return LS_NOMBRES[k]||LS_NOMBRES_INT[k]||k;}
 /* ============ v255 · Copia de seguridad ============
    Un archivo con todo lo que se rellena a mano. No sustituye a la
    sincronización: la sincronización reparte el estado actual entre el staff,
@@ -21972,25 +21995,55 @@ async function phScanFolder(){
      archivo en la carpeta, que es de donde se sirven ahora. Se retiran una sola
      vez, y solo las de quien SÍ tiene archivo, para no dejar a nadie sin cara.
      Con los datos de Daniel esto libera unos 1,6 MB. */
-  try{
-    if(!localStorage.getItem('bmnava_fotoslimpias')){
-      const m=phLoad();
-      const sobran=Object.keys(m).filter(n=>PH_FILE[n]);
-      if(sobran.length){
-        let bytes=0;sobran.forEach(n=>{bytes+=(m[n]||'').length;delete m[n];});
-        phPersist();
-        console.info('bmnava · fotos: retiradas '+sobran.length+' copias del navegador ('
-          +Math.round(bytes/1024)+' KB); se sirven desde la carpeta');
-      }
-      localStorage.setItem('bmnava_fotoslimpias','1');
-    }
-  }catch(e){}
+  /* v321 · La marca de «ya limpiado» se ponía aunque no se hubiera limpiado
+     nada. Si el escaneo no había encontrado la carpeta —PH_FILE vacío—, no
+     había con qué comparar, no se borraba nada, y la marca impedía volver a
+     intentarlo nunca más. Ahora solo se da por hecho cuando el escaneo ha
+     encontrado archivos de verdad. */
+  try{phLimpiarGuardadas();}catch(e){}
   phApply();phRepaint();
   /* v253 · renderAll() no repinta Perfil físico, así que sus podios y su ranking
      se quedaban con las iniciales aunque las fotos ya estuvieran resueltas. */
   try{const v=document.getElementById('v-tests');
     if(v&&v.classList.contains('on')&&typeof renderTests==='function')renderTests();}catch(e){}
 }
+
+/* v320 · Con las fotos fuera de la sincronización, las copias en base64 que
+   quedan en este navegador son peso muerto: el mismo jugador tiene su archivo en
+   la carpeta, que es de donde se sirven ahora. Se retiran una sola vez, y solo
+   las de quien SÍ tiene archivo, para no dejar a nadie sin cara. */
+function phLimpiarGuardadas(forzar){
+  if(!Object.keys(PH_FILE).length){
+    console.warn('bmnava · fotos: la carpeta no ha respondido; no se toca nada guardado');
+    return 0;
+  }
+  /* v321 · La marca lleva número. La v320 la ponía aunque no hubiera limpiado
+     nada, así que quien pasó por ella se quedó con un '1' mentiroso y no volvía
+     a intentarlo. Subiendo a '2' se repasa una vez más en esos navegadores. */
+  if(!forzar&&localStorage.getItem('bmnava_fotoslimpias')==='2')return 0;
+  const m=phLoad();
+  const sobran=Object.keys(m).filter(n=>PH_FILE[n]);
+  let kb=0;
+  if(sobran.length){
+    let bytes=0;sobran.forEach(n=>{bytes+=(m[n]||'').length;delete m[n];});
+    if(phPersist()){
+      kb=Math.round(bytes/1024);
+      console.info('bmnava · fotos: retiradas '+sobran.length+' copias del navegador ('+kb+' KB); se sirven desde la carpeta');
+    }else{
+      console.warn('bmnava · fotos: no se ha podido guardar la limpieza');
+      PH_MEM=null;
+      return 0;
+    }
+  }
+  localStorage.setItem('bmnava_fotoslimpias','2');
+  return kb;
+}
+window.phLimpiar=function(){
+  const kb=phLimpiarGuardadas(true);
+  try{phApply();phRepaint();}catch(e){}
+  return kb?('Liberados '+kb+' KB. Las fotos se sirven de la carpeta.')
+           :'No había nada que retirar (o la carpeta no ha respondido).';
+};
 
 /* ---------- marcador por defecto ----------
    Hasta ahora, un jugador sin foto mostraba `window.__AVATAR__`: la cara de UN
@@ -22271,8 +22324,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-03.6*/
-const VER_ACTUAL='2026-09-03.6';
+/*BUILD:2026-09-03.7*/
+const VER_ACTUAL='2026-09-03.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
