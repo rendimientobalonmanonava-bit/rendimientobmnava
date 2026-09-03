@@ -4132,7 +4132,7 @@ async function syPull(){
     r=await fetch(SY.url+'/rest/v1/'+SY_TABLE+'?select=k,v,updated_at,updated_by',{headers:syHeaders()});
   if(!r.ok){syStatus('err','No se pudo descargar ('+r.status+')');throw new Error('HTTP '+r.status);}
   const rows=await r.json();
-  let n=0;const protegidos=[],masNuevos=[],fusionados=[],antes={};
+  let n=0;const protegidos=[],masNuevos=[],fusionados=[],sinSitio=[],antes={};
   const mloc=syMtimeLeer();
   rows.forEach(row=>{
     if(!row||!row.k||!syIsShared(row.k))return;
@@ -4169,8 +4169,11 @@ async function syPull(){
       if(escrito!=null){
         if(escrito!==actual){
           antes[row.k]=actual;
-          _setItem.call(localStorage,row.k,escrito);
-          n++;
+          /* v317 · Este setItem estaba dentro de un catch(e){} mudo. Si no cabía,
+             el bloque se quedaba sin actualizar y no lo sabía nadie: Virginia veía
+             su tratamiento y Daniel no, sin un solo aviso en pantalla. */
+          try{_setItem.call(localStorage,row.k,escrito);n++;}
+          catch(err){sinSitio.push(row.k);return;}
         }
         LS_LEIDAS[row.k]=true;
         /* La fusión solo existe aquí hasta que se sube: sin esto, el otro
@@ -4201,6 +4204,13 @@ async function syPull(){
     if(window.toast)toast('Se ha conservado lo de este dispositivo en '+masNuevos.length+' bloque(s): era más reciente que el servidor.');
   }
   if(fusionados.length)console.info('bmnava · descarga: fusionado con lo del equipo en →',fusionados.join(', '));
+  if(sinSitio.length){
+    syStatus('err','Sin sitio en el navegador: '+sinSitio.length+' bloque(s) sin actualizar');
+    console.error('bmnava · descarga: no cabe en el navegador →',sinSitio.join(', '));
+    if(window.lsAvisar)lsAvisar('NO SE HA PODIDO DESCARGAR lo del equipo en «'
+      +sinSitio.map(k=>lsNombre(k)).join('», «')+'»: el almacenamiento del navegador está lleno ('
+      +lsEspacio().mb+' MB). Lo que veas puede estar incompleto.');
+  }
   return {n,rows:rows.length,protegidos:protegidos,masNuevos:masNuevos,fusionados:fusionados};
 }
 
@@ -5700,6 +5710,51 @@ window.bkpAutoRestaurar=function(dia){
   return 'Restaurada la copia del '+c.dia+' ('+ks.length+' bloques). Recarga la página.';
 };
 window.bkpAutoHacer=bkpAutoHacer;
+
+/* ═══ v317 · Limpiar lo que dejó la versión anterior ═══
+   Bajar los topes en el código no libera nada: los 1,5 MB de copia previa con
+   las fotos dentro y las siete copias diarias siguen ocupando sitio en el
+   navegador de quien ya los tenía escritos. La versión nueva arrancaba con el
+   almacén igual de lleno que la vieja y el pull seguía sin caber.
+   Esto se ejecuta una vez al arrancar y recorta lo pasado a los topes de ahora. */
+function lsSanear(){
+  let liberado=0;
+  try{
+    const t=localStorage.getItem('bmnava_antespull');
+    if(t){
+      const paq=JSON.parse(t)||{};
+      const d=paq.datos||{};
+      if(d.bmnava_photos!=null||JSON.stringify(d).length>420000){
+        const antes=t.length;
+        delete d.bmnava_photos;
+        let total=0;const cabe={};
+        Object.keys(d).sort((a,b)=>(d[a]||'').length-(d[b]||'').length).forEach(k=>{
+          if(total+(d[k]||'').length>400000)return;
+          cabe[k]=d[k];total+=(d[k]||'').length;
+        });
+        if(Object.keys(cabe).length)localStorage.setItem('bmnava_antespull',JSON.stringify({fecha:paq.fecha,datos:cabe}));
+        else localStorage.removeItem('bmnava_antespull');
+        liberado+=antes-(localStorage.getItem('bmnava_antespull')||'').length;
+      }
+    }
+  }catch(e){try{localStorage.removeItem('bmnava_antespull');}catch(e2){}}
+  try{
+    const t=localStorage.getItem(BKPA);
+    if(t){
+      let hist=JSON.parse(t);
+      if(Array.isArray(hist)&&hist.length>BKPA_MAX){
+        const antes=t.length;
+        while(hist.length>BKPA_MAX)hist.shift();
+        localStorage.setItem(BKPA,JSON.stringify(hist));
+        liberado+=antes-(localStorage.getItem(BKPA)||'').length;
+      }
+    }
+  }catch(e){try{localStorage.removeItem(BKPA);}catch(e2){}}
+  if(liberado>0)console.info('bmnava · saneado: '+Math.round(liberado/1024)+' KB liberados de las copias de la versión anterior');
+  return Math.round(liberado/1024);
+}
+window.lsSanear=lsSanear;
+try{lsSanear();}catch(e){}
 
 /* ═══ v309 · Inventario de lo guardado ═══
    Cuando algo «desaparece» hay dos posibilidades muy distintas: que se haya
@@ -22074,8 +22129,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-03.2*/
-const VER_ACTUAL='2026-09-03.2';
+/*BUILD:2026-09-03.3*/
+const VER_ACTUAL='2026-09-03.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
