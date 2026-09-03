@@ -4016,16 +4016,24 @@ function syMtimeSellar(k){
    un tope de tamaño, que el almacenamiento del navegador es finito. */
 const SY_ANTES='bmnava_antespull';
 function syGuardarAntes(mapa){
-  const ks=Object.keys(mapa);
+  const ks=Object.keys(mapa).filter(k=>k!=='bmnava_photos');
   if(!ks.length)return;
   let total=0;const cabe={};
   ks.sort((a,b)=>(mapa[a]||'').length-(mapa[b]||'').length);
   ks.forEach(k=>{
     const t=mapa[k]||'';
-    if(total+t.length>1500000)return;      // 1,5 MB: lo demás se deja fuera
+    /* v316 · Antes eran 1,5 MB y las fotos entraban. Con las fotos de Daniel
+       —1,6 MB de los 1,8 que ocupa todo— esta copia, la copia diaria y los
+       datos sumaban 4,8 MB de los 5 que da el navegador. Trescientos kilobytes
+       de margen no son un margen: al primer tratamiento nuevo, setItem empieza
+       a fallar y la app se queda a medias. Las fotos se reponen desde la
+       carpeta; lo que hay que poder deshacer son los datos. */
+    if(total+t.length>400000)return;
     cabe[k]=t;total+=t.length;
   });
-  try{_setItem.call(localStorage,SY_ANTES,JSON.stringify({fecha:new Date().toISOString(),datos:cabe}));}catch(e){}
+  if(!Object.keys(cabe).length)return;
+  try{_setItem.call(localStorage,SY_ANTES,JSON.stringify({fecha:new Date().toISOString(),datos:cabe}));}
+  catch(e){try{localStorage.removeItem(SY_ANTES);}catch(e2){}}
 }
 window.syDeshacerPull=function(){
   let paq=null;
@@ -4106,6 +4114,15 @@ function syFusionar(a,b,aGana){
   return aGana?a:b;
 }
 window.syFusionar=syFusionar;
+/* v316 · Bloques que NO se fusionan por unión.
+   La unión es la regla correcta cuando cada uno AÑADE cosas distintas: un
+   tratamiento de Virginia y otro de Daniel deben convivir. Pero en las fotos la
+   operación normal no es añadir, es SUSTITUIR o QUITAR: cuando Daniel pulsó
+   «Usar las de la carpeta» estaba quitando a propósito las guardadas, y la
+   unión se las devuelve desde la copia del servidor, deshaciendo lo que pidió.
+   Encima son 1,6 MB, así que cada fusión distinta obliga a resubirlos enteros.
+   Aquí manda el sello: el más reciente gana, y se acabó. */
+const SY_NO_FUSION=['bmnava_photos'];
 
 async function syPull(){
   if(!SY.url||!SY.key||!SY.token)return {n:0};
@@ -4143,10 +4160,12 @@ async function syPull(){
          cae al criterio de v314 —conservar lo de aquí si es más reciente— que
          al menos no borra. */
       let escrito=null;
-      try{
-        const fus=syFusionar(JSON.parse(actual),JSON.parse(val),localGana);
-        escrito=JSON.stringify(fus);
-      }catch(e){escrito=null;}
+      if(SY_NO_FUSION.indexOf(row.k)<0){
+        try{
+          const fus=syFusionar(JSON.parse(actual),JSON.parse(val),localGana);
+          escrito=JSON.stringify(fus);
+        }catch(e){escrito=null;}
+      }
       if(escrito!=null){
         if(escrito!==actual){
           antes[row.k]=actual;
@@ -5632,7 +5651,7 @@ const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur'
    Las fotos se quedan fuera a propósito: son 1,6 MB de los 1,9 que ocupa todo,
    y meterlas significaría guardar una o dos copias en vez de siete. Se pueden
    volver a poner desde la carpeta; una semana de partes médicos, no. */
-const BKPA='bmnava_bkpauto', BKPA_MAX=7;
+const BKPA='bmnava_bkpauto', BKPA_MAX=4;   /* v316 · eran 7; ver el cálculo de espacio en syGuardarAntes */
 function bkpAutoHacer(){
   try{
     const hoy=new Date().toISOString().slice(0,10);
@@ -5652,7 +5671,14 @@ function bkpAutoHacer(){
        hoy: la copia útil es siempre la reciente. */
     for(;;){
       try{localStorage.setItem(BKPA,JSON.stringify(hist));return true;}
-      catch(e){ if(hist.length<=1){console.warn('bmnava · no cabe la copia automática');return false;} hist.shift(); }
+      catch(e){
+        if(hist.length<=1){
+          console.warn('bmnava · no cabe la copia automática: se retira para no ocupar sitio');
+          try{localStorage.removeItem(BKPA);}catch(e2){}
+          return false;
+        }
+        hist.shift();
+      }
     }
   }catch(e){return false;}
 }
@@ -22048,8 +22074,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-03.1*/
-const VER_ACTUAL='2026-09-03.1';
+/*BUILD:2026-09-03.2*/
+const VER_ACTUAL='2026-09-03.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
