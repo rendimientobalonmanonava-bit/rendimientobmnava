@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BM Nava · Rescate de datos</title>
+<!--
+  Página de rescate. Vive en el mismo sitio que la app, así que ve exactamente
+  el mismo almacenamiento del navegador, pero NO arranca la app, NO se conecta
+  a nada y NO escribe nada. Solo lee y deja descargar.
+
+  Existe porque la app, al arrancar, descarga el estado del servidor y lo
+  escribe encima de lo que hay en este navegador. Si lo del servidor es más
+  antiguo, abrir la app para "ver si están los datos" es justo lo que los pisa.
+  Aquí se pueden mirar y salvar antes de tocar nada.
+-->
+<style>
+  :root{color-scheme:light}
+  body{margin:0;font:14px/1.55 -apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;
+    background:#eef1f7;color:#10151f;padding:22px}
+  .caja{max-width:820px;margin:0 auto}
+  h1{font-size:21px;margin:0 0 4px}
+  .sub{color:#6b7488;font-size:13px;margin:0 0 20px}
+  .aviso{background:#fff;border:1px solid #dfe3ec;border-left:3px solid #3056c4;
+    border-radius:10px;padding:13px 15px;margin-bottom:18px;font-size:13px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #dfe3ec;
+    border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid #eef0f5;font-size:13px}
+  th{background:#f7f9fc;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7488}
+  tr:last-child td{border-bottom:none}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .vacio{color:#b0b6c4}
+  .hay{color:#177a4c;font-weight:600}
+  button{background:#3056c4;color:#fff;border:none;border-radius:9px;padding:11px 18px;
+    font-size:14px;font-weight:600;cursor:pointer;margin:18px 0 0}
+  button:disabled{opacity:.45;cursor:default}
+  .tot{margin-top:14px;font-size:13px;color:#6b7488}
+</style>
+<div class="caja">
+  <h1>Rescate de datos · BM Nava</h1>
+  <p class="sub">Esta página solo mira. No abre la app, no se conecta al servidor y no cambia nada.</p>
+  <div class="aviso">
+    Si aquí aparecen datos, <b>descárgalos ahora</b> antes de volver a abrir la app.
+    El archivo que se descarga se puede volver a cargar desde la app, en la sección de copia de seguridad.
+  </div>
+  <table id="t"><thead><tr><th>Bloque</th><th class="n">Registros</th><th class="n">Tamaño</th><th>Estado</th></tr></thead><tbody></tbody></table>
+  <div class="tot" id="tot"></div>
+  <button id="b">Descargar copia de rescate</button>
+</div>
+<script>
+var NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_caltpl:'Plantillas de microciclo',
+  bmnava_sessdur:'Duraciones de sesión',bmnava_asist:'Asistencia',bmnava_info:'Datos personales',
+  bmnava_meddb:'Médico',bmnava_med:'Ficha médica',bmnava_medlog:'Agenda médica',
+  bmnava_physio:'Fisioterapia',bmnava_physiodict:'Diccionario de fisioterapia',
+  bmnava_testlog:'Valoraciones físicas',bmnava_expl:'Jugadores históricos',
+  bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos',bmnava_reuniones:'Reuniones',
+  bmnava_fisiotpl:'Plantillas de fisioterapia',bmnava_fisiovisto:'Revisados del día'};
+
+function cuenta(txt){
+  try{
+    var v=JSON.parse(txt);
+    if(Array.isArray(v))return v.length;
+    if(v&&typeof v==='object'){
+      var n=0;
+      for(var k in v){ if(!Object.prototype.hasOwnProperty.call(v,k))continue;
+        var x=v[k];
+        n += Array.isArray(x) ? x.length : 1; }
+      return n;
+    }
+    return v==null?0:1;
+  }catch(e){return txt?1:0;}
+}
+function vacio(txt){
+  if(txt==null)return true;
+  var t=String(txt).trim();
+  return t===''||t==='{}'||t==='[]'||t==='null';
+}
+
+var datos={}, filas=[], bytes=0, conDatos=0;
+for(var i=0;i<localStorage.length;i++){
+  var k=localStorage.key(i);
+  if(k.indexOf('bmnava')!==0&&k.indexOf('bmnava-')!==0)continue;
+  if(k==='bmnava_sync_tok'||k==='bmnava_sync_cfg')continue;   // credenciales: no se copian
+  var t=localStorage.getItem(k);
+  datos[k]=t;
+  bytes+=(t||'').length;
+  var v=vacio(t);
+  if(!v)conDatos++;
+  filas.push({k:k,nom:NOMBRES[k]||k,n:v?0:cuenta(t),b:(t||'').length,vacio:v});
+}
+filas.sort(function(a,b){return b.n-a.n;});
+var tb=document.querySelector('#t tbody');
+if(!filas.length){
+  tb.innerHTML='<tr><td colspan="4" class="vacio">No hay ningún dato de BM Nava guardado en este navegador.</td></tr>';
+  document.getElementById('b').disabled=true;
+}else{
+  tb.innerHTML=filas.map(function(f){
+    return '<tr><td>'+f.nom+'</td><td class="n">'+(f.vacio?'—':f.n)+'</td><td class="n">'
+      +(f.b>1024?Math.round(f.b/1024)+' KB':f.b+' B')+'</td><td class="'+(f.vacio?'vacio':'hay')+'">'
+      +(f.vacio?'vacío':'con datos')+'</td></tr>';
+  }).join('');
+}
+document.getElementById('tot').textContent=
+  filas.length+' bloques · '+conDatos+' con datos · '+Math.round(bytes/1024)+' KB en total';
+
+document.getElementById('b').onclick=function(){
+  var paq={app:'bmnava',version:1,tipo:'rescate',fecha:new Date().toISOString(),
+           origen:location.host,datos:datos};
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(paq,null,1)],{type:'application/json'}));
+  a.download='bmnava-rescate-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+};
+</script>

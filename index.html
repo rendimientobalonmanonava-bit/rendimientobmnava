@@ -3901,7 +3901,7 @@ const SY_TABLE='bmnava_state';
 const SY_PREFIX=/^bmnava_/;
 /* Claves que NO se comparten: son preferencias de cada persona, no datos del
    equipo. Sincronizarlas haría que el tema oscuro de uno cambiara el del otro. */
-const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_'];
+const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull'];
 
 /* URL y clave pública (anon) fijas en el código: son datos públicos por diseño
    (protegidos por RLS en Supabase), así que cada persona ya no tiene que
@@ -3990,6 +3990,60 @@ window.syLogout=function(){
 /* ---------- descarga ---------- */
 /* Se escribe con el setItem original para no reenviar lo que acabamos de recibir. */
 const _setItem=Storage.prototype.setItem;
+
+/* ═══ v314 · Cuándo se escribió cada bloque aquí ═══
+   La descarga traía updated_at del servidor desde el principio —está en el
+   select— y no lo miraba nunca. Solo comprobaba si lo que bajaba venía vacío.
+   Un bloque del servidor con contenido pero ANTIGUO pisaba sin más lo que
+   hubiera en este navegador, aunque fuese de esta misma mañana.
+
+   Eso es lo que borra una semana de trabajo: basta con que en algún momento
+   una subida no llegara —token caducado, sin cobertura, la pestaña cerrada
+   antes de los 1200 ms del debounce— para que el servidor se quedara con la
+   copia de hace días. A partir de ahí, cada arranque de la app descargaba esa
+   copia vieja y la escribía encima de lo nuevo.
+
+   Para poder compararlas hace falta saber cuándo se escribió cada bloque aquí,
+   que es lo que guarda este sello. Es local: no se sincroniza. */
+const SY_MTIME='bmnava_mtime';
+function syMtimeLeer(){try{return JSON.parse(localStorage.getItem(SY_MTIME)||'{}');}catch(e){return{};}}
+function syMtimeSellar(k){
+  if(!syIsShared(k))return;
+  try{const m=syMtimeLeer();m[k]=Date.now();_setItem.call(localStorage,SY_MTIME,JSON.stringify(m));}catch(e){}
+}
+/* Red de seguridad: lo que se vaya a pisar se guarda antes, para que una
+   descarga desafortunada deje de ser irreversible. Solo la última tanda, y con
+   un tope de tamaño, que el almacenamiento del navegador es finito. */
+const SY_ANTES='bmnava_antespull';
+function syGuardarAntes(mapa){
+  const ks=Object.keys(mapa);
+  if(!ks.length)return;
+  let total=0;const cabe={};
+  ks.sort((a,b)=>(mapa[a]||'').length-(mapa[b]||'').length);
+  ks.forEach(k=>{
+    const t=mapa[k]||'';
+    if(total+t.length>1500000)return;      // 1,5 MB: lo demás se deja fuera
+    cabe[k]=t;total+=t.length;
+  });
+  try{_setItem.call(localStorage,SY_ANTES,JSON.stringify({fecha:new Date().toISOString(),datos:cabe}));}catch(e){}
+}
+window.syDeshacerPull=function(){
+  let paq=null;
+  try{paq=JSON.parse(localStorage.getItem(SY_ANTES)||'null');}catch(e){}
+  if(!paq||!paq.datos||!Object.keys(paq.datos).length)return 'No hay ninguna copia previa guardada.';
+  const ks=Object.keys(paq.datos);
+  ks.forEach(k=>{try{_setItem.call(localStorage,k,paq.datos[k]);syMtimeSellar(k);}catch(e){}});
+  return 'Restaurados '+ks.length+' bloque(s) de la copia del '+paq.fecha+'. Recarga la página.';
+};
+window.syQueHay=function(){
+  const m=syMtimeLeer(),o={};
+  Object.keys(localStorage).filter(k=>k.indexOf('bmnava')===0).forEach(k=>{
+    const t=localStorage.getItem(k);
+    o[k]={bytes:(t||'').length, vacio:lsVacioTexto(t), escritoAqui:m[k]?new Date(m[k]).toISOString():'sin sello'};
+  });
+  return o;
+};
+
 async function syPull(){
   if(!SY.url||!SY.key||!SY.token)return {n:0};
   syStatus('sync','Descargando…');
@@ -3998,7 +4052,8 @@ async function syPull(){
     r=await fetch(SY.url+'/rest/v1/'+SY_TABLE+'?select=k,v,updated_at,updated_by',{headers:syHeaders()});
   if(!r.ok){syStatus('err','No se pudo descargar ('+r.status+')');throw new Error('HTTP '+r.status);}
   const rows=await r.json();
-  let n=0;const protegidos=[];
+  let n=0;const protegidos=[],masNuevos=[],antes={};
+  const mloc=syMtimeLeer();
   rows.forEach(row=>{
     if(!row||!row.k||!syIsShared(row.k))return;
     try{
@@ -4009,18 +4064,38 @@ async function syPull(){
          nunca sustituye a uno con contenido; se avisa y se deja lo de aquí, que
          siempre se puede volver a subir. */
       if(lsVacioTexto(val)&&lsTieneDatos(row.k)){protegidos.push(row.k);return;}
+      const actual=localStorage.getItem(row.k);
+      if(actual===val){LS_LEIDAS[row.k]=true;return;}   // idéntico: nada que hacer
+      /* v314 · Lo de aquí gana si se escribió después de lo que trae el servidor.
+         El margen de dos segundos evita que el reloj del portátil, que nunca va
+         exactamente igual que el del servidor, decida por su cuenta. Y no se
+         descarta lo remoto: el bloque se marca para subirlo, que es lo que
+         debió pasar y no pasó. */
+      const tLocal=mloc[row.k]||0;
+      const tRemoto=row.updated_at?Date.parse(row.updated_at):0;
+      if(tLocal&&tRemoto&&tLocal>tRemoto+2000&&lsTieneDatos(row.k)){
+        masNuevos.push(row.k);
+        try{syQueue(row.k);}catch(e){}
+        return;
+      }
+      if(!lsVacioTexto(actual))antes[row.k]=actual;     // se va a pisar: copia primero
       _setItem.call(localStorage,row.k,val);
       LS_LEIDAS[row.k]=true;
       n++;
     }catch(e){}
   });
+  syGuardarAntes(antes);
   SY.lastPull=new Date();
   if(protegidos.length){
     syStatus('err',protegidos.length+' bloque(s) del servidor venían vacíos y no se han aplicado');
     console.warn('bmnava · descarga: bloques vacíos ignorados →',protegidos.join(', '));
     if(window.toast)toast('El servidor traía '+protegidos.length+' bloque(s) vacío(s). Se ha conservado lo de este dispositivo.');
   }else syStatus('ok',n+' bloques al día');
-  return {n,rows:rows.length,protegidos:protegidos};
+  if(masNuevos.length){
+    console.warn('bmnava · descarga: lo de este navegador es más reciente en →',masNuevos.join(', '),'· se conserva y se sube');
+    if(window.toast)toast('Se ha conservado lo de este dispositivo en '+masNuevos.length+' bloque(s): era más reciente que el servidor.');
+  }
+  return {n,rows:rows.length,protegidos:protegidos,masNuevos:masNuevos};
 }
 
 /* ---------- subida ---------- */
@@ -4095,6 +4170,7 @@ function syQueue(k){
 }
 Storage.prototype.setItem=function(k,v){
   _setItem.call(this,k,v);
+  try{syMtimeSellar(k);}catch(e){}
   try{syQueue(k);}catch(e){}
 };
 /* v212 · Si la pestaña se oculta (cambio de app, bloqueo de pantalla, cierre)
@@ -21830,8 +21906,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-02.2*/
-const VER_ACTUAL='2026-09-02.2';
+/*BUILD:2026-09-02.3*/
+const VER_ACTUAL='2026-09-02.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
