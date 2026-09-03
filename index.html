@@ -4215,20 +4215,62 @@ async function syPull(){
 }
 
 /* ---------- subida ---------- */
+/* v318 · Leer, fusionar y luego escribir.
+   La fusión de v315 vivía solo en la bajada, y por eso no servía de nada: la
+   subida seguía mandando el bloque local ENTERO y pisando lo del servidor. El
+   caso real: Virginia apunta tres tratamientos y los sube; Daniel, que tiene
+   dos, pulsa Actualizar; su navegador sube sus dos, destruye el tercero, y
+   acto seguido se baja lo que él mismo acaba de subir. La fusión de la bajada
+   nunca llegaba a ver el dato de Virginia porque ya no existía.
+
+   Ahora, antes de subir, se lee lo que hay en el servidor para esas mismas
+   claves y se fusiona. Se sube la unión, no lo de aquí. */
+async function syLeerRemoto(keys){
+  const out={};
+  if(!keys.length)return out;
+  try{
+    const q=SY.url+'/rest/v1/'+SY_TABLE+'?select=k,v,updated_at&k=in.('+encodeURIComponent(keys.join(','))+')';
+    let r=await fetch(q,{headers:syHeaders()});
+    if(r.status===401&&await syRefresh())r=await fetch(q,{headers:syHeaders()});
+    if(!r.ok)return out;
+    (await r.json()).forEach(row=>{if(row&&row.k)out[row.k]=row;});
+  }catch(e){console.warn('bmnava · no se pudo leer antes de subir; se sube lo de aquí',e);}
+  return out;
+}
+
 async function syPushKeys(keys){
   if(!SY.url||!SY.key||!SY.token||!keys.length)return 0;
   /* v255 · La otra mitad del mismo problema: subir un bloque vacío que esta
      sesión no ha llegado a leer lo borra para todo el equipo. Se queda sin
      enviar hasta que haya algo real que enviar. */
+  const fusionables=keys.filter(k=>syIsShared(k)&&SY_NO_FUSION.indexOf(k)<0&&lsTieneDatos(k));
+  const remoto=await syLeerRemoto(fusionables);
   const payload=[];
   keys.forEach(k=>{
-    let v=null;
-    try{v=JSON.parse(localStorage.getItem(k)||'null');}catch(e){v=localStorage.getItem(k);}
-    const txt=localStorage.getItem(k);
+    let txt=localStorage.getItem(k);
     if(lsVacioTexto(txt)&&!LS_LEIDAS[k]){
       console.warn('bmnava · subida omitida de '+k+': está vacío y esta sesión no lo ha leído.');
       return;
     }
+    /* Se fusiona con lo del servidor antes de mandar nada. Lo de aquí manda en
+       los empates —es lo que el usuario acaba de tocar— pero lo que solo esté
+       allí se conserva en vez de destruirse. */
+    const row=remoto[k];
+    if(row&&row.v!=null){
+      try{
+        const alla=(typeof row.v==='string')?row.v:JSON.stringify(row.v);
+        if(!lsVacioTexto(alla)&&alla!==txt){
+          const fus=JSON.stringify(syFusionar(JSON.parse(txt),JSON.parse(alla),true));
+          if(fus!==txt){
+            _setItem.call(localStorage,k,fus);   // que se vea aquí también, ya
+            txt=fus;
+            console.info('bmnava · subida: fusionado con lo del servidor en '+k);
+          }
+        }
+      }catch(e){}
+    }
+    let v=null;
+    try{v=JSON.parse(txt||'null');}catch(e){v=txt;}
     payload.push({k,v,updated_at:new Date().toISOString(),updated_by:SY.email||'staff'});
   });
   if(!payload.length)return 0;
@@ -4474,8 +4516,10 @@ window.syRefreshShared=async function(){
   if(!SY.on)return '';
   const keys=Object.keys(localStorage).filter(syIsShared);
   try{
-    if(keys.length)await syPushKeys(keys);
+    /* v318 · Bajar antes de subir. Al revés, lo de aquí pisaba lo del equipo
+       y el pull posterior solo devolvía lo que uno mismo acababa de mandar. */
     const r=await syPull();
+    if(keys.length)await syPushKeys(keys);
     syStatus('ok','Sincronizado');
     return ' \u00b7 equipo: '+r.n+' bloques';
   }catch(e){syStatus('err','Sin conexi\u00f3n');return ' \u00b7 sincronizaci\u00f3n pendiente';}
@@ -22129,8 +22173,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-03.3*/
-const VER_ACTUAL='2026-09-03.3';
+/*BUILD:2026-09-03.4*/
+const VER_ACTUAL='2026-09-03.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
