@@ -7040,12 +7040,47 @@ const o={bad:0,warn:1};STATE.alerts=A.sort((a,b)=>o[a.sev]-o[b.sev]);}
 /* ===================== NAV / RENDER ===================== */
 /* ===================== MÓDULO MÉDICO ===================== */
 var MED_SEL=null;
-const MED_TT_BASE=['Fisioterapia','Masaje','Medicación','Readaptación','Consulta médica','Nutrición'];
+/* v330 · «Presoterapia» entra en la lista base. No estaba, así que había que
+   escribirla a mano cada vez y salían variantes: en los registros conviven
+   «Botas presoterapia» y «Botas compresivas», que para las cuentas de
+   Fisioterapia son dos tratamientos distintos. */
+const MED_TT_BASE=['Fisioterapia','Masaje','Presoterapia','Medicación','Readaptación','Consulta médica','Nutrición'];
+const MED_TT_PRESO='Presoterapia';
 function medDbLoad(){if(STATE.med)return;let m=lsLeer('bmnava_meddb',{})||{};
   STATE.med={inj:m.inj||[],treat:m.treat||[],cat:m.cat||[],alog:m.alog||[],statuses:m.statuses||[],ttypes:m.ttypes||[]};medApplyStatuses();
   try{medLimpiarFalsos();}catch(e){}
   try{medCorregirAdmin();}catch(e){}
-  try{medPhysioReconcile();}catch(e){}}
+  try{medPhysioReconcile();}catch(e){}
+  try{medUnificarPreso();}catch(e){}}
+/* v330 · Unifica el nombre de la presoterapia. Se apoya en fisEsPresoterapia,
+   el mismo criterio que decide el icono, para que nunca puedan discrepar: lo
+   que lleva bota lleva el nombre. Es idempotente —si ya está unificado no
+   escribe— así que puede correr en cada carga sin coste, y cubre también lo que
+   se escriba mal a partir de ahora. La versión anterior queda archivada en el
+   historial del servidor, así que es reversible. */
+function medUnificarPreso(){
+  if(!STATE.med)return 0;
+  const esPreso=(typeof fisEsPresoterapia==='function')
+    ? fisEsPresoterapia
+    : (t=>/preso|bota|compresi|recovery|pressoterap/i.test(String(t||'')));
+  let n=0;
+  (STATE.med.treat||[]).forEach(t=>{
+    if(!t||!t.tipo)return;
+    if(esPreso(t.tipo)&&t.tipo!==MED_TT_PRESO){t.tipo=MED_TT_PRESO;n++;}
+  });
+  /* Y se retiran las variantes de la lista de tipos propios, para que no se
+     puedan volver a elegir desde el desplegable. */
+  const antes=(STATE.med.ttypes||[]).length;
+  STATE.med.ttypes=(STATE.med.ttypes||[]).filter(x=>!esPreso(x));
+  const quitados=antes-STATE.med.ttypes.length;
+  if(n||quitados){
+    medPersist();
+    console.info('bmnava · presoterapia unificada: '+n+' tratamiento(s) renombrados a «'+MED_TT_PRESO+'»'
+      +(quitados?' · '+quitados+' variante(s) retiradas del desplegable':''));
+  }
+  return n;
+}
+window.medUnificarPreso=medUnificarPreso;
 /* ═══ v293 · Los problemas que nunca debieron crearse se deshacen solos ═══
    La herramienta de agrupar creó lesiones sobre cosas que no son partes del
    cuerpo —«Extranjería» la primera—. Lo arreglé para que no vuelva a pasar y
@@ -12562,9 +12597,16 @@ const FIS_ICO_PRESO='<svg class="fis-ico" viewBox="0 0 24 24" fill="none" stroke
   +'<path d="M7.2 7.2h7.9M7.2 10.7h7.9M7.3 14.2h8.2"/>'
   +'</svg>';
 /* Reconoce cómo lo escriba Virginia: hoy lo registra como «Botas compresivas». */
+window.fisEsPresoterapia=fisEsPresoterapia;
 function fisEsPresoterapia(txt){
   const t=String(txt||'').toLowerCase();
-  return /preso|bota|compresi|recovery|pressoterap/.test(t);
+  /* v330 · El patrón llevaba «compresi» suelto, y eso se llevaba por delante la
+     compresión isquémica, que es terapia manual y no tiene nada que ver con las
+     botas. Como este mismo criterio decide el icono Y el renombrado de los
+     registros, un falso positivo aquí reescribe datos buenos. Se pide o bien la
+     bota, o bien compresión acompañada de neumática o intermitente. */
+  if(/isqu[ée]mic|manual|digital|puntos? gatillo/.test(t))return false;
+  return /preso|pressoterap|bota|recovery\s*boot|compresi[oó]n\s*(neum|intermit)/.test(t);
 }
 function fisIconoTrat(txt){return fisEsPresoterapia(txt)?FIS_ICO_PRESO:'';}
 window.fisIconoTrat=fisIconoTrat;
@@ -22626,8 +22668,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-05.7*/
-const VER_ACTUAL='2026-09-05.7';
+/*BUILD:2026-09-05.8*/
+const VER_ACTUAL='2026-09-05.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
