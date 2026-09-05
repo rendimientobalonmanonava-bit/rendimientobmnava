@@ -4251,6 +4251,18 @@ async function syPull(){
       syMetaSet(row.k,syHash(val),row.updated_at);
     }catch(e){}
   });
+  /* v323 · Si el almacén ha cambiado, las copias en memoria de los módulos han
+     quedado viejas. Hasta ahora esto solo se hacía al repintar, y el repintado
+     se salta cuando el usuario está escribiendo o tiene una ficha abierta: justo
+     cuando más rato lleva la app abierta y más vieja está la memoria. Se recarga
+     siempre, se repinte o no. */
+  if(n>0){
+    try{if(typeof syInvalidateAppCaches==='function')syInvalidateAppCaches();}catch(e){}
+    try{if(typeof calLoad==='function')calLoad();}catch(e){}
+    try{if(typeof medDbLoad==='function')medDbLoad();}catch(e){}
+    try{if(typeof physioEnsure==='function')physioEnsure();}catch(e){}
+    try{if(window.medLogRW)medLogRW();}catch(e){}
+  }
   syGuardarAntes(antes);
   SY.lastPull=new Date();
   if(protegidos.length){
@@ -5836,10 +5848,32 @@ function parseDate(raw){if(!raw)return null;let s=raw.toString().trim().split(" 
    cualquier código que haya leído antes puede escribir lo que quiera, incluso
    dejar la clave vacía a propósito al borrar el último registro. */
 const LS_LEIDAS={};
+/* ═══ v323 · La app tiene DOS copias de la verdad ═══
+   Los módulos cachean su bloque en STATE la primera vez (calLoad, medDbLoad…) y
+   a partir de ahí trabajan contra esa copia en memoria. Al guardar, calPersist
+   y compañía escriben esa copia ENTERA encima del almacén, sin mirar si abajo
+   había cambiado algo.
+
+   Mientras el almacén solo cambiaba al arrancar, la ventana era estrecha. Desde
+   que la sincronización mira cada 25 segundos, es permanente: baja lo que ha
+   programado el otro, lo escribe en el almacén, la copia en memoria se queda
+   como estaba, y al guardar cualquier cosa —una sola sesión— se lleva por
+   delante todo lo que había llegado entretanto. Reproducido: entran 9 días,
+   memoria con 4, se guarda una sesión y el almacén se queda en 5. Desaparecen
+   los entrenos programados y sobreviven los partidos, que ya estaban en memoria
+   desde el arranque.
+
+   Aquí se recuerda el texto exacto que leyó cada módulo. Si al ir a guardar el
+   almacén ya no es ese, es que algo entró por debajo, y entonces se fusiona en
+   vez de pisar. */
+const LS_VISTO={};
 function lsLeer(clave,vacio){
   LS_LEIDAS[clave]=true;
-  try{const v=JSON.parse(localStorage.getItem(clave)||'null');return v==null?vacio:v;}
-  catch(e){return vacio;}
+  try{
+    const t=localStorage.getItem(clave);
+    LS_VISTO[clave]=t;
+    const v=JSON.parse(t||'null');return v==null?vacio:v;
+  }catch(e){return vacio;}
 }
 function lsVacioTexto(t){
   return !(t&&t!=='{}'&&t!=='[]'&&t!=='null'&&t!=='""');
@@ -5854,7 +5888,21 @@ function lsGuardar(clave,valor){
       lsAvisar('No se ha guardado: el bloque «'+lsNombre(clave)+'» tiene datos que esta sesión no ha cargado. Recarga la página antes de volver a intentarlo.');
       return false;
     }
-    localStorage.setItem(clave,JSON.stringify(valor));
+    let txt=JSON.stringify(valor);
+    const enDisco=localStorage.getItem(clave);
+    /* Solo cuando de verdad ha cambiado por debajo desde que este módulo leyó.
+       Si nadie lo ha tocado, se escribe tal cual y no hay nada que fusionar. */
+    if(enDisco!=null&&LS_VISTO[clave]!=null&&enDisco!==LS_VISTO[clave]&&enDisco!==txt){
+      try{
+        if(typeof window.syFusionar==='function'&&!lsVacioTexto(enDisco)){
+          const fus=window.syFusionar(valor,JSON.parse(enDisco),true);
+          txt=JSON.stringify(fus);
+          console.info('bmnava · '+clave+': el almacén había cambiado por debajo; se fusiona en vez de pisar');
+        }
+      }catch(e){console.warn('bmnava · no se pudo fusionar '+clave+', se guarda lo de memoria',e);}
+    }
+    localStorage.setItem(clave,txt);
+    LS_VISTO[clave]=txt;
     LS_LEIDAS[clave]=true;
     return true;
   }catch(e){
@@ -22416,8 +22464,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-03.9*/
-const VER_ACTUAL='2026-09-03.9';
+/*BUILD:2026-09-05.1*/
+const VER_ACTUAL='2026-09-05.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
