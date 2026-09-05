@@ -3965,9 +3965,28 @@ function syStatus(st,txt){
 }
 
 /* ---------- autenticación ---------- */
+/* v327 · Ninguna petición a Supabase tenía tope de espera: login, renovación
+   de token, descarga, subida, lectura previa. El arranque descarga ANTES de
+   pedir las hojas, así que si Supabase no contestaba la app se quedaba en
+   «sincronizar» para siempre. Es el mismo fallo que las hojas tenían en
+   fetchCSV, por el otro lado. Quince segundos es de sobra para una API que
+   responde en décimas; si se agota, el error dice qué pasó en vez de esperar. */
+async function syFetch(url,opts,ms){
+  const tope=ms||15000;
+  let ctrl=null,t=null;
+  try{ctrl=(typeof AbortController!=='undefined')?new AbortController():null;}catch(e){}
+  const o=Object.assign({},opts||{});
+  if(ctrl){o.signal=ctrl.signal;t=setTimeout(()=>{try{ctrl.abort();}catch(e){}},tope);}
+  try{return await fetch(url,o);}
+  catch(e){
+    if(e&&e.name==='AbortError')throw new Error('sin respuesta del servidor en '+Math.round(tope/1000)+' s');
+    throw e;
+  }finally{if(t)clearTimeout(t);}
+}
+window.fetchConTope=syFetch;
 async function syLogin(email,pass){
   if(!SY.url||!SY.key)throw new Error('Falta la URL del proyecto o la clave pública.');
-  const r=await fetch(SY.url+'/auth/v1/token?grant_type=password',{
+  const r=await syFetch(SY.url+'/auth/v1/token?grant_type=password',{
     method:'POST',headers:{'apikey':SY.key,'Content-Type':'application/json'},
     body:JSON.stringify({email,password:pass})
   });
@@ -3981,7 +4000,7 @@ async function syLogin(email,pass){
 async function syRefresh(){
   if(!SY.refresh)return false;
   try{
-    const r=await fetch(SY.url+'/auth/v1/token?grant_type=refresh_token',{
+    const r=await syFetch(SY.url+'/auth/v1/token?grant_type=refresh_token',{
       method:'POST',headers:{'apikey':SY.key,'Content-Type':'application/json'},
       body:JSON.stringify({refresh_token:SY.refresh})
     });
@@ -4159,8 +4178,8 @@ async function syPull(){
   if(!SY.url||!SY.key||!SY.token)return {n:0};
   syStatus('sync','Descargando…');
   const pedir=async q=>{
-    let x=await fetch(SY.url+'/rest/v1/'+SY_TABLE+q,{headers:syHeaders()});
-    if(x.status===401&&await syRefresh())x=await fetch(SY.url+'/rest/v1/'+SY_TABLE+q,{headers:syHeaders()});
+    let x=await syFetch(SY.url+'/rest/v1/'+SY_TABLE+q,{headers:syHeaders()});
+    if(x.status===401&&await syRefresh())x=await syFetch(SY.url+'/rest/v1/'+SY_TABLE+q,{headers:syHeaders()});
     return x;
   };
   /* Primero solo los nombres y las fechas, que pesan nada, para saber qué ha
@@ -4301,8 +4320,8 @@ async function syLeerRemoto(keys){
   if(!keys.length)return out;
   try{
     const q=SY.url+'/rest/v1/'+SY_TABLE+'?select=k,v,updated_at&k=in.('+encodeURIComponent(keys.join(','))+')';
-    let r=await fetch(q,{headers:syHeaders()});
-    if(r.status===401&&await syRefresh())r=await fetch(q,{headers:syHeaders()});
+    let r=await syFetch(q,{headers:syHeaders()});
+    if(r.status===401&&await syRefresh())r=await syFetch(q,{headers:syHeaders()});
     if(!r.ok)return out;
     (await r.json()).forEach(row=>{if(row&&row.k)out[row.k]=row;});
   }catch(e){console.warn('bmnava · no se pudo leer antes de subir; se sube lo de aquí',e);}
@@ -4362,10 +4381,10 @@ async function syPushKeys(keys){
   const url=SY.url+'/rest/v1/'+SY_TABLE+'?on_conflict=k';
   const opts={method:'POST',headers:Object.assign(syHeaders(true),{'Prefer':'resolution=merge-duplicates'}),
               body:JSON.stringify(payload)};
-  let r=await fetch(url,opts);
+  let r=await syFetch(url,opts);
   if(r.status===401&&await syRefresh()){
     opts.headers=Object.assign(syHeaders(true),{'Prefer':'resolution=merge-duplicates'});
-    r=await fetch(url,opts);
+    r=await syFetch(url,opts);
   }
   if(!r.ok){syStatus('err','No se pudo guardar ('+r.status+')');throw new Error('HTTP '+r.status);}
   /* Ya coinciden: se anota, y la próxima pulsación no vuelve a mandarlo. */
@@ -4410,7 +4429,15 @@ function syFlushPending(opts){
   }).catch(()=>{});
 }
 function syQueue(k){
-  if(!SY.on||!syIsShared(k))return;
+  if(!syIsShared(k))return;
+  /* v327 · Sin sesión activa (token caducado, sin red, o el pull de arranque,
+     que corre antes de SY.on=true) esto descartaba la escritura sin rastro. Se
+     anota en la cola persistente y se sube al reconciliar. */
+  if(!SY.on){
+    try{const y=JSON.parse(localStorage.getItem(SY_PEND)||'[]')||[];
+      if(y.indexOf(k)<0){y.push(k);_setItem.call(localStorage,SY_PEND,JSON.stringify(y));}}catch(e){}
+    return;
+  }
   SY.pending[k]=1;
   syStatus('sync','Guardando…');
   clearTimeout(SY.timer);
@@ -4421,16 +4448,20 @@ function syQueue(k){
 }
 /* Lo que quedó sin subir porque la pestaña se cerró. Se reintenta al abrir. */
 const SY_PEND='bmnava_pendiente';
+/* v327 · Reconciliar al conectar: se ofrece a subir TODO lo compartido. Como
+   syPushKeys descarta lo que ya coincide con el servidor (hash), solo viaja lo
+   que de verdad cambió aquí sin llegar allí: lo que el pull de arranque fusionó
+   (antes se encolaba con SY.on aún en false y se perdía), lo escrito sin sesión
+   y lo que quedó a medias al cerrar. Cubre las tres cosas con una sola pasada. */
 async function syPendientes(){
-  let ks=[];
-  try{ks=JSON.parse(localStorage.getItem(SY_PEND)||'[]')||[];}catch(e){}
-  if(!ks.length)return 0;
+  const todas=Object.keys(localStorage).filter(syIsShared);
+  if(!todas.length){try{localStorage.removeItem(SY_PEND);}catch(e){}return 0;}
   try{
-    const n=await syPushKeys(ks.filter(syIsShared));
-    localStorage.removeItem(SY_PEND);
-    if(n)console.info('bmnava · subido al abrir lo que quedó pendiente al cerrar: '+n+' bloque(s)');
+    const n=await syPushKeys(todas);
+    try{localStorage.removeItem(SY_PEND);}catch(e){}
+    if(n)console.info('bmnava · reconciliado al conectar: '+n+' bloque(s) subidos');
     return n;
-  }catch(e){return 0;}   // sigue anotado: se reintenta la próxima vez
+  }catch(e){return 0;}   // SY_PEND sigue anotado: se reintenta la próxima vez
 }
 Storage.prototype.setItem=function(k,v){
   _setItem.call(this,k,v);
@@ -4718,6 +4749,26 @@ function syVigilar(){
    quiere ver lo que ha pasado mientras no miraba. */
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden&&SY.on)setTimeout(()=>{syMirar().catch(()=>{});},400);
+});
+/* v327 · Dos pestañas de la app en el mismo navegador no se enteraban la una de
+   la otra: cada una con su copia en memoria, escribiendo el mismo almacén. El
+   evento storage salta en las demás pestañas cuando una escribe; se recargan
+   las copias en memoria y se repinta si el usuario no está escribiendo. */
+let SY_STO_T=null;
+window.addEventListener('storage',ev=>{
+  try{
+    if(ev&&ev.key&&!syIsShared(ev.key))return;
+    clearTimeout(SY_STO_T);
+    SY_STO_T=setTimeout(()=>{
+      try{if(typeof syInvalidateAppCaches==='function')syInvalidateAppCaches();}catch(e){}
+      try{if(typeof calLoad==='function')calLoad();}catch(e){}
+      try{if(typeof medDbLoad==='function')medDbLoad();}catch(e){}
+      try{if(typeof physioEnsure==='function')physioEnsure();}catch(e){}
+      try{if(window.medLogRW)medLogRW();}catch(e){}
+      SY_PEDIENTE_REPINTAR=true;
+      if(syPuedeRepintar()){SY_PEDIENTE_REPINTAR=false;syRepintar();}
+    },300);
+  }catch(e){}
 });
 /* v204 · usado por el botón Actualizar de la barra: sube lo propio y baja lo del
    resto del staff, sin recargar la página. */
@@ -21453,7 +21504,7 @@ async function vhLoadURL(url,msgEl){
   if(!url){set('Pega la URL CSV publicada de la hoja de valoraciones.');return null;}
   set('Cargando…');
   try{
-    const res=await fetch(url);
+    const res=await (window.fetchConTope?fetchConTope(url,null,20000):fetch(url));
     if(!res.ok)throw new Error('HTTP '+res.status);
     const txt=await res.text();
     vhResetNameCache();
@@ -21498,7 +21549,7 @@ function vhSaveUrl(u){try{u?localStorage.setItem(VH_LS,u):localStorage.removeIte
 window.vhLoadURLQuiet=async function(url){
   if(!url)return null;
   vhResetNameCache();
-  const res=await fetch(url);
+  const res=await (window.fetchConTope?fetchConTope(url,null,20000):fetch(url));
   if(!res.ok)throw new Error('HTTP '+res.status);
   const txt=await res.text();
   const r=await new Promise(resolve=>{
@@ -22193,12 +22244,16 @@ async function phScanFolder(){
      de nombre que los de la plantilla. */
   const names=Object.keys(STATE.players||{}).concat(
     (typeof exNames==='function'?exNames():[]).filter(n=>!(STATE.players||{})[n]));
-  for(const n of names){
+  /* v327 · Era un doble bucle en serie: hasta 6 extensiones por nombre, cada
+     petición esperando a la anterior, decenas de 404 seguidos tras cada
+     arranque. Ahora cada nombre prueba sus extensiones en orden pero todos los
+     nombres a la vez; una foto que exista en png se resuelve en una petición. */
+  await Promise.all(names.map(async n=>{
     for(const ext of PH_EXT){
       const url=PH_DIR+encodeURIComponent(n)+'.'+ext+PH_QS;
-      if(await phTry(url)){PH_FILE[n]=url;break;}
+      if(await phTry(url)){PH_FILE[n]=url;return;}
     }
-  }
+  }));
   /* v320 · Con las fotos ya fuera de la sincronización, las copias en base64 que
      quedan en este navegador son puro peso muerto: el mismo jugador tiene su
      archivo en la carpeta, que es de donde se sirven ahora. Se retiran una sola
@@ -22533,8 +22588,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-05.4*/
-const VER_ACTUAL='2026-09-05.4';
+/*BUILD:2026-09-05.5*/
+const VER_ACTUAL='2026-09-05.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
@@ -22557,7 +22612,7 @@ function verBanner(otra){
 async function verDelServidor(){
   if(location.protocol==='file:')return null;
   try{
-    const r=await fetch(location.pathname+'?_ver='+Date.now(),{cache:'reload'});
+    const r=await (window.fetchConTope?fetchConTope(location.pathname+'?_ver='+Date.now(),{cache:'reload'},30000):fetch(location.pathname+'?_ver='+Date.now(),{cache:'reload'}));
     if(!r.ok)return null;
     const t=await r.text();
     const m=t.match(/\/\*BUILD:([^*]+)\*\//);
@@ -22578,6 +22633,7 @@ window.verEstado=async function(){
 
 /* Primera comprobación con la app ya pintada, y luego cada diez minutos, que es
    justo lo que dura la caché de GitHub Pages. */
+try{document.querySelectorAll('.sb-ver').forEach(e=>{e.textContent='v '+VER_ACTUAL;e.title='Versión de la app';});}catch(e){}
 setTimeout(verComprobar,9000);
 setInterval(verComprobar,600000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)verComprobar();});
