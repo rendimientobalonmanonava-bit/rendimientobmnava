@@ -15756,7 +15756,17 @@ function calBody(dk){
 function calOpenDay(dk){calLoad();CAL_CUR=dk;CAL_EDIT=null;CAL_FORM={intens:2,dur:75,contacto:3};const ov=ensureInfoOverlay();document.getElementById('info-mtitle').textContent='Planificar · '+calDkLabel(dk);calBody(dk);const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';ov.style.display='flex';setTimeout(calTypeChanged,30);}
 function calEditEvent(dk,id){CAL_CUR=dk;CAL_EDIT=id;calBody(dk);const b=document.getElementById('info-mbody');if(b)b.scrollTop=b.scrollHeight;}
 function calCancelEdit(){CAL_EDIT=null;CAL_FORM={intens:2,dur:75,contacto:3};calBody(CAL_CUR);}
-function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;const g=id=>(document.getElementById(id)||{}).value;const type=g('cal-type')||'entreno';const _objs=['cal-obj-0','cal-obj-1','cal-obj-2'].map(id=>(g(id)||'').trim()).filter(Boolean).slice(0,3);const data={type,title:(g('cal-title')||'').trim(),time:g('cal-time')||'',intens:CAL_FORM.intens||2,dur:+(g('cal-dur')||CAL_FORM.dur||0),contacto:CAL_FORM.contacto!=null?CAL_FORM.contacto:3,objs:_objs,note:_objs.join(' · ')};
+/* v324 · Dos fallos que se tapaban entre ellos.
+   1) Esta función tocaba STATE.calendar sin llamar antes a calLoad(). Si la
+      copia en memoria estaba anulada —syInvalidateAppCaches la deja a null y no
+      todas las vistas la recargan—, STATE.calendar[dk] revienta con un
+      TypeError, la sesión no se guarda y no se dice nada.
+   2) Y el resultado de calPersist() se tiraba a la basura. lsGuardar devuelve
+      false cuando la escritura se bloquea o cuando el navegador se ha quedado
+      sin sitio, pero aquí se anunciaba «Sesión programada» igual. La sesión se
+      veía en pantalla —está en memoria— y desaparecía al recargar. Es
+      exactamente el síntoma de perder la planificación cuatro veces. */
+function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;try{calLoad();}catch(e){}const g=id=>(document.getElementById(id)||{}).value;const type=g('cal-type')||'entreno';const _objs=['cal-obj-0','cal-obj-1','cal-obj-2'].map(id=>(g(id)||'').trim()).filter(Boolean).slice(0,3);const data={type,title:(g('cal-title')||'').trim(),time:g('cal-time')||'',intens:CAL_FORM.intens||2,dur:+(g('cal-dur')||CAL_FORM.dur||0),contacto:CAL_FORM.contacto!=null?CAL_FORM.contacto:3,objs:_objs,note:_objs.join(' · ')};
   /* v256 · datos propios del partido. Si la sesión deja de ser un partido se
      retiran, para que no quede un rival colgado en un entreno. */
   if(type==='partido'){
@@ -15771,12 +15781,17 @@ function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;const g=id=>(document.get
      la marca de "sin programar". */
   if(CAL_EDIT){const e=STATE.calendar[dk].find(x=>x.id===CAL_EDIT);if(e){Object.assign(e,data);delete e.sp;}CAL_EDIT=null;toast('Sesión programada');}
   else{STATE.calendar[dk].push(Object.assign({id:'cev_'+Date.now()},data));toast('Añadido al '+calDkLabel(dk));}
-  STATE.calendar[dk].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));calPersist();CAL_FORM={intens:2,dur:75,contacto:3};calBody(dk);setTimeout(calTypeChanged,30);renderCalendar();
+  STATE.calendar[dk].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));
+  if(!calPersist()){
+    toast('NO SE HA GUARDADO · revisa el aviso');
+    console.error('bmnava · calendario: calPersist() ha fallado para '+dk);
+  }
+  CAL_FORM={intens:2,dur:75,contacto:3};calBody(dk);setTimeout(calTypeChanged,30);renderCalendar();
   /* v241 · el resumen de equipo muestra las próximas sesiones, así que al
      programar una hay que repintarlo: si no, seguía diciendo «sin programar»
      una sesión que se acababa de completar. */
   try{if(window.renderTeam&&document.getElementById('team-next'))renderTeam();}catch(e){}}
-function calDelEvent(dk,id){const arr=(STATE.calendar[dk]||[]);const i=arr.findIndex(e=>e.id===id);if(i>=0){arr.splice(i,1);if(!arr.length)delete STATE.calendar[dk];if(CAL_EDIT===id)CAL_EDIT=null;calPersist();calBody(dk);renderCalendar();
+function calDelEvent(dk,id){try{calLoad();}catch(e){}const arr=((STATE.calendar||{})[dk]||[]);const i=arr.findIndex(e=>e.id===id);if(i>=0){arr.splice(i,1);if(!arr.length)delete STATE.calendar[dk];if(CAL_EDIT===id)CAL_EDIT=null;calPersist();calBody(dk);renderCalendar();
   try{if(window.renderTeam&&document.getElementById('team-next'))renderTeam();}catch(e){}}}
 
 function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);}t.textContent=msg;requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';});clearTimeout(_toastT);_toastT=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(10px)';},2200);}
@@ -22464,8 +22479,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-05.1*/
-const VER_ACTUAL='2026-09-05.1';
+/*BUILD:2026-09-05.2*/
+const VER_ACTUAL='2026-09-05.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
