@@ -6294,6 +6294,15 @@ function ingestRoster(rows){
    y nunca pisa datos ricos ya cargados (peso, talla, nac, pos específica). */
 function applyRosterLive(rosterObj){
   if(!rosterObj)return 0;
+  /* v326 · STATE.info solo lo cargaba renderPlayerPersonal, es decir, al abrir
+     la ficha de un jugador. En el arranque connect() llega aquí antes de que
+     nadie haya abierto ninguna, STATE.info es undefined, STATE.info[key]
+     revienta con un TypeError y el catch de connect() lo traduce a «Plantilla
+     no leída (hoja privada o CORS)», que apunta a la hoja cuando la hoja está
+     bien. Consecuencia: dorsal, estado y demás de la hoja de plantilla no se
+     aplicaban al abrir; solo tras abrir una ficha y pulsar Actualizar. */
+  try{if(typeof infoLoad==='function')infoLoad();}catch(e){}
+  STATE.info=STATE.info||{};
   const norm=x=>normH(x).split(/\s+/).filter(Boolean);
   const players=Object.keys(STATE.players||{});
   let n=0;
@@ -13967,8 +13976,29 @@ function renderAll(){applyHist();
   document.getElementById('src-txt').textContent=STATE.mode==="demo"?"MODO DEMO":STATE.mode==="live"?"DATOS REALES":"sin datos";}
 
 /* ===================== CONEXIÓN ===================== */
-async function fetchCSV(url){const res=await fetch(url);if(!res.ok)throw new Error("HTTP "+res.status);const txt=await res.text();return new Promise(r=>Papa.parse(txt,{header:true,skipEmptyLines:true,complete:c=>r(c.data)}));}
-async function connect(){const wu=document.getElementById('url-wellness').value.trim()||CONFIG.sources.wellness;const ru=document.getElementById('url-rpe').value.trim()||CONFIG.sources.rpe;const msg=document.getElementById('conn-msg');if(!wu&&!ru){msg.textContent="Pega al menos una URL CSV, o usa el modo demo.";return;}msg.textContent="Cargando…";try{if(wu)STATE.wellness=ingestWellness(await fetchCSV(wu));if(ru)STATE.rpe=ingestRPE(await fetchCSV(ru));if(!STATE.wellness.length&&!STATE.rpe.length)throw new Error("0 registros leídos");STATE.mode="live";STATE.refDate=null;document.getElementById('fallback-banner').style.display='none';renderAll();syncDatePicker();let rosterMsg='';try{const rou=(document.getElementById('url-roster')||{}).value||CONFIG.sources.roster;if(rou){const rn=applyRosterLive(ingestRoster(await fetchCSV(rou)));if(rn){rosterMsg=` · Plantilla: ${rn} jugadores`;if(STATE.curPlayer&&document.getElementById('v-jugador').classList.contains('on'))renderPlayer(STATE.curPlayer);}}}catch(re){rosterMsg=' · Plantilla no leída (hoja privada o CORS)';}let vhMsg='';
+/* v326 · Esto era `await fetch(url)` a pelo, sin tope de espera, y en toda la
+   app no había un solo AbortController. Si Google no contestaba —o contestaba a
+   medias— esa espera no terminaba nunca, y como connect() pide las cuatro hojas
+   una detrás de otra, la primera que se colgara dejaba la app cargando para
+   siempre. Es el "sigue sin cargar" de Daniel: no es lentitud, es una espera sin
+   final. Veinte segundos es de sobra —por curl las hojas responden en menos de
+   uno y medio— y si se agota se sigue con lo que haya en vez de morir. */
+async function fetchCSV(url,ms){
+  const tope=ms||20000;
+  let ctrl=null,t=null;
+  try{ctrl=(typeof AbortController!=='undefined')?new AbortController():null;}catch(e){ctrl=null;}
+  if(ctrl)t=setTimeout(()=>{try{ctrl.abort();}catch(e){}},tope);
+  try{
+    const res=await fetch(url,ctrl?{signal:ctrl.signal}:undefined);
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    const txt=await res.text();
+    return await new Promise(r=>Papa.parse(txt,{header:true,skipEmptyLines:true,complete:c=>r(c.data)}));
+  }catch(e){
+    if(e&&(e.name==='AbortError'))throw new Error('la hoja no respondió en '+Math.round(tope/1000)+' s');
+    throw e;
+  }finally{ if(t)clearTimeout(t); }
+}
+async function connect(){const wu=document.getElementById('url-wellness').value.trim()||CONFIG.sources.wellness;const ru=document.getElementById('url-rpe').value.trim()||CONFIG.sources.rpe;const msg=document.getElementById('conn-msg');if(!wu&&!ru){msg.textContent="Pega al menos una URL CSV, o usa el modo demo.";return;}msg.textContent="Cargando…";/* v326 · Las cuatro hojas se pedían una detrás de otra: cada una esperaba a que terminase la anterior, y una lenta retrasaba a todas. Ahora salen a la vez y se procesan en el mismo orden de siempre, así que el resultado es idéntico. Y con allSettled, una hoja caída ya no tumba a las demás: antes iban en el mismo try y la primera que fallara se llevaba por delante el resto. */const _rou=(document.getElementById('url-roster')||{}).value||CONFIG.sources.roster;const _pw=wu?fetchCSV(wu):Promise.resolve(null);const _pr=ru?fetchCSV(ru):Promise.resolve(null);const _pro=_rou?fetchCSV(_rou):Promise.resolve(null);_pro.catch(()=>{});try{const [_rw,_rr]=await Promise.allSettled([_pw,_pr]);if(_rw.status==='fulfilled'&&_rw.value)STATE.wellness=ingestWellness(_rw.value);else if(_rw.status==='rejected')console.warn('bmnava · wellness no leído:',_rw.reason&&_rw.reason.message);if(_rr.status==='fulfilled'&&_rr.value)STATE.rpe=ingestRPE(_rr.value);else if(_rr.status==='rejected')console.warn('bmnava · RPE no leído:',_rr.reason&&_rr.reason.message);if(!STATE.wellness.length&&!STATE.rpe.length)throw new Error("0 registros leídos");STATE.mode="live";STATE.refDate=null;document.getElementById('fallback-banner').style.display='none';renderAll();syncDatePicker();let rosterMsg='';try{const rou=_rou;if(rou){const _cro=await _pro;const rn=_cro?applyRosterLive(ingestRoster(_cro)):0;if(rn){rosterMsg=` · Plantilla: ${rn} jugadores`;if(STATE.curPlayer&&document.getElementById('v-jugador').classList.contains('on'))renderPlayer(STATE.curPlayer);}}}catch(re){rosterMsg=' · Plantilla no leída (hoja privada o CORS)';}let vhMsg='';
 try{
   /* v199 · las valoraciones físicas se cargan aquí, junto a las demás fuentes,
      para que "Conectar y cargar" deje el sistema entero listo de una vez. */
@@ -22503,8 +22533,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-05.3*/
-const VER_ACTUAL='2026-09-05.3';
+/*BUILD:2026-09-05.4*/
+const VER_ACTUAL='2026-09-05.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
