@@ -4537,7 +4537,15 @@ function syRenderPanel(){
             (filas.length
               ? '<div class="small muted" style="margin-top:3px">Lo que más ocupa: '
                 +filas.slice(0,4).map(f=>lsNombre(f[0])+' '+f[1]+' KB').join(' · ')+'</div>'
-              : '');
+              : '')+
+            (function(){
+              const a=window.__ARRANQUE;
+              if(!a||a.total==null)return '';
+              const seg=x=>(x/1000).toFixed(1)+' s';
+              return '<div class="small muted" style="margin-top:3px">Ha tardado en abrir <b>'+seg(a.total)+'</b>'
+                +' · sincronizar '+seg(a.sincronizacion)+' · hojas de Google '+seg(a.hojasGoogle)
+                +' · pintar '+seg(a.resto)+'</div>';
+            })();
         })()
       : '<label>Tu correo</label><input id="sy-email" placeholder="daniel@bmnava.es" value="'+(SY.email||'')+'">'+
         '<label>Contraseña</label><input id="sy-pass" type="password" placeholder="••••••••">'+
@@ -16515,9 +16523,22 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   /* v201 · La descarga del estado compartido va PRIMERO: rellena localStorage
      antes de que ningún módulo lo lea, de modo que el resto del arranque ya
      trabaja con los datos del equipo y no con los de este navegador. */
+  /* v325 · Cronómetro del arranque. Daniel dice que tarda muchísimo y aquí no
+     puedo medirlo: en mi entorno la pestaña va en segundo plano y el navegador
+     ralentiza los temporizadores, así que cualquier número que sacara sería
+     mentira. Las hojas responden en menos de un segundo y medio y la versión de
+     ayer se comporta igual, o sea que el tiempo se va en otro sitio. Que lo diga
+     la app desde su ordenador en vez de seguir suponiendo desde el mío. */
+  const ARR={inicio:Math.round(performance.now())};
+  window.__ARRANQUE=ARR;
+  let _t=performance.now();
   try{ if(window.syEnsureAuth)await window.syEnsureAuth(); }catch(e){}
+  ARR.sincronizacion=Math.round(performance.now()-_t);
+  _t=performance.now();
   try{ if(CONFIG.sources.wellness||CONFIG.sources.rpe){await connect();} else {loadDemo();} }
   catch(e){ try{loadDemo();}catch(_){} }
+  ARR.hojasGoogle=Math.round(performance.now()-_t);
+  _t=performance.now();
   /* v200 · Restaurar los datos de Polar guardados en este navegador. Va aquí, al
      final del arranque, porque las rutas de carga (connect, demo, equipo real)
      reconstruyen STATE.hr y borrarían lo recuperado si se hiciera antes. */
@@ -16535,6 +16556,9 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
      pull y de que cada módulo haya leído lo suyo. Antes de esto, guardaría un
      retrato a medio hacer. */
   try{if(window.bkpAutoHacer)setTimeout(window.bkpAutoHacer,4000);}catch(e){}
+  ARR.resto=Math.round(performance.now()-_t);
+  ARR.total=Math.round(performance.now());
+  console.info('bmnava · arranque (ms):',JSON.stringify(ARR));
 })();
 </script>
 <style>
@@ -22479,8 +22503,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-05.2*/
-const VER_ACTUAL='2026-09-05.2';
+/*BUILD:2026-09-05.3*/
+const VER_ACTUAL='2026-09-05.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
