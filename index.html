@@ -2605,6 +2605,10 @@ body.modal-open #sidebar{overflow:hidden}
 .ph-name{font-size:11px;font-weight:600;margin-top:6px;line-height:1.25;word-break:break-word}
 .ph-src{font-size:10px;color:var(--muted)}
 .ph-del{font-size:10px;padding:2px 8px;margin-top:4px}
+/* v328 · El icono acompaña al texto en la misma línea, alineado con él y del
+   mismo color, para que no compita con el punto de estado de la izquierda. */
+.fis-ico{width:15px;height:15px;display:inline-block;vertical-align:-3px;margin-right:5px;opacity:.85;flex:0 0 auto}
+.fh-x .fis-ico{margin-left:1px}
 .ph-aviso{border:1px solid color-mix(in srgb,var(--warn) 40%,var(--hair));
   background:color-mix(in srgb,var(--warn) 8%,transparent);border-radius:12px;
   padding:13px 15px;margin-bottom:14px}
@@ -12534,6 +12538,36 @@ const FIS_TIPO={
   parte:{lab:'Parte del día',ic:'◆',col:'var(--warn)'},
   fase:{lab:'Cambio de fase',ic:'▲',col:'#8e7cc3'}
 };
+/* ═══ v328 · Icono de presoterapia ═══
+   Daniel manda la foto del producto (botas Rebooots) para usarla de icono. Una
+   foto de producto no sirve para esto: a veinte píxeles, con sombra, degradado,
+   la marca escrita y las dos perneras superpuestas, queda una mancha. Y sería un
+   PNG que no cambia de color con el tema, mientras los 27 iconos de la app son
+   trazo sobre currentColor.
+
+   Se dibuja en ese mismo lenguaje: la pernera, y dentro las cámaras de aire
+   separadas, que es lo que distingue una bota de compresión de una espinillera;
+   más la manguera que sale arriba hacia la unidad de control. Escala a cualquier
+   tamaño, sigue el color del texto y ocupa unos cientos de bytes. */
+const FIS_ICO_PRESO='<svg class="fis-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+  +'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  /* Silueta de bota: caña recta, tobillo y pie saliendo a la derecha. Los dos
+     primeros intentos dibujaban solo la caña con rayas y se leían como un bidón;
+     el pie es lo que la hace reconocible de un vistazo. */
+  +'<path d="M8 3.2h5.6c.9 0 1.6.7 1.6 1.6v8.9c0 .8.3 1.5.8 2.1l2.4 2.9c.9 1.1.1 2.7-1.3 2.7H8.4c-.9 0-1.7-.7-1.7-1.7V4.8c0-.9.6-1.6 1.3-1.6Z"/>'
+  /* Las tres cámaras de aire, que es lo que distingue una bota de compresión de
+     una bota cualquiera. Cruzan el contorno a propósito: por dentro y cortas se
+     emborronaban a quince píxeles, que es el tamaño al que se va a ver siempre. */
+  +'<path d="M7.2 7.2h7.9M7.2 10.7h7.9M7.3 14.2h8.2"/>'
+  +'</svg>';
+/* Reconoce cómo lo escriba Virginia: hoy lo registra como «Botas compresivas». */
+function fisEsPresoterapia(txt){
+  const t=String(txt||'').toLowerCase();
+  return /preso|bota|compresi|recovery|pressoterap/.test(t);
+}
+function fisIconoTrat(txt){return fisEsPresoterapia(txt)?FIS_ICO_PRESO:'';}
+window.fisIconoTrat=fisIconoTrat;
+
 let FIS_MODO=(function(){try{return localStorage.getItem('bmnava_fisiomodo')||'mes';}catch(e){return 'mes';}})();
 /* v299 · Filtro por jugador. Con la plantilla entera en el calendario, mirar a
    uno solo obligaba a rastrear celda por celda. */
@@ -12891,7 +12925,7 @@ function fisHoyPanel(){
     return '<div class="fh-it">'
       +'<img class="fh-av" src="'+av(e.name)+'" alt="">'
       +'<div class="fh-bd"><div class="fh-n">'+esc(e.name)+'</div>'
-      +'<div class="fh-x"><i style="background:'+t.col+'"></i>'+esc(e.txt)
+      +'<div class="fh-x"><i style="background:'+t.col+'"></i>'+fisIconoTrat(e.txt)+esc(e.txt)
         +(e.meta?' <span class="muted">· '+esc(e.meta)+'</span>':'')+'</div></div>'
       +(e.hora?'<span class="fh-h">'+esc(e.hora)+'</span>':'')
       +(editable?'<span class="fh-a">'
@@ -22588,8 +22622,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-05.5*/
-const VER_ACTUAL='2026-09-05.5';
+/*BUILD:2026-09-05.6*/
+const VER_ACTUAL='2026-09-05.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
