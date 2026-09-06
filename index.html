@@ -2607,6 +2607,14 @@ body.modal-open #sidebar{overflow:hidden}
 .ph-del{font-size:10px;padding:2px 8px;margin-top:4px}
 /* v328 · El icono acompaña al texto en la misma línea, alineado con él y del
    mismo color, para que no compita con el punto de estado de la izquierda. */
+.sy-disp{margin-top:5px;display:flex;flex-direction:column;gap:4px}
+.sy-disp-i{display:flex;gap:10px;align-items:baseline;font-size:12px;color:var(--muted);
+  padding:4px 9px;border:1px solid var(--hair);border-radius:8px;flex-wrap:wrap}
+.sy-disp-i b{color:var(--txt);font-size:12.5px;min-width:96px}
+.sy-disp-i--old{border-color:color-mix(in srgb,var(--bad) 45%,var(--hair));
+  background:color-mix(in srgb,var(--bad) 6%,transparent)}
+.sy-disp-ok{color:var(--ok);font-weight:600;margin-left:auto}
+.sy-disp-al{color:var(--bad);font-weight:700;margin-left:auto}
 .fis-ico{width:15px;height:15px;display:inline-block;vertical-align:-3px;margin-right:5px;opacity:.85;flex:0 0 auto}
 .fc-ev .fis-ico{width:11px;height:11px;vertical-align:-1.5px;margin-right:3px;opacity:.9}
 .fh-x .fis-ico{margin-left:1px}
@@ -3906,7 +3914,7 @@ const SY_TABLE='bmnava_state';
 const SY_PREFIX=/^bmnava_/;
 /* Claves que NO se comparten: son preferencias de cada persona, no datos del
    equipo. Sincronizarlas haría que el tema oscuro de uno cambiara el del otro. */
-const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto','bmnava_symeta','bmnava_fotoslimpias','bmnava_pendiente',
+const SY_LOCAL_ONLY=['bmnava-theme','bmnava_sbmin','bmnava_cargatab','bmnava_medtab','bmnava_perf','bmnava_sync_cfg','bmnava_sync_tok','bmnava_ban_','bmnava_mtime','bmnava_antespull','bmnava_bkpauto','bmnava_symeta','bmnava_fotoslimpias','bmnava_pendiente','bmnava_dispid',
   /* v320 · Las fotos salen de la sincronización, con el visto bueno de Daniel.
      Eran 1613 KB de los 1823 que ocupa todo: el 88 %. Y están duplicadas, porque
      desde hace tiempo se sirven de la carpeta fotos/ del repositorio, que ve
@@ -4184,6 +4192,41 @@ const SY_NO_FUSION=['bmnava_photos'];
    vista y con qué contenido: si el updated_at remoto no ha cambiado y lo de
    aquí sigue igual, no hace falta ni bajarlo ni subirlo. Es una pista local: si
    se pierde o no cuadra, se vuelve a mover todo, que es como funcionaba antes. */
+/* ═══ v333 · Censo de dispositivos ═══
+   La cuenta rendimientobalonmanonava es común: entran todos con ella. Así que
+   updated_by no distingue el portátil de Virginia del móvil de Carlos ni de un
+   iPad que lleva una semana sin abrirse, y justo eso era lo que hacía falta
+   saber para encontrar al que iba atrasado pisando la planificación.
+   Cada navegador se pone un nombre propio —local, no viaja— y firma su paso por
+   una lista compartida con su versión y su última conexión. Con eso, Conexión
+   puede enseñar quién está al día y quién no. */
+const SY_DISP='bmnava_disp';
+function syDispId(){
+  let id=null;
+  try{id=localStorage.getItem('bmnava_dispid');}catch(e){}
+  if(!id){
+    const ua=navigator.userAgent||'';
+    const q=/iPhone/.test(ua)?'iPhone':/iPad/.test(ua)?'iPad':/Android/.test(ua)?'Android'
+      :/Mac/.test(ua)?'Mac':/Windows/.test(ua)?'Windows':'Equipo';
+    id=q+'-'+Math.random().toString(36).slice(2,6);
+    try{_setItem.call(localStorage,'bmnava_dispid',id);}catch(e){}
+  }
+  return id;
+}
+function syDispRegistrar(){
+  try{
+    let m={};try{m=JSON.parse(localStorage.getItem(SY_DISP)||'{}')||{};}catch(e){}
+    m[syDispId()]={ver:window.__BUILD||'?',ultima:new Date().toISOString(),quien:SY.email||''};
+    localStorage.setItem(SY_DISP,JSON.stringify(m));   // interceptado: se encola y sube
+  }catch(e){}
+}
+window.syDispRegistrar=syDispRegistrar;
+window.syDispositivos=function(){
+  let m={};try{m=JSON.parse(localStorage.getItem(SY_DISP)||'{}')||{};}catch(e){}
+  return Object.keys(m).map(k=>({dispositivo:k,version:m[k].ver,ultima:m[k].ultima,quien:m[k].quien,
+    esteMismo:k===syDispId()})).sort((a,b)=>String(b.ultima).localeCompare(String(a.ultima)));
+};
+
 const SY_META='bmnava_symeta';
 function syHash(t){
   let h=2166136261;
@@ -4360,7 +4403,10 @@ async function syPushKeys(keys){
      Así que el que va atrasado deja de escribir. Sigue bajando y sigue guardando
      en su navegador —no pierde nada de lo suyo, queda en la cola y sube en
      cuanto actualice— pero no puede empobrecer lo del equipo. */
-  if(window.__APP_DESFASADA){
+  if(window.__APP_DESFASADA&&keys.indexOf(SY_DISP)>=0&&keys.length===1){
+    /* Excepción: el censo sí sube. Si un dispositivo atrasado no pudiera
+       apuntarse, sería justo el que no aparecería en la lista. */
+  }else if(window.__APP_DESFASADA){
     try{
       const y=JSON.parse(localStorage.getItem(SY_PEND)||'[]')||[];
       keys.forEach(k=>{if(syIsShared(k)&&y.indexOf(k)<0)y.push(k);});
@@ -4536,6 +4582,7 @@ window.syConnect=async function(silent){
        pendiente al cerrar se quedaba sin subir indefinidamente. */
     try{await syPendientes();}catch(e){}
     try{syVigilar();}catch(e){}
+    try{syDispRegistrar();}catch(e){}
     if(!silent){
       try{if(typeof location!=='undefined')location.reload();}catch(e){}
     }
@@ -4614,6 +4661,38 @@ function syRenderPanel(){
               ? '<div class="small muted" style="margin-top:3px">Lo que más ocupa: '
                 +filas.slice(0,4).map(f=>lsNombre(f[0])+' '+f[1]+' KB').join(' · ')+'</div>'
               : '')+
+            /* v333 · Qué dispositivos entran con la cuenta común y en qué versión
+               va cada uno. Con la cuenta compartida, esta lista es la única
+               forma de ver quién se ha quedado atrás. */
+            (function(){
+              let ds=[];try{ds=window.syDispositivos?syDispositivos():[];}catch(e){}
+              if(!ds.length)return '';
+              /* Comparar por «distinta de la mía» marcaba como atrasada una versión
+                 MÁS nueva que la mía. La referencia es la más alta que se haya
+                 visto, y se comparan como números, no como texto: así «.10» no
+                 queda por debajo de «.9». */
+              const trozos=x=>{const m=String(x||'').match(/^(\d{4})-(\d{2})-(\d{2})\.(\d+)$/);
+                return m?[+m[1],+m[2],+m[3],+m[4]]:[0,0,0,0];};
+              const cmp=(a,b)=>{const A=trozos(a),B=trozos(b);
+                for(let i=0;i<4;i++){if(A[i]!==B[i])return A[i]-B[i];}return 0;};
+              let ref=window.__BUILD||'';
+              ds.forEach(d=>{if(cmp(d.version,ref)>0)ref=d.version;});
+              const cuando=t=>{
+                if(!t)return '—';
+                const m=Math.round((Date.now()-Date.parse(t))/60000);
+                if(isNaN(m))return '—';
+                return m<2?'ahora':m<60?('hace '+m+' min'):m<1440?('hace '+Math.round(m/60)+' h'):('hace '+Math.round(m/1440)+' d');
+              };
+              return '<div class="small muted" style="margin-top:8px"><b>Dispositivos que entran a la app</b></div>'
+                +'<div class="sy-disp">'+ds.map(d=>{
+                  const viejo=d.version&&ref&&cmp(d.version,ref)<0;
+                  return '<div class="sy-disp-i'+(viejo?' sy-disp-i--old':'')+'">'
+                    +'<b>'+d.dispositivo+(d.esteMismo?' <span class="small">(este)</span>':'')+'</b>'
+                    +'<span>v '+(d.version||'?')+'</span>'
+                    +'<span>'+cuando(d.ultima)+'</span>'
+                    +(viejo?'<span class="sy-disp-al">desactualizado</span>':'<span class="sy-disp-ok">al día</span>')
+                  +'</div>';}).join('')+'</div>';
+            })()+
             (function(){
               const a=window.__ARRANQUE;
               if(!a||a.total==null)return '';
@@ -4696,6 +4775,7 @@ function syShowGate(){
         await syPull();
         SY.on=true;
         try{await syPendientes();}catch(e){}
+        try{syDispRegistrar();}catch(e){}
         try{syVigilar();}catch(e){}
         overlay.remove();
         resolve();
@@ -4719,6 +4799,7 @@ window.syEnsureAuth=async function(){
       await syPull();
       SY.on=true;
       try{await syPendientes();}catch(e){}   // lo que quedó a medias al cerrar
+    try{syDispRegistrar();}catch(e){}
       try{syVigilar();}catch(e){}
       try{syRenderPanel();}catch(e){}
       return true;
@@ -9184,7 +9265,16 @@ function renderLeaders(){const box=document.getElementById('leaders-grid');if(!b
       const med=i<3?`<span class="ldr-med m${i+1}">${i+1}</span>`:`<span class="ldr-med mx">${i+1}</span>`;
       return `<div class="ldr-row" style="cursor:pointer" onclick="openPlayer('${it.n.replace(/'/g,"\\'")}')">${med}<img class="ldr-ph" src="${ph}"><span class="ldr-nm">${it.n}</span><span class="ldr-v">${it.v}${unit?`<small>${unit}</small>`:''}</span></div>`;}).join('')}</div>`;};
   box.innerHTML=card('Mayor carga semanal',topUA,'UA')+card('Top TRIMP semanal',topTR,'')+card('Mejor readiness',rd,'');}
-function go(v){const ESUB={dispo:1,medico:1,parte:1,fisio:1};const realV=ESUB[v]?'estado':v;document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));const sec=document.getElementById('v-'+realV);if(sec)sec.classList.add('on');sbMark(v);
+function go(v){const ESUB={dispo:1,medico:1,parte:1,fisio:1};let realV=ESUB[v]?'estado':v;
+  /* v334 · go() apaga todas las vistas y enciende la pedida. Si el nombre no
+     existe no enciende ninguna y la app se queda EN BLANCO, con el menú pintado
+     y el centro vacío: no hay error, no hay aviso, no hay forma de volver salvo
+     recargar. Es el mismo fallo que dejó el Calendario en blanco por un tipo de
+     sesión desconocido. Ante un nombre que no existe, al Resumen. */
+  if(!document.getElementById('v-'+realV)){
+    console.warn('bmnava · vista desconocida «'+v+'»: se abre el Resumen');
+    v='equipo';realV='equipo';
+  }document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));const sec=document.getElementById('v-'+realV);if(sec)sec.classList.add('on');sbMark(v);
   document.querySelectorAll('#nav button').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'||v==='unif'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
@@ -22708,8 +22798,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-06.1*/
-const VER_ACTUAL='2026-09-06.1';
+/*BUILD:2026-09-06.2*/
+const VER_ACTUAL='2026-09-06.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
