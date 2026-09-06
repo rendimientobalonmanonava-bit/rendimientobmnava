@@ -4126,7 +4126,23 @@ function syFusionarListas(a,b,aGana){
     const y=mapa[k];
     if(y.deA===esA)return;                       // repetido dentro del mismo lado
     const distintos=JSON.stringify(y.v)!==JSON.stringify(o);
-    if(distintos&&((esA&&aGana)||(!esA&&!aGana)))mapa[k]={v:o,deA:esA};
+    if(!distintos)return;
+    /* v331 · Aquí se elegía el registro ENTERO del lado ganador, y esa es la
+       quinta pérdida de planificación de Daniel. La sesión del miércoles existe
+       en los dos sitios con el mismo id: en uno con su semáforo, su duración y
+       su volumen previsto, y en el otro como estaba antes de programarla. Al
+       quedarse con uno entero, la sesión sobrevivía —por eso los eventos seguían
+       ahí— y el semáforo desaparecía.
+       Dos objetos con la misma identidad son el MISMO registro editado por dos
+       lados: hay que juntar sus campos, no elegir uno. Solo se elige cuando el
+       mismo campo tiene valor distinto en ambos, y ahí manda el más reciente. */
+    const objetos=y.v&&o&&typeof y.v==='object'&&typeof o==='object'
+                  &&!Array.isArray(y.v)&&!Array.isArray(o);
+    if(objetos){
+      mapa[k]={v:(esA?syFusionar(o,y.v,aGana):syFusionar(y.v,o,aGana)),deA:y.deA};
+      return;
+    }
+    if((esA&&aGana)||(!esA&&!aGana))mapa[k]={v:o,deA:esA};
   });
   meter(a,true);meter(b,false);
   return orden.map(k=>mapa[k].v);
@@ -22668,7 +22684,7 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-05.8*/
+/*BUILD:2026-09-06.1*/
 const VER_ACTUAL='2026-09-05.8';
 window.__BUILD=VER_ACTUAL;
 
