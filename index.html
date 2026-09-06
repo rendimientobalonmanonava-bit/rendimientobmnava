@@ -4351,6 +4351,27 @@ async function syLeerRemoto(keys){
 
 async function syPushKeys(keys){
   if(!SY.url||!SY.key||!SY.token||!keys.length)return 0;
+  /* ═══ v332 · Una app desfasada no escribe ═══
+     El historial lo ha dejado claro: el 5 de septiembre a las 14:05:30 se
+     guardó el calendario con semáforo y veintitrés segundos después otra cuenta
+     subió una versión sin él. Los arreglos de fusión solo protegen si los DOS
+     lados los llevan; un dispositivo que se quedó atrás sigue mandando su bloque
+     entero y pisando, y no hay forma de arreglar eso desde el lado bueno.
+     Así que el que va atrasado deja de escribir. Sigue bajando y sigue guardando
+     en su navegador —no pierde nada de lo suyo, queda en la cola y sube en
+     cuanto actualice— pero no puede empobrecer lo del equipo. */
+  if(window.__APP_DESFASADA){
+    try{
+      const y=JSON.parse(localStorage.getItem(SY_PEND)||'[]')||[];
+      keys.forEach(k=>{if(syIsShared(k)&&y.indexOf(k)<0)y.push(k);});
+      _setItem.call(localStorage,SY_PEND,JSON.stringify(y));
+    }catch(e){}
+    syStatus('err','Sin subir: hay una versión más nueva de la app');
+    if(window.lsAvisar)lsAvisar('NO SE ESTÁ GUARDANDO PARA EL EQUIPO: esta pestaña tiene una versión antigua de la app. '
+      +'Lo tuyo queda guardado aquí y se subirá en cuanto pulses «Actualizar» en el aviso de versión nueva.');
+    console.warn('bmnava · subida bloqueada: app desfasada ('+(window.__BUILD||'?')+')');
+    return 0;
+  }
   keys=keys.slice();
   /* v255 · La otra mitad del mismo problema: subir un bloque vacío que esta
      sesión no ha llegado a leer lo borra para todo el equipo. Se queda sin
@@ -4396,7 +4417,10 @@ async function syPushKeys(keys){
     }
     let v=null;
     try{v=JSON.parse(txt||'null');}catch(e){v=txt;}
-    payload.push({k,v,updated_at:new Date().toISOString(),updated_by:SY.email||'staff'});
+    /* v332 · La versión va en la firma. El historial decía quién escribió pero
+       no con qué app, y esa es justo la pregunta cuando algo llega empobrecido. */
+    payload.push({k,v,updated_at:new Date().toISOString(),
+      updated_by:(SY.email||'staff')+(window.__BUILD?(' · v'+window.__BUILD):'')});
   });
   if(!payload.length)return 0;
   const url=SY.url+'/rest/v1/'+SY_TABLE+'?on_conflict=k';
@@ -22685,10 +22709,12 @@ setInterval(function(){
 (function(){
 'use strict';
 /*BUILD:2026-09-06.1*/
-const VER_ACTUAL='2026-09-05.8';
+const VER_ACTUAL='2026-09-06.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
+  /* v332 · Desde este momento esta pestaña no escribe en el servidor. */
+  window.__APP_DESFASADA=true;
   if(document.getElementById('ver-nueva'))return;
   const d=document.createElement('div');
   d.id='ver-nueva';
