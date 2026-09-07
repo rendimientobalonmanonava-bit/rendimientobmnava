@@ -551,6 +551,11 @@ main{padding:13px 16px 70px}
 #v-equipo .eq-r3{align-items:stretch}
 #v-equipo .eq-r3 .eq-col>.panel,#v-equipo .eq-r3 .eq-col>#team-hero,
 #v-equipo .eq-r3 .eq-col>#team-posband{flex:1 1 auto}
+/* v345 · El gráfico de la semana crece con el panel: es el que absorbe el
+   sobrante de su columna, en vez de repartirlo como aire entre los demás. */
+#v-equipo .eq-semana-plot{position:relative;min-height:210px;flex:1 1 auto;margin-top:8px}
+#v-equipo .eq-semana-plot canvas{position:absolute;inset:0}
+#v-equipo #eq-semana{justify-content:flex-start}
 /* v344 · Y el sobrante que le toca a cada panel —unos 50 px— se reparte entre
    sus elementos en vez de amontonarse al fondo. Sin esto, el panel llegaba a
    ras pero con un hueco muerto abajo: el anillo de «Recuperado» pegado arriba y
@@ -3263,6 +3268,10 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--ok)"></span>Cómo llega el equipo</div>
         <div id="team-hero"></div>
+        <div class="panel" id="eq-semana" style="cursor:pointer" onclick="go('cal')">
+          <h2>Carga de la semana <span class="r muted">planificado vs real ›</span></h2>
+          <div class="eq-semana-plot"><canvas id="eq-week-canvas"></canvas></div>
+        </div>
         <div class="panel" id="team-welllights"></div>
         <div id="team-posband"></div>
         <div class="panel"><h2>Estado de carga del equipo</h2><div id="team-meters"></div></div>
@@ -9765,6 +9774,9 @@ function renderTeam(){
   try{renderTeamDist();}catch(e){}
   try{renderTeamNext();}catch(e){}
   try{renderTeamFisio();}catch(e){}
+  /* Con un respiro: Chart.js necesita que el panel tenga ya su alto definitivo,
+     y aquí el alto lo decide el reparto de la columna. */
+  try{setTimeout(()=>{try{renderTeamSemana();}catch(e){}},40);}catch(e){}
   try{renderTeamReuniones();}catch(e){}
   try{renderTeamCitas();}catch(e){}
   const posSel=document.getElementById('team-pos');
@@ -15573,6 +15585,21 @@ function renderTeamFisio(){
   box.innerHTML='<h2>Fisioterapia <span class="r"><button class="tf-add" onclick="openFisioReg&&openFisioReg()">＋ Registrar</button></span></h2>'
     +kpis+lista+mirar;
 }
+/* v345 · La carga de la semana, en el Resumen. Es la misma gráfica del
+   Calendario y la misma función que la dibuja —barras de pista y gimnasio, la
+   línea de RPE encima y la media de la semana—, solo que sobre otro canvas. No
+   se duplica nada: si un día se cambia el cálculo, cambia en los dos sitios.
+   Entra aquí porque la columna de la izquierda tenía sitio de sobra entre el
+   readiness y los semáforos, y porque es la lectura que faltaba en el Resumen:
+   cómo ha ido la carga real de la semana, día a día. */
+function renderTeamSemana(){
+  const cv=document.getElementById('eq-week-canvas');if(!cv)return;
+  try{
+    const dk=(typeof REF==='function')?dkey(REF()):dkey(new Date());
+    if(window.lbcDrawCalWeek)lbcDrawCalWeek('eq-week-canvas',dk);
+  }catch(e){console.error('bmnava · carga de la semana en el resumen',e);}
+}
+window.renderTeamSemana=renderTeamSemana;
 window.renderTeamNext=renderTeamNext;window.renderTeamFisio=renderTeamFisio;
 
 window.renderTeamStrip=renderTeamStrip;
@@ -23095,8 +23122,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-08.1*/
-const VER_ACTUAL='2026-09-08.1';
+/*BUILD:2026-09-08.2*/
+const VER_ACTUAL='2026-09-08.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
