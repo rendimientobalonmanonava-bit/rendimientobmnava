@@ -15639,7 +15639,22 @@ const CAL_RPE=[0,5.5,7,8];
 const CAL_MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let CALVIEW=null, CAL_CUR=null, CAL_EDIT=null, CAL_FORM={intens:2,dur:75,contacto:3}, CALMODE='mes', CALWEEK=null, CAL_CLIP=null;
 function calLoad(){
-  if(!STATE.calendar)STATE.calendar=lsLeer('bmnava_cal',{});
+  if(!STATE.calendar){
+    STATE.calendar=lsLeer('bmnava_cal',{});
+    /* v338 · Reparación de lo ya dañado. Las fusiones anteriores dejaron sesiones
+       con su semáforo, su duración y su volumen dentro… y la marca sp:true
+       devuelta por otro dispositivo, que las pinta como huecos. Una sesión con
+       semáforo y duración NO es un hueco: se le quita la marca y se guarda, y
+       el sello de edición hace que esa versión gane al sincronizar. Así Daniel
+       no rellena por cuarta vez lo que ya había rellenado. */
+    try{
+      let n=0;
+      Object.keys(STATE.calendar).forEach(dk=>(STATE.calendar[dk]||[]).forEach(e=>{
+        if(e&&e.sp&&(e.qplan||(e.intens!=null&&e.dur))){delete e.sp;n++;}
+      }));
+      if(n){calPersist();console.info('bmnava · calendario: '+n+' sesión(es) programada(s) rescatada(s) de la marca «sin programar»');}
+    }catch(e){}
+  }
   if(!STATE.calMeta)STATE.calMeta=lsLeer('bmnava_calmeta',{});
   if(!STATE.calTpl)STATE.calTpl=lsLeer('bmnava_caltpl',[]);
   if(!STATE.sessDur)STATE.sessDur=lsLeer('bmnava_sessdur',{});
@@ -22955,8 +22970,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-07.3*/
-const VER_ACTUAL='2026-09-07.3';
+/*BUILD:2026-09-07.4*/
+const VER_ACTUAL='2026-09-07.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
