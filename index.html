@@ -4477,7 +4477,26 @@ async function syPushKeys(keys){
     opts.headers=Object.assign(syHeaders(true),{'Prefer':'resolution=merge-duplicates'});
     r=await syFetch(url,opts);
   }
-  if(!r.ok){syStatus('err','No se pudo guardar ('+r.status+')');throw new Error('HTTP '+r.status);}
+  if(!r.ok){
+    /* v335 · La guardia del servidor rechaza con un motivo. Se lee, para que el
+       usuario sepa qué ha pasado y lo suyo no se pierda: queda en la cola y
+       sube en cuanto actualice. Sin esto, veía «No se pudo guardar (400)» y ya. */
+    let cuerpo='';try{cuerpo=await r.text();}catch(e){}
+    if(/BMNAVA_VERSION/.test(cuerpo)){
+      window.__APP_DESFASADA=true;
+      try{const y=JSON.parse(localStorage.getItem(SY_PEND)||'[]')||[];
+        payload.forEach(p=>{if(y.indexOf(p.k)<0)y.push(p.k);});
+        _setItem.call(localStorage,SY_PEND,JSON.stringify(y));}catch(e){}
+      if(window.lsAvisar)lsAvisar('EL SERVIDOR HA RECHAZADO LA SUBIDA: esta versión de la app es antigua. '
+        +'Lo tuyo queda guardado en este navegador y se subirá en cuanto pulses «Actualizar» en el aviso de versión nueva.');
+      try{if(window.verComprobar)verComprobar();}catch(e){}
+      syStatus('err','App antigua: el servidor no admite la subida');
+    }else if(/BMNAVA_VACIO/.test(cuerpo)){
+      if(window.lsAvisar)lsAvisar('El servidor ha rechazado un bloque vacío: se conserva lo del equipo. Recarga la página.');
+      syStatus('err','Bloque vacío rechazado por el servidor');
+    }else syStatus('err','No se pudo guardar ('+r.status+')');
+    throw new Error('HTTP '+r.status);
+  }
   /* Ya coinciden: se anota, y la próxima pulsación no vuelve a mandarlo. */
   payload.forEach(p=>{try{syMetaSet(p.k,syHash(localStorage.getItem(p.k)||''),p.updated_at);}catch(e){}});
   SY.lastPush=new Date();
@@ -22798,8 +22817,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-06.2*/
-const VER_ACTUAL='2026-09-06.2';
+/*BUILD:2026-09-07.1*/
+const VER_ACTUAL='2026-09-07.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
