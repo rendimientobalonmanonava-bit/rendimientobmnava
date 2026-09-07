@@ -4082,7 +4082,7 @@ window.syDeshacerPull=function(){
   try{paq=JSON.parse(localStorage.getItem(SY_ANTES)||'null');}catch(e){}
   if(!paq||!paq.datos||!Object.keys(paq.datos).length)return 'No hay ninguna copia previa guardada.';
   const ks=Object.keys(paq.datos);
-  ks.forEach(k=>{try{_setItem.call(localStorage,k,paq.datos[k]);syMtimeSellar(k);}catch(e){}});
+  ks.forEach(k=>{try{if(window.lsPerdonarTumbas)lsPerdonarTumbas(k,JSON.parse(paq.datos[k]));}catch(e){}try{_setItem.call(localStorage,k,paq.datos[k]);syMtimeSellar(k);}catch(e){}});
   return 'Restaurados '+ks.length+' bloque(s) de la copia del '+paq.fecha+'. Recarga la página.';
 };
 window.syQueHay=function(){
@@ -4265,6 +4265,8 @@ async function syPull(){
     rows=await r.json();
   }
   let n=0;const protegidos=[],masNuevos=[],fusionados=[],sinSitio=[],antes={};
+  /* v336 · Las tumbas primero, para que al fusionar el resto ya cuenten. */
+  rows.sort((a,b)=>(a&&a.k==='bmnava_tumbas'?-1:(b&&b.k==='bmnava_tumbas'?1:0)));
   const mloc=syMtimeLeer();
   rows.forEach(row=>{
     if(!row||!row.k||!syIsShared(row.k))return;
@@ -4279,7 +4281,8 @@ async function syPull(){
       const actual=localStorage.getItem(row.k);
       if(actual===val){LS_LEIDAS[row.k]=true;return;}   // idéntico: nada que hacer
       if(lsVacioTexto(actual)){                          // aquí no hay nada: se acepta lo remoto
-        _setItem.call(localStorage,row.k,val);LS_LEIDAS[row.k]=true;n++;return;
+        let acept=val;try{if(window.lsAplicarTumbas)acept=JSON.stringify(lsAplicarTumbas(row.k,JSON.parse(val)));}catch(e){}
+        _setItem.call(localStorage,row.k,acept);LS_LEIDAS[row.k]=true;n++;return;
       }
       /* v314 · El sello dice cuál de los dos se escribió después. Sirve para
          decidir los empates dentro de la fusión, no para elegir un bloque
@@ -4294,7 +4297,8 @@ async function syPull(){
       let escrito=null;
       if(SY_NO_FUSION.indexOf(row.k)<0){
         try{
-          const fus=syFusionar(JSON.parse(actual),JSON.parse(val),localGana);
+          let fus=syFusionar(JSON.parse(actual),JSON.parse(val),localGana);
+          try{if(window.lsAplicarTumbas)fus=lsAplicarTumbas(row.k,fus);}catch(e){}
           escrito=JSON.stringify(fus);
         }catch(e){escrito=null;}
       }
@@ -4435,6 +4439,21 @@ async function syPushKeys(keys){
   });
   if(!cambiadas.length)return 0;
   keys=cambiadas;
+  /* v336 · Las tumbas del equipo ANTES de fusionar nada. Un dispositivo que
+     lleva días cerrado no las tiene todavía: si subiera ahora, devolvería al
+     servidor lo que otro borró. Se traen, se unen a las de aquí, y solo entonces
+     se fusiona y se sube. Cuesta una petición pequeña. */
+  try{
+    const rt=await syLeerRemoto(['bmnava_tumbas']);
+    const row=rt['bmnava_tumbas'];
+    if(row&&row.v!=null){
+      const alla=(typeof row.v==='string')?JSON.parse(row.v):row.v;
+      const aqui=JSON.parse(localStorage.getItem('bmnava_tumbas')||'{}')||{};
+      let cambio=false;
+      Object.keys(alla||{}).forEach(t=>{if(aqui[t]==null){aqui[t]=alla[t];cambio=true;}});
+      if(cambio)_setItem.call(localStorage,'bmnava_tumbas',JSON.stringify(aqui));
+    }
+  }catch(e){}
   const fusionables=keys.filter(k=>syIsShared(k)&&SY_NO_FUSION.indexOf(k)<0&&lsTieneDatos(k));
   const remoto=await syLeerRemoto(fusionables);
   const payload=[];
@@ -4452,7 +4471,9 @@ async function syPushKeys(keys){
       try{
         const alla=(typeof row.v==='string')?row.v:JSON.stringify(row.v);
         if(!lsVacioTexto(alla)&&alla!==txt){
-          const fus=JSON.stringify(syFusionar(JSON.parse(txt),JSON.parse(alla),true));
+          let fusObj=syFusionar(JSON.parse(txt),JSON.parse(alla),true);
+          try{if(window.lsAplicarTumbas)fusObj=lsAplicarTumbas(k,fusObj);}catch(e){}
+          const fus=JSON.stringify(fusObj);
           if(fus!==txt){
             _setItem.call(localStorage,k,fus);   // que se vea aquí también, ya
             txt=fus;
@@ -4461,6 +4482,13 @@ async function syPushKeys(keys){
         }
       }catch(e){}
     }
+    /* v336 · Y lo que sube va sin tumbas, se haya fusionado o no. */
+    try{
+      if(window.lsAplicarTumbas&&txt){
+        const limpio=JSON.stringify(lsAplicarTumbas(k,JSON.parse(txt)));
+        if(limpio!==txt){txt=limpio;_setItem.call(localStorage,k,txt);}
+      }
+    }catch(e){}
     let v=null;
     try{v=JSON.parse(txt||'null');}catch(e){v=txt;}
     /* v332 · La versión va en la firma. El historial decía quién escribió pero
@@ -6071,12 +6099,78 @@ const LS_LEIDAS={};
    almacén ya no es ese, es que algo entró por debajo, y entonces se fusiona en
    vez de pisar. */
 const LS_VISTO={};
+/* ═══ v336 · Los borrados dejan rastro ═══
+   La fusión conserva lo que está en un lado y no en el otro. Es lo que impide
+   que Virginia y Daniel se pisen, pero convierte cada borrado en un fantasma:
+   Daniel quita «Entreno» del martes, pulsa Actualizar, y el servidor —que aún
+   lo tiene— se lo devuelve. Para la fusión, «lo borré» y «todavía no me ha
+   llegado» eran indistinguibles.
+   Ahora, al guardar, los registros que estaban y ya no están se apuntan como
+   tumbas en bmnava_tumbas (compartida: se fusiona por unión y nunca se pierde).
+   Al fusionar, al bajar, al subir y al leer, lo que tiene tumba se retira. Una
+   tumba gana siempre a la copia viva. A los 30 días se olvida. Restaurar una
+   copia antigua perdona las tumbas de lo que restaura: eso sí es resucitar a
+   propósito. */
+const LS_TUMBAS='bmnava_tumbas';
+const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl)$/;
+function lsTumbas(){try{return JSON.parse(localStorage.getItem(LS_TUMBAS)||'{}')||{};}catch(e){return{};}}
+function lsIds(x,out){
+  out=out||new Set();
+  if(Array.isArray(x)){x.forEach(e=>{if(e&&typeof e==='object'){const id=e.id!=null?e.id:e._id;if(id!=null)out.add(String(id));lsIds(e,out);}});}
+  else if(x&&typeof x==='object'){Object.keys(x).forEach(k=>lsIds(x[k],out));}
+  return out;
+}
+function lsAplicarTumbas(clave,x){
+  if(!LS_TUMBAS_OK.test(clave))return x;
+  const t=lsTumbas(),pref=clave+':';
+  let hay=false;for(const k in t){if(k.indexOf(pref)===0){hay=true;break;}}
+  if(!hay)return x;
+  const muerto=o=>{if(!o||typeof o!=='object')return false;const id=o.id!=null?o.id:o._id;return id!=null&&t[pref+String(id)]!=null;};
+  const rec=v=>{
+    if(Array.isArray(v)){const r=[];v.forEach(e=>{if(muerto(e))return;r.push(rec(e));});return r;}
+    if(v&&typeof v==='object'){const o={};Object.keys(v).forEach(k=>{const e=v[k];if(muerto(e))return;o[k]=rec(e);});return o;}
+    return v;
+  };
+  return rec(x);
+}
+/* Compara lo que este módulo leyó con lo que va a escribir: lo que había y ya
+   no está, se borró. Con una red: si desaparece medio bloque de golpe no es un
+   borrado, es un fallo, y no se anota (una tumba errónea borra para todos). */
+function lsAnotarBorrados(clave,antesTxt,ahoraVal){
+  if(!LS_TUMBAS_OK.test(clave)||antesTxt==null)return 0;
+  let antes;try{antes=JSON.parse(antesTxt);}catch(e){return 0;}
+  const t=lsTumbas(),pref=clave+':';
+  const A=lsIds(antes),B=lsIds(ahoraVal);
+  const ido=[...A].filter(id=>!B.has(id)&&t[pref+id]==null);
+  if(!ido.length)return 0;
+  if(ido.length>20||(A.size>=10&&ido.length>A.size*0.5)){
+    console.warn('bmnava · '+clave+': desaparecen '+ido.length+' de '+A.size+' registros de golpe; no se anotan como borrados');
+    return 0;
+  }
+  const ahora=Date.now();ido.forEach(id=>{t[pref+id]=ahora;});
+  try{localStorage.setItem(LS_TUMBAS,JSON.stringify(t));}catch(e){}
+  return ido.length;
+}
+function lsPerdonarTumbas(clave,x){
+  if(!LS_TUMBAS_OK.test(clave))return 0;
+  const t=lsTumbas(),pref=clave+':';let n=0;
+  lsIds(x).forEach(id=>{if(t[pref+id]!=null){delete t[pref+id];n++;}});
+  if(n){try{localStorage.setItem(LS_TUMBAS,JSON.stringify(t));}catch(e){}}
+  return n;
+}
+function lsPurgarTumbas(){
+  const t=lsTumbas(),lim=Date.now()-30*86400000;let n=0;
+  Object.keys(t).forEach(k=>{if(!(t[k]>lim)){delete t[k];n++;}});
+  if(n){try{localStorage.setItem(LS_TUMBAS,JSON.stringify(t));}catch(e){}}
+  return n;
+}
+window.lsTumbas=lsTumbas;window.lsAplicarTumbas=lsAplicarTumbas;window.lsPerdonarTumbas=lsPerdonarTumbas;
 function lsLeer(clave,vacio){
   LS_LEIDAS[clave]=true;
   try{
     const t=localStorage.getItem(clave);
     LS_VISTO[clave]=t;
-    const v=JSON.parse(t||'null');return v==null?vacio:v;
+    const v=JSON.parse(t||'null');return v==null?vacio:lsAplicarTumbas(clave,v);
   }catch(e){return vacio;}
 }
 function lsVacioTexto(t){
@@ -6092,19 +6186,22 @@ function lsGuardar(clave,valor){
       lsAvisar('No se ha guardado: el bloque «'+lsNombre(clave)+'» tiene datos que esta sesión no ha cargado. Recarga la página antes de volver a intentarlo.');
       return false;
     }
-    let txt=JSON.stringify(valor);
+    try{lsAnotarBorrados(clave,LS_VISTO[clave],valor);}catch(e){}
+    let val=valor;
     const enDisco=localStorage.getItem(clave);
+    let txt=JSON.stringify(valor);
     /* Solo cuando de verdad ha cambiado por debajo desde que este módulo leyó.
        Si nadie lo ha tocado, se escribe tal cual y no hay nada que fusionar. */
     if(enDisco!=null&&LS_VISTO[clave]!=null&&enDisco!==LS_VISTO[clave]&&enDisco!==txt){
       try{
         if(typeof window.syFusionar==='function'&&!lsVacioTexto(enDisco)){
-          const fus=window.syFusionar(valor,JSON.parse(enDisco),true);
-          txt=JSON.stringify(fus);
+          val=window.syFusionar(valor,JSON.parse(enDisco),true);
           console.info('bmnava · '+clave+': el almacén había cambiado por debajo; se fusiona en vez de pisar');
         }
       }catch(e){console.warn('bmnava · no se pudo fusionar '+clave+', se guarda lo de memoria',e);}
     }
+    try{val=lsAplicarTumbas(clave,val);}catch(e){}
+    txt=JSON.stringify(val);
     localStorage.setItem(clave,txt);
     LS_VISTO[clave]=txt;
     LS_LEIDAS[clave]=true;
@@ -6134,7 +6231,8 @@ const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava
    se entienda. */
 const LS_NOMBRES_INT={bmnava_bkpauto:'Copias de seguridad automáticas',
   bmnava_antespull:'Copia previa a la última descarga',bmnava_photos:'Fotos guardadas aquí',
-  bmnava_symeta:'Control de sincronización',bmnava_mtime:'Fechas de guardado'};
+  bmnava_symeta:'Control de sincronización',bmnava_mtime:'Fechas de guardado',
+  bmnava_tumbas:'Registros borrados (memoria de borrados)'};
 function lsNombre(k){return LS_NOMBRES[k]||LS_NOMBRES_INT[k]||k;}
 /* ============ v255 · Copia de seguridad ============
    Un archivo con todo lo que se rellena a mano. No sustituye a la
@@ -6143,7 +6241,7 @@ function lsNombre(k){return LS_NOMBRES[k]||LS_NOMBRES_INT[k]||k;}
    Esto es lo que permite volver atrás. */
 const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
-  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto'];
+  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto','bmnava_tumbas'];
 /* ═══ v315 · Copia automática diaria ═══
    La copia de seguridad de v255 es buena, pero hay que acordarse de pulsarla.
    Nadie se acuerda de hacer una copia el día antes de perder los datos. Esta se
@@ -6197,7 +6295,7 @@ window.bkpAutoRestaurar=function(dia){
   const det=ks.map(k=>'· '+lsNombre(k)+': '+(lsTieneDatos(k)?bkpCuenta(localStorage.getItem(k)):0)+' → '+bkpCuenta(c.datos[k])).join('\n');
   if(!confirm('Restaurar la copia automática del '+c.dia+'.\n\nSe SUSTITUYE lo que hay ahora:\n\n'+det
     +'\n\nSi la sincronización está activa, esto se repartirá al resto del staff.\n¿Continuar?'))return 'Cancelado.';
-  ks.forEach(k=>{try{LS_LEIDAS[k]=true;localStorage.setItem(k,c.datos[k]);}catch(e){}});
+  ks.forEach(k=>{try{LS_LEIDAS[k]=true;try{lsPerdonarTumbas(k,JSON.parse(c.datos[k]));}catch(e2){}localStorage.setItem(k,c.datos[k]);}catch(e){}});
   return 'Restaurada la copia del '+c.dia+' ('+ks.length+' bloques). Recarga la página.';
 };
 window.bkpAutoHacer=bkpAutoHacer;
@@ -6246,6 +6344,7 @@ function lsSanear(){
 }
 window.lsSanear=lsSanear;
 try{lsSanear();}catch(e){}
+try{lsPurgarTumbas();}catch(e){}
 
 /* ═══ v309 · Inventario de lo guardado ═══
    Cuando algo «desaparece» hay dos posibilidades muy distintas: que se haya
@@ -6400,6 +6499,7 @@ window.bkpRestaurar=function(input){
     claves.forEach(k=>{
       try{
         LS_LEIDAS[k]=true;                 /* restaurar es una escritura consciente */
+        try{lsPerdonarTumbas(k,JSON.parse(paq.datos[k]));}catch(e){}
         localStorage.setItem(k,paq.datos[k]);
         n++;
       }catch(e){lsAvisar('No se pudo restaurar «'+lsNombre(k)+'»: '+(e.message||e));}
@@ -22817,8 +22917,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-07.1*/
-const VER_ACTUAL='2026-09-07.1';
+/*BUILD:2026-09-07.2*/
+const VER_ACTUAL='2026-09-07.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
