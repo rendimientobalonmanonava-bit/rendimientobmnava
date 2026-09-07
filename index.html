@@ -4147,6 +4147,13 @@ function syFusionarListas(a,b,aGana){
     const objetos=y.v&&o&&typeof y.v==='object'&&typeof o==='object'
                   &&!Array.isArray(y.v)&&!Array.isArray(o);
     if(objetos){
+      /* v337 · Con sello de edición, gana entero el más reciente. Empate o sin
+         sellos: unión campo a campo. */
+      const ua=+(y.v.upd||0),ub=+(o.upd||0);
+      if(ua||ub){
+        if(ub>ua){mapa[k]={v:o,deA:esA};return;}
+        if(ua>ub)return;
+      }
       mapa[k]={v:(esA?syFusionar(o,y.v,aGana):syFusionar(y.v,o,aGana)),deA:y.deA};
       return;
     }
@@ -6151,6 +6158,36 @@ function lsAnotarBorrados(clave,antesTxt,ahoraVal){
   try{localStorage.setItem(LS_TUMBAS,JSON.stringify(t));}catch(e){}
   return ido.length;
 }
+/* ═══ v337 · Cada registro lleva la hora de su última edición ═══
+   La fusión campo a campo resucitaba campos BORRADOS, igual que la de registros
+   resucitaba registros borrados. El caso: programar una sesión «sin programar»
+   añade semáforo y duración y QUITA la marca sp; otro dispositivo aún tiene la
+   sesión con sp:true; la unión conserva el semáforo… y devuelve el sp:true, y
+   con sp:true se pinta sin semáforo aunque lo lleve dentro. Días enteros de
+   planificación «perdidos» que en realidad estaban ahí, tapados.
+   Al guardar, cada registro con id cuyo contenido ha cambiado se sella con upd.
+   En la fusión, si el mismo registro está en los dos lados, gana ENTERO el que
+   tenga el sello más reciente: un registro se edita con un formulario completo,
+   así que la última edición es la verdad, campos quitados incluidos. Sin
+   sellos por los dos lados se sigue uniendo campo a campo, como hasta ahora. */
+function lsMapaIds(x,out){
+  out=out||Object.create(null);
+  if(Array.isArray(x)){x.forEach(e=>{if(e&&typeof e==='object'){const id=e.id!=null?e.id:e._id;if(id!=null&&!(String(id) in out))out[String(id)]=e;lsMapaIds(e,out);}});}
+  else if(x&&typeof x==='object'){Object.keys(x).forEach(k=>lsMapaIds(x[k],out));}
+  return out;
+}
+function lsSellarCambios(clave,antesTxt,ahoraVal){
+  if(!LS_TUMBAS_OK.test(clave))return 0;
+  let antes={};try{if(antesTxt!=null)antes=lsMapaIds(JSON.parse(antesTxt));}catch(e){antes={};}
+  const ahora=lsMapaIds(ahoraVal),t=Date.now();let n=0;
+  Object.keys(ahora).forEach(id=>{
+    const o=ahora[id],a=antes[id];
+    if(!a){if(o.upd==null){o.upd=t;n++;}return;}          // nuevo: sello si no lo trae
+    const sinUpd=x=>{const c=Object.assign({},x);delete c.upd;return JSON.stringify(c);};
+    if(sinUpd(a)!==sinUpd(o)){o.upd=t;n++;}               // cambió de verdad: sello nuevo
+  });
+  return n;
+}
 function lsPerdonarTumbas(clave,x){
   if(!LS_TUMBAS_OK.test(clave))return 0;
   const t=lsTumbas(),pref=clave+':';let n=0;
@@ -6187,6 +6224,7 @@ function lsGuardar(clave,valor){
       return false;
     }
     try{lsAnotarBorrados(clave,LS_VISTO[clave],valor);}catch(e){}
+    try{lsSellarCambios(clave,LS_VISTO[clave],valor);}catch(e){}
     let val=valor;
     const enDisco=localStorage.getItem(clave);
     let txt=JSON.stringify(valor);
@@ -22917,8 +22955,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-07.2*/
-const VER_ACTUAL='2026-09-07.2';
+/*BUILD:2026-09-07.3*/
+const VER_ACTUAL='2026-09-07.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
