@@ -491,6 +491,57 @@ main{padding:13px 16px 70px}
 /* el gráfico crece con el panel en vez de dejar aire debajo */
 .eq-r23>.panel>.eq-ch-tall{flex:1;height:auto;min-height:300px}
 @media(max-width:860px){.eq-r23{grid-template-columns:minmax(0,1fr)}}
+/* v339 · En el móvil de Carlos el Resumen mide 6.271 px. Dos ajustes que
+   recuperan casi una pantalla sin quitar nada:
+   Los seis contadores de cabecera pierden algo de aire, no tamaño de cifra:
+   siguen siendo lo primero que se lee. (Probé también forzar dos columnas en
+   «Estado por línea», que mide 750 px en el móvil, pero ya estaban en dos: su
+   altura es el contenido de las tarjetas, no el reparto. Ahí no toco nada sin
+   que Daniel lo pida.) */
+@media(max-width:860px){
+  #v-equipo .eq-tile{padding:10px 12px}
+  #v-equipo .eq-strip{gap:8px}
+}
+/* v339 · Un gráfico sin datos no reserva sus 300 px: «Carga por tipo» ocupaba
+   370 px para escribir «Sin sRPE en la ventana seleccionada». Si no hay canvas
+   dentro, no hay nada que reservar. */
+#v-equipo .eq-ch-tall:not(:has(canvas)),#v-equipo .eq-ch:not(:has(canvas)){min-height:0;height:auto}
+/* v339 · La tabla de los 19 medía 1.399 px, un tercio del Resumen, repitiendo
+   lo que ya hay en «A vigilar y destacados» y en la vista Jugadores. Se pliega:
+   sigue a un clic y el estado se recuerda entre sesiones (uifApply). */
+.eq-plantilla{padding:0}
+.eq-plantilla>summary{cursor:pointer;list-style:none;padding:14px 16px;display:flex;
+  align-items:baseline;gap:10px;flex-wrap:wrap;border-radius:inherit}
+.eq-plantilla>summary::-webkit-details-marker{display:none}
+.eq-plantilla>summary::after{content:'▸';margin-left:auto;color:var(--muted2);font-size:13px;
+  transition:transform .18s ease}
+.eq-plantilla[open]>summary::after{transform:rotate(90deg)}
+.eq-plantilla>summary b{font-size:15px;font-weight:800;letter-spacing:-.01em}
+.eq-plantilla>summary .muted{font-size:11.5px}
+.eq-plantilla>summary:hover{background:var(--panel2)}
+.eq-plantilla>.toolbar,.eq-plantilla>.wrap-x,.eq-plantilla>.pcards,.eq-plantilla>.legend{margin-left:16px;margin-right:16px}
+.eq-plantilla>.legend{padding-bottom:14px}
+/* ══ v339 · El Resumen respiraba de más ══
+   Medido: 4.161 px de alto, 4,5 pantallas, con paneles de 672 px para 190
+   caracteres y tres paneles VACÍOS ocupando 1.289 px entre los tres. No era
+   hueco de padding: las filas igualaban las columnas (align-items:stretch) y
+   dentro de cada columna los paneles crecían (flex-grow:1) para repartirse el
+   sobrante. Con la columna llena eso reparte bien; con datos escasos —una
+   pretemporada sin sesiones aún— no llena nada, solo separa, y obliga al
+   entrenador a hacer scroll para ver cuatro cifras.
+   Cada panel mide ahora lo que necesita. Las columnas quedan desiguales, que
+   es como se lee un panel de control: por bloques, no por rejilla cuadrada. */
+#v-equipo .eq-r2,#v-equipo .eq-r3,#v-equipo .eq-r23{align-items:start}
+#v-equipo .eq-col>.panel,#v-equipo .eq-col>#team-hero{flex:0 0 auto}
+/* Y el contenido tampoco se estira dentro del panel. */
+#v-equipo .eq-col>.panel>.tw-lights,#v-equipo .eq-col>.panel>#qd-mini,
+#v-equipo .eq-col>.panel>#team-intensity,#v-equipo .eq-col>.panel>.tn-wrap,
+#v-equipo .eq-col>.panel>.tn-vacio{flex:0 0 auto}
+/* Un estado vacío no merece media pantalla: se queda en una nota discreta. */
+#v-equipo .panel:has(.empty) .empty,
+#v-equipo .panel .qd-mini-empty,#v-equipo .panel .tn-vacio{padding:14px 10px;gap:7px}
+#v-equipo .panel:has(.empty) .empty svg{width:28px;height:28px}
+#v-equipo .panel:has(.empty) .empty-s{font-size:11.5px}
 /* Alto de los gráficos del resumen de equipo */
 .eq-ch{height:180px}
 /* Intensidad de la sesión: anillo, medidores y pie repartidos en la altura
@@ -536,11 +587,6 @@ main{padding:13px 16px 70px}
 .tn-row-d span{font-size:10px;color:var(--muted)}
 .tn-vacio{flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
 /* v233 · Fisioterapia y parte médico */
-.tf-pl{display:flex;flex-direction:column;gap:4px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px}
-.tf-pl select{font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-family:inherit;text-transform:none;letter-spacing:0;font-weight:500}
-.tf-grid{display:flex;flex-direction:column;gap:8px;flex:1}
-.tf-it{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel2);border-radius:11px;padding:10px 12px;cursor:pointer;font-family:inherit;flex:1;min-height:56px}
-.tf-it:hover{border-color:var(--accent);background:var(--panel)}
 .tf-ic{font-size:17px;flex:none}
 .tf-tx{display:flex;flex-direction:column;min-width:0}
 .tf-tx b{font-size:13px;font-weight:700;color:var(--txt)}
@@ -2615,6 +2661,36 @@ body.modal-open #sidebar{overflow:hidden}
   background:color-mix(in srgb,var(--bad) 6%,transparent)}
 .sy-disp-ok{color:var(--ok);font-weight:600;margin-left:auto}
 .sy-disp-al{color:var(--bad);font-weight:700;margin-left:auto}
+/* v339 · Fisioterapia en el resumen: denso, legible de un vistazo y sin aire. */
+.tf-k{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 4px}
+.tf-kv{background:var(--panel2);border-radius:12px;padding:9px 10px;text-align:center}
+.tf-kv b{display:block;font-size:23px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.tf-kv b i{font-size:13px;font-style:normal;font-weight:700;color:var(--muted)}
+.tf-kv span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:2px}
+.tf-kv--al b{color:var(--warn)}
+.tf-l{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.tf-r{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:10px;cursor:pointer;font-size:12.5px}
+.tf-r:hover{background:var(--panel2)}
+.tf-r img,.tf-r .tf-ini{width:24px;height:24px;border-radius:50%;object-fit:cover;flex:0 0 auto}
+.tf-r .tf-ini{display:flex;align-items:center;justify-content:center;background:var(--panel2);
+  color:var(--muted);font-size:11px;font-weight:800;font-style:normal}
+.tf-r b{font-weight:700;flex:0 0 auto}
+.tf-r span{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tf-r em{margin-left:auto;font-style:normal;color:var(--muted2);font-size:11.5px;flex:0 0 auto}
+.tf-mas{font-size:11.5px;color:var(--accent);cursor:pointer;padding:2px 7px;font-weight:600}
+.tf-nada,.tf-ok{margin:10px 0 0;font-size:12.5px;color:var(--muted)}
+.tf-ok{color:var(--ok)}
+.tf-mirar{margin-top:10px;border-top:1px solid var(--hair);padding-top:8px}
+.tf-h{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin-bottom:6px}
+.tf-chips{display:flex;flex-wrap:wrap;gap:5px}
+.tf-chip{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;cursor:pointer;
+  border:1px solid color-mix(in srgb,var(--warn) 45%,var(--hair));
+  background:color-mix(in srgb,var(--warn) 9%,transparent);color:var(--txt)}
+.tf-chip:hover{border-color:var(--warn)}
+.tf-chip--mas{border-style:dashed;background:transparent;color:var(--muted)}
+.tf-add{font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel);color:var(--accent)}
+.tf-add:hover{border-color:var(--accent)}
 .fis-ico{width:15px;height:15px;display:inline-block;vertical-align:-3px;margin-right:5px;opacity:.85;flex:0 0 auto}
 .fc-ev .fis-ico{width:11px;height:11px;vertical-align:-1.5px;margin-right:3px;opacity:.9}
 .fh-x .fis-ico{margin-left:1px}
@@ -3204,8 +3280,8 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="eq-ch eq-ch-tall"><canvas id="ch-team-tipos"></canvas></div></div>
     </div>
     </div>
-    <div class="panel">
-      <h2>Plantilla · estado del día <span class="r muted">toca un jugador para abrir su ficha</span></h2>
+    <details class="panel eq-plantilla" id="eq-plantilla">
+      <summary><b>Plantilla · estado del día</b><span class="muted">los 19, con readiness, carga y ACWR</span></summary>
       <div class="toolbar">
         <input class="search" id="team-search" placeholder="Buscar jugador…" oninput="renderTeam()">
         <select id="team-pos" onchange="renderTeam()" style="max-width:180px"><option value="">Todas las posiciones</option></select>
@@ -3226,7 +3302,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <span><i class="led ok"></i>óptimo</span><span><i class="led warn"></i>atención</span>
         <span><i class="led bad"></i>alerta</span><span><i class="led na"></i>datos insuf.</span>
       </div>
-    </div>
+    </details>
   </section>
 
   <section class="view" id="v-jugador">
@@ -15423,32 +15499,63 @@ function renderTeamNext(){
   box.innerHTML=`<h2>Próximas sesiones <span class="r muted">${lista.length}${dias>1?' · '+dias+' días':' · mismo día'}</span></h2>
     <div class="tn-wrap">${destacada}${resto?`<div class="tn-lista">${resto}</div>`:''}</div>`;
 }
-/* ============ v233 · Fisioterapia y parte médico ============
-   Las cuatro entradas del selector de fisio, accesibles desde el resumen para
-   que Virginia no tenga que abrir el selector cada vez. */
+/* ============ v339 · Fisioterapia · el parte del día ============
+   Hasta aquí este panel eran cuatro botones de registro y un desplegable con
+   los diecinueve jugadores: 391 px del resumen para no decir NADA. Y el
+   resumen lo miran sobre todo los entrenadores, que no registran tratamientos;
+   quien registra es Virginia, y tiene su propia pantalla y el botón azul.
+
+   Ahora dice lo que un entrenador necesita saber de fisioterapia de un
+   vistazo: cuánta camilla llevamos hoy, quién ha pasado y quién queda por
+   mirar. El registro no se pierde: queda un botón en la cabecera. */
 function renderTeamFisio(){
   const box=document.getElementById('team-fisio');if(!box)return;
-  const nn=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
-  const op=[
-    ['👐','Tratamiento de hoy','Camilla, ejercicios, electroterapia…','trat'],
-    ['📋','Parte del día','Molestia, tratamiento o cómo está hoy.','incidencia'],
-    ['📄','Cita o documento','Informe, prueba, próxima cita.','med'],
-    ['🩹','Lesión nueva','Abre episodio con readaptación por fases.','lesion']
-  ];
-  box.innerHTML=`<h2>Fisioterapia y parte médico <span class="r muted">registro rápido</span></h2>
-    <label class="tf-pl">Jugador<select id="tf-name">${nn.map(x=>'<option>'+String(x).replace(/</g,'&lt;')+'</option>').join('')}</select></label>
-    <div class="tf-grid">${op.map(o=>`<button type="button" class="tf-it" onclick="teamFisioGo('${o[3]}')">
-      <span class="tf-ic">${o[0]}</span><span class="tf-tx"><b>${o[1]}</b><small>${o[2]}</small></span></button>`).join('')}</div>`;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
+  const hoy=dkey(REF());
+  let trat=[];
+  try{medDbLoad();trat=((STATE.med||{}).treat||[]).filter(t=>t&&t.dk===hoy);}catch(e){}
+  const mins=trat.reduce((a,t)=>a+(+t.dur||0),0);
+  let cand=[];
+  try{cand=(typeof fisCandidatos==='function'?fisCandidatos():[])||[];}catch(e){}
+  const corto=n=>String(n||'').split(' ')[0];
+  const foto=n=>{try{return (window.photoFor?photoFor(n):null)||((STATE.players[n]||{}).avatar)||'';}catch(e){return '';}};
+
+  const kpis='<div class="tf-k">'
+    +'<div class="tf-kv"><b>'+trat.length+'</b><span>en camilla</span></div>'
+    +'<div class="tf-kv"><b>'+(mins?Math.round(mins/60*10)/10+'<i>h</i>':'0')+'</b><span>de trabajo</span></div>'
+    +'<div class="tf-kv'+(cand.length?' tf-kv--al':'')+'"><b>'+cand.length+'</b><span>por mirar</span></div>'
+  +'</div>';
+
+  /* Quién ha pasado hoy: cara, nombre corto y qué se le ha hecho. */
+  const hechos=trat.slice().sort((a,b)=>String(a.time||'').localeCompare(String(b.time||'')));
+  const lista=hechos.length
+    ? '<div class="tf-l">'+hechos.slice(0,4).map(t=>{
+        const f=foto(t.name);
+        return '<div class="tf-r" onclick="go(\'fisio\')" title="'+esc(t.name+' · '+(t.tipo||''))+'">'
+          +(f?'<img src="'+f+'" alt="">':'<i class="tf-ini">'+esc(corto(t.name).slice(0,1))+'</i>')
+          +'<b>'+esc(corto(t.name))+'</b>'
+          +'<span>'+(window.fisIconoTrat?fisIconoTrat(t.tipo):'')+esc(t.tipo||'Tratamiento')+'</span>'
+          +(t.dur?'<em>'+(+t.dur)+"'</em>":'')
+        +'</div>';}).join('')
+      +(hechos.length>4?'<div class="tf-mas" onclick="go(\'fisio\')">y '+(hechos.length-4)+' más ›</div>':'')
+      +'</div>'
+    : '<p class="tf-nada">Nadie ha pasado por camilla '+(hoy===dkey(new Date())?'hoy':'ese día')+'.</p>';
+
+  /* Y a quién hay que mirar, que es lo accionable para el cuerpo técnico. */
+  const mirar=cand.length
+    ? '<div class="tf-mirar"><div class="tf-h">A quién mirar</div><div class="tf-chips">'
+      +cand.slice(0,6).map(c=>'<button class="tf-chip" onclick="fisTratarA(\''+q(c.name)+'\')" '
+        +'title="'+esc(c.name+' · '+(c.motivos||[]).map(m=>m.txt).join(' · '))+'">'
+        +esc(corto(c.name))+'</button>').join('')
+      +(cand.length>6?'<span class="tf-chip tf-chip--mas" onclick="go(\'fisio\')">+'+(cand.length-6)+'</span>':'')
+      +'</div></div>'
+    : '<p class="tf-ok">Nadie con dolor ni molestias pendientes.</p>';
+
+  box.innerHTML='<h2>Fisioterapia <span class="r"><button class="tf-add" onclick="openFisioReg&&openFisioReg()">＋ Registrar</button></span></h2>'
+    +kpis+lista+mirar;
 }
-/* Mismo destino que fisioRegGo, pero leyendo el jugador de este panel. */
-function teamFisioGo(kind){
-  const n=(document.getElementById('tf-name')||{}).value||'';
-  if(kind==='trat'){if(window.openMedTreatQuick)openMedTreatQuick(n);return;}
-  if(kind==='incidencia'){if(window.openHeroForm)openHeroForm('incidencia',n);return;}
-  if(kind==='med'){if(window.openHeroForm)openHeroForm('med',n);return;}
-  if(kind==='lesion'){try{if(window.go)go('medico');}catch(e){}if(window.openMedInjury)openMedInjury(n);}
-}
-window.renderTeamNext=renderTeamNext;window.renderTeamFisio=renderTeamFisio;window.teamFisioGo=teamFisioGo;
+window.renderTeamNext=renderTeamNext;window.renderTeamFisio=renderTeamFisio;
 
 window.renderTeamStrip=renderTeamStrip;
 /* v236 · Eliminados renderTeamQuickAvail y teamQuickMark: su panel «Registro
@@ -19704,7 +19811,7 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
      descoloca la página. */
   input,select,textarea{font-size:16px!important;min-height:42px}
   .parte-grid input,.parte-grid select,
-  .tf-pl select,.vh-pick-b input{font-size:16px!important}
+  .vh-pick-b input{font-size:16px!important}
   /* Las casillas del selector de pruebas necesitan area de toque propia. */
   .vh-op{min-height:40px;padding:8px 8px}
   .vh-op input{min-height:20px;width:20px;height:20px}
@@ -22970,8 +23077,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-07.4*/
-const VER_ACTUAL='2026-09-07.4';
+/*BUILD:2026-09-07.5*/
+const VER_ACTUAL='2026-09-07.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
