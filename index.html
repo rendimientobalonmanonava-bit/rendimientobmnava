@@ -2827,6 +2827,12 @@ body.modal-open #sidebar{overflow:hidden}
 .pt-col-h{font-size:10.5px;font-weight:800;text-align:center;margin-bottom:9px;color:var(--ink)}
 .pt-col-row{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
 .pt-pl{width:58px;text-align:center}
+/* v348 · Sin responder: foto y anillo en gris, para que de un vistazo se vea
+   quién ha rellenado de verdad y quién no. No se oculta —hay que saber que
+   falta— pero se aparta de los que sí cuentan. */
+.pt-pl--sin img{filter:grayscale(1);opacity:.45}
+.pt-pl--sin .pt-pl-nm{color:var(--muted2);opacity:.75}
+.pt-pl--sin .pt-pl-rd{opacity:.7}
 .pt-pl-ring{position:relative;width:56px;height:56px;margin:0 auto}
 .pt-pl-ring img{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--panel2)}
 /* v215 · foto real sin fondo, misma estética que «A vigilar y destacados» del
@@ -14370,13 +14376,27 @@ function renderParte(){
   const av=p=>{const real=(p&&window.photoFor)?photoFor(p.name):null;return real||(p&&p.avatar)||window.__AVATAR__||'';};
   const avReal=p=>!!(p&&window.photoFor&&photoFor(p.name));
   const colf=p=>p&&p.sev?({ok:'#16a34a',warn:'#d4a017',bad:'#dc2626',na:'#9aa3ad'})[p.sev]||'#9aa3ad':'#9aa3ad';
+  /* v348 · Quién ha respondido HOY. Sin esto, el readiness se pinta con lo
+     último que contestó cada uno y no hay forma de distinguir de un vistazo al
+     que ha rellenado del que no: había que entrar a comprobarlo uno a uno. */
+  const respHoy=new Set((STATE.wellness||[]).filter(w=>w&&w.dk===refdk).map(w=>w.name));
+  const haResp=p=>!!(p&&respHoy.has(p.name));
   const goods=ranked.slice(0,3);const bads=ranked.slice(-3).reverse().filter(p=>!goods.includes(p)).slice(0,3);
   const dRow=(p,kind)=>{const col=kind==='good'?'#16a34a':'#dc2626';const pct=Math.max(4,Math.min(100,p.readiness||0));const tail=kind==='bad'?`<span class="pt-dnote">${parteNote(p)}</span>`:`<span class="pt-dbar"><span style="width:${pct}%;background:${col}"></span></span>`;return `<div class="pt-drow"><span class="pt-dring${avReal(p)?' pt-dring--photo':''}">${ringSVG(p.readiness,col,40,4)}<img src="${av(p)}"></span><span class="pt-dn">${p.name.split(' ')[0]}</span><span class="pt-dr" style="color:${col}">${p.readiness}</span>${tail}</div>`;};
   const pains=[];Object.keys(STATE.players).sort().forEach(n=>{const ev=effectiveStatus(n,dkEstado());if(ev&&['dolor','baja','trat','noentto'].includes(ev.status)&&ev.zone)pains.push(`<span class="pt-pain">${ev.zone}${ev.side?' '+ev.side:''} · ${n.split(' ')[0]}</span>`);});
   const painsBar=`<div class="pt-nopasar-bar"><b>No pasarnos con</b>${pains.length?pains.slice(0,8).join(''):'<span class="pt-pain pt-pain-ok">sin dolores activos</span>'}</div>`;
   const bucket=p=>{const t=(p.pos||'').toLowerCase();if(t.includes('porter'))return'Porteros';if(t.includes('pivot'))return'Pivotes';if(t.includes('extrem'))return'Extremos';return '1ª Línea';};
   const groups={'Extremos':[],'Porteros':[],'Pivotes':[],'1ª Línea':[]};Object.values(STATE.players).forEach(p=>{groups[bucket(p)].push(p);});
-  const ringFicha=p=>`<div class="pt-pl" title="${p.name} · readiness ${p.readiness!=null?p.readiness:'—'}"><div class="pt-pl-ring${avReal(p)?' pt-pl-ring--photo':''}">${ringSVG(p.readiness,colf(p),56,4)}<img src="${av(p)}"><span class="pt-pl-rd" style="color:${colf(p)}">${p.readiness!=null?p.readiness:'—'}</span></div><div class="pt-pl-nm">${p.name.split(' ')[0]}</div></div>`;
+  const ringFicha=p=>{
+    const ok=haResp(p);
+    const col=ok?colf(p):'#c3c9d2';
+    return `<div class="pt-pl${ok?'':' pt-pl--sin'}" title="${p.name}${ok?' · readiness '+(p.readiness!=null?p.readiness:'—'):' · sin responder el wellness de hoy'}">`
+      +`<div class="pt-pl-ring${avReal(p)?' pt-pl-ring--photo':''}">`
+      +ringSVG(ok?p.readiness:0,col,56,4)
+      +`<img src="${av(p)}">`
+      +`<span class="pt-pl-rd" style="color:${col}">${ok?(p.readiness!=null?p.readiness:'—'):'—'}</span>`
+      +`</div><div class="pt-pl-nm">${p.name.split(' ')[0]}</div></div>`;
+  };
   const strip=Object.keys(groups).map(g=>{const arr=groups[g];if(!arr.length)return'';return `<div class="pt-col" style="flex:${Math.max(2,arr.length)}"><div class="pt-col-h">${g} · ${arr.length}</div><div class="pt-col-row">${arr.sort((a,b)=>(b.readiness||0)-(a.readiness||0)).map(ringFicha).join('')}</div></div>`;}).join('');
   const clubLogo=window.__LOGO_CLUB__?`<img src="${window.__LOGO_CLUB__}">`:`BM NAVA`;
   const hpLogo=window.__LOGO_HP__?`<img src="${window.__LOGO_HP__}">`:`Handball Performance`;
@@ -15374,9 +15394,30 @@ function teamRingItem(p,col,tag,reason){
   const imgCls='ath-img'+(isReal?' ath-img--photo':'');
   return `<div class="ath" title="${nm.replace(/"/g,'&quot;')}" onclick="openPlayer('${nm.replace(/'/g,"\\'")}')"><div class="${phCls}">${ring}<img src="${ph}" class="${imgCls}"><span class="ath-rd" style="color:${col}">${rd!=null?rd:'—'}</span></div><div class="ath-nm">${nm.split(' ')[0]}</div><div class="ath-pillwrap"><span class="pillT" style="color:${col};background:color-mix(in srgb,${col} 15%,transparent)"><span class="pillT-dot" style="background:${col}"></span><span class="pillT-tx">${tag}</span></span></div>${reason?`<div class="ath-rsn">${reason}</div>`:''}${stats}</div>`;
 }
+/* v348 · Quién entra en «A vigilar y destacados».
+   Este panel lo lee Carlos para decidir la sesión, así que solo tiene sentido
+   con quien va a entrenar y con datos de hoy:
+   · Fuera los que no entrenan con el grupo —baja, lesión, enfermedad, selección,
+     sanción…—. Que salga «Tahu · No entrena · físico Rodilla I» no le aporta
+     nada: ya sabe que no cuenta con él, y ocupa un hueco de los seis.
+   · Y fuera quien todavía no ha rellenado el wellness del día. Su readiness se
+     calcula con lo último que respondió, así que aparecía con una cifra de otro
+     día: engañoso, y obligaba a entrar a comprobar quién había contestado. */
+function teamRingElegibles(){
+  const dkr=dkEstado();
+  const hoyDk=dkey(REF());
+  const hanRespondido=new Set((STATE.wellness||[]).filter(w=>w&&w.dk===hoyDk).map(w=>w.name));
+  return Object.values(STATE.players).filter(p=>{
+    if(p.readiness==null)return false;
+    if(!hanRespondido.has(p.name))return false;
+    try{const ev=effectiveStatus(p.name,dkr);
+      if(ev&&ev.status&&NOAV_ST.indexOf(ev.status)>=0)return false;}catch(e){}
+    return true;
+  });
+}
 function renderTeamRings(){
   const box=document.getElementById('team-rings');if(!box)return;
-  const all=Object.values(STATE.players).filter(p=>p.readiness!=null);
+  const all=teamRingElegibles();
   const flagged=new Set((STATE.alerts||[]).map(a=>a.name));
   const concern=all.filter(p=>p.sev==='bad'||flagged.has(p.name)).sort((a,b)=>(a.readiness)-(b.readiness));
   const warnExtra=all.filter(p=>p.sev==='warn'&&!concern.includes(p)).sort((a,b)=>a.readiness-b.readiness);
@@ -15391,7 +15432,12 @@ function renderTeamRings(){
   const reasonFor=(p,kind)=>{const ev=effectiveStatus(p.name,dkr);if(ev&&PHYSTAT[ev.status]&&['dolor','baja','noentto','trat','enfermo'].includes(ev.status)){return PHYSTAT[ev.status].lab+(ev.zone?' '+ev.zone+(ev.side?' '+ev.side:''):'');}const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null;if(kind==='good')return (p.readiness!=null&&p.readiness>=85)?'Readiness alto':'Buena forma';if(p.readiness!=null&&p.readiness<55)return 'Readiness bajo';if(ac!=null&&ac>1.3)return 'Carga aguda alta';if(ac!=null&&ac<0.8)return 'Carga muy baja';return 'A vigilar carga';};
   const items=watch.map(p=>teamRingItem(p,colOf(p),tagOf(p),reasonFor(p,'watch'))).concat(top.map(p=>teamRingItem(p,'#1ea863','Top forma',reasonFor(p,'good'))));
   box.innerHTML=`<h2>A vigilar y destacados <span class="r muted">${watch.length+top.length} jugadores</span></h2>
-    <div class="ath-row ath-grid">${items.length?items.join(''):'<div class="attn-ok">✓ Sin jugadores en riesgo hoy.</div>'}</div>`;
+    <div class="ath-row ath-grid">${items.length?items.join(''):(function(){
+      const hoyDk=dkey(REF());
+      const n=(STATE.wellness||[]).filter(w=>w&&w.dk===hoyDk).length;
+      return n?'<div class="attn-ok">✓ Sin jugadores en riesgo hoy.</div>'
+              :'<div class="attn-ok">Aún no ha respondido nadie el wellness de hoy.</div>';
+    })()}</div>`;
 }
 /* ============ v231 · Tira de titulares del resumen de equipo ============
    Seis contadores con lo que decide la sesión de hoy. Antes había que leer el
@@ -23144,8 +23190,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-08.4*/
-const VER_ACTUAL='2026-09-08.4';
+/*BUILD:2026-09-08.5*/
+const VER_ACTUAL='2026-09-08.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
