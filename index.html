@@ -2108,6 +2108,14 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 .rh-pd-n{color:var(--muted2);font-weight:800;width:22px}
 .rh-pd-du{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted);font-size:11.5px}
 .rh-pd-du.bad{color:var(--bad);font-weight:700}
+.rh-pd-est{width:74px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:12px}
+.med-fx{margin-top:2px}
+.med-fx svg{display:block;width:100%;height:auto;max-width:100%;overflow:visible}
+.med-fx-pie{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:10.5px;color:var(--muted2)}
+.med-fx-lg{display:inline-flex;align-items:center;gap:5px}
+.med-fx-lg i{width:14px;height:8px;border-radius:3px;display:inline-block}
+.med-fx-lg i.hueco{border:1.2px dashed var(--muted);background:none}
+.med-fx-lg i.tarde{background:#e23b32;opacity:.85}
 .med-chipbtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer}
 .med-chipbtn:hover{border-color:var(--accent);color:var(--txt)}
 .med-stat-dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
@@ -9169,15 +9177,19 @@ function medDetailHtml(e){if(!e)return '';
   /* v215 · el botón de fechas va fuera del bloque de la fase actual: en un
      episodio cerrado o ya en RTP no hay fase actual, y aun así hace falta poder
      corregir la línea de tiempo (lesiones de temporadas pasadas). */
-  phasesHtml='<div class="med-sec">Plan de readaptación'
-   +'<span class="r"><button class="med-chipbtn" onclick="medPhaseDates(\''+e.id+'\')">🗓 Fechas de las fases</button></span>'
-   +'</div>'+stepper+cur;
+  phasesHtml='<div class="med-sec">Plan de readaptación</div>'+stepper+cur;
  } else if(e.kind==='lesion'){
   phasesHtml='<div class="med-sec">Plan de readaptación</div><button class="med-chipbtn" onclick="medPhaseAdd(\''+e.id+'\')">＋ Añadir primera fase</button>';
  }
- const painHtml='<div class="med-sec">Dolor <span class="r"><span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">manual 0–10 · ◆ = dolor en wellness diario</span></span></div>'
-  +medPainSvg(e)
-  +'<div style="display:flex;gap:8px;margin-top:8px;align-items:center"><input type="number" id="mp-v-'+e.id+'" min="0" max="10" step="1" placeholder="0–10" style="width:80px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px"><button class="med-chipbtn" onclick="medPainAdd(\''+e.id+'\')">Registrar dolor hoy</button></div>';
+ /* v349 · Aquí iba la gráfica de dolor. Al revisar una readaptación lo que se
+    mira es la línea de tiempo: cuándo empezó cada fase, cuánto ha durado y si
+    va por detrás de lo previsto. El dolor se sigue apuntando y viendo en el
+    parte del jugador. */
+ const fasesHtml=(e.phases&&e.phases.length)
+  ? '<div class="med-sec">Fechas y duración de las fases'
+    +'<span class="r"><button class="med-chipbtn" onclick="medPhaseDates(\''+e.id+'\')">🗓 Fechas y días previstos</button></span></div>'
+    +medFasesSvg(e)
+  : '';
  const treatHtml=(window.medTreatTimeline)?medTreatTimeline(e.name,e.id,{episode:true}):(function(){var trs=(STATE.med.treat||[]).filter(t=>t.injId===e.id||(t.name===e.name&&!t.injId&&t.dk>=e.dk&&(!e.closeDk||t.dk<=e.closeDk))).sort((a,b)=>b.dk<a.dk?-1:1);return '<div class="med-sec">Tratamientos <span class="r"><button class="med-chipbtn" onclick="openMedTreat(\''+medEsc(e.name)+'\',\''+e.id+'\')">＋ Añadir</button></span></div>'+(trs.length?'<table class="med-ttable"><tbody>'+trs.map(t=>'<tr><td>'+t.dk+'</td><td>'+medEsc(t.tipo)+'</td><td>'+(t.dur?t.dur+"'":'—')+'</td><td><button class="med-chipbtn" onclick="medTreatDel(\''+t.id+'\')">✕</button></td></tr>').join('')+'</tbody></table>':'<p class="small muted">Sin tratamientos registrados.</p>');})();
  /* v219 · Citas, revisiones y pruebas del jugador dentro de este episodio. Al
     revisar una readaptación interesa ver la resonancia, la revisión de la mutua
@@ -9230,7 +9242,7 @@ function medDetailHtml(e){if(!e)return '';
     lo que se le ha hecho a la derecha. Antes iba todo apilado en una sola
     columna estrecha, con la gráfica de dolor perdida en medio de mucho blanco. */
  return head+'<div class="med-cols">'
-   +'<div class="med-col">'+phasesHtml+painHtml+'</div>'
+   +'<div class="med-col">'+phasesHtml+fasesHtml+'</div>'
    +'<div class="med-col">'+citasHtml+treatHtml+notesHtml+'</div>'
  +'</div>';}
 /* ---------- Criterios ---------- */
@@ -9304,6 +9316,110 @@ function medWellnessPain(e){const zn=norm(e.zona||'');
    hasta 6, rojo por encima—, área bajo la línea, el último valor destacado y
    los tratamientos marcados abajo, para ver si el dolor baja cuando se trata.
    Los rombos del wellness diario se quedan como estaban. */
+/* v349 · Línea de tiempo de las fases de readaptación (sustituye a la gráfica de
+   dolor dentro del episodio). Una barra por fase: desde su fecha de inicio
+   hasta el inicio de la siguiente con fecha —o hasta el alta/hoy en la última—.
+   Si la fase tiene días previstos se dibuja además la barra hueca de lo
+   estimado y, cuando se pasa, el exceso en rojo. Sin estimación no se dibuja
+   nada de eso: la gráfica se queda solo con lo real.
+   El viewBox va a 400 px de ancho a propósito: es lo que mide la columna, así
+   que el SVG se dibuja casi a escala 1 y el texto no queda diminuto. */
+function medFasesSvg(e){
+ const fs=(e.phases||[]).filter(Boolean);
+ if(!fs.length)return '<p class="small muted">Este episodio todavía no tiene fases.</p>';
+ const hoy=medToday();
+ const finEp=e.closeDk||e.competitiveDischargeReal||e.rtp||hoy;
+ const add=(dk,n)=>{const d=dkToDate(dk);d.setDate(d.getDate()+n);return dkey(d);};
+ const cortar=(t,n)=>{t=String(t||'');return t.length>n?t.slice(0,n-1)+'…':t;};
+ const filas=fs.map((f,i)=>{
+  const ini=f.startDk||null;
+  let fin=null;
+  if(ini){
+   for(let j=i+1;j<fs.length;j++){if(fs[j].startDk){fin=fs[j].startDk;break;}}
+   if(!fin)fin=(finEp>ini?finEp:ini);
+   if(medDaysBetween(ini,fin)<0)fin=ini;
+  }
+  const prev=Math.max(0,parseInt(f.durDays)||0)||null;
+  return {f:f,ini:ini,fin:fin,real:ini?medDaysBetween(ini,fin):null,
+          prev:prev,pFin:(ini&&prev)?add(ini,prev):null};
+ });
+ const con=filas.filter(r=>r.ini);
+ if(!con.length)return '<p class="small muted">Las fases todavía no tienen fechas. Ponlas en «🗓 Fechas y días previstos».</p>';
+ /* dominio: de la lesión al final, contando también lo previsto y el día de hoy */
+ let d0=con[0].ini,d1=con[0].fin;
+ con.forEach(r=>{if(r.ini<d0)d0=r.ini;if(r.fin>d1)d1=r.fin;if(r.pFin&&r.pFin>d1)d1=r.pFin;});
+ if(e.dk&&e.dk<d0)d0=e.dk;
+ if(e.open&&hoy>d1)d1=hoy;
+ const span=Math.max(7,medDaysBetween(d0,d1));
+ const dEnd=add(d0,span);
+ const W=400,L=96,R=40,T=24,rowH=27,rowP=17,barH=12;
+ /* las fases sin empezar ocupan menos: están, pero no comen sitio */
+ const alt=filas.map(r=>r.ini?rowH:rowP);
+ let acc=T;const ys=alt.map(h=>{const y=acc;acc+=h;return y;});
+ const H=acc+18;
+ const x=dk=>L+Math.max(0,Math.min(1,medDaysBetween(d0,dk)/span))*(W-L-R);
+ /* eje: un tic por mes; si el episodio es más corto que un mes, las dos fechas */
+ const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+ let ejes='',tics=0;
+ let cur=dkToDate(d0);cur=new Date(cur.getFullYear(),cur.getMonth(),1);
+ if(dkey(cur)<d0)cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
+ while(dkey(cur)<=dEnd){
+  const px=x(dkey(cur));
+  ejes+='<line x1="'+px.toFixed(1)+'" y1="'+(T-6)+'" x2="'+px.toFixed(1)+'" y2="'+(H-14)+'" stroke="var(--hair)" stroke-dasharray="3 3"/>'
+     +'<text x="'+(px+3).toFixed(1)+'" y="'+(T-10)+'" font-size="9" fill="var(--muted2)">'+MES[cur.getMonth()]+'</text>';
+  tics++;cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
+ }
+ if(!tics)ejes+='<text x="'+L+'" y="'+(T-10)+'" font-size="9" fill="var(--muted2)">'+pbFecha(d0)+'</text>'
+   +'<text x="'+(W-R)+'" y="'+(T-10)+'" font-size="9" fill="var(--muted2)" text-anchor="end">'+pbFecha(dEnd)+'</text>';
+ /* hoy */
+ let marca='';
+ if(hoy>=d0&&hoy<=dEnd){
+  const hx=x(hoy);
+  marca='<line x1="'+hx.toFixed(1)+'" y1="'+(T-4)+'" x2="'+hx.toFixed(1)+'" y2="'+(H-14)+'" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="2 3"/>'
+   +'<text x="'+hx.toFixed(1)+'" y="'+(H-4)+'" font-size="8.5" fill="var(--muted2)" text-anchor="middle">hoy</text>';
+ }
+ const body=filas.map((r,k)=>{
+  const y=ys[k],col=r.f.color||'#3056c4';
+  const act=(k===e.phaseIdx&&e.open);
+  /* fase sin fecha: una línea fina, sin barra, para que no ocupe media gráfica */
+  if(!r.ini){
+   return '<text x="0" y="'+(y+12)+'" font-size="9.5" fill="var(--muted2)">'+medEsc(cortar(r.f.nom,17))+'</text>'
+     +'<line x1="'+L+'" y1="'+(y+8.5)+'" x2="'+(W-R)+'" y2="'+(y+8.5)+'" stroke="var(--hair)" stroke-dasharray="2 4"/>'
+     +'<text x="'+(L+6)+'" y="'+(y+12)+'" font-size="8.5" fill="var(--muted2)">sin empezar</text>';
+  }
+  const yb=y+5;
+  let g='<text x="0" y="'+(y+11)+'" font-size="10.5" font-weight="'+(act?'800':'600')+'" fill="'+(act?'var(--ink)':'var(--muted)')+'">'
+    +medEsc(cortar(r.f.nom,15))+'</text>'
+   +'<text x="0" y="'+(y+21)+'" font-size="8.5" fill="var(--muted2)">'+pbFecha(r.ini)+'</text>'
+   +'<rect x="'+L+'" y="'+yb+'" width="'+(W-L-R)+'" height="'+barH+'" rx="6" fill="var(--hair)" opacity=".35"/>';
+  const x0=x(r.ini),x1=Math.max(x(r.fin),x0+3);
+  if(r.prev){
+   const xp=Math.max(x(r.pFin),x0+3);
+   g+='<rect x="'+x0.toFixed(1)+'" y="'+(yb-3)+'" width="'+(xp-x0).toFixed(1)+'" height="'+(barH+6)+'" rx="7" fill="none" stroke="'+col+'" stroke-width="1.1" stroke-dasharray="4 3" opacity=".7"><title>Previsto: '+r.prev+' d</title></rect>';
+  }
+  g+='<rect x="'+x0.toFixed(1)+'" y="'+yb+'" width="'+(x1-x0).toFixed(1)+'" height="'+barH+'" rx="6" fill="'+col+'" opacity="'+(act?'1':'.85')+'">'
+   +'<title>'+medEsc(r.f.nom)+' · '+pbFecha(r.ini)+' → '+pbFecha(r.fin)+' · '+r.real+' d'+(r.prev?' (previsto '+r.prev+' d)':'')+'</title></rect>';
+  if(r.prev&&r.real>r.prev){
+   const xp=x(r.pFin);
+   g+='<rect x="'+xp.toFixed(1)+'" y="'+yb+'" width="'+Math.max(2,x1-xp).toFixed(1)+'" height="'+barH+'" rx="6" fill="#e23b32" opacity=".92"><title>'+(r.real-r.prev)+' d por encima de lo previsto</title></rect>'
+    +'<line x1="'+xp.toFixed(1)+'" y1="'+yb+'" x2="'+xp.toFixed(1)+'" y2="'+(yb+barH)+'" stroke="var(--panel)" stroke-width="1.6"/>';
+  }
+  const tarde=r.prev&&r.real>r.prev;
+  const txt=r.real+' d'+(r.prev?(tarde?' · +'+(r.real-r.prev):' / '+r.prev):'');
+  const ancho=txt.length*5.2;
+  const cabe=(x1+5+ancho)<=W;
+  g+='<text x="'+(cabe?(x1+5):(x1-5)).toFixed(1)+'" y="'+(yb+barH-2)+'" font-size="9.5" font-weight="700" text-anchor="'+(cabe?'start':'end')+'" fill="'+(cabe?(tarde?'#c0392f':'var(--muted)'):'#fff')+'">'+txt+'</text>';
+  return g;
+ }).join('');
+ const totR=con.reduce((a,r)=>a+(r.real||0),0);
+ const conPrev=filas.filter(r=>r.prev);
+ const totP=conPrev.reduce((a,r)=>a+r.prev,0);
+ const pie='<div class="med-fx-pie"><span><b>'+totR+' d</b> desde la primera fase</span>'
+  +(conPrev.length?'<span class="med-fx-lg"><i class="hueco"></i> previsto'+(conPrev.length===filas.length?' · '+totP+' d en total':'')+'</span><span class="med-fx-lg"><i class="tarde"></i> por encima de lo previsto</span>':'')
+  +'</div>';
+ return '<div class="med-fx"><svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img">'
+   +ejes+body+marca+'</svg></div>'+pie;
+}
 function medPainSvg(e){
  const man=(e.pain||[]).filter(p=>p.src==='manual').sort((a,b)=>a.dk<b.dk?-1:1);
  const wel=medWellnessPain(e);
@@ -18168,6 +18284,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    return '<tr><td class="rh-pd-n">'+(i+1)+'</td>'
     +'<td><b>'+esc(f.nom)+'</b>'+(f.sub?'<div class="small muted">'+esc(f.sub)+'</div>':'')+'</td>'
     +'<td><input type="date" id="rh-pd-'+i+'" value="'+(f.startDk||'')+'" oninput="medPhaseDatesCalc(\''+injId+'\')"></td>'
+    +'<td><input class="rh-pd-est" type="number" min="0" max="999" step="1" id="rh-pd-est-'+i+'" placeholder="—" value="'+(f.durDays>0?f.durDays:'')+'" oninput="medPhaseDatesCalc(\''+injId+'\')"></td>'
     +'<td class="rh-pd-du" id="rh-pd-du-'+i+'">—</td></tr>';
   }).join('');
   var body='<div class="med-form" style="max-width:660px">'
@@ -18177,7 +18294,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    +'<label>Fin / alta<input type="date" id="rh-pd-fin" value="'+fin+'" oninput="medPhaseDatesCalc(\''+injId+'\')"></label>'
    +'<button class="med-chipbtn" type="button" onclick="medPhaseDatesAuto(\''+injId+'\')">↔ Repartir automáticamente</button></div>'
    +'<div class="small muted" style="margin:6px 0 10px">Repartir coloca las '+e.phases.length+' fases entre esas dos fechas según la duración prevista de cada una en la plantilla. Después ajusta a mano las que no cuadren.</div>'
-   +'<div class="rh-pd-wrap"><table class="rh-pd-tbl"><thead><tr><th></th><th>Fase</th><th>Empieza</th><th>Dura</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+   +'<div class="rh-pd-wrap"><table class="rh-pd-tbl"><thead><tr><th></th><th>Fase</th><th>Empieza</th><th>Días previstos</th><th>Dura</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
    +'<div style="margin-top:12px"><button class="btn" onclick="medPhaseDatesSave(\''+injId+'\')">Guardar fechas</button></div></div>';
   rhModal('Fechas de las fases · '+esc(e.name),body);
   medPhaseDatesCalc(injId);
@@ -18198,15 +18315,19 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    if(!b)b=fin;
    var d=b?dB(a,b):null;
    if(d==null){cell.textContent='—';cell.className='rh-pd-du';return;}
-   cell.textContent=d+' d'+(f.durDays?' · prev. '+f.durDays:'');
-   cell.className='rh-pd-du'+(d<0?' bad':'');
+   var est=parseInt(pdVal('rh-pd-est-'+i))||0;
+   cell.textContent=d+' d'+(est?(d>est?' · +'+(d-est):' · prev. '+est):'');
+   cell.className='rh-pd-du'+((d<0||(est&&d>est*1.15))?' bad':'');
   });
  };
 
  window.medPhaseDatesAuto=function(injId){
   var e=medInj(injId);if(!e)return;
   var ini=pdVal('rh-pd-ini')||e.dk,fin=pdVal('rh-pd-fin')||today();
-  var dks=spreadDks(e.phases,ini,fin);
+  /* v349 · pesa con la estimación que hay escrita en la tabla, no con la
+     guardada: si Daniel acaba de teclear los días, el reparto tiene que usarlos. */
+  var pesos=e.phases.map(function(f,i){return {durDays:parseInt(pdVal('rh-pd-est-'+i))||0};});
+  var dks=spreadDks(pesos,ini,fin);
   if(!dks){if(window.toast)toast('El fin tiene que ser posterior a la fecha de lesión.');return;}
   dks.forEach(function(dk,i){var el=document.getElementById('rh-pd-'+i);if(el)el.value=dk;});
   medPhaseDatesCalc(injId);
@@ -18221,6 +18342,8 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    if(v&&prev&&dB(prev,v)<0)desorden=true;
    if(v)prev=v;
    f.startDk=v||null;f.startedAt=v||null;
+   var est=pdVal('rh-pd-est-'+i);
+   f.durDays=(est===''||est==null)?0:(Math.max(0,parseInt(est))||0);
   });
   if(desorden&&!confirm('Hay fases que empiezan antes que la anterior. ¿Guardar de todas formas?'))return;
   if(ini)e.dk=ini;
@@ -23190,8 +23313,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-08.5*/
-const VER_ACTUAL='2026-09-08.5';
+/*BUILD:2026-09-08.6*/
+const VER_ACTUAL='2026-09-08.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
