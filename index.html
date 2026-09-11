@@ -2108,6 +2108,28 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 .rh-pd-n{color:var(--muted2);font-weight:800;width:22px}
 .rh-pd-du{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted);font-size:11.5px}
 .rh-pd-du.bad{color:var(--bad);font-weight:700}
+/* v350 · Últimas sesiones (Resumen) */
+.ult-card{border:1px solid var(--line);border-radius:11px;padding:8px 10px 7px;margin-bottom:7px;background:var(--panel2,transparent)}
+.ult-card--last{border-color:var(--accent);box-shadow:0 0 0 1px rgba(48,86,196,.13)}
+.ult-head{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.ult-when{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.ult-when b{font-size:13px;font-variant-numeric:tabular-nums}
+.ult-when span{font-size:10px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.ult-mtag{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--bad);border:1px solid var(--bad);border-radius:5px;padding:1px 5px}
+.ult-lv{margin-left:auto;font-size:9.5px;font-weight:800;letter-spacing:.06em;color:#fff;border-radius:6px;padding:3px 8px;white-space:nowrap}
+.ult-lv--no{background:none;color:var(--muted2);border:1px dashed var(--line)}
+.ult-z{display:flex;width:100%;border-radius:5px;overflow:hidden;background:var(--hair)}
+.ult-z i{display:block;height:100%}
+.ult-kpis{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:9.5px;color:var(--muted2);text-transform:uppercase;letter-spacing:.03em}
+.ult-kpis em{display:block;font-style:normal;font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:0}
+.ult-ct{margin-left:auto;text-align:right}
+.ult-dots{display:flex;gap:2px;justify-content:flex-end;margin-bottom:2px}
+.ult-dots i{width:6px;height:6px;border-radius:50%;background:var(--hair);display:block}
+.ult-cno{display:block;font-size:10px;color:var(--muted2);text-transform:none}
+.ult-tira{display:flex;align-items:center;gap:3px;margin-top:9px}
+.ult-tira i{flex:1;height:7px;border-radius:2px;display:block;min-width:5px}
+.ult-tira-l,.ult-tira-r{font-size:9px;color:var(--muted2);white-space:nowrap}
+.ult-tira-l{margin-right:3px}.ult-tira-r{margin-left:3px}
 .rh-pd-est{width:74px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:12px}
 .med-fx{margin-top:2px}
 .med-fx svg{display:block;width:100%;height:auto;max-width:100%;overflow:visible}
@@ -3316,8 +3338,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--accent)"></span>Carga
 </div>
-        <div class="panel" onclick="cargasTab('cuadrantes')" title="Abrir Cuadrantes"><h2>Cuadrante de carga · microciclo <span class="r muted">ver detalle ›</span></h2><div id="qd-mini"></div>
-          <div class="legend"><span><i class="led" style="background:#3056c4"></i>día realizado</span><span><i class="led" style="border:1.5px dashed #3056c4;background:transparent"></i>planificado</span><span><i class="led bad"></i>partido</span></div></div>
+        <div class="panel" id="team-ultimas" style="cursor:pointer" onclick="go('hr')"><h2>Últimas sesiones <span class="r muted">nivel, zonas y contacto ›</span></h2><div id="eq-ultimas"></div></div>
         <div class="panel" id="team-next"></div>
         <div class="panel"><h2>Intensidad de la sesión <span class="r muted">última</span></h2><div id="team-intensity"></div></div>
         <div class="panel" id="team-hr-panel" style="cursor:pointer" onclick="go('hr')">
@@ -9970,9 +9991,10 @@ function miniBars(name,matchDks){
 }
 function drawTeam7(){
   /* v189: el panel "últimos 7 días" (ch-team7) fue sustituido por el
-     Cuadrante de carga del microciclo. Se conserva el nombre de la función
-     para no tocar a sus llamadores (renderTeam). */
-  if(window.qdRenderMini){try{qdRenderMini();}catch(e){console.warn('qd mini',e);}}
+     Cuadrante de carga del microciclo. v350: y éste por la tira de últimas
+     sesiones. Se conserva el nombre de la función para no tocar a sus
+     llamadores (renderTeam). */
+  try{renderTeamUltimas();}catch(e){console.error('bmnava · últimas sesiones',e);}
 }
 function drawAvail(){
   /* v232 · el donut de Disponibilidad salió del resumen del equipo: repetía lo
@@ -15825,6 +15847,87 @@ function renderTeamIntensity(){
     <div style="display:flex;justify-content:space-around;gap:4px;flex-wrap:wrap">${g1}${g2}${g3}</div>
     <p class="small muted" style="margin-top:8px;line-height:1.5">${dk.split('-').reverse().join('/')} · ${lab}. Nivel de contacto estimado por tipo de sesión.</p>`;
 }
+/* v350 · «Últimas sesiones» del Resumen. Sustituye al cuadrante del microciclo.
+   Lo que Carlos necesita de un vistazo es qué se ha hecho en las últimas
+   sesiones: si fue baja, media o alta, cuánto contacto llevó y cómo se repartió
+   el tiempo en zonas. Nada de esto se calcula aquí: el nivel sale de
+   classifySession —el mismo modelo que firma la clasificación de la sesión— y
+   el contacto y las UA de sessMeta, para que Resumen y Pulsómetros no puedan
+   contar cosas distintas. */
+function ultimasSesiones(n){
+  const keys=[...new Set((STATE.hr||[]).map(hrKey))].sort();
+  if(!keys.length)return [];
+  let hasta=null;try{hasta=dkey(REF());}catch(e){}
+  const validas=hasta?keys.filter(k=>k.slice(0,k.indexOf('|'))<=hasta):keys;
+  const uso=(validas.length?validas:keys).slice(-(n||3));
+  return uso.reverse().map(key=>{
+    const i=key.indexOf('|'),dk=key.slice(0,i),lab=key.slice(i+1);
+    const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key);
+    let c=null;try{c=classifySession(rows,key,dk);}catch(e){}
+    const z=[0,0,0,0,0];rows.forEach(r=>r.z.forEach((sg,zi)=>z[zi]+=sg));
+    return {key,dk,lab,rows,c,z,tot:z.reduce((a,b)=>a+b,0)};
+  });
+}
+/* Una tira de 5 segmentos con el reparto del tiempo en zonas. */
+function ultZonasBarra(z,tot,alto){
+  const h=alto||9;
+  if(!(tot>0))return '<div class="ult-z" style="height:'+h+'px"></div>';
+  return '<div class="ult-z" style="height:'+h+'px">'
+    +HRZ.map((zn,zi)=>{
+       const pct=z[zi]/tot*100;
+       if(pct<0.4)return '';
+       return '<i style="width:'+pct.toFixed(1)+'%;background:'+zn[1]+'" title="'+zn[0]+' · '+fmtHM(z[zi])+' ('+Math.round(pct)+'%)"></i>';
+     }).join('')+'</div>';
+}
+/* Contacto 1–5 en cinco puntos: se lee sin saberse la escala de memoria. */
+function ultContacto(v){
+  if(v==null||isNaN(v))return '<span class="ult-cno">sin dato</span>';
+  const n=Math.max(1,Math.min(5,Math.round(v)));
+  const col=n<=2?'var(--ok)':(n<=3?'var(--warn)':'var(--bad)');
+  let p='';for(let i=1;i<=5;i++)p+='<i class="'+(i<=n?'on':'')+'" style="'+(i<=n?'background:'+col:'')+'"></i>';
+  return '<span class="ult-dots" title="Contacto medio '+v.toFixed(1)+'/5">'+p+'</span>';
+}
+function renderTeamUltimas(){
+  const box=document.getElementById('eq-ultimas');if(!box)return;
+  const ses=ultimasSesiones(3);
+  if(!ses.length){
+    box.innerHTML='<p class="hint">Sin sesiones de pulso todavía. Cárgalas en <b>Pulsómetros</b> y aquí verás el nivel, las zonas y el contacto de las últimas.</p>';
+    return;
+  }
+  const tarjetas=ses.map((s,idx)=>{
+    const lv=s.c?LV[s.c.level]:null;
+    const meta=(s.c&&s.c.meta)||{};
+    const z45=s.tot?((s.z[3]+s.z[4])/s.tot*100):null;
+    const dd=s.dk.split('-');
+    const partido=/partido|^md$|\bmd\b/.test(norm(s.lab));
+    return '<div class="ult-card'+(idx===0?' ult-card--last':'')+'">'
+     +'<div class="ult-head">'
+       +'<div class="ult-when"><b>'+dd[2]+'/'+dd[1]+'</b><span>'+medEsc(s.lab)+'</span></div>'
+       +(partido?'<span class="ult-mtag">partido</span>':'')
+       +(lv?'<span class="ult-lv" style="background:'+lv[1]+'">'+lv[0]+'</span>':'<span class="ult-lv ult-lv--no">SIN NIVEL</span>')
+     +'</div>'
+     +ultZonasBarra(s.z,s.tot,idx===0?11:8)
+     +'<div class="ult-kpis">'
+       +'<span><em>'+(meta.ua!=null?Math.round(meta.ua):'—')+'</em>UA</span>'
+       +'<span><em>'+(meta.rpe!=null?meta.rpe.toFixed(1):'—')+'</em>RPE</span>'
+       +'<span><em>'+(z45!=null?Math.round(z45)+'%':'—')+'</em>Z4+Z5</span>'
+       +'<span class="ult-ct">'+ultContacto(meta.contacto)+'contacto</span>'
+     +'</div>'
+    +'</div>';
+  }).join('');
+  /* Tira de fondo: las 10 últimas en semáforo, para ver el patrón del bloque
+     sin tener que abrir Pulsómetros. */
+  const hist=ultimasSesiones(10).slice().reverse();
+  const tira=hist.length>3
+    ? '<div class="ult-tira"><span class="ult-tira-l">últimas '+hist.length+'</span>'
+      +hist.map(h=>{
+         const lv=h.c?LV[h.c.level]:null;const dd=h.dk.split('-');
+         return '<i style="background:'+(lv?lv[1]:'var(--hair)')+'" title="'+dd[2]+'/'+dd[1]+' · '+medEsc(h.lab)+(lv?' · '+lv[0]:'')+'"></i>';
+       }).join('')
+      +'<span class="ult-tira-r">hoy</span></div>'
+    : '';
+  box.innerHTML=tarjetas+tira;
+}
 function renderTeamHR(){
   const box=document.getElementById('team-hr');if(!box)return;
   if(!STATE.hr.length){box.innerHTML='<p class="hint">Sin sesiones de pulso aún. Cárgalas en la pestaña <b>Pulso · Polar</b>.</p>';return;}
@@ -17226,10 +17329,15 @@ window.ptEstRender=function(){
     +'</div>'
     +'<p class="small muted" style="margin:10px 0 0">Rango con banda ±'+Math.round(e.banda*100)+'% sobre la media de <b>'+e.n+'</b> partido(s) medido(s). Nunca es una cifra exacta.</p>';
 };
-const CARGAS_TABS=[['resumen','Resumen'],['cuadrantes','Cuadrantes'],['rpe','RPE'],['pulso','Pulso · Polar'],['partidos','Perfil de partido']];
+/* v350 · Cuadrantes sale de la navegación por decisión de Daniel (11/09/2026):
+   no le está dando uso y estorbaba. El módulo entero —datos, importaciones,
+   configuración y el enganche del calendario— se queda intacto en el código y
+   en bmnava_quadrants; para volver a activarlo basta con devolver la entrada a
+   CARGAS_TABS y a CARGA_PANES. No se ha borrado nada. */
+const CARGAS_TABS=[['resumen','Resumen'],['rpe','RPE'],['pulso','Pulso · Polar'],['partidos','Perfil de partido']];
 const RPE_SUBS=[['grupal','Grupal'],['individual','Individual'],['posicion','Por posición']];
 const RPE_KEYS=RPE_SUBS.map(s=>s[0]);
-const CARGA_PANES=['resumen','cuadrantes','grupal','individual','posicion','partidos'];
+const CARGA_PANES=['resumen','grupal','individual','posicion','partidos'];
 function cargasTopKey(){return (STATE.view==='hr')?'pulso':(RPE_KEYS.includes(FILTER.cargaTab)?'rpe':(FILTER.cargaTab||'resumen'));}
 function mountCargasTabs(){
   const top='<div class="seg cargas-seg">'+CARGAS_TABS.map(([k,l])=>`<button data-k="${k}" onclick="cargasTab('${k}')">${l}</button>`).join('')+'</div>';
@@ -23313,8 +23421,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-08.6*/
-const VER_ACTUAL='2026-09-08.6';
+/*BUILD:2026-09-11.1*/
+const VER_ACTUAL='2026-09-11.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
