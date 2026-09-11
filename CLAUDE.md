@@ -40,6 +40,8 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 | ACWR | EWMA 7:21, `ewmaChronic = 0.0909` |
 | ACWR — días mínimos de bloque | 21 (`minBlockDays`). *Bajado de 28 el 28/08/2026 por decisión de Daniel: con 28 la carga no entraba en el readiness hasta el cuarto fin de semana de pretemporada* |
 | Ratio agudo:crónico mostrado | 7:28 desacoplado, con aguda, crónica, ratio y % de diferencia. Se muestra; NO alimenta readiness ni alertas, que siguen con el acoplado 7:21 |
+| Nivel de sesión — del score al nivel | Tercios iguales de la escala 0–2 (BAJA <0,67 · MEDIA <1,33 · ALTA) y, por encima, regla de mayoría: si más de la mitad de los criterios coinciden en un nivel, ese manda. *Cambiado el 12/09/2026 por decisión de Daniel; antes `Math.round(score)`, que daba a MEDIA la mitad de la escala y mandaba 51 de 69 sesiones al cajón del medio* |
+| Nivel de sesión — corrección manual | Manda siempre sobre el cálculo. Se guarda por clave `fecha\|etiqueta` en `bmnava_sesniv` y se sincroniza |
 | Cuadrantes — umbral | 58 |
 | z-scores valoraciones | Escalado robusto por MAD, suelo del 2 % para evitar z absurdos |
 | TSA | Bloqueado |
@@ -112,6 +114,10 @@ Chart.js 4.4.1 · PapaParse 5.4.1 · html2canvas 1.4.1 · Inter · `localStorage
 ### 4.3 Persistencia compartida (pendiente)
 
 Hoy todo lo local vive en el `localStorage` de cada usuario y es **invisible para los demás**. Virginia no ve lo que registra Daniel y viceversa. La solución acordada es **Supabase con políticas RLS**; el SQL de configuración y la guía ya están entregados, pero Daniel aún no ha confirmado el alta.
+
+### 4.3.1 Cuadrantes (retirado de la navegación)
+
+Desde el 11/09/2026, por decisión de Daniel, **Cuadrantes no aparece** ni en las pestañas de Cargas ni en el Resumen: no le estaba dando uso. El módulo sigue entero en el código, con sus datos (`bmnava_quadrants`), sus importaciones y su enganche con el Calendario. Para reactivarlo, devolver su entrada a `CARGAS_TABS` y a `CARGA_PANES`. **No se ha borrado nada.**
 
 ### 4.4 Navegación (estructura v180+)
 
