@@ -42,6 +42,7 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 | Ratio agudo:crónico mostrado | 7:28 desacoplado, con aguda, crónica, ratio y % de diferencia. Se muestra; NO alimenta readiness ni alertas, que siguen con el acoplado 7:21 |
 | Nivel de sesión — del score al nivel | Tercios iguales de la escala 0–2 (BAJA <0,67 · MEDIA <1,33 · ALTA) y, por encima, regla de mayoría: si más de la mitad de los criterios coinciden en un nivel, ese manda. *Cambiado el 12/09/2026 por decisión de Daniel; antes `Math.round(score)`, que daba a MEDIA la mitad de la escala y mandaba 51 de 69 sesiones al cajón del medio* |
 | Nivel de sesión — corrección manual | Manda siempre sobre el cálculo. Se guarda por clave `fecha\|etiqueta` en `bmnava_sesniv` y se sincroniza |
+| Valoraciones vigentes | Solo cuentan las pruebas con alguna medición desde el **1 de julio** (arranque de la 26/27, `TEMP_INICIO`). Las que no se han medido esta temporada quedan fuera del baremo, del resumen del jugador y de las tarjetas. *Decisión de Daniel el 15/09/2026: las marcas de hace dos y tres años ensuciaban el baremo* |
 | Cuadrantes — umbral | 58 |
 | z-scores valoraciones | Escalado robusto por MAD, suelo del 2 % para evitar z absurdos |
 | TSA | Bloqueado |

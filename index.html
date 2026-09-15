@@ -11674,6 +11674,7 @@ function refResumenHtml(name){
   const cuenta=[0,0,0,0];let conRef=0;
   const cerca=[];
   TESTS.forEach(t=>{
+    if(!tempVigente(t.k))return;
     const v=vals[t.k];if(v==null||isNaN(v))return;
     const nv=refNivel(t.k,v,puesto);if(!nv)return;
     conRef++;cuenta[nv.lv]++;
@@ -11686,7 +11687,7 @@ function refResumenHtml(name){
   const pct=n=>Math.round(n/conRef*100);
   return '<div class="ref-res">'
    +'<div class="ref-res-h">'+refInsignia(15)+'Frente al baremo de <b>'+puesto+'</b>'
-     +'<span>'+conRef+' de '+TESTS.length+' tests con referencia</span></div>'
+     +'<span>'+conRef+' pruebas de esta temporada con referencia</span></div>'
    +'<div class="ref-res-bar">'+REF_NIV.map((x,i)=>cuenta[i]
       ?'<i style="width:'+pct(i===0?cuenta[0]:cuenta[i])+'%;background:'+x[1]+'" title="'+cuenta[i]+' en '+x[2]+'"><b>'+cuenta[i]+'</b></i>':'').join('')+'</div>'
    +'<div class="ref-res-k">'+REF_NIV.map((x,i)=>'<span><i style="background:'+x[1]+'"></i>'+x[2]+' <b>'+cuenta[i]+'</b></span>').join('')+'</div>'
@@ -11715,6 +11716,37 @@ window.refResumenHtml=refResumenHtml;
    Cada jugador se mide contra las bandas de SU puesto, así que un pivote y un
    extremo con el mismo CMJ pueden salir en niveles distintos. Es justo lo que
    se busca: el baremo no es del equipo, es de cada puesto. */
+/* ---------- Valoraciones vigentes (v359) -------------------------------------
+   Decisión de Daniel (15/09/2026): las pruebas de las que no hay ninguna medición
+   en la temporada en curso no cuentan. Estaban ensuciando el baremo con marcas de
+   hace dos y tres años que ya no dicen nada del jugador de hoy.
+
+   El corte es el 1 de julio, arranque de la 26/27. La fecha sale del histórico
+   fechado (STATE.testHist), que es el único sitio donde consta CUÁNDO se midió:
+   la hoja de valores actuales no trae fecha. Si un test no aparece en ninguna
+   valoración desde el corte, queda fuera de los cómputos. */
+const TEMP_INICIO='2026-07-01';
+let TEMP_CACHE=null;
+function tempTestsVigentes(){
+  if(TEMP_CACHE)return TEMP_CACHE;
+  const H=STATE.testHist||{};
+  const vivos=new Set();
+  Object.keys(H).forEach(n=>{
+    (H[n]||[]).forEach(sn=>{
+      if(!sn||!sn.date||sn.date<TEMP_INICIO)return;
+      Object.keys(sn.vals||{}).forEach(k=>{if(sn.vals[k]!=null&&!isNaN(sn.vals[k]))vivos.add(k);});
+    });
+  });
+  TEMP_CACHE=vivos;
+  return vivos;
+}
+function tempVigente(k){
+  const v=tempTestsVigentes();
+  /* si el histórico todavía no se ha construido, no se esconde nada */
+  return v.size?v.has(k):true;
+}
+function tempInvalidar(){TEMP_CACHE=null;}
+window.tempVigente=tempVigente;window.tempTestsVigentes=tempTestsVigentes;window.tempInvalidar=tempInvalidar;
 function tsaModo(m){
   const eq=document.getElementById('tsa-pane-equipo'),jg=document.getElementById('tsa-pane-jugador');
   if(!eq||!jg)return;
@@ -11728,8 +11760,9 @@ window.tsaModo=tsaModo;
 function refEquipoDatos(){
   const nombres=Object.keys(STATE.players||{});
   const porTest=[];let tot=[0,0,0,0],conRef=0;
-  const porJug={};
+  const porJug={};let fuera=0;
   TESTS.forEach(t=>{
+    if(!tempVigente(t.k)){fuera++;return;}
     const c=[0,0,0,0];const quien=[[],[],[],[]];let n=0;
     nombres.forEach(nm=>{
       const p=refPuesto(nm);if(!p)return;
@@ -11743,7 +11776,7 @@ function refEquipoDatos(){
   });
   /* lo más urgente primero: más rojos y, a igualdad, menos champions */
   porTest.sort((a,b)=>(b.c[0]/b.n)-(a.c[0]/a.n)||(a.c[3]/a.n)-(b.c[3]/b.n));
-  return {porTest,tot,conRef,porJug,nombres};
+  return {porTest,tot,conRef,porJug,nombres,fuera};
 }
 function refBarraNiveles(c,n,alto){
   const h=alto||16;
@@ -11768,7 +11801,8 @@ function renderTestsBaremo(){
        +'<b>'+d.tot[i]+'</b><span>'+REF_NIV[i][2]+'</span><em>'+pct(i)+'% de las medidas</em></div>').join('')
     +'</div>'
    +'<div class="tb-glob">'+refBarraNiveles(d.tot,d.conRef,20)
-     +'<span class="tb-glob-n">'+d.conRef+' medidas con referencia · '+d.porTest.length+' tests · '+rank.length+' jugadores</span></div>'
+     +'<span class="tb-glob-n">'+d.conRef+' medidas con referencia · '+d.porTest.length+' tests · '+rank.length+' jugadores'
+       +(d.fuera?' · <b>'+d.fuera+'</b> pruebas fuera por no medirse esta temporada':'')+'</span></div>'
    +'<div class="grid g2" style="margin-top:16px">'
      +'<div><div class="tb-sec">Dónde flojea el grupo</div>'
        +flojos.map(o=>'<div class="tb-row"><span class="tb-nm">'+o.t.name+'</span>'+refBarraNiveles(o.c,o.n)
@@ -11990,7 +12024,10 @@ function renderTestsProfile(){
      respecto a SUS compañeros, y el nivel dice cómo va respecto a lo que se pide
      en su puesto en élite. Son dos preguntas distintas y ahora se ven juntas. */
   const refPos=refPuesto(name);
-  if(det){let html='';CATS.forEach(c=>{const ts=TESTS.filter(t=>t.cat===c);html+=`<tr class="cat-row"><td colspan="6">${c}</td></tr>`+ts.map(t=>{
+  let omitidos=0;
+  if(det){let html='';CATS.forEach(c=>{const ts=TESTS.filter(t=>t.cat===c&&(tempVigente(t.k)||(omitidos++,false)));
+    if(!ts.length)return;
+    html+=`<tr class="cat-row"><td colspan="6">${c}</td></tr>`+ts.map(t=>{
     const v=(STATE.tests[name]||{})[t.k];const p=pctile(name,t);
     const arrow=v==null?'':(st[t.k].s>0?(v>st[t.k].m?'▲':v<st[t.k].m?'▼':'▬'):'▬');
     const rt=REF_BM[t.k];
@@ -12011,7 +12048,8 @@ function renderTestsProfile(){
         +REF_NIV.map(x=>`<span class="ref-leg-i"><i style="background:${x[1]}"></i>${x[2]}</span>`).join('')
         +`<span class="ref-leg-n">La barra sitúa su valor dentro de las cuatro bandas de su puesto</span></div>`
       :`<p class="small muted" style="margin-bottom:10px">Sin posición asignada: no se puede aplicar la referencia por puesto.</p>`)
-      +`<div class="wrap-x"><table class="tbl ref-tbl"><thead><tr><th>Métrica</th><th>Valor</th><th>Nivel</th><th>Bandas de su puesto</th><th>A Champions</th><th>Percentil</th></tr></thead><tbody>${html}</tbody></table></div>`;}
+      +`<div class="wrap-x"><table class="tbl ref-tbl"><thead><tr><th>Métrica</th><th>Valor</th><th>Nivel</th><th>Bandas de su puesto</th><th>A Champions</th><th>Percentil</th></tr></thead><tbody>${html}</tbody></table></div>`
+      +(omitidos?`<p class="small muted" style="margin:9px 0 0">${omitidos} pruebas no se muestran: no se han medido en la temporada 26/27 (desde el ${TEMP_INICIO.split('-').reverse().join('/')}).</p>`:'');}
   killCharts(['ch-tsa-prof']);
   const el=document.getElementById('ch-tsa-prof');if(!el)return;
   const labels=TT.map(t=>shortLbl(t)).concat('TSA');
@@ -12561,6 +12599,7 @@ function renderFicha(name){
 
 /* ===================== HISTÓRICO POR FECHAS (evolución + % de mejora) ===================== */
 function buildTestHist(){
+  tempInvalidar();
   /* v192 · si hay histórico real importado desde la hoja de valoraciones
      (módulo VH), no se regeneran los snapshots sintéticos: los sobrescribiría. */
   if(STATE.vhLoaded)return;
@@ -24526,6 +24565,26 @@ function vhRecordBloque(k,def){
       +(lb?' · en esta prueba gana el valor más bajo':'')+'</div>'
   +'</div>';
 }
+/* v359 · El listón de Champions también aquí. El podio dice cómo va contra sus
+   compañeros y «su normal» contra sí mismo; faltaba contra qué se mide fuera. */
+function vhChampBox(name,k,def){
+  const p=(window.refPuesto?refPuesto(name):null);
+  if(!p||!window.refUmbralChampions)return '';
+  const u=refUmbralChampions(k,p);
+  if(!u)return '';
+  const v=((STATE.tests||{})[name]||{})[k];
+  const nv=(v!=null)?refNivel(k,v,p):null;
+  const d=(v!=null)?refDistanciaChampions(k,v,p):null;
+  const f=(x,n)=>(window.vhFmt?vhFmt(x,n):(+x).toFixed(n));
+  return '<div class="hc-box'+(d&&d.ya?' hc-box--ya':'')+'">'+refInsignia(14)
+    +'<span class="hc-t">Champions en '+p+': <b>'+f(u.valor,2)+' '+(def.unit||'')+'</b></span>'
+    +(nv?'<span class="ref-pill'+(nv.lv===3?' ref-pill--champ':'')+'" style="--c:'+nv.col+'">'
+        +(nv.lv===3?refInsignia(10):'')+nv.lab+'</span>':'')
+    +(d?(d.ya?'<span class="hc-ya">ya lo tiene</span>'
+       :'<span class="hc-f">le faltan <b>'+f(Math.abs(d.falta),2)+' '+(def.unit||'')+'</b></span>'):'')
+  +'</div>';
+}
+window.vhChampBox=vhChampBox;
 window.vhAbrir=function(k){
   const def=(typeof TESTS!=='undefined')?TESTS.find(t=>t.k===k):null;
   if(!def)return;
@@ -24542,6 +24601,7 @@ window.vhAbrir=function(k){
       +vhPodio(act,def.unit,name)
       +'<div class="vh-det-sec">Evolución de '+esc(name)+
         (puesto>=0?' <span>puesto '+(puesto+1)+' de '+act.length+'</span>':'')+'</div>'
+      +vhChampBox(name,k,def)
       +(r.n>1
         ? '<div class="vh-det-ch"><canvas id="ch-vh-det"></canvas></div>'
         : '<p class="small muted">'+(r.n===1?'Solo hay una medición, todavía no hay evolución que dibujar.':'Este jugador no tiene mediciones de esta prueba.')+'</p>')
@@ -24570,6 +24630,12 @@ window.vhAbrir=function(k){
                  backgroundColor:(typeof rgba==='function')?rgba(col,.12):'transparent'}];
       if(base!=null)ds.push({type:'line',label:'Su normal',data:ser.map(()=>base),borderColor:mc,
                              borderDash:[6,4],borderWidth:1.4,pointRadius:0});
+      /* el listón de Champions de su puesto, encima de su propia curva */
+      try{
+        const _p=refPuesto(name), _u=_p?refUmbralChampions(k,_p):null;
+        if(_u)ds.push({type:'line',label:'Champions',data:ser.map(()=>_u.valor),
+          borderColor:'#c9a227',borderDash:[6,4],borderWidth:2,pointRadius:0,order:0});
+      }catch(e){}
       charts['ch-vh-det']=new Chart(el,{data:{labels:ser.map(o=>o.dk),datasets:ds},
         options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10}},
           tooltip:{callbacks:{label:c=>c.dataset.label+': '+vhFmt(c.raw,2)+(def.unit?' '+def.unit:'')}}},
@@ -24647,7 +24713,7 @@ function vhRenderPanel(){
     html+='<div class="hint" style="margin-bottom:10px">Aún no se ha cargado la hoja de valoraciones, '+
           'así que el z individual todavía no es interpretable.</div>';
   }
-  const all=defs.map(t=>({t,r:vhZ(name,t.k)}));
+  const all=defs.filter(t=>tempVigente(t.k)).map(t=>({t,r:vhZ(name,t.k)}));
   const withData=all.filter(x=>x.r.n>0);
   let newest=null;
   withData.forEach(x=>{if(x.r.curDk&&(!newest||String(x.r.curDk)>String(newest)))newest=x.r.curDk;});
@@ -25186,8 +25252,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-15.3*/
-const VER_ACTUAL='2026-09-15.3';
+/*BUILD:2026-09-15.4*/
+const VER_ACTUAL='2026-09-15.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
