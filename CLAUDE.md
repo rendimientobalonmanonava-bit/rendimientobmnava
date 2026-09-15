@@ -45,7 +45,9 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 | Valoraciones vigentes | Solo cuentan las pruebas con alguna medición desde el **1 de julio** (arranque de la 26/27, `TEMP_INICIO`). Las que no se han medido esta temporada quedan fuera del baremo, del resumen del jugador y de las tarjetas. *Decisión de Daniel el 15/09/2026: las marcas de hace dos y tres años ensuciaban el baremo* |
 | Cuadrantes — umbral | 58 |
 | z-scores valoraciones | Escalado robusto por MAD, suelo del 2 % para evitar z absurdos |
-| TSA | Bloqueado |
+| TSA — composición | Media **ponderada de las tres capacidades**: Fuerza 40 · Explosividad 35 · Condición 25 (`TSA_W`), más los kg de masa muscular, que antes quedaban fuera. *Cambiado el 15/09/2026 por decisión de Daniel; antes era la media simple de los z de los 22 tests, así que el peso lo decidía cuántas pruebas había de cada capacidad: 11 de explosividad mandaban el 50% de la nota y los extremos ocupaban las 4 primeras plazas* |
+| TSA — progreso | Componente extra con peso 15% (`TSA_W_PROG`): avance medio **en desviaciones típicas** desde la primera valoración de la temporada, normalizado contra el del grupo. **No se usa el % de cambio para puntuar**: se dispara con bases pequeñas (la asimetría de tobillo de Josu pasó de 0,3 a 6 = −1900%). El % sí se muestra al jugador, acotado a ±40% por prueba y descartando bases menores de 1 |
+| TSA — resto | Bloqueado |
 | contactFactor | Bloqueado |
 
 **CMJ y demás tests están excluidos del readiness a propósito.** No los incorpores.

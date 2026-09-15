@@ -3072,6 +3072,30 @@ body.modal-open #sidebar{overflow:hidden}
 .ref-res-ok{display:flex;align-items:center;gap:6px;margin-top:11px;padding-top:10px;border-top:1px solid var(--hair);
   font-size:11.5px;color:var(--champ-tx)}
 .ref-res-ok b{font-size:13px}
+/* v362 · desglose de la nota */
+.ts-desg{margin-top:14px;border:1px solid var(--line);border-radius:13px;padding:13px 15px}
+.ts-desg-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:11px}
+.ts-desg-h span{font-size:10.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted2)}
+.ts-desg-h b{font-size:14px;color:var(--c-ink)}
+.ts-caps{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px}
+.ts-cap{display:flex;flex-direction:column;gap:2px}
+.ts-cap-n{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+  display:flex;align-items:baseline;gap:5px}
+.ts-cap-n em{font-style:normal;font-size:9px;font-weight:700;color:var(--muted2);background:var(--hair);
+  padding:0 5px;border-radius:999px}
+.ts-cap b{font-size:20px;font-variant-numeric:tabular-nums;line-height:1.1}
+.ts-cap-b{height:4px;background:var(--hair);border-radius:2px;overflow:hidden}
+.ts-cap-b i{display:block;height:100%;border-radius:2px}
+.ts-prog{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:11px;border-top:1px solid var(--hair)}
+.ts-prog-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+  display:inline-flex;align-items:baseline;gap:5px}
+.ts-prog-l em{font-style:normal;font-size:9px;color:var(--muted2);background:var(--hair);padding:0 5px;border-radius:999px}
+.ts-prog b{font-size:19px;font-variant-numeric:tabular-nums;color:var(--c)}
+.ts-prog-d{font-size:10px;color:var(--muted2)}
+.ts-prog-p{margin-left:auto;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.ts-prog--no .ts-prog-x{font-size:10.5px;color:var(--muted2)}
+@media(max-width:680px){.ts-prog-p{margin-left:0}}
 /* v360 · referencia en la tarjeta y en el podio */
 .vh-ref{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--hair)}
 .vh-ref-f{font-size:10.5px;color:var(--muted)}
@@ -11577,7 +11601,119 @@ function buildTests(){
   STATE.tests=t;
 }
 function testStats(){const names=Object.keys(STATE.tests||{});const st={};TESTS.forEach(t=>{const vals=names.map(n=>(STATE.tests[n]||{})[t.k]).filter(v=>v!=null&&!isNaN(v));st[t.k]={m:vals.length?mean(vals):0,s:vals.length?sd(vals):0,n:vals.length};});return st;}
-function testZ(name,st){st=st||testStats();const o={z:{}};let zs=[];const rec=(STATE.tests||{})[name]||{};TESTS.forEach(t=>{const v=rec[t.k];if(v==null||isNaN(v)||!(st[t.k].s>0)){o.z[t.k]=null;return;}let z=(v-st[t.k].m)/st[t.k].s;if(t.lowerBetter)z=-z;o.z[t.k]=z;if(t.incTSA!==false)zs.push(z);});o.tsa=zs.length?mean(zs):NaN;o.t100=isNaN(o.tsa)?null:clamp(Math.round(o.tsa*10+50),0,100);return o;}
+/* ===================== TSA v2 · ponderado y con progreso (v362) ==============
+   Cambio pedido por Daniel el 15/09/2026 sobre el TSA, que hasta aquí figuraba
+   como bloqueado. Dos cosas que no funcionaban:
+
+   1 · El TSA era la media simple de los z de TODOS los tests, así que el peso de
+   cada capacidad lo decidía cuántas pruebas había de ella. Medido: 11 pruebas de
+   explosividad, 6 de condición y 5 de fuerza, o sea que la explosividad mandaba
+   el 50% de la nota. Por eso los extremos salían como los más completos: cuatro
+   de los cinco ocupaban las cuatro primeras plazas. Ahora la nota es la media
+   PONDERADA de las tres capacidades, y el número de pruebas dentro de cada una
+   deja de importar. Además entran los kg de masa muscular, que estaban fuera.
+
+   2 · No valía de nada mejorar. Se añade un componente de progreso para que
+   quien avanza escale, aunque no parta arriba. Se mide en DELTA DE Z —cuántas
+   desviaciones típicas ha ganado desde la primera valoración de la temporada—,
+   no en % de cambio: el % se dispara cuando el valor de partida es pequeño (en
+   los datos reales, la asimetría de tobillo de Josu pasó de 0,3 a 6 y eso da un
+   −1900% que se comería la nota entera). El % sigue mostrándose al jugador,
+   porque es lo que él entiende, pero quien puntúa es el delta de z. */
+const TSA_W={'Condición':0.25,'Fuerza':0.40,'Explosividad':0.35};
+const TSA_W_PROG=0.15;          /* cuánto pesa mejorar dentro de la nota final */
+const TSA_EXTRA=['masakg'];     /* entran al TSA aunque estén marcados incTSA:false */
+function tsaEnNota(t){return t.incTSA!==false||TSA_EXTRA.indexOf(t.k)>=0;}
+/* Progreso de un jugador: media del avance en z de sus pruebas desde la primera
+   valoración de la temporada. null si no tiene dos valoraciones que comparar. */
+function tsaProgresoZ(name,st){
+  st=st||testStats();
+  const corte=(typeof TEMP_INICIO!=='undefined')?TEMP_INICIO:'2026-07-01';
+  const sn=((STATE.testHist||{})[name]||[]).filter(s=>s&&s.date>=corte)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(sn.length<2)return null;
+  const ds=[];
+  TESTS.forEach(t=>{
+    if(!tsaEnNota(t)||!(st[t.k]&&st[t.k].s>0))return;
+    let a=null,b=null;
+    for(let i=0;i<sn.length;i++){if(sn[i].vals[t.k]!=null){a=sn[i].vals[t.k];break;}}
+    for(let j=sn.length-1;j>=0;j--){if(sn[j].vals[t.k]!=null){b=sn[j].vals[t.k];break;}}
+    if(a==null||b==null)return;
+    let d=(b-a)/st[t.k].s;
+    if(t.lowerBetter)d=-d;
+    ds.push(d);
+  });
+  return ds.length?{z:ds.reduce((x,y)=>x+y,0)/ds.length,n:ds.length,de:sn[0].date,a:sn[sn.length-1].date}:null;
+}
+/* El % de mejora que ve el jugador. Se deja fuera cualquier prueba cuyo valor de
+   partida sea tan pequeño que el porcentaje deje de significar nada, y se acota
+   a ±40% por prueba: sin eso una asimetría que pasa de 0,3 a 6 marca el total. */
+function tsaProgresoPct(name){
+  const corte=(typeof TEMP_INICIO!=='undefined')?TEMP_INICIO:'2026-07-01';
+  const sn=((STATE.testHist||{})[name]||[]).filter(s=>s&&s.date>=corte)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(sn.length<2)return null;
+  const ps=[];
+  TESTS.forEach(t=>{
+    if(!tsaEnNota(t))return;
+    let a=null,b=null;
+    for(let i=0;i<sn.length;i++){if(sn[i].vals[t.k]!=null){a=sn[i].vals[t.k];break;}}
+    for(let j=sn.length-1;j>=0;j--){if(sn[j].vals[t.k]!=null){b=sn[j].vals[t.k];break;}}
+    if(a==null||b==null||!a)return;
+    if(Math.abs(a)<1)return;                 /* base demasiado pequeña: el % miente */
+    let p=(b-a)/Math.abs(a)*100;
+    if(t.lowerBetter)p=-p;
+    ps.push(Math.max(-40,Math.min(40,p)));
+  });
+  return ps.length?ps.reduce((x,y)=>x+y,0)/ps.length:null;
+}
+/* Media y desviación del progreso del grupo, para poder convertirlo en z. */
+let TSA_PROG_CACHE=null;
+function tsaProgresoNorma(st){
+  if(TSA_PROG_CACHE)return TSA_PROG_CACHE;
+  st=st||testStats();
+  const vs=Object.keys(STATE.players||{}).map(n=>{const p=tsaProgresoZ(n,st);return p?p.z:null;})
+    .filter(v=>v!=null&&isFinite(v));
+  if(vs.length<3){TSA_PROG_CACHE={m:0,s:0,n:vs.length};return TSA_PROG_CACHE;}
+  const m=vs.reduce((a,b)=>a+b,0)/vs.length;
+  const s=Math.sqrt(vs.reduce((a,b)=>a+(b-m)*(b-m),0)/vs.length);
+  TSA_PROG_CACHE={m,s:s||0,n:vs.length};
+  return TSA_PROG_CACHE;
+}
+function tsaProgInvalidar(){TSA_PROG_CACHE=null;}
+window.tsaProgresoZ=tsaProgresoZ;window.tsaProgresoPct=tsaProgresoPct;
+window.tsaProgresoNorma=tsaProgresoNorma;window.tsaProgInvalidar=tsaProgInvalidar;
+function testZ(name,st){
+  st=st||testStats();
+  const o={z:{}};const rec=(STATE.tests||{})[name]||{};
+  TESTS.forEach(t=>{
+    const v=rec[t.k];
+    if(v==null||isNaN(v)||!(st[t.k]&&st[t.k].s>0)){o.z[t.k]=null;return;}
+    let z=(v-st[t.k].m)/st[t.k].s;
+    if(t.lowerBetter)z=-z;
+    o.z[t.k]=z;
+  });
+  /* nota base: media ponderada de las tres capacidades. Antes era la media de
+     todos los tests y mandaba quien más pruebas tenía. */
+  let acc=0,pw=0;o.cap={};
+  Object.keys(TSA_W).forEach(c=>{
+    const a=TESTS.filter(t=>t.cat===c&&tsaEnNota(t)&&o.z[t.k]!=null).map(t=>o.z[t.k]);
+    if(!a.length){o.cap[c]=null;return;}
+    const m=mean(a);o.cap[c]=m;acc+=m*TSA_W[c];pw+=TSA_W[c];
+  });
+  o.base=pw?acc/pw:NaN;
+  /* progreso, normalizado contra el del grupo */
+  const pr=tsaProgresoZ(name,st);
+  const nm=tsaProgresoNorma(st);
+  o.prog=pr;
+  o.progPct=tsaProgresoPct(name);
+  o.progZ=(pr&&nm.s>0)?(pr.z-nm.m)/nm.s:null;
+  o.tsa=isNaN(o.base)?NaN
+    :(o.progZ!=null?o.base*(1-TSA_W_PROG)+o.progZ*TSA_W_PROG:o.base);
+  o.t100=isNaN(o.tsa)?null:clamp(Math.round(o.tsa*10+50),0,100);
+  o.base100=isNaN(o.base)?null:clamp(Math.round(o.base*10+50),0,100);
+  return o;
+}
 function pctile(name,t){const vals=Object.keys(STATE.tests||{}).map(n=>(STATE.tests[n]||{})[t.k]).filter(v=>v!=null&&!isNaN(v));const v=(STATE.tests[name]||{})[t.k];if(v==null||vals.length<2)return null;const below=vals.filter(x=>t.lowerBetter?x>v:x<v).length;return Math.round(below/(vals.length-1)*100);}
 function catScore(zobj,cat){const ks=TESTS.filter(t=>t.cat===cat&&t.incTSA!==false&&zobj[t.k]!=null).map(t=>zobj[t.k]);return ks.length?mean(ks):NaN;}
 function shortLbl(t){return ({masa:'Masa',grasa:'Grasa',imo:'IMO',tobm:'Tob.mov',toba:'Tob.asim',bench:'Banca',benchrel:'Banca rel',cmj:'CMJ',cmja:'CMJ asim',rsi:'RSI',v7:'Lanz 7m',v9:'Lanz 9m',peso:'Peso',vift:'30-15',vo2:'VO₂máx',grip:'Agarre',squat:'Sentadilla',squatrel:'Sent. rel',cmju:'CMJ uni',sp10:'Sprint 10',sp20:'Sprint 20',sp30:'Sprint 30'})[t.k]||t.name;}
@@ -11812,6 +11948,41 @@ function refBarraNiveles(c,n,alto){
   return '<span class="tb-mix" style="height:'+h+'px">'+[0,1,2,3].map(i=>c[i]
     ?'<i style="width:'+(c[i]/n*100).toFixed(1)+'%;background:'+REF_NIV[i][1]+'" title="'+c[i]+' en '+REF_NIV[i][2]+'"><b>'+c[i]+'</b></i>':'').join('')+'</span>';
 }
+/* De qué se compone su nota: las tres capacidades con su peso y el progreso.
+   Sin esto el jugador ve un número que sube o baja y no sabe por qué. */
+function tsaDesgloseHtml(name,r){
+  if(!r||r.t100==null)return '';
+  const f=(v,d)=>(v==null||isNaN(v))?'—':(+v).toFixed(d==null?1:d);
+  const caps=Object.keys(TSA_W).map(c=>{
+    const z=r.cap?r.cap[c]:null;
+    const n100=(z==null||isNaN(z))?null:clamp(Math.round(z*10+50),0,100);
+    const t=n100==null?'muted':(n100>=60?'ok':(n100>=45?'warn':'bad'));
+    return '<div class="ts-cap"><span class="ts-cap-n">'+c+'<em>'+Math.round(TSA_W[c]*100)+'%</em></span>'
+      +'<b style="color:var(--'+t+')">'+(n100==null?'—':n100)+'</b>'
+      +'<div class="ts-cap-b"><i style="width:'+(n100||0)+'%;background:var(--'+t+')"></i></div></div>';
+  }).join('');
+  const p=r.prog,pz=r.progZ,pp=r.progPct;
+  let prog;
+  if(!p){
+    prog='<div class="ts-prog ts-prog--no"><span class="ts-prog-l">Progreso</span>'
+      +'<span class="ts-prog-x">Hacen falta dos valoraciones de esta temporada</span></div>';
+  }else{
+    const sube=pz!=null&&pz>0.15, baja=pz!=null&&pz<-0.15;
+    const col=sube?'var(--ok)':(baja?'var(--bad)':'var(--muted)');
+    const ptos=(r.base100!=null&&r.t100!=null)?(r.t100-r.base100):null;
+    prog='<div class="ts-prog" style="--c:'+col+'">'
+      +'<span class="ts-prog-l">Progreso<em>'+Math.round(TSA_W_PROG*100)+'%</em></span>'
+      +'<b>'+(pp!=null?((pp>0?'+':'')+f(pp)+'%'):((p.z>0?'+':'')+f(p.z,2)+' z'))+'</b>'
+      +'<span class="ts-prog-d">'+p.n+' pruebas · '+String(p.de).slice(5)+' → '+String(p.a).slice(5)+'</span>'
+      +(ptos!=null?'<span class="ts-prog-p" style="color:'+col+'">'+(ptos>0?'+':'')+ptos+' pts en la nota</span>':'')
+    +'</div>';
+  }
+  return '<div class="ts-desg">'
+   +'<div class="ts-desg-h">De qué sale su nota<span>'+(r.base100!=null?'base '+r.base100:'')
+     +(r.t100!=null?' → <b>'+r.t100+'</b>':'')+'</span></div>'
+   +'<div class="ts-caps">'+caps+'</div>'+prog+'</div>';
+}
+window.tsaDesgloseHtml=tsaDesgloseHtml;
 function renderTestsBaremo(){
   const box=document.getElementById('tsa-baremo');if(!box)return;
   const d=refEquipoDatos();
@@ -12044,6 +12215,7 @@ function renderTestsProfile(){
       <div class="sw-box" style="background:rgba(30,168,99,.1)"><div class="swh" style="color:var(--ok)">▲ Fortalezas</div><div class="swt">${strong.map(o=>o.t.name).join(' · ')||'—'}</div></div>
       <div class="sw-box" style="background:rgba(226,59,50,.09)"><div class="swh" style="color:var(--bad)">▼ A mejorar</div><div class="swt">${weak.map(o=>o.t.name).join(' · ')||'—'}</div></div>
     </div>
+    ${tsaDesgloseHtml(name,r)}
     ${refResumenHtml(name)}
     ${asymHTML}
     ${progHTML}`;
@@ -12628,7 +12800,7 @@ function renderFicha(name){
 
 /* ===================== HISTÓRICO POR FECHAS (evolución + % de mejora) ===================== */
 function buildTestHist(){
-  tempInvalidar();
+  tempInvalidar();tsaProgInvalidar();
   /* v192 · si hay histórico real importado desde la hoja de valoraciones
      (módulo VH), no se regeneran los snapshots sintéticos: los sobrescribiría. */
   if(STATE.vhLoaded)return;
@@ -25313,8 +25485,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-15.6*/
-const VER_ACTUAL='2026-09-15.6';
+/*BUILD:2026-09-15.7*/
+const VER_ACTUAL='2026-09-15.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
