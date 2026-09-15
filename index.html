@@ -3069,6 +3069,14 @@ body.modal-open #sidebar{overflow:hidden}
 .ref-res-ok{display:flex;align-items:center;gap:6px;margin-top:11px;padding-top:10px;border-top:1px solid var(--hair);
   font-size:11.5px;color:var(--champ-tx)}
 .ref-res-ok b{font-size:13px}
+/* v360 · referencia en la tarjeta y en el podio */
+.vh-ref{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--hair)}
+.vh-ref-f{font-size:10.5px;color:var(--muted)}
+.vh-ref-f b{color:var(--c-ink);font-variant-numeric:tabular-nums}
+.vh-ref-ya{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:var(--champ-tx)}
+.vh-ref-u{margin-left:auto;display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;
+  color:var(--champ-tx);font-variant-numeric:tabular-nums;white-space:nowrap}
+.vh-po-ch{display:inline-flex;margin-left:4px;vertical-align:-1px}
 /* v358 · baremo del equipo y champions en la evolución */
 .tb-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;margin-top:12px}
 .tb-k{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:1px;
@@ -24504,7 +24512,9 @@ function vhRankingHistorico(k,lado){
   out.sort((a,b)=>lb?a.v-b.v:b.v-a.v);
   return out;
 }
-function vhPodio(lista,unit,destacado){
+let VH_POD_K=null;
+function vhPodio(lista,unit,destacado,k){
+  if(k!==undefined)VH_POD_K=k;
   if(!lista.length)return '<p class="small muted">Sin mediciones registradas.</p>';
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   const top=lista.slice(0,3);
@@ -24520,7 +24530,11 @@ function vhPodio(lista,unit,destacado){
       +'<span class="vh-po-m">'+pos+'</span>'
       +'<img class="vh-po-f" src="'+vhFoto(o.n)+'" alt="">'
       +'<div class="vh-po-n">'+esc(o.n)+(o.ex?'<span class="vh-po-ex" title="'+esc(((typeof exMeta==='function'&&exMeta(o.n))||{}).temp||'jugador histórico')+'">ex</span>':'')+'</div>'
-      +'<div class="vh-po-v">'+vhFmt(o.v,2)+(unit?'<small> '+esc(unit)+'</small>':'')+'</div>'
+      +'<div class="vh-po-v">'+vhFmt(o.v,2)+(unit?'<small> '+esc(unit)+'</small>':'')
+        +((function(){try{
+            const _p=refPuesto(o.n),_n=(_p&&VH_POD_K)?refNivel(VH_POD_K,o.v,_p):null;
+            return (_n&&_n.lv===3)?'<span class="vh-po-ch" title="Nivel Champions">'+refInsignia(12)+'</span>':'';
+          }catch(e){return '';}})())+'</div>'
       +'<div class="vh-po-d">'+esc(o.dk||'')+'</div>'
       +'<div class="vh-po-base"></div>'
     +'</div>';
@@ -24598,7 +24612,7 @@ window.vhAbrir=function(k){
   const cuerpo=
     '<div class="vh-det">'
       +'<div class="vh-det-sec">Podio del equipo <span>última medición de cada jugador · '+esc(dir)+'</span></div>'
-      +vhPodio(act,def.unit,name)
+      +vhPodio(act,def.unit,name,k)
       +'<div class="vh-det-sec">Evolución de '+esc(name)+
         (puesto>=0?' <span>puesto '+(puesto+1)+' de '+act.length+'</span>':'')+'</div>'
       +vhChampBox(name,k,def)
@@ -24699,6 +24713,31 @@ window.exQuitar=function(n){
   exDel(n);exRender();
 };
 window.exRender=exRender;
+/* v360 · El pie de referencia de la tarjeta. La tarjeta decía cómo va el jugador
+   contra SU normal (el z), que es media respuesta: faltaba contra qué se mide
+   fuera. Aquí van su nivel en el baremo de su puesto y lo que le separa del
+   listón de Champions, que es lo que el jugador quiere saber. */
+function vhRefPie(name,t,valor){
+  if(!window.refPuesto)return '';
+  const p=refPuesto(name);
+  if(!p)return '';
+  const u=refUmbralChampions(t.k,p);
+  if(!u)return '';
+  const nv=(valor!=null&&!isNaN(valor))?refNivel(t.k,valor,p):null;
+  const d=(valor!=null&&!isNaN(valor))?refDistanciaChampions(t.k,valor,p):null;
+  const dec=(x)=>Math.abs(x)<1?2:(Math.abs(x)<10?1:0);
+  return '<div class="vh-ref">'
+   +(nv?'<span class="ref-pill'+(nv.lv===3?' ref-pill--champ':'')+'" style="--c:'+nv.col+'">'
+       +(nv.lv===3?refInsignia(10):'')+nv.lab+'</span>'
+     :'<span class="ref-duda">sin nivel</span>')
+   +(d
+     ?(d.ya?'<span class="vh-ref-ya">'+refInsignia(11)+' ya está</span>'
+        :'<span class="vh-ref-f">faltan <b>'+vhFmt(Math.abs(d.falta),dec(d.falta))+'</b> '+(t.unit||'')+'</span>')
+     :'')
+   +'<span class="vh-ref-u" title="Listón de Champions en su puesto">'+refInsignia(9)+vhFmt(u.valor,dec(u.valor))+'</span>'
+  +'</div>';
+}
+window.vhRefPie=vhRefPie;
 function vhRenderPanel(){
   const box=document.getElementById('vh-panel');if(!box)return;
   const sel=document.getElementById('tests-player');
@@ -24776,6 +24815,7 @@ function vhRenderPanel(){
         +vhEscalaZ(semaf&&!r.provisional?r.z:null,tier,semaf)
         +'<div class="vh-f"><span class="vh-age" style="color:'+age.col+'">'+age.txt+'</span>'
           +'<span class="vh-meta">'+(r.curDk||'—')+' · '+r.n+' med.</span></div>'
+        +vhRefPie(name,t,r.cur)
       +'</div>';
     }).join('');
     if(tarjetas)html+='<div class="vh-grid">'+tarjetas+'</div>';
@@ -25252,8 +25292,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-15.4*/
-const VER_ACTUAL='2026-09-15.4';
+/*BUILD:2026-09-15.5*/
+const VER_ACTUAL='2026-09-15.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
