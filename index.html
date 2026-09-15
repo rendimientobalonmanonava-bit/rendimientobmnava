@@ -584,7 +584,10 @@ main{padding:13px 16px 70px}
 #v-equipo .eq-r3 .eq-col>#team-posband{flex:1 1 auto}
 /* v345 · El gráfico de la semana crece con el panel: es el que absorbe el
    sobrante de su columna, en vez de repartirlo como aire entre los demás. */
-#v-equipo .eq-semana-plot{position:relative;min-height:210px;flex:1 1 auto;margin-top:8px}
+/* v361 · pie de la carga de la semana */
+#v-equipo .eq-semana-pie{margin:7px 0 0;font-size:9.5px;line-height:1.5;color:var(--muted2)}
+#v-equipo .eq-semana-pie i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#e08a00;vertical-align:0}
+#v-equipo .eq-semana-plot{position:relative;min-height:330px;flex:1 1 auto;margin-top:6px}
 #v-equipo .eq-semana-plot canvas{position:absolute;inset:0}
 #v-equipo #eq-semana{justify-content:flex-start}
 /* v344 · Y el sobrante que le toca a cada panel —unos 50 px— se reparte entre
@@ -3797,6 +3800,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="panel" id="eq-semana" style="cursor:pointer" onclick="go('cal')">
           <h2>Carga de la semana <span class="r muted">planificado vs real ›</span></h2>
           <div class="eq-semana-plot"><canvas id="eq-week-canvas"></canvas></div>
+          <p class="eq-semana-pie">Barra = carga real · raya negra = lo planificado · <i></i> ese día hubo trabajo sin programar, que no entra en la comparación</p>
         </div>
         <div class="panel" id="team-welllights"></div>
         <div id="team-posband"></div>
@@ -6154,9 +6158,15 @@ const lbcPlugCalWeek={
         ctx.setLineDash([5,5]);ctx.lineWidth=1;ctx.strokeStyle='rgba(15,30,61,.28)';
         ctx.beginPath();ctx.moveTo(area.left,y);ctx.lineTo(area.right,y);ctx.stroke();
         ctx.setLineDash([]);
+        /* v361 · iba pegada al eje y se cruzaba con la etiqueta del lunes. A la
+           derecha, sobre el domingo, casi siempre hay hueco. */
         ctx.font='700 9.5px Inter,system-ui,sans-serif';
-        ctx.fillStyle='rgba(15,30,61,.55)';ctx.textAlign='left';ctx.textBaseline='bottom';
-        ctx.fillText('media '+Math.round(media)+' UA',area.left+4,y-3);
+        const _tx='media '+Math.round(media)+' UA';
+        const _w=ctx.measureText(_tx).width;
+        ctx.fillStyle=(typeof cssVar==='function'?(cssVar('--panel')||'#fff'):'#fff');
+        ctx.globalAlpha=.82;ctx.fillRect(area.right-_w-8,y-13,_w+8,13);ctx.globalAlpha=1;
+        ctx.fillStyle='rgba(15,30,61,.62)';ctx.textAlign='right';ctx.textBaseline='bottom';
+        ctx.fillText(_tx,area.right-3,y-3);
       }
     }
 
@@ -6182,6 +6192,14 @@ const lbcPlugCalWeek={
       }
       const tot=Math.round(r.total||0);
       if(!tot)return;
+      /* v361 · El techo del día no siempre es la barra: cuando el plan supera lo
+         hecho, la marca del objetivo queda por encima y la etiqueta se montaba
+         encima de ella. Se coloca sobre lo que esté más arriba de los dos. */
+      let techo=bar.y;
+      if(pl.plan>0){
+        const yp=ejeY.getPixelForValue(pl.plan);
+        if(yp>=area.top-1&&yp<=area.bottom+1&&yp<techo)techo=yp-4;
+      }
       const dev=(typeof calDev==='function')?calDev(pl.plan,r.total):null;
       /* En pantallas estrechas cada día dispone de unos 34px: una cápsula con
          valor y desviación no cabe y se solaparía con la del día siguiente. Ahí
@@ -6194,7 +6212,7 @@ const lbcPlugCalWeek={
         ctx.font='800 9.5px Inter,system-ui,sans-serif';
         ctx.textAlign='center';ctx.textBaseline='bottom';
         ctx.fillStyle=dev?dev.col:COL_RPE;
-        ctx.fillText(t1,cx,Math.max(10,bar.y-4));
+        ctx.fillText(t1,cx,Math.max(10,techo-4));
         return;
       }
       ctx.font='800 12.5px Inter,system-ui,sans-serif';
@@ -6205,7 +6223,7 @@ const lbcPlugCalWeek={
       /* La cápsula puede salirse del área del gráfico y entrar en el margen
          superior reservado en layout.padding: ahí se dibuja igual y no tapa la
          barra. Solo se mete dentro si de verdad no cabe en el lienzo. */
-      let by=bar.y-bh-6;
+      let by=techo-bh-6;
       if(by<2)by=bar.y+6;
       const bx=cx-bw/2;
       /* cápsula clara con borde, como en los paneles de referencia */
@@ -6276,8 +6294,11 @@ function lbcDrawCalWeek(canvasId,dk){
       interaction:{mode:'index',intersect:false},
       /* Aire arriba para que la etiqueta quepa SOBRE la barra más alta. Con
          grace en el eje el hueco queda dentro del área del gráfico, así que la
-         cápsula no se sale del lienzo ni tapa la barra. */
-      layout:{padding:{top:44}},
+         cápsula no se sale del lienzo ni tapa la barra.
+         v361 · eran 44 px: con el panel a 210 px de alto se comían un quinto del
+         gráfico. La cápsula mide 30, así que 32 le deja sitio justo y sigue
+         devolviendo 12 px al dibujo. */
+      layout:{padding:{top:32}},
       plugins:{
         lbcPlugCalWeek:{datos:{real:cont,plan}},
         legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},usePointStyle:true}},
@@ -25292,8 +25313,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-15.5*/
-const VER_ACTUAL='2026-09-15.5';
+/*BUILD:2026-09-15.6*/
+const VER_ACTUAL='2026-09-15.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
