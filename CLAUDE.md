@@ -59,6 +59,7 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 |---|---|
 | Rojo `#e23b32` | **Solo alertas.** Nunca decorativo, nunca en gráficos neutros |
 | Oro `#e8b04b` | **Solo sidebar** |
+| Azul EHF `#15224a` + dorado `#c9a227`/`#f0d98a` | **Solo el nivel Champions** del Perfil físico. Tomados del logo de la EHF Champions League. *Autorizado por Daniel el 15/09/2026; no confundir con el oro del club, que sigue siendo exclusivo del sidebar* |
 | Índigo `#3056c4` | Color de acción (botones, enlaces activos) |
 
 ### 2.4 Regla anti-solape (médico ↔ disponibilidad)
