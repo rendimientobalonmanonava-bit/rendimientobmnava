@@ -957,6 +957,42 @@ main{padding:13px 16px 70px}
 .ficha-overlay{position:fixed;inset:0;background:rgba(15,20,28,.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto}
 .ficha-wrap{width:min(900px,96vw)}
 .ficha-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.ficha-card .cap-row--col{display:flex;flex-direction:column;gap:7px;padding:0}
+.ficha-card .cap-row--col .cap-cell{width:100%;box-sizing:border-box}
+/* v364 · ficha del jugador · camino a Champions */
+.ficha-card .fband-h--ch .t{color:#15224a}
+.fch-wrap{padding:2px 26px 16px}
+.fch-head{display:flex;align-items:center;gap:15px;padding:14px 18px;border-radius:14px;
+  background:linear-gradient(135deg,#15224a 0%,#0c1430 100%);color:#fff;position:relative;overflow:hidden}
+.fch-head:after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,transparent 52%,rgba(240,217,138,.16) 100%)}
+.fch-big{display:flex;align-items:baseline;gap:5px;flex:none}
+.fch-big b{font-size:42px;font-weight:800;line-height:1;letter-spacing:-.035em;color:#f0d98a}
+.fch-big span{font-size:14px;color:rgba(255,255,255,.62)}
+.fch-tx{display:flex;flex-direction:column;gap:2px;line-height:1.35;min-width:0}
+.fch-tx b{font-size:13.5px;color:#fff}
+.fch-tx span{font-size:10.5px;color:rgba(255,255,255,.58)}
+.fch-pc{margin-left:auto;font-size:30px;font-weight:800;letter-spacing:-.03em;color:#f0d98a;flex:none}
+.fch-list{margin-top:12px;display:flex;flex-direction:column;gap:2px}
+.fch-r{display:flex;align-items:center;gap:11px;padding:7px 4px;border-bottom:1px solid #edf0f4}
+.fch-r:last-child{border-bottom:0}
+.fch-r--ya{background:rgba(21,34,74,.045);border-radius:8px;border-bottom-color:transparent}
+.fch-n{width:158px;flex:none;font-size:11.5px;font-weight:600;color:#1b2330;line-height:1.25}
+.fch-n span{display:block;font-size:9px;font-weight:500;color:#8a93a0;text-transform:uppercase;letter-spacing:.04em}
+.fch-v{width:56px;flex:none;text-align:right;font-size:14px;font-weight:800;color:#1b2330;
+  font-variant-numeric:tabular-nums;font-family:var(--mono,monospace)}
+.fch-bar{position:relative;flex:1;min-width:60px;height:9px;background:#e9edf2;border-radius:5px;overflow:visible}
+.fch-bar i{display:block;height:9px;border-radius:5px}
+.fch-bar u{position:absolute;right:0;top:-3px;width:2.5px;height:15px;background:#c9a227;border-radius:2px;text-decoration:none}
+.fch-d{width:132px;flex:none;text-align:right;font-size:10.5px;color:#6b7480;line-height:1.3}
+.fch-d b{display:block;font-size:13px;font-weight:800;color:#15224a;font-variant-numeric:tabular-nums}
+.fch-d .fch-ok{font-size:11.5px;color:#15224a;letter-spacing:.02em}
+.fch-d span{font-size:9.5px;color:#9aa3ae}
+.fch-pie{margin:11px 0 0;font-size:9.5px;color:#9aa3ae;line-height:1.5}
+@media(max-width:700px){
+  .fch-head{flex-wrap:wrap;gap:10px}.fch-pc{margin-left:0}
+  .fch-n{width:112px}.fch-d{width:96px}
+}
 .ficha-card{width:794px;max-width:100%;margin:0 auto;color-scheme:light;--panel:#ffffff;--panel2:#f3f5f8;--ink:#1b2330;--muted:#6b7480;--hair:#e6eaef;--line2:#cfd5dd;background:#ffffff;color:var(--ink);border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .fwrap-pad{padding:0 26px}
 .fhead{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:22px 26px;background:linear-gradient(125deg,#8c1020 0%,#5a0c16 42%,#241c20 84%,#14141a 100%);color:#fff}
@@ -12534,7 +12570,22 @@ let FICHA_MODE='jugador';
 function fichaMode(m){FICHA_MODE=m;const j=document.getElementById('fm-jug'),f=document.getElementById('fm-full');if(j)j.classList.toggle('on',m==='jugador');if(f)f.classList.toggle('on',m==='completo');renderFicha(FICHA_NAME);}
 let FICHA_HIST=['cmj','peso'];
 let FICHA_TBL=['talla','peso','bench','benchrel','cmj','rsi','v7','v9','t100'];
-let CHAMP_REF={}; /* CHAMP_REF[posición]={claveMetrica:valorBruto} · referencia equipos Champions (pendiente de tus valores) */
+let CHAMP_REF={};
+/* v364 · Ya no está pendiente: el umbral de Champions de cada prueba sale del
+   baremo por puesto (REF_BM). Se traduce de los 5 puestos del documento a las 4
+   categorías que usa la app para poder pintarlo en el radar. */
+function champRefBuild(){
+  if(typeof REF_BM==='undefined')return CHAMP_REF;
+  const M={'Portero':'portero','Extremo':'extremo','Pivote':'pivote','1ª Línea':'lateral'};
+  const out={};
+  Object.keys(M).forEach(cat=>{
+    const p=M[cat],o={};
+    Object.keys(REF_BM).forEach(k=>{const u=refUmbralChampions(k,p);if(u)o[k]=u.valor;});
+    if(Object.keys(o).length)out[cat]=o;
+  });
+  CHAMP_REF=out;return CHAMP_REF;
+}
+window.champRefBuild=champRefBuild;
 function svgRing(val,color,size,label,track,txt){track=track||cssVar('--panel2')||'#e6e9ee';txt=txt||cssVar('--muted')||'#8a93a0';const v=clamp(val||0,0,100);const r=(size-14)/2;const c=2*Math.PI*r;const off=c*(1-v/100);return `<div style="text-align:center"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${track}" stroke-width="11"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="49%" text-anchor="middle" dominant-baseline="central" font-size="${Math.round(size*0.3)}" font-weight="800" fill="${color}" font-family="monospace">${Math.round(v)}</text><text x="50%" y="68%" text-anchor="middle" font-size="10" fill="${txt}">/100</text></svg><div class="small" style="margin-top:2px;color:${txt}">${label}</div></div>`;}
 function fichaMetricDefs(){const L=[{k:'talla',label:'Talla',cat:'Antropometría'},{k:'peso',label:'Peso',cat:'Antropometría'}];TESTS.forEach(t=>{if(t.k==='peso')return;L.push({k:t.k,label:t.name,cat:t.cat});});L.push({k:'t100',label:'Fitness score',cat:'Total'});return L;}
 function openFicha(name){FICHA_NAME=name;buildTests();buildAnthro();buildTestHist();testLogApply();try{vhHistApply();}catch(e){}const opts=fichaMetricDefs().map(m=>`<option value="${m.k}">${m.label}</option>`).join('');['fref0','fref1','fref2','fref3'].forEach((id,i)=>{const sl=document.getElementById(id);if(sl){if(!sl.options.length)sl.innerHTML=opts;sl.value=FICHA_REFS[i];}});['fh0','fh1'].forEach((id,i)=>{const sl=document.getElementById(id);if(sl){if(!sl.options.length)sl.innerHTML=opts;sl.value=FICHA_HIST[i];}});fichaTblChips();const ov=document.getElementById('ficha-overlay');ov.style.display='flex';const _j=document.getElementById('fm-jug'),_f=document.getElementById('fm-full');if(_j)_j.classList.toggle('on',FICHA_MODE==='jugador');if(_f)_f.classList.toggle('on',FICHA_MODE==='completo');try{renderFicha(name);}catch(e){console.error('ficha',e);const c=document.getElementById('ficha-card');if(c)c.innerHTML='<div style="padding:24px">No se pudo generar la ficha: '+e.message+'</div>';}}
@@ -12715,12 +12766,18 @@ function swCard(name){
     <div class="sw-grid"><div class="sw-col"><h4 style="color:#1ea863">Fortalezas</h4>${strong.map(o=>li(o,true)).join('')}</div><div class="sw-col"><h4 style="color:#e23b32">A mejorar</h4>${weak.map(o=>li(o,false)).join('')}</div></div>
     <div class="small muted" style="margin-top:8px">${txt} <span style="opacity:.8">(z = desviaciones vs media del equipo)</span></div>`;
 }
-function fichaSemaforo(name){
+/* v364 · `col` lo pinta en columna y sin banda de sección, para meterlo en el
+   hueco que dejaban las barras de referencia en vez de ocupar una franja propia.
+   Usa tsaEnNota, el mismo criterio que la nota. */
+function fichaSemaforo(name,col){
   const st=testStats();const r=testZ(name,st);const cats={};
-  TESTS.forEach(t=>{if(t.incTSA===false)return;const z=r.z[t.k];if(z==null||isNaN(z))return;(cats[t.cat]=cats[t.cat]||[]).push(z);});
+  TESTS.forEach(t=>{if(!tsaEnNota(t))return;if(!fichaVigente(t.k))return;const z=r.z[t.k];if(z==null||isNaN(z))return;(cats[t.cat]=cats[t.cat]||[]).push(z);});
   const order=['Condición','Fuerza','Explosividad'];
   const cells=order.filter(c=>cats[c]&&cats[c].length).map(c=>{const z=mean(cats[c]);const col=z>=0.4?'#1ea863':z>=-0.4?'#e0a800':'#e23b32';const lab=z>=0.4?'Alto':z>=-0.4?'Medio':'Bajo';const lv=z>=0.4?1:z>=-0.4?2:3;return `<div class="cap-cell" style="border-left-color:${col}"><div class="cap-tl">${calTraffic(lv,48,'cap-tl-svg')}</div><div class="cap-info"><div class="cap-name">${c}</div><div class="cap-lvl" style="color:${col}">${lab}</div><div class="cap-z mono">z ${fmt(z,2)} · vs equipo</div></div></div>`;}).join('');
-  return cells?`<div class="fband-h"><span class="t">Semáforo de capacidades</span><span class="l"></span></div><div class="cap-row">${cells}</div>`:'';
+  if(!cells)return '';
+  return col
+    ? `<div class="fsec" style="margin-top:14px">Semáforo de capacidades</div><div class="cap-row cap-row--col">${cells}</div>`
+    : `<div class="fband-h"><span class="t">Semáforo de capacidades</span><span class="l"></span></div><div class="cap-row">${cells}</div>`;
 }
 function fichaPercentiles(name){
   const list=[['cmj','CMJ','cm',false],['bench','1RM Banca','kg',false],['benchrel','Fuerza rel.','x',false],['rsi','RSI','',false],['v7','Lanz. 7m','km/h',false],['v9','Lanz. 9m','km/h',false]];
@@ -12747,8 +12804,103 @@ function fichaButterfly(name){
     <div class="bf-vals"><span>${o.l} ${o.unit}</span><span></span><span>${o.r} ${o.unit}</span></div>`;}).join('');
   return `<div class="fband-h"><span class="t">Asimetrías izquierda / derecha</span><span class="l"></span></div><div class="bf-wrap"><div class="bf-head"><span>Izquierda</span><span>Déficit</span><span>Derecha</span></div>${rows}<div class="small muted" style="margin-top:6px">Déficit &gt;10% = vigilar (riesgo de lesión). <i>Datos de ejemplo</i> · sustituir por mediciones bilaterales reales.</div></div>`;
 }
+/* ---------- Ficha del jugador · v364 ------------------------------------------
+   Rediseño pedido por Daniel: la ficha la lee el jugador, no el analista. Tres
+   cosas cambian. Solo entran las pruebas medidas en los últimos 90 días —una
+   marca de hace dos años no le dice nada de dónde está hoy—. El hueco que
+   quedaba en la columna derecha lo ocupa el camino a Champions, que es lo que el
+   jugador quiere saber: cuánto le falta y en qué. Y el percentil dentro de la
+   posición sale de la ficha: con cinco extremos casi todo era 0% o 100%, así que
+   parecía preciso sin serlo. */
+const FICHA_DIAS=90;
+function fichaVigente(k){
+  const H=STATE.testHist||{};
+  const hoy=new Date();
+  const lim=new Date(hoy.getTime()-FICHA_DIAS*864e5);
+  const corte=dkey(lim);
+  let hay=false,algo=false;
+  Object.keys(H).forEach(n=>{
+    (H[n]||[]).forEach(s=>{
+      if(!s||!s.date||s.vals[k]==null)return;
+      algo=true;
+      if(s.date>=corte)hay=true;
+    });
+  });
+  /* si esa prueba no está en el histórico fechado no se puede saber cuándo se
+     midió: se deja pasar en vez de esconderla sin motivo */
+  return algo?hay:true;
+}
+/* Camino a Champions: qué le falta al jugador para el listón de su puesto, de lo
+   más cerca a lo más lejos. El % es cuánto del trayecto lleva recorrido desde el
+   suelo de su banda roja hasta el listón. */
+function fichaChampions(name){
+  const puesto=(window.refPuesto?refPuesto(name):null);
+  if(!puesto)return null;
+  const vals=(STATE.tests||{})[name]||{};
+  const items=[];
+  TESTS.forEach(t=>{
+    if(!tsaEnNota(t))return;
+    if(!fichaVigente(t.k))return;
+    if(typeof tempVigente==='function'&&!tempVigente(t.k))return;
+    const v=vals[t.k];
+    if(v==null||isNaN(v))return;
+    const nv=refNivel(t.k,v,puesto);
+    const u=refUmbralChampions(t.k,puesto);
+    if(!nv||!u)return;
+    const d=refDistanciaChampions(t.k,v,puesto);
+    if(!d)return;
+    /* punto de partida: el borde de la banda roja, para que el % tenga suelo */
+    const b=(REF_BM[t.k]&&REF_BM[t.k].b&&REF_BM[t.k].b[puesto])||null;
+    let suelo=null;
+    if(b){const roja=b.find(x=>x[2]===0);if(roja)suelo=u.menosMejor?roja[0]:roja[1];}
+    let pct=null;
+    if(suelo!=null&&suelo!==u.valor){
+      pct=Math.round(Math.max(0,Math.min(100,(v-suelo)/(u.valor-suelo)*100)));
+    }
+    items.push({t,v,nv,u,d,pct});
+  });
+  if(!items.length)return null;
+  items.sort((a,b)=>{
+    if(a.d.ya!==b.d.ya)return a.d.ya?-1:1;
+    return Math.abs(a.d.pct)-Math.abs(b.d.pct);
+  });
+  return {puesto,items,ya:items.filter(x=>x.d.ya).length};
+}
+function fichaChampionsHtml(name){
+  const c=fichaChampions(name);
+  if(!c)return '';
+  const dec=x=>Math.abs(x)<1?2:(Math.abs(x)<10?1:0);
+  const filas=c.items.map(o=>{
+    const ya=o.d.ya;
+    const col=ya?'#15224a':(o.nv.lv===2?'#1ea863':(o.nv.lv===1?'#e0a800':'#e23b32'));
+    return '<div class="fch-r'+(ya?' fch-r--ya':'')+'">'
+     +'<div class="fch-n">'+o.t.name+'<span>'+(o.t.unit||'')+'</span></div>'
+     +'<div class="fch-v">'+fmt(o.v,dec(o.v))+'</div>'
+     +'<div class="fch-bar"><i style="width:'+(o.pct==null?(ya?100:0):o.pct)+'%;background:'+col+'"></i>'
+       +'<u title="Listón Champions"></u></div>'
+     +'<div class="fch-d">'+(ya
+        ?'<b class="fch-ok">✦ conseguido</b>'
+        :'<b>'+fmt(Math.abs(o.d.falta),dec(o.d.falta))+'</b><span> para '+fmt(o.u.valor,dec(o.u.valor))+'</span>')
+      +'</div></div>';
+  }).join('');
+  return '<div class="fband-h fband-h--ch"><span class="t">Tu camino a Champions</span><span class="l"></span></div>'
+   +'<div class="fch-wrap">'
+     +'<div class="fch-head">'
+       +'<div class="fch-big"><b>'+c.ya+'</b><span>de '+c.items.length+'</span></div>'
+       +'<div class="fch-tx"><b>pruebas ya en nivel Champions</b>'
+         +'<span>El listón de un jugador de EHF Champions League en tu puesto ('+c.puesto+')</span></div>'
+       +'<div class="fch-pc">'+Math.round(c.ya/c.items.length*100)+'%</div>'
+     +'</div>'
+     +'<div class="fch-list">'+filas+'</div>'
+     +'<p class="fch-pie">La barra mide cuánto llevas del camino desde el mínimo exigible hasta el listón de Champions. La marca vertical es el listón.</p>'
+   +'</div>';
+}
+window.fichaChampions=fichaChampions;window.fichaChampionsHtml=fichaChampionsHtml;
 function renderFicha(name){
   const card=document.getElementById('ficha-card');if(!card)return;
+  /* antes se construía junto al radar, o sea después del innerHTML, y el pie
+     decía que faltaba la referencia aunque el radar sí la pintase */
+  try{champRefBuild();}catch(e){}
   const st=testStats();const r=testZ(name,st);const rows=tsaRows();const me=rows.find(x=>x.name===name)||{};const n=rows.length;
   const tier=tsaTier(me.rank,n);const col=(cssVar('--'+tier)||cssVar('--ink'));
   const p=STATE.players[name]||{};const a=(STATE.anthro||{})[name]||{};const pos=p.pos||'';
@@ -12770,10 +12922,10 @@ function renderFicha(name){
   const rowM=m=>{const val=m.get(name);const agg=aggOf(m);const diff=(val!=null&&agg)?val-agg.avg:null;let dc='var(--muted)';
     if(diff!=null&&!m.neutral){const better=m.lb?(diff<0?1:diff>0?-1:0):(diff>0?1:diff<0?-1:0);dc=better>0?'var(--ok)':better<0?'var(--bad)':'var(--muted)';}else if(m.neutral)dc='var(--ink)';
     return `<tr><td>${m.label} <span class="fc-u">${m.unit}</span></td><td class="fc-v mono">${val==null?'—':fmt(val,1)}</td><td class="mono" style="color:${dc}">${diff==null?'—':(diff>=0?'+':'')+fmt(diff,1)}</td><td class="fc-best mono">${agg?fmt(agg.best,1):'—'}</td><td class="fc-avg mono">${agg?fmt(agg.avg,1):'—'}</td><td class="fc-worst mono">${agg?fmt(agg.worst,1):'—'}</td></tr>`;};
-  const trs=[];order.forEach(cat=>{const ms=(FICHA_TBL||[]).map(k=>byK[k]).filter(m=>m&&m.cat===cat);if(ms.length){trs.push(`<tr class="fc-block"><td colspan="6">${cat}</td></tr>`);ms.forEach(m=>trs.push(rowM(m)));}});
+  const trs=[];order.forEach(cat=>{const ms=(FICHA_TBL||[]).map(k=>byK[k]).filter(m=>m&&m.cat===cat&&(m.cat==='Antropometría'||m.cat==='Total'||fichaVigente(m.k)));if(ms.length){trs.push(`<tr class="fc-block"><td colspan="6">${cat}</td></tr>`);ms.forEach(m=>trs.push(rowM(m)));}});
   const tbl=`<table class="fc-tbl"><thead><tr><th>Métrica</th><th>Valor</th><th>Dif. media</th><th>Mejor</th><th>Media</th><th>Peor</th></tr></thead><tbody>${trs.join('')||'<tr><td colspan="6" class="muted">Selecciona métricas en "Tabla".</td></tr>'}</tbody></table>`;
   // barras de referencia (4 seleccionables, 2x2)
-  const refBars=(FICHA_REFS||[]).slice(0,4).map(k=>{const m=byK[k];return m?fRefBar(m.label,m.get(name),aggOf(m)):'';}).join('');
+  const refBars=(FICHA_REFS||[]).filter(k=>fichaVigente(k)).slice(0,4).map(k=>{const m=byK[k];return m?fRefBar(m.label,m.get(name),aggOf(m)):'';}).join('');
   card.innerHTML=`
     <div class="fhead"><div class="flogos">
       ${window.__LOGO_CLUB__?`<img class="flogo" src="${window.__LOGO_CLUB__}" alt="BM Nava">`:''}
@@ -12788,13 +12940,14 @@ function renderFicha(name){
       <div class="fcol">
         <div class="fwhoop">${wRing(me.t100,col,138,name.split(' ')[0])}${wRing(posT100,'#8a93a0',138,'Media '+(pos||'pos.'))}</div>
         <div class="fsec">Perfil de capacidades</div>
-        <div style="height:300px"><canvas id="ch-card-radar"></canvas></div>
-        <div class="small muted" style="margin-top:4px">${(CHAMP_REF||{})[pos]?'Sombreado dorado = referencia Champions de '+pos:'Referencia Champions pendiente de tus valores (CHAMP_REF).'}</div>
+        <div style="height:392px"><canvas id="ch-card-radar"></canvas></div>
+        <div class="small muted" style="margin-top:4px">${[(CHAMP_REF||{})[pos]?'Sombreado dorado = listón Champions de '+pos:'','solo pruebas de los últimos 90 días'].filter(Boolean).join(' · ')}</div>
       </div>
       <div class="fcol">
         <div class="fband-h"><span class="t">Barras de referencia</span><span class="l"></span></div>
         <div class="fref-2x2">${refBars}</div>
         <div class="fref-leg"><span><i style="border-color:#1ea863"></i>Mejor</span><span><i style="border-color:#1b2330"></i>Media</span><span><i style="border-color:#e23b32"></i>Peor</span></div>
+        ${fichaSemaforo(name,true)}
         ${FICHA_MODE==='completo'?`<div class="fband-h"><span class="t">Historial de datos</span><span class="l"></span></div>
         <div class="fsec">${(byK[FICHA_HIST[0]]||{}).label||'—'} <span class="muted" style="font-weight:400">· línea = media ${pos||'pos.'}</span></div>
         <div style="height:134px"><canvas id="ch-card-h0"></canvas></div>
@@ -12802,8 +12955,7 @@ function renderFicha(name){
         <div style="height:134px"><canvas id="ch-card-h1"></canvas></div>`:''}
       </div>
     </div>
-    ${fichaSemaforo(name)}
-    ${fichaPercentiles(name)}
+    ${fichaChampionsHtml(name)}
     <div class="fband-h"><span class="t">Tabla de métricas · comparativa por posición</span><span class="l"></span></div>
     <div style="padding:6px 26px 14px">${tbl}</div>
     ${note?`<div style="padding:0 26px 10px"><div class="fsec">Observaciones del cuerpo técnico</div><div class="small" style="white-space:pre-wrap">${note.replace(/</g,'&lt;')}</div></div>`:''}
@@ -12843,7 +12995,9 @@ function renderFicha(name){
   })();
   drawLV('ch-card-lv','card-lv-cap',name,mc,gc);drawCmjMonitor('ch-card-cmj','card-cmj-kpis',name,mc,gc);
   }
-  const TT=TESTS.filter(t=>t.incTSA!==false);
+  /* v364 · solo las pruebas medidas en los últimos 90 días: el radar llevaba 22
+     ejes y no se leía ninguna etiqueta */
+  const TT=TESTS.filter(t=>tsaEnNota(t)&&fichaVigente(t.k)&&(typeof tempVigente!=='function'||tempVigente(t.k)));
   const cmp=(document.getElementById('ficha-cmp')||{}).value||'none';
   const avgZ=cmp==='none'?null:squadAvgZ(cmp==='pos'?'pos':'team',pos);const cmpLab=cmp==='pos'?('Media '+(pos||'pos.')):'Media equipo';
   let champDs=null;const cr=(CHAMP_REF||{})[pos];
@@ -25541,8 +25695,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-17.1*/
-const VER_ACTUAL='2026-09-17.1';
+/*BUILD:2026-09-17.5*/
+const VER_ACTUAL='2026-09-17.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
