@@ -45,8 +45,9 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 | Valoraciones vigentes | Solo cuentan las pruebas con alguna medición desde el **1 de julio** (arranque de la 26/27, `TEMP_INICIO`). Las que no se han medido esta temporada quedan fuera del baremo, del resumen del jugador y de las tarjetas. *Decisión de Daniel el 15/09/2026: las marcas de hace dos y tres años ensuciaban el baremo* |
 | Cuadrantes — umbral | 58 |
 | z-scores valoraciones | Escalado robusto por MAD, suelo del 2 % para evitar z absurdos |
-| TSA — composición | Media **ponderada de las tres capacidades**: Fuerza 40 · Explosividad 35 · Condición 25 (`TSA_W`), más los kg de masa muscular, que antes quedaban fuera. *Cambiado el 15/09/2026 por decisión de Daniel; antes era la media simple de los z de los 22 tests, así que el peso lo decidía cuántas pruebas había de cada capacidad: 11 de explosividad mandaban el 50% de la nota y los extremos ocupaban las 4 primeras plazas* |
+| TSA — composición | Media **ponderada de las tres capacidades**, **un tercio cada una** (`TSA_W`). *Repartido a partes iguales el 17/09/2026 por decisión de Daniel; el 15/09 se había probado con Fuerza 40 · Explosividad 35 · Condición 25*, más los kg de masa muscular, que antes quedaban fuera. *Cambiado el 15/09/2026 por decisión de Daniel; antes era la media simple de los z de los 22 tests, así que el peso lo decidía cuántas pruebas había de cada capacidad: 11 de explosividad mandaban el 50% de la nota y los extremos ocupaban las 4 primeras plazas* |
 | TSA — progreso | Componente extra con peso 15% (`TSA_W_PROG`): avance medio **en desviaciones típicas** desde la primera valoración de la temporada, normalizado contra el del grupo. **No se usa el % de cambio para puntuar**: se dispara con bases pequeñas (la asimetría de tobillo de Josu pasó de 0,3 a 6 = −1900%). El % sí se muestra al jugador, acotado a ±40% por prueba y descartando bases menores de 1 |
+| TSA — ranking por puesto | Vista añadida el 17/09/2026: mismo TSA, comparado solo dentro del puesto. **No cambia ninguna nota.** Existe porque a los porteros se les puntúa con pruebas de jugador de campo y cierran la tabla global (45 y 39); con el baremo por puesto salen aún peor (49 y 25), así que el problema no es el cálculo sino con qué se les mide. **Pendiente de decisión de Daniel: qué pruebas valorar a un portero** |
 | TSA — resto | Bloqueado |
 | contactFactor | Bloqueado |
 
@@ -244,6 +245,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - Dirección de los tres tests sin confirmar
 - Los dos valores sospechosos de Óscar
 - Orden de filas en la tabla manual de HR
+- Qué pruebas físicas tiene sentido valorar a un portero (hoy se les mide con las de jugador de campo y quedan últimos del TSA)
 
 **Trabajo pendiente:**
 - Configuración de Supabase (SQL y guía entregados, sin confirmar el alta)

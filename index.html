@@ -3072,6 +3072,19 @@ body.modal-open #sidebar{overflow:hidden}
 .ref-res-ok{display:flex;align-items:center;gap:6px;margin-top:11px;padding-top:10px;border-top:1px solid var(--hair);
   font-size:11.5px;color:var(--champ-tx)}
 .ref-res-ok b{font-size:13px}
+/* v363 · ranking por puesto */
+.tsp-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:18px}
+.tsp-g{min-width:0;padding:0 5px}   /* compensa el margen negativo de .tsp-r */
+.tsp-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:10.5px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--hair)}
+.tsp-h span{font-size:9.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted2)}
+.tsp-r{display:flex;align-items:center;gap:7px;padding:4px 5px;margin:0 -5px;border-radius:7px;cursor:pointer}
+.tsp-r:hover{background:var(--hair)}
+.tsp-p{width:13px;flex:none;font-size:9.5px;font-weight:800;color:var(--muted2);font-variant-numeric:tabular-nums}
+.tsp-n{flex:1;min-width:0;font-size:11.5px;color:var(--c-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tsp-b{width:52px;flex:none;height:5px;background:var(--hair);border-radius:3px;overflow:hidden}
+.tsp-b i{display:block;height:100%;border-radius:3px}
+.tsp-r b{width:22px;flex:none;text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
 /* v362 · desglose de la nota */
 .ts-desg{margin-top:14px;border:1px solid var(--line);border-radius:13px;padding:13px 15px}
 .ts-desg-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;
@@ -4374,6 +4387,7 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     <div class="panel" id="tsa-team-sum"></div>
     <div class="grid g2">
       <div class="panel"><h2>Ranking TSA del equipo <span class="r muted">tercios: verde/ámbar/rojo</span></h2><div style="height:420px"><canvas id="ch-tsa-rank"></canvas></div></div>
+      <div class="panel"><h2>Ranking por puesto <span class="r muted">cada uno contra los suyos</span></h2><div id="tsa-rank-pos"></div></div>
       <div class="panel"><h2>Mapa de calor · jugadores × tests <span class="r muted">z (rojo↓ verde↑)</span></h2><div class="wrap-x"><div id="tsa-heat"></div></div></div>
     </div>
     <details class="panel" style="padding:14px 18px">
@@ -11620,7 +11634,11 @@ function testStats(){const names=Object.keys(STATE.tests||{});const st={};TESTS.
    los datos reales, la asimetría de tobillo de Josu pasó de 0,3 a 6 y eso da un
    −1900% que se comería la nota entera). El % sigue mostrándose al jugador,
    porque es lo que él entiende, pero quien puntúa es el delta de z. */
-const TSA_W={'Condición':0.25,'Fuerza':0.40,'Explosividad':0.35};
+/* v363 · Daniel, 17/09/2026: las tres capacidades pesan lo mismo. Lo que se
+   corrigió en la v362 no era el reparto entre capacidades sino que el reparto lo
+   decidiera el número de pruebas de cada una; con un tercio cada una, eso sigue
+   arreglado y además el criterio es el más neutro posible. */
+const TSA_W={'Condición':1/3,'Fuerza':1/3,'Explosividad':1/3};
 const TSA_W_PROG=0.15;          /* cuánto pesa mejorar dentro de la nota final */
 const TSA_EXTRA=['masakg'];     /* entran al TSA aunque estén marcados incTSA:false */
 function tsaEnNota(t){return t.incTSA!==false||TSA_EXTRA.indexOf(t.k)>=0;}
@@ -11715,7 +11733,11 @@ function testZ(name,st){
   return o;
 }
 function pctile(name,t){const vals=Object.keys(STATE.tests||{}).map(n=>(STATE.tests[n]||{})[t.k]).filter(v=>v!=null&&!isNaN(v));const v=(STATE.tests[name]||{})[t.k];if(v==null||vals.length<2)return null;const below=vals.filter(x=>t.lowerBetter?x>v:x<v).length;return Math.round(below/(vals.length-1)*100);}
-function catScore(zobj,cat){const ks=TESTS.filter(t=>t.cat===cat&&t.incTSA!==false&&zobj[t.k]!=null).map(t=>zobj[t.k]);return ks.length?mean(ks):NaN;}
+/* v363 · Usaba `incTSA!==false` mientras el TSA ya usaba `tsaEnNota`, que además
+   incluye los kg de masa muscular. Resultado: el podio por capacidad, la tabla de
+   perfiles y las tarjetas de la ficha puntuaban con un criterio y la nota global
+   con otro. Se unifican en tsaEnNota. */
+function catScore(zobj,cat){const ks=TESTS.filter(t=>t.cat===cat&&tsaEnNota(t)&&zobj[t.k]!=null).map(t=>zobj[t.k]);return ks.length?mean(ks):NaN;}
 function shortLbl(t){return ({masa:'Masa',grasa:'Grasa',imo:'IMO',tobm:'Tob.mov',toba:'Tob.asim',bench:'Banca',benchrel:'Banca rel',cmj:'CMJ',cmja:'CMJ asim',rsi:'RSI',v7:'Lanz 7m',v9:'Lanz 9m',peso:'Peso',vift:'30-15',vo2:'VO₂máx',grip:'Agarre',squat:'Sentadilla',squatrel:'Sent. rel',cmju:'CMJ uni',sp10:'Sprint 10',sp20:'Sprint 20',sp30:'Sprint 30'})[t.k]||t.name;}
 function scoreRing(val,colorVar,size,label){size=size||96;const v=clamp(val||0,0,100);const deg=v*3.6;
   return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:7px">
@@ -12033,8 +12055,42 @@ window.tsaVerJugador=function(n){
   try{window.scrollTo(0,0);}catch(e){}
 };
 
+/* v363 · Ranking dentro del puesto. El TSA compara a cada jugador contra los 19,
+   y eso castiga estructuralmente al portero: se le puntúa con pruebas de jugador
+   de campo —salto, sprint, lanzamiento— que no son las de su puesto. Medido: los
+   dos porteros cierran la tabla con 45 y 39, y con el baremo por puesto salen aún
+   peor (49 y 25), así que no es un problema del cálculo sino de con qué se les
+   mide. Mientras eso no se decida, al menos que cada uno se vea contra los suyos:
+   la nota no cambia, cambia contra quién se lee. */
+function tsaRankPuestoHtml(){
+  const rows=tsaRows().filter(r=>r.t100!=null);
+  if(!rows.length)return '';
+  const grupos={};
+  rows.forEach(r=>{(grupos[r.pos||'—']=grupos[r.pos||'—']||[]).push(r);});
+  const orden=['Portero','1ª Línea','Extremo','Pivote'].filter(k=>grupos[k])
+    .concat(Object.keys(grupos).filter(k=>['Portero','1ª Línea','Extremo','Pivote'].indexOf(k)<0));
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const q=v=>String(v).replace(/'/g,"\\'");
+  return '<div class="tsp-wrap">'+orden.map(g=>{
+    const l=grupos[g].slice().sort((a,b)=>b.t100-a.t100);
+    const med=Math.round(l.reduce((a,b)=>a+b.t100,0)/l.length);
+    return '<div class="tsp-g"><div class="tsp-h">'+esc(g)+'<span>'+l.length+' · media '+med+'</span></div>'
+     +l.map((r,i)=>{
+        const t=i===0?'ok':(i>=l.length-1&&l.length>2?'bad':'warn');
+        return '<div class="tsp-r" onclick="tsaVerJugador(\''+q(r.name)+'\')">'
+          +'<span class="tsp-p">'+(i+1)+'</span>'
+          +'<span class="tsp-n">'+esc(r.name)+'</span>'
+          +'<span class="tsp-b"><i style="width:'+r.t100+'%;background:var(--'+t+')"></i></span>'
+          +'<b style="color:var(--'+t+')">'+r.t100+'</b></div>';
+      }).join('')
+    +'</div>';
+  }).join('')+'</div>'
+  +'<p class="small muted" style="margin:10px 0 0">La nota es la misma que en el ranking general; aquí solo se compara con los de su puesto. Ojo con los porteros: se les valora con pruebas pensadas para jugadores de campo.</p>';
+}
+window.tsaRankPuestoHtml=tsaRankPuestoHtml;
 function renderTestsTeam(){
   try{renderTestsBaremo();}catch(e){console.error('bmnava · baremo equipo',e);}
+  try{const rp=document.getElementById('tsa-rank-pos');if(rp)rp.innerHTML=tsaRankPuestoHtml();}catch(e){console.error('bmnava · ranking por puesto',e);}
   const box=document.getElementById('tsa-team-sum');if(!box)return;
   const rows=tsaRows(),n=rows.length;
   const conDato=rows.filter(r=>!isNaN(r.tsa)&&r.t100!=null);
@@ -25485,8 +25541,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-15.7*/
-const VER_ACTUAL='2026-09-15.7';
+/*BUILD:2026-09-17.1*/
+const VER_ACTUAL='2026-09-17.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
