@@ -1217,6 +1217,7 @@ main{padding:13px 16px 70px}
 .ficha-card .cap-row--col .cap-lvl{font-size:14px;line-height:1.2}
 /* fuertes / a mejorar, en palabras y bajo el radar */
 .fsw{margin-top:13px;display:flex;flex-direction:column;gap:7px}
+.fsw-cap{font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#a1a1a6}
 .fsw-r{display:flex;align-items:flex-start;gap:7px;flex-wrap:wrap}
 .fsw-h{font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
   padding-top:4px;flex:0 0 66px}
@@ -11997,6 +11998,55 @@ function refInsignia(size){
    +'<path d="M12 2.6l2.55 5.9 6.4.56-4.84 4.23 1.44 6.26L12 16.25 6.45 19.55l1.44-6.26L3.05 9.06l6.4-.56z" '
    +'fill="url(#'+id+')"/></svg>';
 }
+/* v368 · Nivel con decimales: el entero es la franja (0 rojo … 3 Champions) y la
+   parte decimal, cuánto lleva recorrido dentro de ella. Sirve para que el radar
+   de capacidades tenga relieve en vez de cuatro escalones. */
+function refNivelCont(k,v,puesto){
+  const nv=refNivel(k,v,puesto);if(!nv)return null;
+  const u=refUmbralChampions(k,puesto);
+  const menos=u?!!u.menosMejor:false;
+  let f;
+  if(nv.min!=null&&nv.max!=null){
+    f=(v-nv.min)/((nv.max-nv.min)||1);
+    if(menos)f=1-f;
+    f=Math.max(0,Math.min(1,f));
+  }else f=(nv.lv===3)?1:0;      /* bandas abiertas: tope arriba, suelo abajo */
+  return Math.max(0,Math.min(3,nv.lv+f*0.999));
+}
+/* Los 22 tests agrupados en las capacidades que el jugador reconoce. El radar
+   con un eje por prueba era ilegible: 22 etiquetas pisándose. */
+const CAP_GRUPOS=[
+  {g:'Velocidad',   ks:['acc20','sp10','sp20','sp30','ttest']},
+  {g:'Salto',       ks:['cmj','cmju','rsi']},
+  {g:'Lanzamiento', ks:['v7','v9']},
+  {g:'Fuerza máx.', ks:['bench','squat','benchrel','squatrel']},
+  {g:'Agarre',      ks:['grip']},
+  {g:'Resistencia', ks:['vift','vo2']},
+  {g:'Composición', ks:['masakg','grasa','masa']},
+  {g:'Movilidad',   ks:['tobm','toba','cmja','movhom']}
+];
+/* Perfil de capacidades de un jugador en la escala de su puesto. Devuelve un eje
+   por grupo con al menos una prueba vigente y con baremo utilizable. */
+function capPerfil(name,puesto){
+  puesto=puesto||(window.refPuesto?refPuesto(name):null);
+  if(!puesto)return null;
+  const vals=(STATE.tests||{})[name]||{};
+  const ejes=[];
+  CAP_GRUPOS.forEach(gr=>{
+    const ns=[];
+    gr.ks.forEach(k=>{
+      const t=TESTS.find(x=>x.k===k);if(!t)return;
+      if(!fichaVigente(k))return;
+      if(typeof tempVigente==='function'&&!tempVigente(k))return;
+      const v=vals[k];if(v==null||isNaN(v))return;
+      const nc=refNivelCont(k,v,puesto);if(nc==null)return;
+      ns.push(nc);
+    });
+    if(ns.length)ejes.push({g:gr.g,v:mean(ns),n:ns.length});
+  });
+  return ejes.length?ejes:null;
+}
+window.refNivelCont=refNivelCont;window.capPerfil=capPerfil;
 window.refNivel=refNivel;window.refPuesto=refPuesto;window.refBarra=refBarra;
 window.refDistanciaChampions=refDistanciaChampions;window.refUmbralChampions=refUmbralChampions;
 
@@ -13041,6 +13091,7 @@ function fichaFuertes(name){
     +';border-color:'+(g?'rgba(30,168,99,.34)':'rgba(226,59,50,.3)')
     +';background:'+(g?'rgba(30,168,99,.07)':'rgba(226,59,50,.06)')+'">'+o.lab+'</span>';
   return '<div class="fsw">'
+   +'<div class="fsw-cap">Dentro del equipo</div>'
    +'<div class="fsw-r"><span class="fsw-h" style="color:#177a4c">Fuerte</span>'
      +s2.slice(0,3).map(o=>chip(o,1)).join('')+'</div>'
    +'<div class="fsw-r"><span class="fsw-h" style="color:#b02d26">A mejorar</span>'
@@ -13157,8 +13208,8 @@ function renderFicha(name){
     <div class="fcol2">
       <div class="fcol">
         <div class="fsec">Perfil de capacidades</div>
-        <div style="height:212px"><canvas id="ch-card-radar"></canvas></div>
-        <div class="small muted" style="margin-top:4px">${[(CHAMP_REF||{})[pos]?'Sombreado dorado = listón Champions de '+pos:'','solo pruebas de los últimos 90 días'].filter(Boolean).join(' · ')}</div>
+        <div style="height:248px"><canvas id="ch-card-radar"></canvas></div>
+        <div class="small muted" style="margin-top:4px">${(window.refPuesto&&refPuesto(name))?('Los anillos son las franjas del baremo de '+refPuesto(name)+': rojo por dentro, Champions el exterior. Solo pruebas de los últimos 90 días.'):((CHAMP_REF||{})[pos]?'Sombreado dorado = listón Champions de '+pos+' · solo pruebas de los últimos 90 días':'solo pruebas de los últimos 90 días')}</div>
         ${fichaFuertes(name)}
       </div>
       <div class="fcol">
@@ -13214,16 +13265,61 @@ function renderFicha(name){
   drawLV('ch-card-lv','card-lv-cap',name,mc,gc);drawCmjMonitor('ch-card-cmj','card-cmj-kpis',name,mc,gc);
   }
   /* v364 · solo las pruebas medidas en los últimos 90 días: el radar llevaba 22
-     ejes y no se leía ninguna etiqueta */
-  const TT=TESTS.filter(t=>tsaEnNota(t)&&fichaVigente(t.k)&&(typeof tempVigente!=='function'||tempVigente(t.k)));
-  const cmp=(document.getElementById('ficha-cmp')||{}).value||'none';
-  const avgZ=cmp==='none'?null:squadAvgZ(cmp==='pos'?'pos':'team',pos);const cmpLab=cmp==='pos'?('Media '+(pos||'pos.')):'Media equipo';
-  let champDs=null;const cr=(CHAMP_REF||{})[pos];
-  if(cr){champDs={label:'Ref. Champions',data:TT.map(t=>{const raw=cr[t.k];if(raw==null||!(st[t.k].s>0))return null;let z=(raw-st[t.k].m)/st[t.k].s;return t.lowerBetter?-z:z;}),backgroundColor:'rgba(184,137,58,.20)',borderColor:'#b8893a',borderWidth:1.6,borderDash:[5,3],pointRadius:0};}
+     ejes y no se leía ninguna etiqueta
+     v368 · Con 22 ejes seguía saturando aunque se leyeran. Ahora son ocho
+     capacidades y la escala no es el z del equipo sino la del baremo del puesto:
+     0 = rojo, 3 = listón Champions. El anillo exterior es Champions, así que la
+     distancia al borde es literalmente lo que le falta. */
   const rel=document.getElementById('ch-card-radar');
-  if(rel){const dsr=[];if(champDs)dsr.push(champDs);if(avgZ)dsr.push({label:cmpLab,data:TT.map(t=>avgZ[t.k]),backgroundColor:'rgba(120,130,145,.10)',borderColor:'#9aa3ae',borderWidth:1.5,borderDash:[4,3],pointRadius:0});
+  const puestoRef=(window.refPuesto?refPuesto(name):null);
+  const ejes=rel?capPerfil(name,puestoRef):null;
+  if(rel&&ejes&&ejes.length>=3){
+    const NIVCOL=['#e23b32','#e0a800','#1ea863','#b8893a'];
+    const NIVLAB=['Rojo','Ámbar','Verde','Champions'];
+    /* referencia del puesto: la misma escala, promediada entre los compañeros */
+    const cmp=(document.getElementById('ficha-cmp')||{}).value||'none';
+    let refDs=null;
+    if(cmp!=='none'){
+      const nms=Object.keys(STATE.players||{}).filter(nm=>nm!==name&&(cmp==='team'||posOf(nm)===pos));
+      const acc={};
+      nms.forEach(nm=>{const e=capPerfil(nm,cmp==='team'?(window.refPuesto?refPuesto(nm):null):puestoRef);
+        if(e)e.forEach(o=>{(acc[o.g]=acc[o.g]||[]).push(o.v);});});
+      const data=ejes.map(o=>acc[o.g]&&acc[o.g].length?+mean(acc[o.g]).toFixed(2):null);
+      if(data.some(v=>v!=null))refDs={label:cmp==='pos'?('Media '+(pos||'pos.')):'Media equipo',data,
+        backgroundColor:'rgba(120,130,145,.10)',borderColor:'#9aa3ae',borderWidth:1.5,borderDash:[4,3],pointRadius:0};
+    }
+    const dsr=[{label:'Listón Champions',data:ejes.map(()=>3),backgroundColor:'rgba(184,137,58,.13)',
+      borderColor:'#b8893a',borderWidth:1.6,borderDash:[5,3],pointRadius:0}];
+    if(refDs)dsr.push(refDs);
+    dsr.push({label:name.split(' ')[0],data:ejes.map(o=>+o.v.toFixed(2)),
+      backgroundColor:rgba(PAL.accent,.22),borderColor:PAL.accent,borderWidth:2.4,
+      pointBackgroundColor:ejes.map(o=>NIVCOL[Math.max(0,Math.min(3,Math.round(o.v)))]),
+      pointBorderColor:'#fff',pointBorderWidth:1.2,pointRadius:4});
+    charts['ch-card-radar']=new Chart(rel,{type:'radar',
+      data:{labels:ejes.map(o=>o.g),datasets:dsr},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:true,labels:{color:mc,font:{size:9},boxWidth:9,usePointStyle:true}},
+          tooltip:{callbacks:{label:c=>{const o=ejes[c.dataIndex];const lv=Math.max(0,Math.min(3,Math.round(c.raw)));
+            return c.dataset.label+': '+NIVLAB[lv]+' ('+fmt(c.raw,1)+'/3'+(c.datasetIndex===dsr.length-1?' · '+o.n+' prueba'+(o.n===1?'':'s'):'')+')';}}}},
+        scales:{r:{min:0,max:3,
+          /* los anillos ya van en color: escribir Rojo/Ámbar/Verde encima del
+             polígono era justo el ruido que sobraba */
+          ticks:{display:false,stepSize:1},
+          grid:{color:c=>c.index===0?'#eceef2':rgba(NIVCOL[c.index-1],.42),lineWidth:c=>c.index===3?1.6:1},
+          angleLines:{color:'#eceef2'},
+          pointLabels:{color:'#4a5160',font:{size:10.5,weight:'600'}}}}}});
+  }
+  else if(rel){
+    /* plan B: sin baremo del puesto se mantiene el radar por z de siempre */
+    const TT=TESTS.filter(t=>tsaEnNota(t)&&fichaVigente(t.k)&&(typeof tempVigente!=='function'||tempVigente(t.k)));
+    const cmp=(document.getElementById('ficha-cmp')||{}).value||'none';
+    const avgZ=cmp==='none'?null:squadAvgZ(cmp==='pos'?'pos':'team',pos);const cmpLab=cmp==='pos'?('Media '+(pos||'pos.')):'Media equipo';
+    let champDs=null;const cr=(CHAMP_REF||{})[pos];
+    if(cr){champDs={label:'Ref. Champions',data:TT.map(t=>{const raw=cr[t.k];if(raw==null||!(st[t.k].s>0))return null;let z=(raw-st[t.k].m)/st[t.k].s;return t.lowerBetter?-z:z;}),backgroundColor:'rgba(184,137,58,.20)',borderColor:'#b8893a',borderWidth:1.6,borderDash:[5,3],pointRadius:0};}
+    const dsr=[];if(champDs)dsr.push(champDs);if(avgZ)dsr.push({label:cmpLab,data:TT.map(t=>avgZ[t.k]),backgroundColor:'rgba(120,130,145,.10)',borderColor:'#9aa3ae',borderWidth:1.5,borderDash:[4,3],pointRadius:0});
     dsr.push({label:name,data:TT.map(t=>r.z[t.k]),backgroundColor:rgba(PAL.accent,.18),borderColor:PAL.accent,borderWidth:2.4,pointBackgroundColor:PAL.accent,pointRadius:3});
-    charts['ch-card-radar']=new Chart(rel,{type:'radar',data:{labels:TT.map(t=>shortLbl(t)),datasets:dsr},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:!!(avgZ||champDs),labels:{color:mc,font:{size:9},boxWidth:9}}},scales:{r:{min:-2.2,max:2.2,ticks:{stepSize:1,color:mc,font:{size:8},backdropColor:'transparent'},grid:{color:gc},angleLines:{color:gc},pointLabels:{color:mc,font:{size:10}}}}}});}
+    charts['ch-card-radar']=new Chart(rel,{type:'radar',data:{labels:TT.map(t=>shortLbl(t)),datasets:dsr},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:!!(avgZ||champDs),labels:{color:mc,font:{size:9},boxWidth:9}}},scales:{r:{min:-2.2,max:2.2,ticks:{stepSize:1,color:mc,font:{size:8},backdropColor:'transparent'},grid:{color:gc},angleLines:{color:gc},pointLabels:{color:mc,font:{size:10}}}}}});
+  }
 }
 
 /* ===================== HISTÓRICO POR FECHAS (evolución + % de mejora) ===================== */
@@ -25913,8 +26009,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-19.2*/
-const VER_ACTUAL='2026-09-19.2';
+/*BUILD:2026-09-19.3*/
+const VER_ACTUAL='2026-09-19.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
