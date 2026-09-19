@@ -1081,6 +1081,7 @@ main{padding:13px 16px 70px}
 .fband-h{display:flex;align-items:center;gap:10px;padding:10px 26px 4px}
 .fband-h .l{flex:1;height:1px;background:var(--hair)}
 .fband-h .t{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+.fband-h .s{font-size:11.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted)}
 /* v240 · Era la única rejilla que desbordaba de verdad en móvil: sus tres
    columnas sumaban 401px dentro de un contenedor de 346. minmax(0,1fr)
    permite que encojan, y por debajo de 640 pasan a una sola columna, igual
@@ -1195,6 +1196,15 @@ main{padding:13px 16px 70px}
 .ficha-card .fch-c .ref-bar i:last-of-type{border-radius:0 4px 4px 0}
 .ficha-card .fch-c .ref-bar u{background:#1d1d20;top:-2.5px;height:12px;width:2.5px}
 .fch-flip{display:block;transform:scaleX(-1)}
+/* la ficha se exporta siempre en claro: el azul marino de Champions no puede
+   virar a dorado porque la app esté en modo oscuro */
+.ficha-card{--champ:#15224a;--champ-tx:#15224a}
+.cap-chips{display:flex;align-items:center;gap:2px;margin-top:4px;flex-wrap:wrap}
+.cap-chips i{width:11px;height:6px;border-radius:2px;display:block;flex:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.cap-chips span{font-size:9.5px;color:var(--muted);margin-left:6px}
+.ficha-card .cap-row--col .cap-cell .cap-chips span{font-size:8.5px}
+.cap-lvl .ref-ins{vertical-align:-1px;margin-right:1px}
 /* las cuatro barras de referencia en fila no caben en el móvil: se parten en 2x2 */
 @media(max-width:700px){.fref-2x2{grid-template-columns:repeat(2,1fr)}}
 .ficha-card .fch-cd{font-size:9.5px;color:var(--muted);font-weight:500}
@@ -12869,10 +12879,59 @@ function swCard(name){
     <div class="sw-grid"><div class="sw-col"><h4 style="color:#1ea863">Fortalezas</h4>${strong.map(o=>li(o,true)).join('')}</div><div class="sw-col"><h4 style="color:#e23b32">A mejorar</h4>${weak.map(o=>li(o,false)).join('')}</div></div>
     <div class="small muted" style="margin-top:8px">${txt} <span style="opacity:.8">(z = desviaciones vs media del equipo)</span></div>`;
 }
+/* v367 · El semáforo salía de comparar cada capacidad con la media del equipo,
+   así que un jugador con buenos valores absolutos podía aparecer ámbar en todo
+   solo por estar rodeado de compañeros parecidos: el caso de Alfredo. Ahora el
+   nivel sale del baremo de su puesto (rojo, ámbar, verde, Champions) y no
+   depende de nadie más. Si no hay ningún valor con baremo utilizable se cae a
+   la versión por z, que es lo único que queda. */
+function fichaSemaforo(name,col){
+  const puesto=(window.refPuesto?refPuesto(name):null);
+  const vals=(STATE.tests||{})[name]||{};
+  const cats={};
+  if(puesto)TESTS.forEach(t=>{
+    if(!tsaEnNota(t))return;
+    if(!fichaVigente(t.k))return;
+    if(typeof tempVigente==='function'&&!tempVigente(t.k))return;
+    const v=vals[t.k];if(v==null||isNaN(v))return;
+    const nv=refNivel(t.k,v,puesto);if(!nv)return;
+    (cats[t.cat]=cats[t.cat]||[]).push({t,v,lv:nv.lv});
+  });
+  const order=['Condición','Fuerza','Explosividad'];
+  if(!order.some(c=>cats[c]&&cats[c].length))return fichaSemaforoZ(name,col);
+  const dec=x=>Math.abs(x)<1?2:(Math.abs(x)<10?1:0);
+  const cells=order.filter(c=>cats[c]&&cats[c].length).map(c=>{
+    const arr=cats[c];
+    const lv=Math.max(0,Math.min(3,Math.round(mean(arr.map(o=>o.lv)))));
+    const cl=REF_NIV[lv][1],lab=REF_NIV[lv][2];
+    /* el semáforo dibujado solo tiene tres luces: Champions enciende la verde y
+       se distingue por la estrella */
+    const tl=calTraffic(lv===0?3:(lv===1?2:1),48,'cap-tl-svg');
+    const chips=arr.slice().sort((a,b)=>b.lv-a.lv).map(o=>
+      '<i style="background:'+REF_NIV[o.lv][1]+'" title="'+o.t.name+': '+fmt(o.v,dec(o.v))+' '+(o.t.unit||'')+' · '+REF_NIV[o.lv][2]+'"></i>').join('');
+    return '<div class="cap-cell" style="border-left-color:'+cl+'">'
+     +'<div class="cap-tl">'+tl+'</div>'
+     +'<div class="cap-info"><div class="cap-name">'+c+'</div>'
+     +'<div class="cap-lvl" style="color:'+(lv===3?'var(--champ-tx)':cl)+'">'
+       +(lv===3?refInsignia(12)+' ':'')+lab+'</div>'
+     +'<div class="cap-chips">'+chips+'<span>'+arr.length+' prueba'+(arr.length===1?'':'s')+'</span></div>'
+     +'</div></div>';
+  }).join('');
+  const sub='frente al baremo de '+puesto+', no frente al equipo';
+  return col
+    ? '<div class="fsec" style="margin-top:14px">Semáforo de capacidades'
+      +'<span style="font-weight:400;text-transform:none;letter-spacing:0"> · '+sub+'</span></div>'
+      +'<div class="cap-row cap-row--col">'+cells+'</div>'
+    : '<div class="fband-h"><span class="t">Semáforo de capacidades</span>'
+      +'<span class="s">Nivel '+sub+'.</span><span class="l"></span></div>'
+      +'<div class="cap-row">'+cells+'</div>';
+}
 /* v364 · `col` lo pinta en columna y sin banda de sección, para meterlo en el
    hueco que dejaban las barras de referencia en vez de ocupar una franja propia.
-   Usa tsaEnNota, el mismo criterio que la nota. */
-function fichaSemaforo(name,col){
+   Usa tsaEnNota, el mismo criterio que la nota.
+   v367 · Pasa a ser el plan B: solo se usa cuando el jugador no tiene ningún
+   valor con baremo de su puesto. El semáforo normal ya no compara con el equipo. */
+function fichaSemaforoZ(name,col){
   const st=testStats();const r=testZ(name,st);const cats={};
   TESTS.forEach(t=>{if(!tsaEnNota(t))return;if(!fichaVigente(t.k))return;const z=r.z[t.k];if(z==null||isNaN(z))return;(cats[t.cat]=cats[t.cat]||[]).push(z);});
   const order=['Condición','Fuerza','Explosividad'];
@@ -25854,8 +25913,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-19.1*/
-const VER_ACTUAL='2026-09-19.1';
+/*BUILD:2026-09-19.2*/
+const VER_ACTUAL='2026-09-19.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
