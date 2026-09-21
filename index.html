@@ -1222,6 +1222,9 @@ main{padding:13px 16px 70px}
 .ficha-card .fch-cv{display:flex;align-items:baseline;gap:2px}
 .fch-d{font-style:normal;font-size:9.5px;font-weight:700;margin-left:auto;
   font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+.ficha-card .fch-evo{font-size:10px;color:#6b7480;background:#f2f3f6;border:1px solid var(--hair);
+  border-radius:999px;padding:2px 9px;white-space:nowrap;letter-spacing:0;font-weight:600}
+.ficha-card .fch-evo b{color:#1d1d20;font-size:9px;letter-spacing:-.08em;margin-right:2px}
 .fch-ya-c .fch-d{margin-left:2px}
 /* la ficha se exporta siempre en claro: el azul marino de Champions no puede
    virar a dorado porque la app esté en modo oscuro */
@@ -13164,16 +13167,19 @@ function fichaChampionsHtml(name){
      de lo que falta. Lo conseguido baja a una tira de etiquetas doradas —una línea
      en vez de una fila entera de bloques— y la rejilla queda solo para lo que
      queda por hacer, ordenado de más cerca a más lejos. */
-  /* El número lleva su signo real y el color dice si eso es a mejor o a peor.
-     Con flechas no se entendía: en la grasa corporal, bajar 0,6 es mejorar, y una
-     flecha hacia arriba en verde al lado de un 9,3 % se lee como que ha subido. */
+  /* La flecha dice hacia dónde se ha movido el número y el color, si eso es a
+     mejor o a peor. Las dos cosas por separado: cuando la flecha marcaba "mejora"
+     en vez de dirección, un ▲ verde junto a un 9,3 % de grasa se leía como que
+     había subido, cuando lo que había hecho era bajar. */
   const flecha=o=>{
     if(!o.dlt)return '';
-    const n=(o.dlt.d>0?'+':'−')+fmt(Math.abs(o.dlt.d),dec(o.dlt.d));
+    const sube=o.dlt.d>0;
     return '<i class="fch-d" style="color:'+(o.dlt.mejora?'#1ea863':'#e23b32')+'" title="'
-      +(o.dlt.mejora?'Mejora':'Empeora')+' de '+fmt(Math.abs(o.dlt.d),dec(o.dlt.d))+' '+(o.t.unit||'')
-      +' desde la valoración del '+String(o.dlt.desde).split('-').reverse().join('/')+'">'+n+'</i>';
+      +(o.dlt.mejora?'Mejora':'Empeora')+': '+(sube?'sube':'baja')+' '+fmt(Math.abs(o.dlt.d),dec(o.dlt.d))+' '+(o.t.unit||'')
+      +' desde la valoración del '+String(o.dlt.desde).split('-').reverse().join('/')+'">'
+      +(sube?'▲':'▼')+fmt(Math.abs(o.dlt.d),dec(o.dlt.d))+'</i>';
   };
+  const conDelta=c.items.filter(o=>o.dlt).length;
   const hechas=c.items.filter(o=>o.d.ya);
   const faltan=c.items.filter(o=>!o.d.ya);
   const chips=hechas.map(o=>'<span class="fch-ya-c">'+refInsignia(11)
@@ -13191,16 +13197,17 @@ function fichaChampionsHtml(name){
      +'<div class="fch-cd">te faltan <b>'+fmt(Math.abs(o.d.falta),dec(o.d.falta))+'</b> '+(o.t.unit||'')+'</div>'
     +'</div>';
   }).join('');
-  const conDelta=c.items.filter(o=>o.dlt).length;
   return '<div class="fband-h fband-h--ch"><span class="t">Tu camino a Champions</span>'
+   +(conDelta?'<span class="fch-evo"><b>▲▼</b> evolución desde tu valoración anterior</span>':'')
    +'<span class="fch-inline"><b>'+c.ya+'</b> de '+c.items.length+' · listón de '+c.puesto+'</span></div>'
    +'<div class="fch-wrap">'
    +(chips?'<div class="fch-ya"><span class="fch-ya-h">Ya las tienes</span><div class="fch-ya-row">'+chips+'</div></div>':'')
    +(bloques?'<div class="fch-falta-h">Te faltan '+faltan.length
-       +' <span>· ordenadas de lo que tienes más cerca a lo más lejos</span></div>'
+       +' <span>· ordenadas de lo que tienes más cerca a lo más lejos'
+       +(conDelta?' · ▲▼ cómo has evolucionado':'')+'</span></div>'
        +'<div class="fch-grid">'+bloques+'</div>':'')
    +'<p class="fch-pie">Cada barra son las cuatro franjas de tu puesto —rojo, ámbar, verde y Champions— con tu marca encima.'
-   +(conDelta?' Las cifras en verde o rojo son el cambio desde tu valoración anterior de esta temporada: el color dice si es a mejor o a peor.':'')+'</p>'
+   +(conDelta?' La flecha dice si el dato ha subido o bajado desde tu valoración anterior de esta temporada, y el color, si ese cambio es a mejor o a peor.':'')+'</p>'
    +'</div>';
 }
 window.fichaChampions=fichaChampions;window.fichaChampionsHtml=fichaChampionsHtml;
@@ -26084,8 +26091,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-21.2*/
-const VER_ACTUAL='2026-09-21.2';
+/*BUILD:2026-09-21.3*/
+const VER_ACTUAL='2026-09-21.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
