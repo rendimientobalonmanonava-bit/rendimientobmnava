@@ -965,7 +965,7 @@ main{padding:13px 16px 70px}
   padding:2px 9px;border-radius:999px;white-space:nowrap;margin-left:9px}
 .ficha-card .fch-inline b{color:#15224a;font-size:11.5px}
 .fch-wrap{padding:5px 26px 10px}
-.fch-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.fch-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .fch-c{border:1px solid #e6eaef;border-radius:9px;padding:6px 8px 7px;border-left:2.5px solid var(--c);
   display:flex;flex-direction:column;gap:1px;min-width:0}
 .fch-c--ya{background:rgba(21,34,74,.05);border-color:rgba(21,34,74,.16)}
@@ -1162,10 +1162,6 @@ main{padding:13px 16px 70px}
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.09)}
 .fh2-ini{display:flex;align-items:center;justify-content:center;width:100%;height:100%;
   font-size:27px;font-weight:700;color:#e3c877;letter-spacing:.02em}
-.fh2-num{position:absolute;right:-7px;bottom:-6px;min-width:24px;height:23px;padding:0 5px;
-  display:flex;align-items:center;justify-content:center;border-radius:8px;
-  background:linear-gradient(160deg,#f0d98a,#c9a227);color:#20170a;font-size:12.5px;font-weight:800;
-  letter-spacing:-.02em;box-shadow:0 3px 8px rgba(0,0,0,.5);border:1.5px solid rgba(18,19,23,.9)}
 .fh2-id{flex:1;min-width:0}
 .fh2-name{font-size:29px;font-weight:700;letter-spacing:-.035em;line-height:1.02}
 .fh2-meta{margin-top:6px;font-size:11.5px;color:rgba(255,255,255,.55)}
@@ -1194,7 +1190,7 @@ main{padding:13px 16px 70px}
   background:rgba(21,34,74,.05);padding:3px 10px}
 /* camino a Champions: cada bloque enseña las cuatro franjas de su puesto */
 .ficha-card .fch-c{border:1px solid var(--hair);border-left-width:1px;border-radius:12px;
-  padding:7px 10px 7px;background:#fff;gap:0}
+  padding:6px 9px;background:#fff;gap:0}
 .ficha-card .fch-c--ya{border-color:rgba(21,34,74,.18);
   background:linear-gradient(158deg,rgba(21,34,74,.075),rgba(21,34,74,.015))}
 .ficha-card .fch-ct{font-size:9px;letter-spacing:.03em;color:var(--muted);display:flex;
@@ -1204,13 +1200,29 @@ main{padding:13px 16px 70px}
 .ficha-card .fch-cv{font-family:inherit;font-size:17px;font-weight:700;letter-spacing:-.03em;margin-top:2px;line-height:1.2}
 .ficha-card .fch-cv span{font-size:9.5px;color:#a1a1a6;font-weight:600}
 .ficha-card .fch-c--ya .fch-cv{color:#15224a}
-.ficha-card .fch-cb{height:auto;background:none;border-radius:0;overflow:visible;margin:6px 0 4px}
+.ficha-card .fch-cb{height:auto;background:none;border-radius:0;overflow:visible;margin:5px 0 3px}
 .ficha-card .fch-c .ref-bar{height:7px;min-width:0;border-radius:4px;background:var(--hair)}
 .ficha-card .fch-c .ref-bar i{height:7px;opacity:.66}
 .ficha-card .fch-c .ref-bar i:first-child{border-radius:4px 0 0 4px}
 .ficha-card .fch-c .ref-bar i:last-of-type{border-radius:0 4px 4px 0}
 .ficha-card .fch-c .ref-bar u{background:#1d1d20;top:-2.5px;height:12px;width:2.5px}
 .fch-flip{display:block;transform:scaleX(-1)}
+/* v370 · lo conseguido, en una tira de etiquetas doradas */
+.fch-ya{margin-bottom:7px}
+.fch-ya-h,.fch-falta-h{font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+  color:#8a93a0;margin-bottom:4px;display:block}
+.ficha-card .fch-falta-h{margin-top:2px;color:#6b7480}
+.ficha-card .fch-falta-h span{font-weight:600;letter-spacing:.02em;text-transform:none;color:#a1a1a6}
+.fch-ya-row{display:flex;flex-wrap:wrap;gap:5px}
+.fch-ya-c{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:#15224a;
+  background:linear-gradient(150deg,rgba(21,34,74,.09),rgba(201,162,39,.10));
+  border:1px solid rgba(21,34,74,.16);border-radius:999px;padding:3px 10px;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.fch-ya-c b{font-weight:700}
+.ficha-card .fch-cv{display:flex;align-items:baseline;gap:2px}
+.fch-d{font-style:normal;font-size:9.5px;font-weight:700;margin-left:auto;
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+.fch-ya-c .fch-d{margin-left:2px}
 /* la ficha se exporta siempre en claro: el azul marino de Champions no puede
    virar a dorado porque la app esté en modo oscuro */
 .ficha-card{--champ:#15224a;--champ-tx:#15224a}
@@ -13094,7 +13106,20 @@ function fichaChampions(name){
     if(suelo!=null&&suelo!==u.valor){
       pct=Math.round(Math.max(0,Math.min(100,(v-suelo)/(u.valor-suelo)*100)));
     }
-    items.push({t,v,nv,u,d,pct});
+    /* v370 · cambio respecto a la valoración anterior de esa misma prueba, en sus
+       unidades. El signo no dice si mejora: en las de menos-es-mejor, bajar es subir. */
+    let dlt=null;
+    /* las dos mediciones tienen que ser de esta temporada: comparar con una marca
+       de hace año y medio no es "mejora", es otra pretemporada */
+    const corte=(typeof TEMP_INICIO!=='undefined')?TEMP_INICIO:'2026-07-01';
+    const h=((STATE.testHist||{})[name]||[])
+      .filter(x=>x&&x.date&&x.date>=corte&&x.vals&&x.vals[t.k]!=null&&!isNaN(x.vals[t.k]))
+      .sort((x,y)=>String(x.date).localeCompare(String(y.date)));
+    if(h.length>=2){
+      const dif=h[h.length-1].vals[t.k]-h[h.length-2].vals[t.k];
+      if(dif!==0)dlt={d:dif,mejora:t.lowerBetter?dif<0:dif>0,desde:h[h.length-2].date};
+    }
+    items.push({t,v,nv,u,d,pct,dlt});
   });
   if(!items.length)return null;
   items.sort((a,b)=>{
@@ -13106,27 +13131,6 @@ function fichaChampions(name){
 /* v366 · Lo que el jugador entiende sin traducción: en qué destaca y en qué no.
    Va bajo el radar, en el hueco que dejaron los anillos al subir la nota a la
    cabecera, así que no alarga la ficha. */
-/* El mapa de dorsales está tecleado con los nombres cortos del roster
-   ("Óscar Marugán"), mientras la ficha recibe el nombre completo. Se resuelve por
-   tokens: todos los del dorsal tienen que estar en el nombre, así que
-   "Pablo Herranz" casa con "Pablo Herranz García" y nadie hereda el de otro.
-   Sin coincidencia no se pinta nada: es un adorno, no un dato que inventar. */
-const DORSAL_ALIAS={'Marcos Da Silva':'Marquinhos Da Silva'};
-function fichaDorsal(name){
-  try{
-    if(typeof dorsal!=='function')return '';
-    const d=dorsal(DORSAL_ALIAS[name]||name);
-    if(d!=='')return d;
-    const norm=x=>String(x).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
-      .replace(/[^a-z\s]/g,' ').split(/\s+/).filter(Boolean);
-    const tn=norm(name);let out='';
-    Object.keys(NUM).forEach(k=>{
-      const tk=norm(k);
-      if(tk.length>=2&&tk.every(t=>tn.indexOf(t)>=0))out=NUM[k];
-    });
-    return out;
-  }catch(e){return '';}
-}
 function fichaFuertes(name){
   const st=testStats();const r=testZ(name,st);
   /* v369 · Le faltaba el filtro de temporada que sí tienen el radar y el camino a
@@ -13155,31 +13159,48 @@ function fichaChampionsHtml(name){
   const dec=x=>Math.abs(x)<1?2:(Math.abs(x)<10?1:0);
   /* v365 · Era una lista de 16 filas a lo ancho y se comía 866 px de los 2230 que
      medía la ficha. Misma información en bloques pequeños de cuatro en fondo.
-     v366 · La barra era un porcentaje ciego; ahora es la escala real de su puesto
-     (rojo, ámbar, verde, Champions) con su marca encima, que es lo que el jugador
-     mira: en qué franja estoy y cuánto me queda para la siguiente. */
-  const bloques=c.items.map(o=>{
-    const ya=o.d.ya;
-    const col=ya?'#15224a':(o.nv.lv===2?'#1ea863':(o.nv.lv===1?'#e0a800':'#e23b32'));
+     v366 · La barra era un porcentaje ciego; ahora es la escala real de su puesto.
+     v370 · Dieciséis bloques idénticos no se leen: no se distinguía lo conseguido
+     de lo que falta. Lo conseguido baja a una tira de etiquetas doradas —una línea
+     en vez de una fila entera de bloques— y la rejilla queda solo para lo que
+     queda por hacer, ordenado de más cerca a más lejos. */
+  /* El número lleva su signo real y el color dice si eso es a mejor o a peor.
+     Con flechas no se entendía: en la grasa corporal, bajar 0,6 es mejorar, y una
+     flecha hacia arriba en verde al lado de un 9,3 % se lee como que ha subido. */
+  const flecha=o=>{
+    if(!o.dlt)return '';
+    const n=(o.dlt.d>0?'+':'−')+fmt(Math.abs(o.dlt.d),dec(o.dlt.d));
+    return '<i class="fch-d" style="color:'+(o.dlt.mejora?'#1ea863':'#e23b32')+'" title="'
+      +(o.dlt.mejora?'Mejora':'Empeora')+' de '+fmt(Math.abs(o.dlt.d),dec(o.dlt.d))+' '+(o.t.unit||'')
+      +' desde la valoración del '+String(o.dlt.desde).split('-').reverse().join('/')+'">'+n+'</i>';
+  };
+  const hechas=c.items.filter(o=>o.d.ya);
+  const faltan=c.items.filter(o=>!o.d.ya);
+  const chips=hechas.map(o=>'<span class="fch-ya-c">'+refInsignia(11)
+     +'<b>'+o.t.name+'</b> '+fmt(o.v,dec(o.v))+' '+(o.t.unit||'')+flecha(o)+'</span>').join('');
+  const bloques=faltan.map(o=>{
+    const col=o.nv.lv===2?'#1ea863':(o.nv.lv===1?'#e0a800':'#e23b32');
     let track='';
     try{track=refBarra(o.t.k,o.v,c.puesto)||'';}catch(e){}
-    if(!track)track='<span class="ref-bar"><i style="left:0;width:'+(o.pct==null?(ya?100:0):o.pct)+'%;background:'+col+'"></i></span>';
-    /* en las pruebas de menos-es-mejor la escala viene con Champions a la izquierda;
-       espejada, en toda la ficha la derecha significa siempre lo mismo */
+    if(!track)track='<span class="ref-bar"><i style="left:0;width:'+(o.pct==null?0:o.pct)+'%;background:'+col+'"></i></span>';
     else if(o.u.menosMejor)track='<span class="fch-flip">'+track+'</span>';
-    const marca=ya?refInsignia(11):'<i class="fch-dot" style="background:'+col+'"></i>';
-    return '<div class="fch-c'+(ya?' fch-c--ya':'')+'" style="--c:'+col+'">'
-     +'<div class="fch-ct">'+marca+'<span>'+o.t.name+'</span></div>'
-     +'<div class="fch-cv">'+fmt(o.v,dec(o.v))+'<span>'+(o.t.unit||'')+'</span></div>'
+    return '<div class="fch-c" style="--c:'+col+'">'
+     +'<div class="fch-ct"><i class="fch-dot" style="background:'+col+'"></i><span>'+o.t.name+'</span></div>'
+     +'<div class="fch-cv"><b>'+fmt(o.v,dec(o.v))+'</b><span>'+(o.t.unit||'')+'</span>'+flecha(o)+'</div>'
      +'<div class="fch-cb">'+track+'</div>'
-     +'<div class="fch-cd">'+(ya?'Nivel Champions'
-        :'<b>'+fmt(Math.abs(o.d.falta),dec(o.d.falta))+'</b> '+(o.t.unit||'')+' para llegar')+'</div>'
+     +'<div class="fch-cd">te faltan <b>'+fmt(Math.abs(o.d.falta),dec(o.d.falta))+'</b> '+(o.t.unit||'')+'</div>'
     +'</div>';
   }).join('');
+  const conDelta=c.items.filter(o=>o.dlt).length;
   return '<div class="fband-h fband-h--ch"><span class="t">Tu camino a Champions</span>'
-   +'<span class="fch-inline"><b>'+c.ya+'</b>/'+c.items.length+' conseguidas · listón de '+c.puesto+'</span></div>'
-   +'<div class="fch-wrap"><div class="fch-grid">'+bloques+'</div>'
-     +'<p class="fch-pie">Las cuatro franjas de tu puesto —rojo, ámbar, verde y Champions— con tu marca encima. Estrella dorada = ya conseguida.</p>'
+   +'<span class="fch-inline"><b>'+c.ya+'</b> de '+c.items.length+' · listón de '+c.puesto+'</span></div>'
+   +'<div class="fch-wrap">'
+   +(chips?'<div class="fch-ya"><span class="fch-ya-h">Ya las tienes</span><div class="fch-ya-row">'+chips+'</div></div>':'')
+   +(bloques?'<div class="fch-falta-h">Te faltan '+faltan.length
+       +' <span>· ordenadas de lo que tienes más cerca a lo más lejos</span></div>'
+       +'<div class="fch-grid">'+bloques+'</div>':'')
+   +'<p class="fch-pie">Cada barra son las cuatro franjas de tu puesto —rojo, ámbar, verde y Champions— con tu marca encima.'
+   +(conDelta?' Las cifras en verde o rojo son el cambio desde tu valoración anterior de esta temporada: el color dice si es a mejor o a peor.':'')+'</p>'
    +'</div>';
 }
 window.fichaChampions=fichaChampions;window.fichaChampionsHtml=fichaChampionsHtml;
@@ -13246,7 +13267,7 @@ function renderFicha(name){
       <div class="fh2-main">
         <div class="fh2-ph"><div class="fh2-ph-in">
           ${(p.avatar||window.__AVATAR__)?`<img src="${p.avatar||window.__AVATAR__}" alt="${name}">`:`<div class="fh2-ini">${initials}</div>`}
-        </div>${fichaDorsal(name)!==''?`<span class="fh2-num">${fichaDorsal(name)}</span>`:''}</div>
+        </div></div>
         <div class="fh2-id">
           <div class="fh2-name">${name}</div>
           <div class="fh2-meta">${[pos,me.rank?`<b>${me.rank}.º</b> de ${n} del equipo`:'',new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'})].filter(Boolean).join(' · ')}</div>
@@ -26063,8 +26084,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-21.1*/
-const VER_ACTUAL='2026-09-21.1';
+/*BUILD:2026-09-21.2*/
+const VER_ACTUAL='2026-09-21.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
