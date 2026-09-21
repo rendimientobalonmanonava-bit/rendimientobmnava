@@ -1148,9 +1148,24 @@ main{padding:13px 16px 70px}
 .fh2-logo{height:25px;width:auto;max-width:108px;object-fit:contain;background:#fff;
   border-radius:7px;padding:4px 8px;flex:0 0 auto}
 .fh2-main{display:flex;align-items:center;gap:17px;padding-top:12px}
-.fh2-av{width:60px;height:60px;border-radius:50%;object-fit:cover;flex:0 0 auto;
-  border:1.5px solid rgba(255,255,255,.26);background:rgba(255,255,255,.09);
-  display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:700;color:#e3c877}
+/* v369 · El retrato era una foto recortada en círculo y se veía pobre. Marco
+   dorado fino, esquinas redondeadas, la cara encuadrada arriba y el dorsal
+   colgando de la esquina: lenguaje de ficha de equipo, no de avatar. */
+.fh2-ph{position:relative;flex:0 0 auto;width:78px;height:78px;border-radius:20px;padding:1.5px;
+  background:linear-gradient(150deg,#f0d98a 0%,#b8893a 44%,rgba(255,255,255,.16) 100%);
+  box-shadow:0 8px 20px rgba(0,0,0,.45)}
+.fh2-ph-in{position:relative;width:100%;height:100%;border-radius:18.5px;overflow:hidden;
+  background:linear-gradient(160deg,#2b2e37,#191b21)}
+.fh2-ph-in img{width:100%;height:100%;object-fit:cover;object-position:center 14%;display:block}
+.fh2-ph-in::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.13) 0%,rgba(255,255,255,0) 40%,rgba(9,10,14,.42) 100%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.09)}
+.fh2-ini{display:flex;align-items:center;justify-content:center;width:100%;height:100%;
+  font-size:27px;font-weight:700;color:#e3c877;letter-spacing:.02em}
+.fh2-num{position:absolute;right:-7px;bottom:-6px;min-width:24px;height:23px;padding:0 5px;
+  display:flex;align-items:center;justify-content:center;border-radius:8px;
+  background:linear-gradient(160deg,#f0d98a,#c9a227);color:#20170a;font-size:12.5px;font-weight:800;
+  letter-spacing:-.02em;box-shadow:0 3px 8px rgba(0,0,0,.5);border:1.5px solid rgba(18,19,23,.9)}
 .fh2-id{flex:1;min-width:0}
 .fh2-name{font-size:29px;font-weight:700;letter-spacing:-.035em;line-height:1.02}
 .fh2-meta{margin-top:6px;font-size:11.5px;color:rgba(255,255,255,.55)}
@@ -1218,11 +1233,11 @@ main{padding:13px 16px 70px}
 /* fuertes / a mejorar, en palabras y bajo el radar */
 .fsw{margin-top:13px;display:flex;flex-direction:column;gap:7px}
 .fsw-cap{font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#a1a1a6}
-.fsw-r{display:flex;align-items:flex-start;gap:7px;flex-wrap:wrap}
-.fsw-h{font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-  padding-top:4px;flex:0 0 66px}
-.fsw-c{display:inline-flex;align-items:center;font-size:10.5px;font-weight:600;
-  border-radius:999px;padding:3px 10px;border:1px solid}
+.fsw-r{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap}
+.fsw-h{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  padding-top:4px;flex:0 0 64px;white-space:nowrap}
+.fsw-c{display:inline-flex;align-items:center;font-size:10.2px;font-weight:600;
+  border-radius:999px;padding:3px 8px;border:1px solid;white-space:nowrap}
 /* comparativa por puesto: barras de posición en lugar de seis columnas de cifras */
 .fmv{padding:2px 26px 11px}
 .fmv-cat{font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
@@ -11878,9 +11893,19 @@ function testZ(name,st){
   o.progZ=(pr&&nm.s>0)?(pr.z-nm.m)/nm.s:null;
   o.tsa=isNaN(o.base)?NaN
     :(o.progZ!=null?o.base*(1-TSA_W_PROG)+o.progZ*TSA_W_PROG:o.base);
-  o.t100=isNaN(o.tsa)?null:clamp(Math.round(o.tsa*10+50),0,100);
-  o.base100=isNaN(o.base)?null:clamp(Math.round(o.base*10+50),0,100);
+  o.t100=isNaN(o.tsa)?null:tsaEscala(o.tsa);
+  o.base100=isNaN(o.base)?null:tsaEscala(o.base);
   return o;
+}
+/* v369 · La nota salía de `tsa*10+50`, y como el TSA es la media de medias de
+   z-scores su dispersión es de 0,4: los 19 jugadores cabían entre 39 y 56 y un
+   cambio real movía dos puntos. La curva logística reparte la misma información
+   entre 40 y 95, con la máxima pendiente en el centro, que es donde se apelotona
+   la plantilla. Nadie baja de 40 ni llega a 100, y no hay empates por tope.
+   Decisión de Daniel el 21/09/2026: "empieza en 40 y los más top cerca de 80". */
+function tsaEscala(x){
+  if(x==null||isNaN(x))return null;
+  return Math.round(40+55/(1+Math.exp(-2.6*x)));
 }
 function pctile(name,t){const vals=Object.keys(STATE.tests||{}).map(n=>(STATE.tests[n]||{})[t.k]).filter(v=>v!=null&&!isNaN(v));const v=(STATE.tests[name]||{})[t.k];if(v==null||vals.length<2)return null;const below=vals.filter(x=>t.lowerBetter?x>v:x<v).length;return Math.round(below/(vals.length-1)*100);}
 /* v363 · Usaba `incTSA!==false` mientras el TSA ya usaba `tsaEnNota`, que además
@@ -12983,7 +13008,7 @@ function fichaSemaforo(name,col){
    valor con baremo de su puesto. El semáforo normal ya no compara con el equipo. */
 function fichaSemaforoZ(name,col){
   const st=testStats();const r=testZ(name,st);const cats={};
-  TESTS.forEach(t=>{if(!tsaEnNota(t))return;if(!fichaVigente(t.k))return;const z=r.z[t.k];if(z==null||isNaN(z))return;(cats[t.cat]=cats[t.cat]||[]).push(z);});
+  TESTS.forEach(t=>{if(!tsaEnNota(t))return;if(!fichaVigente(t.k))return;if(typeof tempVigente==='function'&&!tempVigente(t.k))return;const z=r.z[t.k];if(z==null||isNaN(z))return;(cats[t.cat]=cats[t.cat]||[]).push(z);});
   const order=['Condición','Fuerza','Explosividad'];
   const cells=order.filter(c=>cats[c]&&cats[c].length).map(c=>{const z=mean(cats[c]);const col=z>=0.4?'#1ea863':z>=-0.4?'#e0a800':'#e23b32';const lab=z>=0.4?'Alto':z>=-0.4?'Medio':'Bajo';const lv=z>=0.4?1:z>=-0.4?2:3;return `<div class="cap-cell" style="border-left-color:${col}"><div class="cap-tl">${calTraffic(lv,48,'cap-tl-svg')}</div><div class="cap-info"><div class="cap-name">${c}</div><div class="cap-lvl" style="color:${col}">${lab}</div><div class="cap-z mono">z ${fmt(z,2)} · vs equipo</div></div></div>`;}).join('');
   if(!cells)return '';
@@ -13081,9 +13106,36 @@ function fichaChampions(name){
 /* v366 · Lo que el jugador entiende sin traducción: en qué destaca y en qué no.
    Va bajo el radar, en el hueco que dejaron los anillos al subir la nota a la
    cabecera, así que no alarga la ficha. */
+/* El mapa de dorsales está tecleado con los nombres cortos del roster
+   ("Óscar Marugán"), mientras la ficha recibe el nombre completo. Se resuelve por
+   tokens: todos los del dorsal tienen que estar en el nombre, así que
+   "Pablo Herranz" casa con "Pablo Herranz García" y nadie hereda el de otro.
+   Sin coincidencia no se pinta nada: es un adorno, no un dato que inventar. */
+const DORSAL_ALIAS={'Marcos Da Silva':'Marquinhos Da Silva'};
+function fichaDorsal(name){
+  try{
+    if(typeof dorsal!=='function')return '';
+    const d=dorsal(DORSAL_ALIAS[name]||name);
+    if(d!=='')return d;
+    const norm=x=>String(x).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+      .replace(/[^a-z\s]/g,' ').split(/\s+/).filter(Boolean);
+    const tn=norm(name);let out='';
+    Object.keys(NUM).forEach(k=>{
+      const tk=norm(k);
+      if(tk.length>=2&&tk.every(t=>tn.indexOf(t)>=0))out=NUM[k];
+    });
+    return out;
+  }catch(e){return '';}
+}
 function fichaFuertes(name){
   const st=testStats();const r=testZ(name,st);
-  const arr=TESTS.filter(t=>tsaEnNota(t)&&fichaVigente(t.k))
+  /* v369 · Le faltaba el filtro de temporada que sí tienen el radar y el camino a
+     Champions, así que seguían apareciendo pruebas de hace dos años: Alfredo salía
+     con Sprint 20m y Sprint 30m entre sus fuertes y sus débiles sin haberlos
+     corrido esta temporada. */
+  const arr=TESTS.filter(t=>tsaEnNota(t)&&fichaVigente(t.k)
+      &&(typeof tempVigente!=='function'||tempVigente(t.k))
+      &&((STATE.tests||{})[name]||{})[t.k]!=null)
     .map(t=>({lab:t.name,z:r.z[t.k]})).filter(o=>o.z!=null&&!isNaN(o.z));
   if(arr.length<4)return '';
   const s2=arr.slice().sort((a,b)=>b.z-a.z);
@@ -13192,7 +13244,9 @@ function renderFicha(name){
         ${window.__LOGO_HP__?`<img class="fh2-logo" src="${window.__LOGO_HP__}" alt="Handball Performance">`:'<span style="width:60px"></span>'}
       </div>
       <div class="fh2-main">
-        ${(p.avatar||window.__AVATAR__)?`<img class="fh2-av" src="${p.avatar||window.__AVATAR__}" alt="${name}">`:`<div class="fh2-av">${initials}</div>`}
+        <div class="fh2-ph"><div class="fh2-ph-in">
+          ${(p.avatar||window.__AVATAR__)?`<img src="${p.avatar||window.__AVATAR__}" alt="${name}">`:`<div class="fh2-ini">${initials}</div>`}
+        </div>${fichaDorsal(name)!==''?`<span class="fh2-num">${fichaDorsal(name)}</span>`:''}</div>
         <div class="fh2-id">
           <div class="fh2-name">${name}</div>
           <div class="fh2-meta">${[pos,me.rank?`<b>${me.rank}.º</b> de ${n} del equipo`:'',new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'})].filter(Boolean).join(' · ')}</div>
@@ -26009,8 +26063,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-19.3*/
-const VER_ACTUAL='2026-09-19.3';
+/*BUILD:2026-09-21.1*/
+const VER_ACTUAL='2026-09-21.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
