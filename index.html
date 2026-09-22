@@ -143,7 +143,7 @@ main{max-width:1500px;margin:0 auto;padding:18px 16px 80px}
 .panel{background:var(--glass);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--e1)}
 /* v377 · Título pequeño en negrita con una raya debajo es lenguaje de dashboard
    antiguo. El aire separa mejor que una línea. */
-.panel h2{font-size:var(--fs-h2);font-weight:600;color:var(--txt);margin-bottom:16px;padding-bottom:0;border-bottom:none;display:flex;align-items:baseline;gap:10px;letter-spacing:-.021em;line-height:var(--lh-tight)}
+.panel h2{font-size:var(--fs-h2);font-weight:600;color:var(--txt);margin-bottom:16px;padding-bottom:0;border-bottom:none;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;letter-spacing:-.021em;line-height:var(--lh-tight)}
 .panel h2 .r{margin-left:auto;font-size:var(--fs-sm);font-weight:500;color:var(--muted);letter-spacing:0}
 .grid{display:grid;gap:16px}
 /* v199 · Los items de un grid tienen min-width:auto y no se encogen por debajo de
@@ -453,6 +453,29 @@ html[data-theme="dark"] .lockup .hp-light{display:block}
 ::-webkit-scrollbar-track{background:transparent}
 button:focus-visible,nav button:focus-visible,.iconbtn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .chip,.tag{border-radius:var(--r-pill)}
+/* ═══ v379 · Bloque protagonista del Resumen ═══
+   Una sola cifra manda y el resto se ordena debajo. El bloque compacto bajaba
+   el estado a 17 px y el consejo a 12,5: aquí se recuperan. */
+#team-hero{margin-bottom:18px}
+#team-hero .panel{padding:26px 30px}
+#team-hero .hero-rec{gap:34px;align-items:center}
+#team-hero .hero-ringlab{font-size:10px;letter-spacing:.12em;margin-top:2px}
+#team-hero .hero-txt{flex:1 1 320px}
+#team-hero .hero-txt .st{font-size:34px;letter-spacing:-.035em;line-height:1.02}
+#team-hero .hero-txt .advice{font-size:15px;line-height:1.55;margin-top:9px;max-width:66ch}
+#team-hero .hero-strip{flex:1 1 300px;min-width:240px}
+#team-hero .recstrip-wrap{margin-top:0}
+#team-hero .recstrip-wrap .rl{font-size:10px;letter-spacing:.12em;margin-bottom:10px}
+#team-hero .recstrip{height:54px;gap:5px}
+#team-hero .recstrip .seg{border-radius:5px}
+@media(max-width:760px){
+  #team-hero .panel{padding:20px}
+  #team-hero .hero-rec{gap:20px}
+  #team-hero .hero-txt{flex:1 1 100%}
+  #team-hero .hero-txt .st{font-size:25px}
+  #team-hero .hero-txt .advice{font-size:13.5px}
+  #team-hero .recstrip{height:40px}
+}
 @media print{.kpi-spark,.rdcell .spark{display:none}.panel h2{border-bottom:1px solid #e5e5e5}}
 /* ===== Estilo WHOOP: anillo recovery, hero, tira, tipografía ===== */
 h1,h2,h3,.cond{font-family:"Inter Tight","Inter",-apple-system,BlinkMacSystemFont,sans-serif}
@@ -4162,12 +4185,16 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     </div>
     <!-- v231 · Tira de titulares: los seis números que deciden la sesión de hoy.
          Antes había que leer el anillo, el donut y bajar hasta la tabla. -->
+    <!-- v379 · El readiness del equipo era un anillo de 104 px metido en la
+         primera de tres columnas, con el mismo peso visual que otras catorce
+         tarjetas. Es LA cifra de la pantalla: sube arriba, a ancho completo y
+         en grande, y lo demás queda jerarquizado debajo. -->
+    <div id="team-hero"></div>
     <div id="team-strip"></div>
     <!-- v231 · Filas temáticas en vez de dos columnas genéricas. -->
     <div class="eq-r3">
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--ok)"></span>Cómo llega el equipo</div>
-        <div id="team-hero"></div>
         <div class="panel" id="eq-semana" style="cursor:pointer" onclick="go('cal')">
           <h2>Carga de la semana <span class="r muted">planificado vs real ›</span></h2>
           <div class="eq-semana-plot"><canvas id="eq-week-canvas"></canvas></div>
@@ -10922,11 +10949,11 @@ function renderTeam(){
   const hero=document.getElementById('team-hero');
   if(hero)hero.innerHTML=`<div class="panel">
     <div class="hero-rec">
-      <div class="hero-ring">${recoveryRing(isNaN(avg)?null:Math.round(avg),hsev,104)}<div class="hero-ringlab">Readiness medio</div></div>
+      <div class="hero-ring">${recoveryRing(isNaN(avg)?null:Math.round(avg),hsev,150)}<div class="hero-ringlab">Readiness medio</div></div>
       <div class="hero-txt"><div class="st" style="color:var(--${hsev})">${recState(hsev)}</div>
         <div class="advice">${teamAdvice(avg,reds,warns)}</div></div>
+      <div class="hero-strip">${recoveryStrip(teamRecSeries(14),'Recuperación del equipo · últimos días')}</div>
     </div>
-    ${recoveryStrip(teamRecSeries(14),'Recuperación del equipo · últimos días')}
   </div>`;
   renderTeamRings();renderTeamWellLights();
   /* v231 · tira de titulares y mapa de riesgo carga × recuperación */
@@ -26796,8 +26823,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-23.3*/
-const VER_ACTUAL='2026-09-23.3';
+/*BUILD:2026-09-23.4*/
+const VER_ACTUAL='2026-09-23.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){

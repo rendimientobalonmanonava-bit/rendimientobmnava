@@ -116,6 +116,7 @@ Los estados de lesión los gobierna **exclusivamente el módulo Médico**. Dispo
 - **Al cambiar de tema hay que tirar los gráficos** (`themeRepaint`): Chart.js no repinta porque cambien variables CSS, así que los ejes se quedaban con el gris del tema anterior. Y `rerenderCurrent` cubre todas las vistas — ojo, los ids son `v-tests`, `v-estado`, `v-cal`, `v-alertas`, `v-jugadores`; `go('tsa')` **no existe** y cae al Resumen sin avisar.
 - **El cambio de tema no funde el color del texto**, solo los fondos: fundir el texto deja un tercio de segundo de gris lavado que parece que la aplicación se ha roto.
 - **Nada de colores escritos a mano en el CSS o en línea desde JS.** Cada hexadecimal suelto es un punto que no vira con el tema: así había 132 elementos ilegibles en oscuro.
+- **Bloque protagonista del Resumen (v379)**: el readiness del equipo abre la pantalla a ancho completo —anillo de 150 px, estado a 34 px, consejo y tira de recuperación en la misma franja—, y todo lo demás queda jerarquizado debajo. Antes era un anillo de 104 px dentro de la primera de tres columnas, con el mismo peso visual que otras catorce tarjetas. *Pedido por Daniel el 23/09/2026 como referencia Whoop.*
 - **El efecto cristal y los blobs del fondo no se tocan** (decisión de Daniel, 23/09/2026), ni los semáforos se cambian por anillos.
 - **Móvil es de primera clase**, no una adaptación. Carlos consulta el dashboard desde el teléfono.
 
