@@ -80,9 +80,9 @@ La fusión de Supabase conserva **lo que está en un lado y no en el otro**, as�
 Dos reglas que acompañan a cada bloque con tumbas:
 
 - **`LS_TUMBAS_NO_DIFF`**: los bloques que se reescriben enteros desde memoria (Polar) no anotan tumbas por diferencia, solo desde el borrado explícito. Si la memoria viniera incompleta, el diff anotaría como borrado lo que simplemente no se había cargado, y una tumba errónea borra para todos.
-- **Perdón al volver a cargar**: volver a subir lo borrado es resucitarlo a propósito, así que el import llama a `lsPerdonarTumbas`. Sin eso, recargar la misma sesión dentro de los 30 días de vida de la tumba la borraría sola otra vez.
+- **Una tumba mata el registro que había, no el que llegue después.** Los registros de Polar llevan sello `upd` con la hora en que se cargaron, y la tumba solo se aplica si el registro es anterior a ella. **El perdón local (`lsPerdonarTumbas`) NO basta por sí solo**: las tumbas se fusionan por unión, así que el servidor devuelve la suya en la siguiente bajada y vuelve a borrar. El sello viaja con el registro y sobrevive a eso. El sello se pone al cargar y `hrPersist` lo conserva tal cual — **si cada guardado lo refrescara, ninguna tumba volvería a valer**.
 
-*Polar entró en el sistema el 22/09/2026: hasta entonces borrar una sesión solo valía hasta la siguiente sincronización.*
+*Polar entró en el sistema el 22/09/2026: hasta entonces borrar una sesión solo valía hasta la siguiente sincronización.* **Ese mismo día la primera versión de las tumbas de Polar borró una sesión buena**: Daniel borró la sesión equivocada del 22, volvió a subir la correcta con la misma fecha y etiqueta, y la tumba se la llevó en el siguiente arranque. De ahí el sello `upd` y la purga única `bmnava_tumbahr_purga`, que retira las tumbas de Polar creadas por la versión sin sello.
 
 ### 2.4 Regla anti-solape (médico ↔ disponibilidad)
 
@@ -287,6 +287,7 @@ No los repitas.
 | Carga de sesión multiplicada por nº de cuestionarios | Brais con 2.730 UA en vez de ~900 |
 | Clasificación de sesión ignorando los criterios de apoyo | Clasificaba alto/medio/bajo con una lógica distinta de la que declaraba |
 | Nombres con puntuación sin limpiar antes de comparar | Registros atribuidos al jugador equivocado |
+| Tumba sin comparar fechas con el registro | La tumba de una sesión borrada se llevó por delante la que se cargó después con la misma fecha y etiqueta |
 | Ejes de cuadrantes sin `type: 'linear'` | Escala categórica, posiciones falsas |
 
 ---

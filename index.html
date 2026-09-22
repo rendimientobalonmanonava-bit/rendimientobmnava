@@ -7092,8 +7092,17 @@ function lsAplicarTumbas(clave,x){
   const t=lsTumbas(),pref=clave+':';
   let hay=false;for(const k in t){if(k.indexOf(pref)===0){hay=true;break;}}
   if(!hay)return x;
+  /* v372 · Una tumba mata el registro que había, no el que llegue después. Si la
+     sesión se ha vuelto a cargar más tarde —con su sello `upd`— gana ella: es lo
+     que pasó el 22/09, cuando la tumba de la sesión equivocada se llevó por
+     delante la buena al volver a subirla. El perdón local no bastaba, porque las
+     tumbas se fusionan por unión y el servidor devolvía la suya en cada bajada. */
   if(clave===LS_HR)return Array.isArray(x)
-    ? x.filter(o=>{const id=lsHrId(o);return !(id&&t[pref+id]!=null);})
+    ? x.filter(o=>{
+        const id=lsHrId(o);if(!id)return true;
+        const muerta=t[pref+id];if(muerta==null)return true;
+        return +((o&&o.upd)||0)>+muerta;
+      })
     : x;
   const muerto=o=>{if(!o||typeof o!=='object')return false;const id=o.id!=null?o.id:o._id;return id!=null&&t[pref+String(id)]!=null;};
   const rec=v=>{
@@ -7167,6 +7176,20 @@ function lsPurgarTumbas(){
 }
 window.lsTumbas=lsTumbas;window.lsAplicarTumbas=lsAplicarTumbas;window.lsPerdonarTumbas=lsPerdonarTumbas;
 window.lsTumbarIds=lsTumbarIds;window.lsHrId=lsHrId;
+/* v372 · Las tumbas de Polar que creó la 2026-09-22.1 no distinguían entre el
+   registro borrado y el que se cargase después, así que borraban sesiones buenas
+   en cada arranque. Se retiran una sola vez por dispositivo; las que hagan falta
+   volverán a crearse al borrar, ya con la regla del sello. */
+(function(){
+  try{
+    if(localStorage.getItem('bmnava_tumbahr_purga')==='1')return;
+    const t=lsTumbas();let n=0;
+    Object.keys(t).forEach(k=>{if(k.indexOf(LS_HR+':')===0){delete t[k];n++;}});
+    if(n)localStorage.setItem(LS_TUMBAS,JSON.stringify(t));
+    localStorage.setItem('bmnava_tumbahr_purga','1');
+    if(n)console.info('bmnava · retiradas '+n+' tumbas de Polar de la versión anterior');
+  }catch(e){}
+})();
 function lsLeer(clave,vacio){
   LS_LEIDAS[clave]=true;
   try{
@@ -17985,12 +18008,14 @@ function importHR(){
     const z=[4,5,6,7,8].map(i=>num(c[i])*60);
     recs.push({name:c[0],date:d,dk,session:lab,hrAvg:Math.round(num(c[1])),hrMax:Math.round(num(c[2])),kcal:Math.round(num(c[3])),z,dur:z.reduce((x,y)=>x+y,0)/60});});
   if(!recs.length){msg.textContent='No pude leer filas. Revisa el formato (Nombre; media; max; kcal; z1..z5).';return;}
-  const key=dk+'|'+lab;recs.forEach(r=>r.manual=true);
+  /* v372 · el sello dice cuándo entró esta sesión; con él, una tumba anterior ya
+     no puede borrarla ni aunque vuelva desde el servidor */
+  const sello=Date.now();
+  const key=dk+'|'+lab;recs.forEach(r=>{r.manual=true;r.upd=sello;});
   const otras=hrOtrasDelDia(dk,key);
   STATE.hr=hrDedupe(STATE.hr.filter(x=>hrKey(x)!==key).concat(recs));
   /* v371 · Volver a subir una sesión borrada es resucitarla a propósito: se le
-     perdona la tumba. Sin esto, cargar otra vez el mismo día con la misma
-     etiqueta dentro de los 30 días de la tumba la borraría sola otra vez. */
+     perdona la tumba aquí, además del sello, para no arrastrarla de vuelta. */
   try{lsPerdonarTumbas(LS_HR,recs);}catch(e){}
   const okp=hrPersist();
   msg.innerHTML=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp?' · guardado':'')+'.'+hrAvisoNombres(hrNombresNoReconocidos(recs))+hrAvisoDup(otras);
@@ -18018,10 +18043,14 @@ function hrPersist(){
   if(!HR_RESTAURADO)hrEnsure();
   try{
     const own=(STATE.hr||[]).filter(r=>r&&r.manual);
-    const ok=lsGuardar(HR_LS,own.map(r=>({
-      name:r.name,dk:r.dk,session:r.session,hrAvg:r.hrAvg,hrMax:r.hrMax,
-      kcal:r.kcal,z:r.z,dur:r.dur
-    })));
+    const ok=lsGuardar(HR_LS,own.map(r=>{
+      const o={name:r.name,dk:r.dk,session:r.session,hrAvg:r.hrAvg,hrMax:r.hrMax,
+        kcal:r.kcal,z:r.z,dur:r.dur};
+      /* v372 · el sello se conserva tal cual, nunca se regenera: si cada guardado
+         lo refrescara, ninguna tumba volvería a valer para nada */
+      if(r.upd!=null)o.upd=r.upd;
+      return o;
+    }));
     if(!ok)throw new Error('escritura bloqueada');
     return true;
   }catch(e){
@@ -18110,9 +18139,11 @@ function importHRGrid(){hrEnsure();const dval=document.getElementById('hr-date')
   const map={};document.querySelectorAll('#hr-grid input[data-n]').forEach(inp=>{const n=inp.dataset.n,k=inp.dataset.k;const v=parseFloat((inp.value||'').replace(',','.'));if(!map[n])map[n]={};if(!isNaN(v))map[n][k]=v;});
   const recs=[];Object.keys(map).forEach(n=>{const m=map[n];const hasZone=['z0','z1','z2','z3','z4'].some(k=>m[k]>0);if(!(m.hrAvg||hasZone))return;const z=['z0','z1','z2','z3','z4'].map(k=>(m[k]||0)*60);recs.push({name:n,date:d,dk,session:lab,hrAvg:Math.round(m.hrAvg||0),hrMax:Math.round(m.hrMax||0),kcal:Math.round(m.kcal||0),z,dur:z.reduce((x,y)=>x+y,0)/60});});
   if(!recs.length){msg.textContent='Rellena al menos un jugador (FC media o minutos en zonas).';return;}
-  const key=dk+'|'+lab;recs.forEach(r=>r.manual=true);
+  const sello2=Date.now();
+  const key=dk+'|'+lab;recs.forEach(r=>{r.manual=true;r.upd=sello2;});
   const otras2=hrOtrasDelDia(dk,key);
   STATE.hr=hrDedupe(STATE.hr.filter(x=>hrKey(x)!==key).concat(recs));
+  try{lsPerdonarTumbas(LS_HR,recs);}catch(e){}
   const okp2=hrPersist();
   msg.innerHTML=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp2?' · guardado':'')+'.'+hrAvisoNombres(hrNombresNoReconocidos(recs))+hrAvisoDup(otras2);renderHR();}
 /* v249 · Un duplicado solo se sobrescribe si coinciden fecha Y etiqueta. Con la
@@ -26135,8 +26166,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-22.1*/
-const VER_ACTUAL='2026-09-22.1';
+/*BUILD:2026-09-22.2*/
+const VER_ACTUAL='2026-09-22.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
