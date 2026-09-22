@@ -107,7 +107,12 @@ Los estados de lesión los gobierna **exclusivamente el módulo Médico**. Dispo
 - Anillos tipo WHOOP (`ring()` helper), semáforos, tarjetas blancas flotantes sobre lienzo gris, sombras suaves, KPIs grandes.
 - Píldoras semánticas tranquilas (verde/ámbar/rojo).
 - Se rechazaron explícitamente los layouts saturados de gráficos en favor de anillos e indicadores de un vistazo.
-- Tipografía: Inter (Google Fonts).
+- Tipografía: Inter (Google Fonts), **en una sola petición** junto a Inter Tight y JetBrains Mono.
+- **Escala tipográfica (v377)**: seis escalones y nada entre medias — `--fs-hero` 34 · `--fs-h1` 24 · `--fs-h2` 17 · `--fs-body` 14 · `--fs-sm` 12,5 · `--fs-xs` 11. Antes había 25 tamaños distintos solo en el Resumen, 15 de ellos entre 7,5 y 14 px: con todo en la misma banda no hay jerarquía. Lo nuevo usa los tokens.
+- **Aire**: panel 22 px de padding, 18 de separación; en móvil 16 y 14. El bloque que antes se llamaba "modo compacto" los tenía en 14 y 12.
+- **Elevación**: la sombra de los paneles es `--lg-shadow`, no `--e1` — las reglas del vidrio la imponen con `!important`. Contenida a propósito: si todo flota, nada destaca. La sombra grande se reserva para lo que se abre encima.
+- **Cabecera de panel**: 17 px, peso 600, **sin raya debajo**. El aire separa mejor que una línea.
+- **El efecto cristal y los blobs del fondo no se tocan** (decisión de Daniel, 23/09/2026), ni los semáforos se cambian por anillos.
 - **Móvil es de primera clase**, no una adaptación. Carlos consulta el dashboard desde el teléfono.
 
 **No hagas rediseños especulativos.** No cambies nada que no se haya pedido. Si detectas algo mejorable, dilo; no lo implementes por tu cuenta.
