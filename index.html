@@ -1512,6 +1512,34 @@ main{padding:13px 16px 70px}
 .cal-du-ua{text-align:center;font-variant-numeric:tabular-nums;font-weight:800;color:var(--c-data,#3f5572)}
 .cal-ct-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 /* ═══ v373 · Objetivo de pulso de la sesión ═══ */
+.panel--hq{border-top:3px solid #0e7490}
+.panel--hq>h2{font-size:17px}
+.hq-det{margin-top:18px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.hq-det>summary{cursor:pointer;list-style:none;padding:11px 15px;font-size:12.5px;font-weight:700;
+  color:var(--muted);display:flex;align-items:center;gap:9px;user-select:none}
+.hq-det>summary::-webkit-details-marker{display:none}
+.hq-det>summary::after{content:'\25be';margin-left:auto;transition:transform .15s}
+.hq-det[open]>summary::after{transform:rotate(180deg)}
+.hq-det>summary:hover{color:var(--txt)}
+.hq-det-b{padding:0 15px 15px}
+.hq-det-b .hq-sec{margin-top:13px}
+.hq-tbl{font-size:12.5px}
+.hq-tbl td,.hq-tbl th{padding:6px 9px}
+.hq-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.hq-efecto{display:flex;flex-direction:column;gap:3px;border:1px solid var(--hair);border-left:3px solid #0e7490;
+  border-radius:10px;padding:11px 14px;background:var(--panel)}
+.hq-efecto--no{border-left-color:var(--line)}
+.hq-ef-v{font-family:var(--mono,monospace);font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.hq-ef-s{font-size:11px;color:var(--muted2)}
+.hq-ef-t{margin:7px 0 0;font-size:12px;line-height:1.55;color:var(--muted)}
+.hq-base{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;border:1px solid var(--hair);
+  border-radius:10px;padding:12px 14px;background:var(--panel)}
+.hq-bars{display:flex;gap:9px;align-items:flex-end}
+.hq-bcol{display:flex;flex-direction:column;align-items:center;gap:3px;width:30px}
+.hq-bcol i{width:100%;border-radius:4px 4px 0 0;min-height:3px;display:block}
+.hq-bcol b{font-size:11px;font-family:var(--mono,monospace)}
+.hq-bcol span{font-size:9.5px;color:var(--muted2)}
+.hq-base-tx{flex:1;min-width:230px;font-size:12px;line-height:1.6;color:var(--muted)}
 .hq-sec{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);
   margin:16px 0 9px;padding-bottom:6px;border-bottom:1px solid var(--hair)}
 .hq-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:13px;align-items:end}
@@ -4400,6 +4428,11 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
          y la ficha del jugador, que sigue a uno a lo largo de la temporada. -->
     <div class="seg hrp-seg" id="hr-modo"><button data-m="equipo" class="on" onclick="hrModo('equipo')">Equipo · sesión</button><button data-m="jugador" onclick="hrModo('jugador')">Jugador</button></div>
     <div id="hr-pane-equipo">
+    <!-- v373/v374 · modelo de sesión del equipo: de la RPE y el contacto que se
+         planifican, a los objetivos de pulso que hay que alcanzar. Va el primero
+         de la pestaña: es lo que se usa ANTES de la sesión, mientras que todo lo
+         de debajo es la lectura de una sesión ya hecha. -->
+    <div class="panel panel--hq" id="hreq-card"></div>
     <div class="ctrlrow">
       <span class="tag">Sesión Polar</span>
       <select id="hr-session" onchange="hrSesPick()" style="min-width:260px"></select>
@@ -4414,9 +4447,6 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="panel"><h2>Tiempo en zonas · acumulado de la semana <span class="r muted">Δ% vs semanas previas</span></h2><div id="hr-week-zones"></div></div>
       </div>
     </div>
-    <!-- v373 · modelo de sesión del equipo: de la RPE y el contacto que se
-         planifican, a los objetivos de pulso que hay que alcanzar -->
-    <div class="panel" id="hreq-card"></div>
     <div class="panel" id="hri-card">
       <h2>Sesión vs perfil individual <span class="r muted">cada jugador contra su propio histórico · caja = su rango típico (p25–p75)</span>
       <span style="float:right"><button class="btn ghost" style="padding:4px 12px;font-size:11px" onclick="exportNodePNG('hri-card','hr_individual_'+((document.getElementById('hr-session')||{}).value||'sesion').split('|')[0]+'.png')">PNG</button></span></h2>
@@ -18142,6 +18172,64 @@ function hreqCard(tit,r,dec,uni,sub,lo,hi,col){
    +hreqBarra(r,lo,hi,col)
    +'<div class="hq-c-s">'+sub+'</div></div>';
 }
+/* Qué hay dentro del modelo. Daniel lo pidió explícitamente: poder verlo, no
+   solo usarlo. Tres cosas que se pueden comprobar: cuánto acierta cada salida,
+   qué dice sobre el contacto, y con qué sesiones se ha construido. */
+function hreqDetalle(mod){
+  if(!mod||!mod.ok)return '';
+  const q=(m,lab,uni,dec)=>{
+    if(!m)return '';
+    const g=m.r2>=.40?['#1ea863','fiable']:(m.r2>=.20?['#e08a00','orientativo']:['#e23b32','flojo']);
+    return '<tr><td>'+lab+'</td>'
+     +'<td class="mono" style="color:'+g[0]+';font-weight:700">'+Math.round(m.r2*100)+'%</td>'
+     +'<td class="mono">±'+fmt(m.rmse,dec)+' '+uni+'</td>'
+     +'<td><span class="hq-dot" style="background:'+g[0]+'"></span>'+g[1]+'</td></tr>';
+  };
+  const tabla='<div class="wrap-x"><table class="tbl hq-tbl"><thead><tr><th>Qué predice</th><th>Acierta</th><th>Error típico</th><th></th></tr></thead><tbody>'
+   +q(mod.M.z45,'% del tiempo en Z4+Z5','puntos',1)
+   +q(mod.M.fc,'FC media del equipo','% FC',1)
+   +q(mod.M.fcx,'FC máxima media','% FC',1)
+   +q(mod.M.tmin,'TRIMP por minuto','',2)
+   +'</tbody></table></div>';
+  /* Efecto del contacto, en las unidades que se usan: a igualdad de RPE, cuántos
+     minutos de Z4+Z5 cambia subir un grado de contacto. */
+  let efecto='';
+  if(mod.inter){
+    const rpe=Math.round((mod.rpeMin+mod.rpeMax)/2*2)/2;
+    const dur=Math.round(mod.durMed||75);
+    const a=hreqPred(mod,rpe,2,dur),b=hreqPred(mod,rpe,4,dur);
+    if(a&&b){
+      const d=(b.min45.mid-a.min45.mid)/2;
+      const sube=d>0;
+      const txt=Math.abs(d)<0.4
+        ? 'Prácticamente no cambia nada: a esta RPE, el contacto no altera cuánto pulso hace falta.'
+        : (sube
+          ? 'Con más contacto hace falta <b>más</b> Z4+Z5 para la misma RPE. Es lo contrario de lo habitual: revisa si el contacto se está declarando bien.'
+          : 'Con más contacto hace falta <b>menos</b> Z4+Z5 para la misma RPE: parte de la dureza la pone el choque, no el corazón. Es el mismo efecto que aparece en la ficha del jugador.');
+      efecto='<div class="hq-efecto"><div class="hq-ef-v" style="color:'+(sube?'#e08a00':'#0e7490')+'">'
+        +(d>0?'+':'−')+fmt(Math.abs(d),1)+' min</div>'
+        +'<div class="hq-ef-s">de Z4+Z5 por cada grado de contacto, a RPE '+fmt(rpe,1)+' y '+dur+'′</div>'
+        +'<p class="hq-ef-t">'+txt+'</p></div>';
+    }
+  }else{
+    efecto='<div class="hq-efecto hq-efecto--no"><p class="hq-ef-t">El contacto todavía no entra en el modelo: hacen falta 20 sesiones con contacto variado y hay '+mod.n+'.</p></div>';
+  }
+  /* Con qué se ha construido */
+  const porCt={};mod.rows.forEach(x=>{const k=Math.round(x.ct)||1;porCt[k]=(porCt[k]||0)+1;});
+  const maxCt=Math.max(1,...Object.values(porCt));
+  const barras=[1,2,3,4,5].map(k=>'<div class="hq-bcol"><i style="height:'+Math.round((porCt[k]||0)/maxCt*46)+'px;background:'+hrpModCol(k)+'"></i>'
+    +'<b>'+(porCt[k]||0)+'</b><span>'+k+'</span></div>').join('');
+  const base='<div class="hq-base">'
+   +'<div class="hq-bars">'+barras+'</div>'
+   +'<div class="hq-base-tx"><b>'+mod.n+' sesiones</b> del equipo con pulso, RPE y contacto a la vez.<br>'
+   +'RPE entre <b>'+fmt(mod.rpeMin,1)+'</b> y <b>'+fmt(mod.rpeMax,1)+'</b> · contacto entre <b>'+fmt(mod.ctMin,1)+'</b> y <b>'+fmt(mod.ctMax,1)+'</b> · duración mediana <b>'+Math.round(mod.durMed)+'′</b>.<br>'
+   +'<span class="muted">Fuera de esos rangos el modelo extrapola y se avisa. Los aciertos son con validación cruzada: el error es el que comete con sesiones que no ha visto.</span></div></div>';
+  return '<details class="hq-det"><summary>Ver el modelo por dentro</summary><div class="hq-det-b">'
+   +'<div class="hq-sec" style="margin-top:4px">Cuánto acierta cada salida</div>'+tabla
+   +'<div class="hq-sec">Qué dice del contacto</div>'+efecto
+   +'<div class="hq-sec">Con qué sesiones está construido <span class="muted">· reparto por grado de contacto</span></div>'+base
+   +'</div></details>';
+}
 function renderHREq(){
   const box=document.getElementById('hreq-card');if(!box)return;
   const mod=hreqMod();
@@ -18187,7 +18275,8 @@ function renderHREq(){
    +'</div>'
    +'<div id="hq-out"></div>'
    +'<div class="hq-sec">Minutos en Z4+Z5 que pide cada combinación <span class="muted">· para la duración de arriba</span></div>'
-   +'<div id="hq-grid"></div>';
+   +'<div id="hq-grid"></div>'
+   +hreqDetalle(mod);
   hreqSim();
 }
 function hreqSetCt(c){
@@ -26584,8 +26673,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-22.3*/
-const VER_ACTUAL='2026-09-22.3';
+/*BUILD:2026-09-22.4*/
+const VER_ACTUAL='2026-09-22.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
