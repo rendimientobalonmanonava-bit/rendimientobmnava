@@ -293,6 +293,16 @@ html[data-theme="dark"]{
   --row-warn:rgba(255,178,36,.06); --row-bad:rgba(255,95,82,.07);
   /* en oscuro el azul marino desaparece contra el fondo: manda el dorado */
   --champ:#2c3d78; --champ-tx:#e3c877; --champ-soft:rgba(227,200,119,.12);
+  /* v380 · ESTE era el problema del modo oscuro. --sheet-grad se define una sola
+     vez, para claro, y termina en `linear-gradient(180deg,#f2f4f9,#e9edf4)`: un
+     gris CLARO. En oscuro seguía pintándose ese gris sobre el lienzo, y encima
+     los blobs de color con las opacidades pensadas para fondo blanco. Resultado:
+     una película gris lavada sobre toda la pantalla, que es lo que se veía. El
+     oscuro tiene ahora su propio fondo; el claro no se toca. */
+  --sheet-grad:
+    radial-gradient(1000px 640px at 12% -5%,rgba(48,86,196,.18),transparent 60%),
+    radial-gradient(880px 560px at 88% 10%,rgba(21,138,86,.07),transparent 60%),
+    linear-gradient(180deg,#0c0d12,#07080b);
   --shadow:0 1px 2px rgba(0,0,0,.45),0 10px 26px -14px rgba(0,0,0,.6);
   --e1:inset 0 1px 0 rgba(255,255,255,.05),0 1px 2px rgba(0,0,0,.45),0 10px 26px -16px rgba(0,0,0,.6);
   --e2:inset 0 1px 0 rgba(255,255,255,.06),0 2px 6px rgba(0,0,0,.45),0 14px 32px -16px rgba(0,0,0,.6);
@@ -453,29 +463,7 @@ html[data-theme="dark"] .lockup .hp-light{display:block}
 ::-webkit-scrollbar-track{background:transparent}
 button:focus-visible,nav button:focus-visible,.iconbtn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .chip,.tag{border-radius:var(--r-pill)}
-/* ═══ v379 · Bloque protagonista del Resumen ═══
-   Una sola cifra manda y el resto se ordena debajo. El bloque compacto bajaba
-   el estado a 17 px y el consejo a 12,5: aquí se recuperan. */
-#team-hero{margin-bottom:18px}
-#team-hero .panel{padding:26px 30px}
-#team-hero .hero-rec{gap:34px;align-items:center}
-#team-hero .hero-ringlab{font-size:10px;letter-spacing:.12em;margin-top:2px}
-#team-hero .hero-txt{flex:1 1 320px}
-#team-hero .hero-txt .st{font-size:34px;letter-spacing:-.035em;line-height:1.02}
-#team-hero .hero-txt .advice{font-size:15px;line-height:1.55;margin-top:9px;max-width:66ch}
-#team-hero .hero-strip{flex:1 1 300px;min-width:240px}
-#team-hero .recstrip-wrap{margin-top:0}
-#team-hero .recstrip-wrap .rl{font-size:10px;letter-spacing:.12em;margin-bottom:10px}
-#team-hero .recstrip{height:54px;gap:5px}
-#team-hero .recstrip .seg{border-radius:5px}
-@media(max-width:760px){
-  #team-hero .panel{padding:20px}
-  #team-hero .hero-rec{gap:20px}
-  #team-hero .hero-txt{flex:1 1 100%}
-  #team-hero .hero-txt .st{font-size:25px}
-  #team-hero .hero-txt .advice{font-size:13.5px}
-  #team-hero .recstrip{height:40px}
-}
+
 @media print{.kpi-spark,.rdcell .spark{display:none}.panel h2{border-bottom:1px solid #e5e5e5}}
 /* ===== Estilo WHOOP: anillo recovery, hero, tira, tipografía ===== */
 h1,h2,h3,.cond{font-family:"Inter Tight","Inter",-apple-system,BlinkMacSystemFont,sans-serif}
@@ -3880,10 +3868,11 @@ body.modal-open #sidebar{overflow:hidden}
   --lg-shadow:0 6px 18px -12px rgba(20,29,46,.18),0 1px 3px rgba(20,29,46,.05);
 }
 html[data-theme="dark"]{
-  /* v377 · algo más de cuerpo: con .44 los blobs de color atravesaban la tarjeta
-     y el texto perdía contraste */
-  --glass:rgba(30,36,48,.58);
-  --glass-border:rgba(255,255,255,.11);
+  /* v377/v380 · con .44 los blobs atravesaban la tarjeta y el texto perdía
+     contraste; en oscuro la tarjeta tiene que leerse como superficie, no como
+     cristal sobre una lámpara */
+  --glass:rgba(24,27,34,.86);
+  --glass-border:rgba(255,255,255,.10);
   --glass-inner:rgba(255,255,255,.06);
   --lg-hi:rgba(255,255,255,.20);
   --lg-rim:rgba(255,255,255,.12);
@@ -3900,7 +3889,16 @@ body::before{
   filter:blur(52px) saturate(1.25);
   animation:lgFloat 28s ease-in-out infinite alternate;
 }
-html[data-theme="dark"] body::before{filter:blur(56px) saturate(1.15) brightness(.85)}
+/* v380 · Los blobs llevaban las opacidades del modo claro (.34/.30/.26/.20) y
+   sobre negro son cuatro manchas de luz que lavan la pantalla entera. En oscuro
+   quedan dos, mucho más tenues, solo para que el fondo no sea un plano muerto. */
+html[data-theme="dark"] body::before{
+  background:
+    radial-gradient(46% 50% at 14% 14%,rgba(48,86,196,.22),transparent 62%),
+    radial-gradient(42% 46% at 88% 86%,rgba(21,138,86,.10),transparent 62%);
+  filter:blur(64px) saturate(1.1);
+  opacity:.85;
+}
 @keyframes lgFloat{
   0%{transform:translate3d(0,0,0) scale(1)}
   50%{transform:translate3d(2.2%,-1.8%,0) scale(1.07)}
@@ -4185,16 +4183,12 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     </div>
     <!-- v231 · Tira de titulares: los seis números que deciden la sesión de hoy.
          Antes había que leer el anillo, el donut y bajar hasta la tabla. -->
-    <!-- v379 · El readiness del equipo era un anillo de 104 px metido en la
-         primera de tres columnas, con el mismo peso visual que otras catorce
-         tarjetas. Es LA cifra de la pantalla: sube arriba, a ancho completo y
-         en grande, y lo demás queda jerarquizado debajo. -->
-    <div id="team-hero"></div>
     <div id="team-strip"></div>
     <!-- v231 · Filas temáticas en vez de dos columnas genéricas. -->
     <div class="eq-r3">
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--ok)"></span>Cómo llega el equipo</div>
+        <div id="team-hero"></div>
         <div class="panel" id="eq-semana" style="cursor:pointer" onclick="go('cal')">
           <h2>Carga de la semana <span class="r muted">planificado vs real ›</span></h2>
           <div class="eq-semana-plot"><canvas id="eq-week-canvas"></canvas></div>
@@ -10949,11 +10943,11 @@ function renderTeam(){
   const hero=document.getElementById('team-hero');
   if(hero)hero.innerHTML=`<div class="panel">
     <div class="hero-rec">
-      <div class="hero-ring">${recoveryRing(isNaN(avg)?null:Math.round(avg),hsev,150)}<div class="hero-ringlab">Readiness medio</div></div>
+      <div class="hero-ring">${recoveryRing(isNaN(avg)?null:Math.round(avg),hsev,104)}<div class="hero-ringlab">Readiness medio</div></div>
       <div class="hero-txt"><div class="st" style="color:var(--${hsev})">${recState(hsev)}</div>
         <div class="advice">${teamAdvice(avg,reds,warns)}</div></div>
-      <div class="hero-strip">${recoveryStrip(teamRecSeries(14),'Recuperación del equipo · últimos días')}</div>
     </div>
+    ${recoveryStrip(teamRecSeries(14),'Recuperación del equipo · últimos días')}
   </div>`;
   renderTeamRings();renderTeamWellLights();
   /* v231 · tira de titulares y mapa de riesgo carga × recuperación */
@@ -26823,8 +26817,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-23.4*/
-const VER_ACTUAL='2026-09-23.4';
+/*BUILD:2026-09-23.5*/
+const VER_ACTUAL='2026-09-23.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
