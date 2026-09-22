@@ -7050,7 +7050,36 @@ const LS_VISTO={};
    copia antigua perdona las tumbas de lo que restaura: eso sí es resucitar a
    propósito. */
 const LS_TUMBAS='bmnava_tumbas';
-const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl)$/;
+const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr)$/;
+/* v371 · Las sesiones de Polar se quedaban fuera del sistema de tumbas, así que
+   borrar una no dejaba rastro: la fusión la conservaba desde la copia del
+   servidor y volvía en cada actualización, una y otra vez. Sus registros no
+   tienen id —son {name,dk,session,…}— y se identifican igual que en la fusión,
+   por fecha + etiqueta + jugador. */
+const LS_HR='bmnava_hr';
+function lsHrId(o){
+  return (o&&o.dk&&o.name)?(o.dk+'|'+(o.session||'Sesión')+'|'+o.name):null;
+}
+/* Solo se anotan tumbas de Polar desde el borrado explícito, nunca por
+   diferencia: hrPersist reescribe el archivo entero con lo que haya en memoria,
+   y si la memoria viniera incompleta el diff anotaría como borrado algo que
+   simplemente no se había cargado. Una tumba errónea borra para todos. */
+const LS_TUMBAS_NO_DIFF=[LS_HR];
+function lsIdsClave(clave,x){
+  if(clave!==LS_HR)return lsIds(x);
+  const s=new Set();
+  (Array.isArray(x)?x:[]).forEach(o=>{const id=lsHrId(o);if(id)s.add(id);});
+  return s;
+}
+/* Anota tumbas directamente, para cuando el borrado es una acción confirmada por
+   el usuario y no hay que deducirlo de ninguna diferencia. */
+function lsTumbarIds(clave,ids){
+  if(!LS_TUMBAS_OK.test(clave)||!ids||!ids.length)return 0;
+  const t=lsTumbas(),pref=clave+':',ahora=Date.now();let n=0;
+  ids.forEach(id=>{if(id!=null&&t[pref+id]==null){t[pref+id]=ahora;n++;}});
+  if(n){try{localStorage.setItem(LS_TUMBAS,JSON.stringify(t));}catch(e){}}
+  return n;
+}
 function lsTumbas(){try{return JSON.parse(localStorage.getItem(LS_TUMBAS)||'{}')||{};}catch(e){return{};}}
 function lsIds(x,out){
   out=out||new Set();
@@ -7063,6 +7092,9 @@ function lsAplicarTumbas(clave,x){
   const t=lsTumbas(),pref=clave+':';
   let hay=false;for(const k in t){if(k.indexOf(pref)===0){hay=true;break;}}
   if(!hay)return x;
+  if(clave===LS_HR)return Array.isArray(x)
+    ? x.filter(o=>{const id=lsHrId(o);return !(id&&t[pref+id]!=null);})
+    : x;
   const muerto=o=>{if(!o||typeof o!=='object')return false;const id=o.id!=null?o.id:o._id;return id!=null&&t[pref+String(id)]!=null;};
   const rec=v=>{
     if(Array.isArray(v)){const r=[];v.forEach(e=>{if(muerto(e))return;r.push(rec(e));});return r;}
@@ -7076,6 +7108,7 @@ function lsAplicarTumbas(clave,x){
    borrado, es un fallo, y no se anota (una tumba errónea borra para todos). */
 function lsAnotarBorrados(clave,antesTxt,ahoraVal){
   if(!LS_TUMBAS_OK.test(clave)||antesTxt==null)return 0;
+  if(LS_TUMBAS_NO_DIFF.indexOf(clave)>=0)return 0;
   let antes;try{antes=JSON.parse(antesTxt);}catch(e){return 0;}
   const t=lsTumbas(),pref=clave+':';
   const A=lsIds(antes),B=lsIds(ahoraVal);
@@ -7122,7 +7155,7 @@ function lsSellarCambios(clave,antesTxt,ahoraVal){
 function lsPerdonarTumbas(clave,x){
   if(!LS_TUMBAS_OK.test(clave))return 0;
   const t=lsTumbas(),pref=clave+':';let n=0;
-  lsIds(x).forEach(id=>{if(t[pref+id]!=null){delete t[pref+id];n++;}});
+  lsIdsClave(clave,x).forEach(id=>{if(t[pref+id]!=null){delete t[pref+id];n++;}});
   if(n){try{localStorage.setItem(LS_TUMBAS,JSON.stringify(t));}catch(e){}}
   return n;
 }
@@ -7133,6 +7166,7 @@ function lsPurgarTumbas(){
   return n;
 }
 window.lsTumbas=lsTumbas;window.lsAplicarTumbas=lsAplicarTumbas;window.lsPerdonarTumbas=lsPerdonarTumbas;
+window.lsTumbarIds=lsTumbarIds;window.lsHrId=lsHrId;
 function lsLeer(clave,vacio){
   LS_LEIDAS[clave]=true;
   try{
@@ -17954,6 +17988,10 @@ function importHR(){
   const key=dk+'|'+lab;recs.forEach(r=>r.manual=true);
   const otras=hrOtrasDelDia(dk,key);
   STATE.hr=hrDedupe(STATE.hr.filter(x=>hrKey(x)!==key).concat(recs));
+  /* v371 · Volver a subir una sesión borrada es resucitarla a propósito: se le
+     perdona la tumba. Sin esto, cargar otra vez el mismo día con la misma
+     etiqueta dentro de los 30 días de la tumba la borraría sola otra vez. */
+  try{lsPerdonarTumbas(LS_HR,recs);}catch(e){}
   const okp=hrPersist();
   msg.innerHTML=recs.length+' jugadores añadidos · '+lab+' ('+dval+')'+(okp?' · guardado':'')+'.'+hrAvisoNombres(hrNombresNoReconocidos(recs))+hrAvisoDup(otras);
   document.getElementById('hr-paste').value='';renderHR();
@@ -18051,10 +18089,16 @@ function hrDeleteSession(key){
   const s=hrSesLab(key);
   if(!confirm('¿Borrar la sesión «'+s.lab+'» del '+hrFechaEs(s.dk)+'?\n\nSe eliminarán los datos de '+afectados.length+' jugadores. No se puede deshacer.'))return;
   STATE.hr=(STATE.hr||[]).filter(r=>!(r&&r.manual&&hrKey(r)===key));
+  /* v371 · Sin esto el borrado solo valía hasta la siguiente sincronización: la
+     fusión conserva lo que está en un lado y no en el otro, así que el servidor
+     devolvía la sesión en cada «Actualizar». */
+  let tumbas=0;
+  try{tumbas=lsTumbarIds(LS_HR,afectados.map(lsHrId).filter(Boolean));}catch(e){}
   const ok=hrPersist();
   try{renderHR();}catch(e){}
   const m=document.getElementById('hr-msg');
-  if(m)m.textContent='Sesión borrada · '+s.lab+' ('+hrFechaEs(s.dk)+') · '+afectados.length+' jugadores'+(ok?' · guardado':'')+'.';
+  if(m)m.textContent='Sesión borrada · '+s.lab+' ('+hrFechaEs(s.dk)+') · '+afectados.length+' jugadores'
+    +(ok?' · guardado':'')+(tumbas?' · no volverá al sincronizar':'')+'.';
 }
 window.hrDeleteSession=hrDeleteSession;window.renderHRSessions=renderHRSessions;
 function buildHRGrid(){const box=document.getElementById('hr-grid');if(!box)return;const names=Object.keys(STATE.players).length?Object.keys(STATE.players).sort():[...new Set(STATE.hr.map(r=>r.name))].sort();
@@ -26091,8 +26135,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-21.3*/
-const VER_ACTUAL='2026-09-21.3';
+/*BUILD:2026-09-22.1*/
+const VER_ACTUAL='2026-09-22.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){

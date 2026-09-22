@@ -71,6 +71,19 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 | Azul EHF `#15224a` + dorado `#c9a227`/`#f0d98a` | **Solo el nivel Champions** del Perfil físico. Tomados del logo de la EHF Champions League. *Autorizado por Daniel el 15/09/2026; no confundir con el oro del club, que sigue siendo exclusivo del sidebar* |
 | Índigo `#3056c4` | Color de acción (botones, enlaces activos) |
 
+### 2.3.1 Borrados y sincronización
+
+La fusión de Supabase conserva **lo que está en un lado y no en el otro**, así que un borrado sin rastro reaparece desde la copia del servidor en la siguiente actualización. Para eso están las tumbas (`bmnava_tumbas`, `LS_TUMBAS_OK`): al borrar se anota el registro, y lo que tiene tumba se retira al leer, al fusionar, al bajar y al subir.
+
+**Al añadir un bloque nuevo al sistema de tumbas hay que darle identidad.** Los registros se identifican por `id`/`_id`; los de Polar no tienen, y se identifican por `fecha|etiqueta|jugador` (`lsHrId`), igual que ya hacía `syClaveRegistro` en la fusión. *No se les puede añadir un campo `id`*: cambiaría la clave de fusión y cada registro que ya está en el servidor sin `id` se duplicaría.
+
+Dos reglas que acompañan a cada bloque con tumbas:
+
+- **`LS_TUMBAS_NO_DIFF`**: los bloques que se reescriben enteros desde memoria (Polar) no anotan tumbas por diferencia, solo desde el borrado explícito. Si la memoria viniera incompleta, el diff anotaría como borrado lo que simplemente no se había cargado, y una tumba errónea borra para todos.
+- **Perdón al volver a cargar**: volver a subir lo borrado es resucitarlo a propósito, así que el import llama a `lsPerdonarTumbas`. Sin eso, recargar la misma sesión dentro de los 30 días de vida de la tumba la borraría sola otra vez.
+
+*Polar entró en el sistema el 22/09/2026: hasta entonces borrar una sesión solo valía hasta la siguiente sincronización.*
+
 ### 2.4 Regla anti-solape (médico ↔ disponibilidad)
 
 Los estados de lesión los gobierna **exclusivamente el módulo Médico**. Disponibilidad los refleja en **solo lectura**, con el indicador `🔒 desde Médico`. `availMark()` debe rechazar la marca si existe un episodio médico abierto.
