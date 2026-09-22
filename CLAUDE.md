@@ -77,6 +77,8 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 
 La fusión de Supabase conserva **lo que está en un lado y no en el otro**, así que un borrado sin rastro reaparece desde la copia del servidor en la siguiente actualización. Para eso están las tumbas (`bmnava_tumbas`, `LS_TUMBAS_OK`): al borrar se anota el registro, y lo que tiene tumba se retira al leer, al fusionar, al bajar y al subir.
 
+**Un array sin objetos es un vector, no una lista.** `syFusionarListas` unía por identidad, y la identidad de un número es su propio valor, así que los repetidos se descartaban: los cinco tiempos por zona de Polar `[1969,658,230,0,0]` se quedaban en cuatro y perdían la Z5, y `[900,600,900,300,0]` perdía el segundo 900 **y descolocaba el resto**, de forma que la Z3 pasaba a valer lo de la Z4. Ocurría en cuanto la misma sesión existía en dos sitios con cualquier diferencia. Desde el 22/09/2026 un array de primitivos se elige entero. Lo que se corrompió antes **no se reconstruye** —si las zonas perdidas eran interiores, los valores están desplazados y no hay forma de saber cuáles—, así que las sesiones afectadas se señalan en la lista de sesiones cargadas para volver a subirlas.
+
 **Al añadir un bloque nuevo al sistema de tumbas hay que darle identidad.** Los registros se identifican por `id`/`_id`; los de Polar no tienen, y se identifican por `fecha|etiqueta|jugador` (`lsHrId`), igual que ya hacía `syClaveRegistro` en la fusión. *No se les puede añadir un campo `id`*: cambiaría la clave de fusión y cada registro que ya está en el servidor sin `id` se duplicaría.
 
 Dos reglas que acompañan a cada bloque con tumbas:
@@ -291,6 +293,7 @@ No los repitas.
 | Nombres con puntuación sin limpiar antes de comparar | Registros atribuidos al jugador equivocado |
 | Tumba sin comparar fechas con el registro | La tumba de una sesión borrada se llevó por delante la que se cargó después con la misma fecha y etiqueta |
 | Ejes de cuadrantes sin `type: 'linear'` | Escala categórica, posiciones falsas |
+| Fusionar un vector posicional como si fuera una lista | Los tiempos por zona de Polar perdían los valores repetidos y el resto se descolocaba; salía `NaN%` en Z5 y en Z4+Z5 |
 
 ---
 

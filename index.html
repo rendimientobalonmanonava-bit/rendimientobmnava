@@ -1586,6 +1586,8 @@ main{padding:13px 16px 70px}
 .cal-rpe-row input[type=range]{flex:1;min-width:130px;accent-color:var(--accent)}
 .cal-rpe-v{font-family:var(--mono,monospace);font-size:16px;font-weight:800;min-width:34px;text-align:right}
 .cal-rpe-lab{font-size:11.5px;color:var(--muted2)}
+.hr-roto{font-size:10.5px;font-weight:700;color:var(--bad);background:var(--bad-bg,rgba(226,59,50,.1));
+  border:1px solid var(--bad);border-radius:999px;padding:1px 8px;white-space:nowrap;margin-left:6px;cursor:help}
 .cal-ct-pill{width:40px;height:40px;border:1.5px solid var(--line);background:var(--panel);border-radius:10px;font-size:15px;font-weight:800;color:var(--txt);cursor:pointer;transition:.12s}
 .cal-ct-pill.on{border-color:#0e7490;background:color-mix(in srgb,#0e7490 13%,transparent);color:#0e7490}
 .cal-ct-scale{font-size:11px;color:var(--muted);margin-left:6px}
@@ -5119,6 +5121,17 @@ function syClaveRegistro(o,i){
   return 'j:'+JSON.stringify(o);
 }
 function syFusionarListas(a,b,aGana){
+  /* v376 · Un array SIN objetos no es una lista de registros: es un vector, y en
+     un vector la posición significa algo. Los cinco tiempos por zona de Polar son
+     el caso. Al unirlos por identidad, y como la identidad de un número es su
+     propio valor, los repetidos se descartaban: [1969,658,230,0,0] se quedaba en
+     cuatro números y perdía la Z5, y [900,600,900,300,0] perdía el segundo 900 y
+     además descolocaba el resto, de forma que la Z3 pasaba a valer lo de la Z4.
+     Pasaba en cuanto la misma sesión existía en dos sitios con cualquier
+     diferencia, que es lo normal al resubir una sesión corregida. De ahí los
+     NaN% en Z5 y en Z4+Z5 de la clasificación. Un vector se elige entero. */
+  const primitivo=x=>x==null||typeof x!=='object';
+  if(a.every(primitivo)&&b.every(primitivo))return (aGana?a:b).slice();
   const orden=[],mapa=Object.create(null);
   const meter=(arr,esA)=>arr.forEach((o,i)=>{
     const k=syClaveRegistro(o,i);
@@ -16937,7 +16950,9 @@ function loadRealTeam(){
 /* ===================== PULSO · POLAR (carga interna) ===================== */
 const HRZ=[["Z1","#c2c8d0"],["Z2","#6aa7d8"],["Z3","#3f9e6a"],["Z4","#d6a02a"],["Z5","#cf473c"]];
 const TRIMP_W=[1,2,3,4,5]; // pesos de Edwards por zona
-function trimpOf(r){return Math.round(r.z.reduce((a,s,i)=>a+(s/60)*TRIMP_W[i],0));}
+/* v376 · con el vector corto, reduce recorría solo lo que había y el TRIMP salía
+   más bajo sin avisar; ahora las cinco zonas siempre, y lo que falte cuenta 0 */
+function trimpOf(r){let t=0;for(let i=0;i<5;i++)t+=(zOf(r,i)/60)*TRIMP_W[i];return Math.round(t);}
 /* ---- Modelo de clasificación de sesión BM Nava v1.0 ---- */
 const ALARM='#7c3aed';
 const BANDCOL=['var(--ok)','var(--warn)','var(--bad)',ALARM];
@@ -16948,7 +16963,12 @@ const SESSPEC=[
 ];
 const LV=[['BAJA','var(--ok)'],['MEDIA','var(--warn)'],['ALTA','var(--bad)']];
 function bandOf(v,bands){for(let i=0;i<bands.length;i++){if(v<bands[i][1])return i;}return bands.length-1;}
-function pctZones(rows){const p=rows.map(r=>{const t=r.z.reduce((a,b)=>a+b,0)||1;return {z5:r.z[4]/t*100,z4:r.z[3]/t*100,z54:(r.z[3]+r.z[4])/t*100};});const m=k=>p.length?p.reduce((a,b)=>a+b[k],0)/p.length:0;return {z5:m('z5'),z4:m('z4'),z54:m('z54')};}
+/* v376 · Un registro con el vector de zonas incompleto daba NaN y el NaN se
+   colaba hasta la pantalla («% Tiempo en Z5: NaN%»). Lo que falta cuenta como
+   cero, que es lo que significa: no se estuvo en esa zona. */
+function zOf(r,i){const v=r&&r.z&&r.z[i];return (v==null||isNaN(v))?0:+v;}
+function pctZones(rows){const p=rows.map(r=>{let t=0;for(let i=0;i<5;i++)t+=zOf(r,i);t=t||1;const z4=zOf(r,3),z5=zOf(r,4);return {z5:z5/t*100,z4:z4/t*100,z54:(z4+z5)/t*100};});const m=k=>p.length?p.reduce((a,b)=>a+b[k],0)/p.length:0;return {z5:m('z5'),z4:m('z4'),z54:m('z54')};}
+window.zOf=zOf;
 function sessMeta(key,dk){
   if(STATE.hrMeta&&STATE.hrMeta[key])return STATE.hrMeta[key];
   const rp=STATE.rpe.filter(x=>x.dk===dk);if(!rp.length)return null;
@@ -18546,7 +18566,12 @@ function hrManualSessions(){
   return Object.keys(m).sort().reverse().map(k=>{
     const s=hrSesLab(k);
     const dur=mean(m[k].map(r=>r.dur||0));
-    return {key:k,dk:s.dk,lab:s.lab,n:m[k].length,dur:dur};
+    /* v376 · registros a los que la fusión antigua les comió zonas repetidas. No
+       se reparan solos: si las que faltan eran interiores, los valores están
+       además descolocados y no hay forma de saber cuáles. Se señalan para poder
+       volver a subir esa sesión, que es lo único que lo arregla de verdad. */
+    const rotos=m[k].filter(r=>!r||!Array.isArray(r.z)||r.z.length!==5).length;
+    return {key:k,dk:s.dk,lab:s.lab,n:m[k].length,dur:dur,rotos:rotos};
   });
 }
 function renderHRSessions(){
@@ -18557,13 +18582,16 @@ function renderHRSessions(){
   const porDia={};ss.forEach(s=>porDia[s.dk]=(porDia[s.dk]||0)+1);
   const filas=ss.map(s=>{
     const rep=porDia[s.dk]>1?' <span style="color:var(--warn);font-weight:700">· '+porDia[s.dk]+' ese día</span>':'';
+    const roto=s.rotos?' <span class="hr-roto" title="A '+s.rotos+' jugador'+(s.rotos===1?'':'es')+' le faltan zonas: la sincronización antigua descartaba los tiempos repetidos. Vuelve a subir esta sesión.">⚠ '+s.rotos+' con zonas incompletas</span>':'';
     return '<tr><td style="white-space:nowrap">'+hrFechaEs(s.dk)+rep+'</td>'
-      +'<td>'+esc(s.lab)+'</td><td style="white-space:nowrap">'+s.n+'</td>'
+      +'<td>'+esc(s.lab)+roto+'</td><td style="white-space:nowrap">'+s.n+'</td>'
       +'<td class="hr-c-dur" style="white-space:nowrap">'+(s.dur?Math.round(s.dur)+"'":'—')+'</td>'
       +'<td><button class="med-chipbtn" style="color:var(--bad)" onclick="hrDeleteSession(&quot;'+esc(s.key)+'&quot;)" title="Borrar esta sesión">✕ Borrar</button></td></tr>';
   }).join('');
-  const aviso=Object.keys(porDia).some(d=>porDia[d]>1)
-    ? '<p class="small" style="color:var(--warn);margin:0 0 8px">Hay más de una sesión cargada en el mismo día. Si alguna es un duplicado, bórrala aquí.</p>' : '';
+  const aviso=(Object.keys(porDia).some(d=>porDia[d]>1)
+    ? '<p class="small" style="color:var(--warn);margin:0 0 8px">Hay más de una sesión cargada en el mismo día. Si alguna es un duplicado, bórrala aquí.</p>' : '')
+   +(ss.some(s=>s.rotos)
+    ? '<p class="small" style="color:var(--bad);margin:0 0 8px"><b>Sesiones con zonas incompletas.</b> Una versión anterior de la sincronización descartaba los tiempos de zona repetidos —dos zonas con los mismos segundos, lo habitual cuando hay varias a cero—, así que a esos jugadores les falta alguna zona y el resto puede estar descolocado. Ya no vuelve a pasar, pero lo que se perdió no se puede reconstruir: vuelve a subir esas sesiones.</p>' : '');
   box.innerHTML=aviso+'<div class="wrap-x"><table class="tbl"><thead><tr><th>Fecha</th><th>Sesión</th><th>Jug.</th><th class="hr-c-dur">Duración</th><th></th></tr></thead><tbody>'+filas+'</tbody></table></div>';
 }
 function hrDeleteSession(key){
@@ -26672,8 +26700,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-22.5*/
-const VER_ACTUAL='2026-09-22.5';
+/*BUILD:2026-09-22.6*/
+const VER_ACTUAL='2026-09-22.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
