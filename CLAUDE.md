@@ -112,6 +112,10 @@ Los estados de lesión los gobierna **exclusivamente el módulo Médico**. Dispo
 - **Aire**: panel 22 px de padding, 18 de separación; en móvil 16 y 14. El bloque que antes se llamaba "modo compacto" los tenía en 14 y 12.
 - **Elevación**: la sombra de los paneles es `--lg-shadow`, no `--e1` — las reglas del vidrio la imponen con `!important`. Contenida a propósito: si todo flota, nada destaca. La sombra grande se reserva para lo que se abre encima.
 - **Cabecera de panel**: 17 px, peso 600, **sin raya debajo**. El aire separa mejor que una línea.
+- **Modo oscuro (v378)**: el bloque `html[data-theme="dark"]` **tiene que redefinir los colores semánticos**, no solo las superficies. Verde, ámbar, rojo y el azul de acción están elegidos para fondo blanco y sobre un lienzo casi negro quedan por debajo de 0,4 de luminancia: se leen como manchas apagadas. En oscuro van subidos de luz (`--ok:#30d47f`, `--warn:#ffb224`, `--bad:#ff5f52`, `--accent:#6d8cff`). **La ficha exportable los fija a los valores claros**, porque es siempre un documento en claro.
+- **Al cambiar de tema hay que tirar los gráficos** (`themeRepaint`): Chart.js no repinta porque cambien variables CSS, así que los ejes se quedaban con el gris del tema anterior. Y `rerenderCurrent` cubre todas las vistas — ojo, los ids son `v-tests`, `v-estado`, `v-cal`, `v-alertas`, `v-jugadores`; `go('tsa')` **no existe** y cae al Resumen sin avisar.
+- **El cambio de tema no funde el color del texto**, solo los fondos: fundir el texto deja un tercio de segundo de gris lavado que parece que la aplicación se ha roto.
+- **Nada de colores escritos a mano en el CSS o en línea desde JS.** Cada hexadecimal suelto es un punto que no vira con el tema: así había 132 elementos ilegibles en oscuro.
 - **El efecto cristal y los blobs del fondo no se tocan** (decisión de Daniel, 23/09/2026), ni los semáforos se cambian por anillos.
 - **Móvil es de primera clase**, no una adaptación. Carlos consulta el dashboard desde el teléfono.
 

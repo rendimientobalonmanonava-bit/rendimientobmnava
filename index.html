@@ -61,6 +61,7 @@ window.__PHOTOS__ = window.__PHOTOS__ || {};</script>
   --warn:#dd8500; --warn-bg:rgba(221,133,0,.12); --warn-text:#8a5400;
   --bad:#e23b32; --bad-bg:rgba(226,59,50,.10); --bad-text:#b42b23;
   --na:#9aa1ac; --na-bg:#f2f4f7;
+  --c-teal:#0e7490;   /* azul verdoso del bloque de objetivos de pulso */
   --row-warn:rgba(221,133,0,.045); --row-bad:rgba(226,59,50,.05);
   /* ── datos ── */
   --c-data:#3f5572; --c-data2:#94a3b5; --c-accent:#c2702e; --c-ink:#2b3543; --c-line2:#b4b9c2;
@@ -193,9 +194,9 @@ main{max-width:1500px;margin:0 auto;padding:18px 16px 80px}
 .led.ok{background:var(--ok)}.led.warn{background:var(--warn)}.led.bad{background:var(--bad)}.led.na{background:var(--muted2)}
 .rd{font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
 .chip{display:inline-block;padding:3px 9px;border-radius:7px;font-size:12px;font-weight:600;background:var(--panel2);color:var(--muted)}
-.chip.ok{color:#1c7a3c;background:rgba(52,199,89,.14)}
-.chip.warn{color:#9a6200;background:rgba(255,159,10,.16)}
-.chip.bad{color:#c8362d;background:rgba(255,59,48,.14)}
+.chip.ok{color:var(--ok-text);background:var(--ok-bg)}
+.chip.warn{color:var(--warn-text);background:var(--warn-bg)}
+.chip.bad{color:var(--bad-text);background:var(--bad-bg)}
 .chip.na{color:var(--muted);background:var(--panel2)}
 .zrow{display:flex;flex-wrap:wrap;gap:10px}
 .zc{flex:1 1 96px;min-width:96px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 12px;box-shadow:var(--shadow)}
@@ -273,10 +274,23 @@ html[data-theme="dark"]{
      oscuro no lo redefinía. En oscuro no separan las sombras, separa la
      luminosidad: lienzo más negro, tarjeta más arriba y bordes que se vean. */
   --bg:#08090c; --panel:#17191f; --panel2:#212530; --line:#2f3540; --hair:#242833;
-  --txt:#f4f6fa; --muted:#a4acb8; --muted2:#6a7280;
+  --txt:#f4f6fa; --muted:#a4acb8; --muted2:#8b93a1;
   --tl-body:#1d222c; --tl-edge:#10141b; --tl-off:#39414f;
   --grid:rgba(255,255,255,.08);
   --c-data:#7ea4d0; --c-data2:#8b95a4; --c-accent:#e0905a; --c-ink:#e6e9ee; --c-line2:#566070;
+  /* v378 · El bloque oscuro no redefinía NINGÚN color semántico, así que verde,
+     ámbar, rojo y el azul de acción seguían siendo los elegidos para fondo
+     blanco. Sobre un lienzo casi negro el rojo (#e23b32) queda en 0,37 de
+     luminancia y el azul en 0,34: se leen como manchas apagadas, y es lo que
+     hacía que «A vigilar» o los avisos pareciesen desactivados. Mismos
+     significados, subidos de luz para que funcionen sobre oscuro. */
+  --ok:#30d47f; --ok-bg:rgba(48,212,127,.13); --ok-text:#7ceaad;
+  --warn:#ffb224; --warn-bg:rgba(255,178,36,.14); --warn-text:#ffd18a;
+  --bad:#ff5f52; --bad-bg:rgba(255,95,82,.14); --bad-text:#ffa79e;
+  --accent:#6d8cff; --accent-hover:#899fff; --accent-dim:rgba(109,140,255,.14);
+  --na:#7d8593; --na-bg:#212530;
+  --c-teal:#5fc8dd;
+  --row-warn:rgba(255,178,36,.06); --row-bad:rgba(255,95,82,.07);
   /* en oscuro el azul marino desaparece contra el fondo: manda el dorado */
   --champ:#2c3d78; --champ-tx:#e3c877; --champ-soft:rgba(227,200,119,.12);
   --shadow:0 1px 2px rgba(0,0,0,.45),0 10px 26px -14px rgba(0,0,0,.6);
@@ -287,8 +301,12 @@ html[data-theme="dark"]{
 }
 html[data-theme="dark"] header{background:rgba(14,17,23,.82)}
 html[data-theme="dark"] .badge-sim{color:#f0d488;background:rgba(224,160,0,.16);border-color:rgba(224,160,0,.4)}
-html{transition:background-color .3s ease}
-body,header,.panel,.kpi,.zc,nav button,input,select,textarea{transition:background-color .3s ease,border-color .3s ease,color .3s ease}
+/* v378 · El cambio de tema fundía también el COLOR DEL TEXTO durante 0,3 s, y
+   en ese tercio de segundo la pantalla entera pasa por un gris lavado: los
+   títulos quedan medio borrados y parece que la aplicación se ha roto. Las
+   superficies sí se funden, el texto cambia de golpe. */
+html{transition:background-color .2s ease}
+body,header,.panel,.kpi,.zc,nav button,input,select,textarea{transition:background-color .2s ease,border-color .2s ease}
 
 /* ===== Micro-interacciones ===== */
 .panel{transition:transform .18s ease,box-shadow .18s ease,background-color .3s ease,border-color .3s ease}
@@ -423,8 +441,8 @@ html[data-theme="dark"] .lockup .hp-light{display:block}
 .kpi-spark{margin-top:11px}
 .kpi-spark .spark{width:100%;height:28px;display:block}
 .kpi-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;margin-left:6px;vertical-align:middle}
-.kpi-delta.up{color:#1c7a3c;background:rgba(52,199,89,.15)}
-.kpi-delta.down{color:#c8362d;background:rgba(255,59,48,.14)}
+.kpi-delta.up{color:var(--ok-text);background:var(--ok-bg)}
+.kpi-delta.down{color:var(--bad-text);background:var(--bad-bg)}
 .kpi-delta.flat{color:var(--muted);background:var(--panel2)}
 .rdcell .spark{margin-top:3px;opacity:.92}
 
@@ -1260,7 +1278,11 @@ main{padding:20px 18px 80px}
 .fch-ya-c .fch-d{margin-left:2px}
 /* la ficha se exporta siempre en claro: el azul marino de Champions no puede
    virar a dorado porque la app esté en modo oscuro */
-.ficha-card{--champ:#15224a;--champ-tx:#15224a}
+.ficha-card{--champ:#15224a;--champ-tx:#15224a;
+  /* v378 · Igual que con el azul de Champions: la ficha es siempre un documento
+     en claro, así que sus colores semánticos no pueden virar al subirlos de luz
+     para el modo oscuro de la aplicación. */
+  --ok:#1ea863;--warn:#e0a800;--bad:#e23b32;--accent:#3056c4;--muted2:#9aa1ac}
 .cap-chips{display:flex;align-items:center;gap:2px;margin-top:4px;flex-wrap:wrap}
 .cap-chips i{width:11px;height:6px;border-radius:2px;display:block;flex:none;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
@@ -1702,6 +1724,16 @@ body.sb-min .sb-ver{display:none}
 .ph-x{margin-left:auto;background:none;border:none;color:var(--muted2);font-size:14px;cursor:pointer;flex:none;padding:0 2px;line-height:1}
 .ph-x:hover{color:var(--txt)}
 html[data-theme="dark"] .ph-banner{background:rgba(96,136,240,.10);border-color:rgba(96,136,240,.20)}
+/* v378 · Colores escritos a mano que no seguían ningún token y en oscuro
+   quedaban por debajo del fondo. Se suben solo en oscuro; en claro siguen
+   siendo los de siempre. */
+html[data-theme="dark"] .pillT-tx,
+html[data-theme="dark"] .ath-rd,
+html[data-theme="dark"] .ev-rd-v{color:var(--bad)!important}
+html[data-theme="dark"] .panel--hq{border-top-color:#4bb8cf}
+html[data-theme="dark"] .cal-obj .cal-obj-t,
+html[data-theme="dark"] .hq-ct button.on{color:#5fc8dd}
+html[data-theme="dark"] .hq-ct button.on{border-color:#4bb8cf;background:rgba(75,184,207,.14)}
 /* --- Barra de filtros etiquetada --- */
 .view>.ctrlrow{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 16px;box-shadow:0 1px 2px rgba(11,13,18,.04)}
 /* --- Lideres de la semana --- */
@@ -13156,7 +13188,7 @@ function swCard(name){
   const arr=TESTS.filter(t=>t.incTSA!==false).map(t=>({lab:t.name,z:r.z[t.k]})).filter(o=>o.z!=null&&!isNaN(o.z));
   if(arr.length<2)return '';
   const strong=arr.slice().sort((a,b)=>b.z-a.z).slice(0,3);const weak=arr.slice().sort((a,b)=>a.z-b.z).slice(0,3);
-  const li=(o,good)=>`<div class="sw-item"><span>${o.lab}</span><span class="sw-z" style="color:${good?'#1ea863':'#e23b32'}">${o.z>=0?'+':''}${fmt(o.z,2)}</span></div>`;
+  const li=(o,good)=>`<div class="sw-item"><span>${o.lab}</span><span class="sw-z" style="color:${good?'var(--ok)':'var(--bad)'}">${o.z>=0?'+':''}${fmt(o.z,2)}</span></div>`;
   const txt=`${name.split(' ')[0]} destaca en ${strong.map(s=>s.lab.toLowerCase()).join(', ')}; áreas de mejora: ${weak.map(s=>s.lab.toLowerCase()).join(', ')}.`;
   return `<div class="fband-h"><span class="t">Fortalezas y áreas de mejora</span><span class="l"></span></div>
     <div class="sw-grid"><div class="sw-col"><h4 style="color:#1ea863">Fortalezas</h4>${strong.map(o=>li(o,true)).join('')}</div><div class="sw-col"><h4 style="color:#e23b32">A mejorar</h4>${weak.map(o=>li(o,false)).join('')}</div></div>
@@ -13231,7 +13263,7 @@ function fichaPercentiles(name){
     if(val==null||!agg||agg.best===agg.worst)return '';
     const lo=Math.min(agg.worst,val),hi=Math.max(agg.best,val);const span=(hi-lo)||1;
     let pct=(val-agg.worst)/((agg.best-agg.worst)||1);if(lb)pct=1-pct;pct=Math.max(0,Math.min(1,pct));
-    const markPos=((val-lo)/span)*100;const col=pct>=0.66?'#1ea863':pct>=0.33?'#e0a800':'#e23b32';
+    const markPos=((val-lo)/span)*100;const col=pct>=0.66?'var(--ok)':pct>=0.33?'var(--warn)':'var(--bad)';
     return `<div class="pct-row"><div class="pct-lab">${lab}</div><div class="pct-track"><div class="pct-fill" style="width:${(pct*100).toFixed(0)}%;background:${col}"></div><div class="pct-mark" style="left:${markPos.toFixed(1)}%"></div></div><div class="pct-val mono">${fmt(val,1)} <span class="fc-u">${unit}</span></div><div class="pct-pc mono" style="color:${col}">${Math.round(pct*100)}%</div></div>`;
   }).join('');
   return bars?`<div class="fband-h"><span class="t">Percentil dentro de su posición</span><span class="l"></span></div><div class="pct-wrap">${bars}<div class="small muted" style="margin-top:4px">0% = peor de la posición · 100% = mejor · el marcador es el valor del jugador.</div></div>`:'';
@@ -18086,7 +18118,8 @@ function buildWeekZones(dk){const box=document.getElementById('hr-week-zones');i
   const maxZ=Math.max(1,...cur);
   const rows=HRZ.map((_,zi)=>zi).reverse().map(zi=>{const z=HRZ[zi];const t=cur[zi];const r=ref[zi];
     const dpct=(r!=null&&r>0)?Math.round((t-r)/r*100):null;
-    const dcol=dpct==null?'#9aa3ad':dpct>0?'#c2702e':dpct<0?'#3f5572':'#9aa3ad';
+    /* v378 · en oscuro el azul de datos (#3f5572) quedaba por debajo del fondo */
+    const dcol=dpct==null?'var(--muted2)':dpct>0?'var(--c-accent)':dpct<0?'var(--c-data)':'var(--muted2)';
     const arrow=dpct==null?'':dpct>0?'▲':dpct<0?'▼':'·';
     const tit=r!=null?'Referencia ajustada a esta semana: '+fmtHM(r):'Sin semanas previas comparables';
     return `<div class="wz-row"><span class="wz-led" style="background:${z[1]}"></span><span class="wz-name">${z[0]}</span><div class="wz-bar"><span style="width:${Math.round(t/maxZ*100)}%;background:${z[1]}"></span></div><span class="wz-val">${fmtHM(t)}</span><span class="wz-d" style="color:${dcol}" title="${tit}">${dpct==null?'—':arrow+' '+(dpct>0?'+':'')+dpct+'%'}</span></div>`;}).join('');
@@ -18266,7 +18299,7 @@ function hreqDetalle(mod){
         : (sube
           ? 'Con más contacto hace falta <b>más</b> Z4+Z5 para la misma RPE. Es lo contrario de lo habitual: revisa si el contacto se está declarando bien.'
           : 'Con más contacto hace falta <b>menos</b> Z4+Z5 para la misma RPE: parte de la dureza la pone el choque, no el corazón. Es el mismo efecto que aparece en la ficha del jugador.');
-      efecto='<div class="hq-efecto"><div class="hq-ef-v" style="color:'+(sube?'#e08a00':'#0e7490')+'">'
+      efecto='<div class="hq-efecto"><div class="hq-ef-v" style="color:'+(sube?'var(--warn)':'var(--c-teal,#0e7490)')+'">'
         +(d>0?'+':'−')+fmt(Math.abs(d),1)+' min</div>'
         +'<div class="hq-ef-s">de Z4+Z5 por cada grado de contacto, a RPE '+fmt(rpe,1)+' y '+dur+'′</div>'
         +'<p class="hq-ef-t">'+txt+'</p></div>';
@@ -20068,8 +20101,26 @@ window.perfEstado=function(){
 };
 window.perfSet=perfSet;window.perfApply=perfApply;
 function applyTheme(t){const dark=t==='dark';document.documentElement.setAttribute('data-theme',dark?'dark':'light');lsSet('bmnava-theme',dark?'dark':'light');buildChartTheme();const b=document.getElementById('btn-theme');if(b){b.innerHTML=(dark?'☀️':'🌙')+'<span class="t">'+(dark?'Claro':'Oscuro')+'</span>';}}
-function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';applyTheme(cur==='dark'?'light':'dark');rerenderCurrent();}
-function rerenderCurrent(){try{renderTeam();renderPos&&renderPos();renderAlerts&&renderAlerts();}catch(e){}const on=id=>document.getElementById(id)&&document.getElementById(id).classList.contains('on');if(on('v-carga'))renderLoad();if(on('v-hr'))renderHR();if(on('v-jugador')&&STATE.curPlayer)renderPlayer(STATE.curPlayer);}
+/* v378 · Un gráfico ya dibujado conserva los colores con los que nació: los ejes
+   y las rejillas se quedaban en el gris del tema anterior, que sobre el fondo
+   contrario no se ve. Chart.js no repinta solo porque cambien unas variables
+   CSS. Al cambiar de tema se tiran todos los lienzos; el de la vista abierta se
+   rehace al momento y los demás, al entrar en ellas, que es cuando se pintan. */
+function themeRepaint(){
+  try{killCharts(Object.keys(charts||{}));}catch(e){}
+  try{rerenderCurrent();}catch(e){}
+}
+window.themeRepaint=themeRepaint;
+function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';applyTheme(cur==='dark'?'light':'dark');themeRepaint();}
+function rerenderCurrent(){try{renderTeam();renderPos&&renderPos();renderAlerts&&renderAlerts();}catch(e){}const on=id=>document.getElementById(id)&&document.getElementById(id).classList.contains('on');if(on('v-carga'))renderLoad();if(on('v-hr'))renderHR();if(on('v-jugador')&&STATE.curPlayer)renderPlayer(STATE.curPlayer);
+  /* v378 · faltaban la mitad de las vistas: al cambiar de tema desde Perfil
+     físico, Disponibilidad o el Calendario no se repintaba nada de lo que se
+     estaba mirando */
+  try{if(on('v-tests')&&window.renderTests)renderTests();}catch(e){}
+  try{if(on('v-estado')&&window.renderAvail)renderAvail();}catch(e){}
+  try{if(on('v-cal')&&window.renderCal)renderCal();}catch(e){}
+  try{if(on('v-alertas')&&window.renderAlerts)renderAlerts();}catch(e){}
+  try{if(on('v-jugadores')&&window.renderPlayers)renderPlayers();}catch(e){}}
 
 /* --- Botones de cabecera --- */
 function buildHeaderActions(){const host=document.getElementById('hdr-actions');if(!host)return;const dark=document.documentElement.getAttribute('data-theme')==='dark';host.innerHTML=`
@@ -26745,8 +26796,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-23.1*/
-const VER_ACTUAL='2026-09-23.1';
+/*BUILD:2026-09-23.3*/
+const VER_ACTUAL='2026-09-23.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
