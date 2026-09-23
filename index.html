@@ -10910,7 +10910,59 @@ function cifraAnim(val){
   return m?'<span data-count="'+m[1]+'">'+m[1]+'</span>'+m[2]:String(val);
 }
 window.cifraAnim=cifraAnim;
-function animateKPIs(root){(root||document).querySelectorAll('[data-count]').forEach(el=>{
+/* v384 · El arco de los anillos, animado. Hay dos familias y se animan distinto:
+   · conic-gradient (el anillo grande del Resumen, el de la nota sobre 100): no
+     existe transición CSS para el ángulo de un degradado cónico, así que se
+     repinta el degradado en cada fotograma. Son tres o cuatro elementos.
+   · SVG con stroke-dashoffset (los anillos pequeños de los jugadores): eso lo
+     interpola el navegador solo; basta con arrancar el arco vacío y poner el
+     valor final un fotograma después.
+   Misma duración y misma curva que el conteo de las cifras, para que el número
+   y el arco lleguen juntos.
+   El anillo de la ficha exportable (`wRing`) queda FUERA a propósito: html2canvas
+   dispara la captura de inmediato y saldría un arco a medio dibujar. */
+const ARC_DUR=900;
+/* Red de seguridad: el arco arranca VACÍO, así que si la animación no llega a
+   correr —pestaña en segundo plano, que congela requestAnimationFrame; al
+   imprimir; o con las animaciones desactivadas en el sistema— el anillo se
+   quedaría a cero para siempre. Pase lo que pase, el valor final se pone. */
+function animarAnillos(root){
+  const R=root||document;
+  let quieto=false;
+  try{quieto=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
+  R.querySelectorAll('[data-arc]').forEach(el=>{
+    if(el.dataset.arcDone==='1')return;
+    const deg=parseFloat(el.getAttribute('data-arc'));
+    if(isNaN(deg))return;
+    el.dataset.arcDone='1';
+    const col=el.getAttribute('data-arc-col')||'currentColor';
+    const tr=el.getAttribute('data-arc-track')||'var(--line)';
+    const pinta=d=>{el.style.background='conic-gradient('+col+' '+d.toFixed(1)+'deg, '+tr+' 0deg)';};
+    if(quieto){pinta(deg);return;}
+    const t0=performance.now();
+    let fin=false;
+    pinta(0);
+    requestAnimationFrame(function step(t){
+      if(fin)return;
+      const k=Math.min(1,(t-t0)/ARC_DUR), e=1-Math.pow(1-k,3);
+      pinta(deg*e);
+      if(k<1)requestAnimationFrame(step);else fin=true;
+    });
+    setTimeout(()=>{if(!fin){fin=true;pinta(deg);}},ARC_DUR+300);
+  });
+  R.querySelectorAll('circle[data-off]').forEach(c=>{
+    if(c.dataset.arcDone==='1')return;
+    c.dataset.arcDone='1';
+    const off=c.getAttribute('data-off');
+    if(quieto){c.style.transition='none';c.style.strokeDashoffset=off;return;}
+    /* con setTimeout y no con requestAnimationFrame: el temporizador salta
+       también con la pestaña de fondo, y la transición CSS hace el resto */
+    setTimeout(()=>{c.style.strokeDashoffset=off;},30);
+  });
+}
+window.animarAnillos=animarAnillos;
+function animateKPIs(root){try{animarAnillos(root);}catch(e){}
+  (root||document).querySelectorAll('[data-count]').forEach(el=>{
   const target=parseFloat(el.getAttribute('data-count'));if(isNaN(target))return;
   const dc=el.getAttribute('data-count');const dec=(dc.split('.')[1]||'').length;const t0=performance.now(),dur=700;
   function step(t){const k=Math.min(1,(t-t0)/dur);const e=1-Math.pow(1-k,3);el.textContent=(target*e).toFixed(dec);if(k<1)requestAnimationFrame(step);else el.textContent=target.toFixed(dec);}
@@ -10920,8 +10972,8 @@ function animateKPIs(root){(root||document).querySelectorAll('[data-count]').for
 function recoveryRing(val,sev,size){size=size||104;const deg=(val||0)*3.6;const col=`var(--${sev||'muted'})`;
   const ringW=Math.round(size*0.10);
   return `<div class="ring-xl" style="width:${size}px;height:${size}px">
-    <div class="disc" style="width:${size}px;height:${size}px;background:conic-gradient(${col} ${deg}deg, var(--line) 0deg)"></div>
-    <div class="hole" style="inset:${ringW}px"><div class="v" style="font-size:${Math.round(size*0.34)}px;color:${col}">${val??'—'}</div></div>
+    <div class="disc" data-arc="${deg}" data-arc-col="${col}" data-arc-track="var(--line)" style="width:${size}px;height:${size}px;background:conic-gradient(${col} 0deg, var(--line) 0deg)"></div>
+    <div class="hole" style="inset:${ringW}px"><div class="v" style="font-size:${Math.round(size*0.34)}px;color:${col}">${val==null?'—':cifraAnim(val)}</div></div>
   </div>`;}
 function recState(sev){return sev==='ok'?'Recuperado':sev==='warn'?'Moderado':sev==='bad'?'Bajo':'Sin datos';}
 function recPct(tw){return clamp(Math.round(100-((tw-5)/20)*100),0,100);}
@@ -12224,7 +12276,7 @@ function catScore(zobj,cat){const ks=TESTS.filter(t=>t.cat===cat&&tsaEnNota(t)&&
 function shortLbl(t){return ({masa:'Masa',grasa:'Grasa',imo:'IMO',tobm:'Tob.mov',toba:'Tob.asim',bench:'Banca',benchrel:'Banca rel',cmj:'CMJ',cmja:'CMJ asim',rsi:'RSI',v7:'Lanz 7m',v9:'Lanz 9m',peso:'Peso',vift:'30-15',vo2:'VO₂máx',grip:'Agarre',squat:'Sentadilla',squatrel:'Sent. rel',cmju:'CMJ uni',sp10:'Sprint 10',sp20:'Sprint 20',sp30:'Sprint 30'})[t.k]||t.name;}
 function scoreRing(val,colorVar,size,label){size=size||96;const v=clamp(val||0,0,100);const deg=v*3.6;
   return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:7px">
-    <div style="position:relative;width:${size}px;height:${size}px;border-radius:50%;background:conic-gradient(var(--${colorVar}) ${deg}deg, var(--panel2) ${deg}deg 360deg)">
+    <div data-arc="${deg}" data-arc-col="var(--${colorVar})" data-arc-track="var(--panel2)" style="position:relative;width:${size}px;height:${size}px;border-radius:50%;background:conic-gradient(var(--${colorVar}) 0deg, var(--panel2) 0deg)">
       <div style="position:absolute;inset:9px;border-radius:50%;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center">
         <span style="font-family:var(--mono,monospace);font-size:${Math.round(size*0.3)}px;font-weight:800;color:var(--${colorVar});line-height:1">${Math.round(v)}</span>
         <span class="muted" style="font-size:9px;letter-spacing:.04em">/100</span>
@@ -14907,7 +14959,7 @@ function renderAvail(){
   let rachas=[];try{rachas=dispRachasAbiertas(refk,5).filter(r=>r.sinEpisodio);}catch(e){}
   let infra=[];try{infra=dispInfraRegistro(refk,30);}catch(e){}
   let dcarga=[];try{dcarga=dispDolorCarga(refk,60);}catch(e){}
-  const ring=(pct,col,size,stroke)=>{const r=(size-stroke)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,pct||0))/100);return `<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;};
+  const ring=(pct,col,size,stroke)=>{const r=(size-stroke)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,pct||0))/100);return `<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${c.toFixed(1)}" data-off="${off.toFixed(1)}" style="transition:stroke-dashoffset .9s cubic-bezier(.16,1,.3,1)" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;};
   const pillT=(lab,col)=>`<span class="pillT" style="color:${col};background:color-mix(in srgb,${col} 15%,transparent)"><span class="pillT-dot" style="background:${col}"></span><span class="pillT-tx">${lab}</span></span>`;
   const athFicha=a=>{const p=STATE.players[a.n];const rdv=p&&p.readiness!=null?p.readiness:null;const isReal=avReal(a.n);return `<div class="ath" title="${a.n.replace(/"/g,'&quot;')}" onclick="openPlayer('${esc(a.n)}')"><div class="ath-ph${isReal?' ath-ph--photo':''}">${ring(rdv!=null?rdv:100,a.col,74,5)}<img src="${av(a.n)}" class="ath-img${isReal?' ath-img--photo':''}"><span class="ath-rd" style="color:${a.col}">${rdv!=null?rdv:'—'}</span></div><div class="ath-nm">${a.n.split(' ')[0]}</div><div class="ath-pillwrap">${pillT(a.lab,a.col)}</div>${a.meta?`<div class="ath-mt">${a.meta}</div>`:''}${a.revisable?`<button class="ath-ok" title="Lo he mirado y no necesita nada hoy" onclick="event.stopPropagation();dispMarcarVisto('${esc(a.n)}')">✓ visto</button>`:''}</div>`;};
   const kpi=(val,lab,col,small)=>`<div class="kpi"><div class="kpi-v${small?' sm':''}"${col?` style="color:${col}"`:''}>${val}</div><div class="kpi-l">${lab}</div></div>`;
@@ -16661,7 +16713,7 @@ function renderFisio(){
 }
 window.renderFisio=renderFisio;
 /* ===================== WELLNESS · PARTE DIARIO ===================== */
-function ringSVG(pct,col,size,stroke){const r=(size-stroke)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,pct||0))/100);return `<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;}
+function ringSVG(pct,col,size,stroke){const r=(size-stroke)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,pct||0))/100);return `<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${c.toFixed(1)}" data-off="${off.toFixed(1)}" style="transition:stroke-dashoffset .9s cubic-bezier(.16,1,.3,1)" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;}
 function parteNote(p){if(!p)return'Sin datos del día.';const f=(p.factors||[])[0];if(!f)return'Buenos valores de bienestar.';const l=f.label.toLowerCase();if(l.includes('sueñ')||l.includes('hora'))return'Ha dormido poco / mal.';if(l.includes('fatiga'))return'Signos de fatiga general.';if(l.includes('doms'))return'Agujetas / molestia muscular.';if(l.includes('estrés')||l.includes('estres'))return'Estrés elevado.';if(l.includes('ánimo')||l.includes('animo'))return'Ánimo bajo.';if(l.includes('dolor'))return f.label+'.';if(l.includes('acwr')||l.includes('carga'))return'Carga acumulada a vigilar.';return f.label+'.';}
 function renderParte(){
   const wrap=document.getElementById('parte-wrap');if(!wrap)return;buildPhysio();
@@ -18840,7 +18892,7 @@ function teamRingItem(p,col,tag,reason){
   const nm=p.name;const rd=p.readiness!=null?p.readiness:null;
   const real=photoFor(nm);const ph=real||window.__AVATAR__||'';const isReal=!!real;
   const size=80,stroke=6,rr=(size-stroke)/2,c=2*Math.PI*rr,off=c*(1-Math.max(0,Math.min(100,rd!=null?rd:100))/100);
-  const ring=`<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${rr}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${rr}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;
+  const ring=`<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${rr}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${rr}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${c.toFixed(1)}" data-off="${off.toFixed(1)}" style="transition:stroke-dashoffset .9s cubic-bezier(.16,1,.3,1)" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;
   const w=lastWell(nm)||{};const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio.toFixed(2):'—';
   const acCol=p.acwr&&!isNaN(p.acwr.ratio)?((p.acwr.ratio>1.3||p.acwr.ratio<0.8)?'var(--warn)':'var(--ok)'):'var(--muted)';
   const v=x=>(x==null||isNaN(x))?'—':x;
@@ -26942,8 +26994,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-23.8*/
-const VER_ACTUAL='2026-09-23.8';
+/*BUILD:2026-09-23.9*/
+const VER_ACTUAL='2026-09-23.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
