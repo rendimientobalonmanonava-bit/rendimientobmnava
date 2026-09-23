@@ -10902,7 +10902,15 @@ function dirDelta(series,goodUp){if(!series||series.length<2)return null;const a
    renderTeam(), que corre cuando llegan los datos — casi siempre DESPUÉS. Se
    animaba un marcado que todavía no existía, así que no se veía nunca. Ahora
    cada bloque la lanza al terminar de pintarse. */
-function animateKPIs(root){(root||document).querySelectorAll('.kpi .val[data-count],.eq-v [data-count],.eq-v[data-count]').forEach(el=>{
+/* v383 · El número de un KPI, envuelto para que cuente al aparecer. Se separa
+   la cifra de lo que venga detrás («72%», «1,01 x», «19 / 19») y solo se anima
+   la cifra; el sufijo se queda quieto. */
+function cifraAnim(val){
+  const m=String(val).match(/^(-?\d+(?:\.\d+)?)([\s\S]*)$/);
+  return m?'<span data-count="'+m[1]+'">'+m[1]+'</span>'+m[2]:String(val);
+}
+window.cifraAnim=cifraAnim;
+function animateKPIs(root){(root||document).querySelectorAll('[data-count]').forEach(el=>{
   const target=parseFloat(el.getAttribute('data-count'));if(isNaN(target))return;
   const dc=el.getAttribute('data-count');const dec=(dc.split('.')[1]||'').length;const t0=performance.now(),dur=700;
   function step(t){const k=Math.min(1,(t-t0)/dur);const e=1-Math.pow(1-k,3);el.textContent=(target*e).toFixed(dec);if(k<1)requestAnimationFrame(step);else el.textContent=target.toFixed(dec);}
@@ -11509,6 +11517,7 @@ function cargaKPIs(id,s,acwrVal){
     kpi("Media/día",fmt(winDays.length?mean(winDays.map(d=>d.ua)):NaN,0),"UA")+
     kpi("ACWR",fmt(acwrVal,2),`${CONFIG.load.acute}d:${CONFIG.load.chronic}d acopl.`,acwrClass(acwrVal))+
     kpi("Monotonía",fmt(cur.mono,2),"sem. actual");
+  try{animateKPIs(box);}catch(e){}
 }
 function renderCargaPos(){
   const sel=document.getElementById('carga-pos-sel');if(!sel)return;
@@ -11854,12 +11863,13 @@ function renderCargaGrupal(){
   const teamA=mean(ps.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
   const monos=ps.map(p=>{const wk=weekly(p.name,'ua',REF());return wk.length?wk[wk.length-1].mono:NaN;}).filter(x=>!isNaN(x));
   const acwrZ=acwrZone(teamA);const monoM=mean(monos);
-  const lt=(lab,val,sub,pill)=>`<div class="kpi"><div class="kpi-l">${lab}</div><div class="kpi-v">${val}</div>${pill?`<span class="pillT" style="color:${pill.c};background:color-mix(in srgb,${pill.c} 15%,transparent)"><span class="pillT-dot" style="background:${pill.c}"></span>${pill.t}</span>`:`<div class="kpi-sub">${sub}</div>`}</div>`;
+  const lt=(lab,val,sub,pill)=>`<div class="kpi"><div class="kpi-l">${lab}</div><div class="kpi-v">${cifraAnim(val)}</div>${pill?`<span class="pillT" style="color:${pill.c};background:color-mix(in srgb,${pill.c} 15%,transparent)"><span class="pillT-dot" style="background:${pill.c}"></span>${pill.t}</span>`:`<div class="kpi-sub">${sub}</div>`}</div>`;
   document.getElementById('load-kpis').innerHTML=
     lt("Carga total",fmt(totUA,0),"UA · "+(win>500?'temporada':win+' d'))+
     lt("Media / jugador",fmt(totUA/nPlayers,0),"UA")+
     lt("ACWR medio",fmt(teamA,2),null,acwrZ)+
     lt("Monotonía media",fmt(monoM,2),null,{c:monoM>2?'#e08a00':'#16a34a',t:monoM>2?'Alta':'Normal'});
+  try{animateKPIs(document.getElementById('load-kpis'));}catch(e){}
   drawTeamLoad(win);drawTypeDonut(win);buildAcwrFichas();buildCargaRanking();drawPosLoad(win);
   renderLoadReport();renderMatchX();
   const tda=teamDayAgg();const grows=weeklyFromDaily(tda);
@@ -16667,7 +16677,7 @@ function renderParte(){
   const dlabel=rd.toLocaleDateString('es',{day:'numeric',month:'long'});const wd=rd.toLocaleDateString('es',{weekday:'long'});
   const zOf=k=>{const h=hist[k];return (h&&h.s>0)?(todayT[k]-h.m)/h.s:0;};
   const zcol=z=>z<=-0.4?'#16a34a':z>=0.4?'#dc2626':'#b08900';
-  const headCells=VARS.map(([k,lab])=>{const v=todayT[k];const z=zOf(k);const c=zcol(z);return `<div class="kpi"><div class="kpi-l">${lab}</div><div class="kpi-v">${isNaN(v)?'—':fmt(v,2)}</div><span class="pillT" style="color:${c};background:color-mix(in srgb,${c} 15%,transparent)"><span class="pillT-dot" style="background:${c}"></span>z ${fmt(z,2)}</span></div>`;}).join('');
+  const headCells=VARS.map(([k,lab])=>{const v=todayT[k];const z=zOf(k);const c=zcol(z);return `<div class="kpi"><div class="kpi-l">${lab}</div><div class="kpi-v">${isNaN(v)?'—':cifraAnim(fmt(v,2))}</div><span class="pillT" style="color:${c};background:color-mix(in srgb,${c} 15%,transparent)"><span class="pillT-dot" style="background:${c}"></span>z ${fmt(z,2)}</span></div>`;}).join('');
   const lvl=v=>isNaN(v)?'na':v<=2.0?'ok':v<=2.7?'warn':'bad';
   const anyPain=Object.keys(STATE.players).some(n=>{const ev=effectiveStatus(n,dkEstado());return ev&&['dolor','baja','noentto'].includes(ev.status);});
   const tl=l=>{const lamp=(c,on)=>`<span class="tl-l" style="background:${c};${on?'box-shadow:0 0 8px '+c:'opacity:.16'}"></span>`;return `<div class="tl">${lamp('#dc2626',l==='bad')}${lamp('#e0a800',l==='warn')}${lamp('#16a34a',l==='ok')}</div>`;};
@@ -18534,13 +18544,14 @@ function renderHR(){
   renderHRClass(rows,key,key.slice(0,key.indexOf('|')));
   renderHRTE(rows,key,key.slice(0,key.indexOf('|')));
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
-  const k=(lab,val,sub)=>`<div class="kpi"><div class="lab">${lab}</div><div class="val mono">${val}</div><div class="sub">${sub}</div></div>`;
+  const k=(lab,val,sub)=>`<div class="kpi"><div class="lab">${lab}</div><div class="val mono">${cifraAnim(val)}</div><div class="sub">${sub}</div></div>`;
   document.getElementById('hr-kpis').innerHTML=
     k('Jugadores',rows.length,'en la sesión')+
     k('FC media',Math.round(avg(rows.map(r=>r.hrAvg)))+'%','media del equipo')+
     k('FC máx',Math.round(avg(rows.map(r=>r.hrMax)))+'%','media de máximos')+
     k('Kcal',Math.round(avg(rows.map(r=>r.kcal))),'media por jugador')+
     k('TRIMP medio',Math.round(avg(rows.map(trimpOf))),'Edwards · zonal');
+  try{animateKPIs(document.getElementById('hr-kpis'));}catch(e){}
   const pl=STATE.players;
   document.querySelector('#hr-tbl tbody').innerHTML=rows.slice().sort((a,b)=>b.hrAvg-a.hrAvg).map((r,i)=>{
     const tot=r.z.reduce((x,y)=>x+y,0)||1;
@@ -18967,8 +18978,7 @@ function renderTeamStrip(){
     /* v382 · Antes solo se animaban las cifras "limpias", y de las seis solo una
        lo era: "16 / 19" y "100%" llevan marcado detrás. Se separa el número de
        lo que venga después y se anima solo el número. */
-    const m=String(val).match(/^(-?\d+(?:\.\d+)?)([\s\S]*)$/);
-    const cifra=m?'<span data-count="'+m[1]+'">'+m[1]+'</span>'+m[2]:val;
+    const cifra=cifraAnim(val);
     return '<div class="eq-tile"><div class="eq-l">'+lab+'</div>'
       +'<div class="eq-v" style="color:var(--'+(sev||'txt')+')">'+cifra+'</div>'
       +'<div class="eq-s">'+sub+'</div>'+sp+'</div>';
@@ -26932,8 +26942,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-23.7*/
-const VER_ACTUAL='2026-09-23.7';
+/*BUILD:2026-09-23.8*/
+const VER_ACTUAL='2026-09-23.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
