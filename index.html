@@ -526,6 +526,9 @@ main{padding:20px 18px 80px}
 .eq-v{font-size:25px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eq-v small{font-size:12px;font-weight:600;color:var(--muted)}
 .eq-s{font-size:11px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eq-spark{margin-top:9px;line-height:0}
+.eq-spark .spark{width:100%;height:26px;display:block}
+@media(max-width:900px){.eq-spark{display:none}}
 /* v233 · align-items:stretch en vez de start: todas las columnas de una fila
    miden lo mismo y el último panel de cada una crece para ocupar el resto, así
    no quedan huecos al pie de las columnas cortas. Los paneles son flex para
@@ -543,8 +546,19 @@ main{padding:20px 18px 80px}
 .eq-col>.panel{display:flex;flex-direction:column}
 .eq-r3>.panel,.eq-r2>.panel,.eq-col>.panel{margin-bottom:0}
 .eq-col{display:flex;flex-direction:column;gap:14px;min-width:0}
-.eq-cab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:2px 2px 0}
-.eq-cab-p{width:8px;height:8px;border-radius:50%;flex:none}
+/* v381 · El rótulo de sección era un punto y cuatro versalitas sueltas. Con la
+   línea fina hasta el borde se lee como separador y no como texto perdido. */
+.eq-cab{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:2px 2px 0}
+.eq-cab::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.eq-cab-p{width:7px;height:7px;border-radius:50%;flex:none;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 12%,transparent)}
+/* v381 · Filetes en vez de aire dentro de las tarjetas con lista: ordenan la
+   lectura y no añaden ni un píxel de alto. */
+.eq-ult-row + .eq-ult-row,
+.tn-row + .tn-row,
+.cal-cb-row + .cal-cb-row,
+.cal-iv-row + .cal-iv-row,
+.sw-item + .sw-item{border-top:1px solid var(--hair)}
+.cal-cb-row,.cal-iv-row{padding-top:6px;padding-bottom:6px}
 /* v232 · "A vigilar" pasa a la tercera columna. Con auto-fit y justify-items
    centrado, las fichas se quedaban estrechas y dejaban aire a los lados; se
    fijan tres columnas que ocupan todo el ancho y las fichas se estiran. */
@@ -711,7 +725,17 @@ main{padding:20px 18px 80px}
 .tn-row-d{display:flex;align-items:baseline;gap:3px;flex:none}
 .tn-row-d b{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
 .tn-row-d span{font-size:10px;color:var(--muted)}
-.tn-vacio{flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+/* v381 · Un hueco con una frase gris en medio parece un fallo. Con un icono
+   tenue, la frase y la acción, parece intencionado. */
+.tn-vacio{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;color:var(--muted);font-size:13px;line-height:1.6;gap:2px;padding:18px 10px}
+.vac-ic{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:var(--panel2);border:1px solid var(--hair);font-size:19px;color:var(--muted2);margin-bottom:9px}
+.vac-t{font-size:13.5px;font-weight:600;color:var(--txt)}
+.vac-s{font-size:12px;color:var(--muted);max-width:30ch}
+.vac-a{margin-top:11px;border:1px solid var(--line);background:var(--panel);color:var(--accent);
+  border-radius:var(--r-pill);padding:6px 15px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.vac-a:hover{border-color:var(--accent);background:var(--accent-dim)}
 /* v233 · Fisioterapia y parte médico */
 .tf-ic{font-size:17px;flex:none}
 .tf-tx{display:flex;flex-direction:column;min-width:0}
@@ -10874,7 +10898,7 @@ function kpi(l,v,s,sev,opts){opts=opts||{};
   const dc=(''+v).match(/^-?\d[\d.,]*$/)?` data-count="${(''+v).replace(',','.')}"`:'';
   return`<div class="kpi"><div class="lab">${l}</div><div class="val" style="color:var(--${sev||'txt'})"${dc}>${v}</div><div class="sub">${s}${delta}</div>${spark}</div>`;}
 function dirDelta(series,goodUp){if(!series||series.length<2)return null;const a=series[series.length-1],b=series[series.length-2];const eps=(Math.abs(a)+Math.abs(b))*0.01+0.05;const up=a>b+eps,dn=a<b-eps;const better=goodUp?up:dn;const worse=goodUp?dn:up;return{icon:up?'▲':dn?'▼':'▬',text:up||dn?'vs ayer':'estable',cls:better?'up':worse?'down':'flat'};}
-function animateKPIs(root){(root||document).querySelectorAll('.kpi .val[data-count]').forEach(el=>{
+function animateKPIs(root){(root||document).querySelectorAll('.kpi .val[data-count],.eq-v[data-count]').forEach(el=>{
   const target=parseFloat(el.getAttribute('data-count'));if(isNaN(target))return;
   const dc=el.getAttribute('data-count');const dec=(dc.split('.')[1]||'').length;const t0=performance.now(),dur=520;
   function step(t){const k=Math.min(1,(t-t0)/dur);const e=1-Math.pow(1-k,3);el.textContent=(target*e).toFixed(dec);if(k<1)requestAnimationFrame(step);else el.textContent=target.toFixed(dec);}
@@ -11069,6 +11093,15 @@ function buildChartTheme(){
     if(!Chart.registry.plugins.get('areaGrad')){
       Chart.register({id:'areaGrad',beforeDatasetsDraw(chart){
         try{const area=chart.chartArea;if(!area)return;
+          /* v381 · El degradado ya existía, pero solo se aplicaba a las series que
+             YA pedían relleno, y casi ninguna lo pedía: se creaban con
+             backgroundColor 'transparent'. Una línea suelta sobre la rejilla es
+             lo que hace que un gráfico parezca de hoja de cálculo. Si el gráfico
+             tiene UNA sola línea, se rellena por debajo; con dos o más
+             superpuestas el relleno embarra y no se toca. */
+          const li=[];chart.data.datasets.forEach((d,i)=>{if(chart.getDatasetMeta(i).type==='line')li.push(d);});
+          if(li.length===1){const u=li[0];
+            if(u.fill==null&&(u.backgroundColor==null||u.backgroundColor==='transparent'))u.fill='origin';}
           chart.data.datasets.forEach((ds,i)=>{
             const meta=chart.getDatasetMeta(i);
             if(meta.type!=='line')return;
@@ -18677,7 +18710,9 @@ function renderHRSessions(){
   const box=document.getElementById('hr-sess-list');if(!box)return;
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
   const ss=hrManualSessions();
-  if(!ss.length){box.innerHTML='<p class="small muted" style="margin:0">Todavía no has cargado ninguna sesión de Polar en este navegador.</p>';return;}
+  if(!ss.length){box.innerHTML='<div class="tn-vacio"><span class="vac-ic">⌚</span>'
+    +'<span class="vac-t">Ninguna sesión de Polar cargada</span>'
+    +'<span class="vac-s">Pega arriba las filas de la captura del iPad y aparecerán aquí para revisarlas o borrarlas.</span></div>';return;}
   const porDia={};ss.forEach(s=>porDia[s.dk]=(porDia[s.dk]||0)+1);
   const filas=ss.map(s=>{
     const rep=porDia[s.dk]>1?' <span style="color:var(--warn);font-weight:700">· '+porDia[s.dk]+' ese día</span>':'';
@@ -18849,6 +18884,57 @@ function renderTeamRings(){
    Seis contadores con lo que decide la sesión de hoy. Antes había que leer el
    anillo del hero, el donut de disponibilidad y bajar hasta la tabla para saber
    cuántos estaban tocados. Todo sale de cálculos que ya existen. */
+/* v381 · Las seis series de los recuadros del Resumen. Todas salen de datos
+   reales; la que no se puede reconstruir se devuelve vacía y ese recuadro se
+   queda sin micrográfico, que es lo honesto.
+   El readiness NO se calcula aquí: son catorce buildPlayers() y bloquean el
+   hilo más de un segundo. Se usa la copia que ya haya en caché y, si no la hay,
+   se pide en segundo plano y se vuelve a pintar la tira cuando llega. */
+let EQ_SER_CACHE=null;
+function teamStripSeries(n){
+  n=n||14;
+  const out={rdy:null,disp:null,care:null,fis:null,acwr:null,well:null};
+  const ps=Object.keys(STATE.players||{});
+  const dks=[...new Set((STATE.wellness||[]).map(w=>w.dk).filter(Boolean))].sort().slice(-n);
+  try{
+    const rd=window.teamReadinessSerieCache?teamReadinessSerieCache(n):null;
+    if(rd&&rd.length>1)out.rdy=rd.map(o=>o.rd).filter(v=>v!=null);
+    else if(window.teamReadinessSerieAsync&&!EQ_SER_CACHE){
+      EQ_SER_CACHE=1;
+      teamReadinessSerieAsync(n).then(()=>{EQ_SER_CACHE=null;try{renderTeamStrip();}catch(e){}}).catch(()=>{EQ_SER_CACHE=null;});
+    }
+  }catch(e){}
+  try{const a=teamAcwrSeries(n);if(a&&a.length>1)out.acwr=a;}catch(e){}
+  try{
+    if(dks.length>1&&ps.length)out.well=dks.map(dk=>{
+      const r=new Set((STATE.wellness||[]).filter(w=>w.dk===dk).map(w=>w.name)).size;
+      return Math.round(r/ps.length*100);
+    });
+  }catch(e){}
+  /* disponibilidad día a día: effectiveStatus por jugador y fecha */
+  try{
+    if(dks.length>1&&ps.length&&typeof effectiveStatus==='function'){
+      const d=[],c=[],f=[];
+      dks.forEach(dk=>{
+        let dd=0,cc=0,ff=0;
+        ps.forEach(nm=>{
+          let st=null;try{const ev=effectiveStatus(nm,dk);st=ev&&ev.status;}catch(e){}
+          if(!st||st==='disp'||st==='partido')dd++;
+          else if(NOAV_FIS_ST.indexOf(st)>=0)ff++;
+          else if(NOFIS_ST.indexOf(st)>=0){}
+          else cc++;
+        });
+        d.push(dd);c.push(cc);f.push(ff);
+      });
+      /* una serie plana no dice nada y ensucia: solo se pinta si hay variación */
+      const varia=x=>Math.max(...x)!==Math.min(...x);
+      if(varia(d))out.disp=d;
+      if(varia(c))out.care=c;
+      if(varia(f))out.fis=f;
+    }
+  }catch(e){}
+  return out;
+}
 function renderTeamStrip(){
   const box=document.getElementById('team-strip');if(!box)return;
   const ps=Object.values(STATE.players);if(!ps.length){box.innerHTML='';return;}
@@ -18864,14 +18950,29 @@ function renderTeamStrip(){
   const respHoy=new Set((STATE.wellness||[]).filter(w=>w.dk===dk).map(w=>w.name)).size;
   const pctW=ps.length?Math.round(respHoy/ps.length*100):0;
   const riesgo=ps.filter(p=>p.acwr&&!isNaN(p.acwr.ratio)&&p.acwr.ratio>=1.5).length;
-  const t=(lab,val,sub,sev)=>`<div class="eq-tile"><div class="eq-l">${lab}</div><div class="eq-v" style="color:var(--${sev||'txt'})">${val}</div><div class="eq-s">${sub}</div></div>`;
+  /* v381 · Los seis recuadros eran cifra y texto. La función sparkline() y la
+     animación de conteo ya estaban escritas en el archivo desde hace versiones,
+     pero nadie se las pasaba a estos recuadros: solo las usaba kpi(), que aquí
+     no se usa. Se enchufan. Solo se dibuja micrográfico donde hay serie real;
+     donde no la hay no se inventa ninguna. */
+  const ser=teamStripSeries(14);
+  const t=(lab,val,sub,sev,serie)=>{
+    const col=cssVar('--'+(sev&&sev!=='txt'?sev:'accent'))||'#3056c4';
+    const sp=(serie&&serie.length>1)
+      ? '<div class="eq-spark">'+sparkline(serie,{w:120,h:26,color:col,fill:true})+'</div>' : '';
+    /* solo cuentan las cifras limpias: "16 / 19" o "100%" llevan marcado dentro */
+    const num=String(val).match(/^-?\d+(\.\d+)?$/)?' data-count="'+val+'"':'';
+    return '<div class="eq-tile"><div class="eq-l">'+lab+'</div>'
+      +'<div class="eq-v" style="color:var(--'+(sev||'txt')+')"'+num+'>'+val+'</div>'
+      +'<div class="eq-s">'+sub+'</div>'+sp+'</div>';
+  };
   box.innerHTML=`<div class="eq-strip">
-    ${t('Readiness medio',isNaN(rdyM)?'—':Math.round(rdyM),'del equipo',isNaN(rdyM)?'muted':(rdyM>=75?'ok':rdyM>=55?'warn':'bad'))}
-    ${t('Disponibles',disp+' <small>/ '+ps.length+'</small>','sin limitación',disp===ps.length?'ok':'txt')}
-    ${t('Con molestia',care,care?'siguen entrenando':'ninguno',care?'warn':'ok')}
-    ${t('Fuera · físico',fisico,otro?otro+' fuera por otro motivo':'sin bajas',fisico?'bad':'ok')}
-    ${t('ACWR medio',isNaN(acM)?'—':acM.toFixed(2),riesgo?riesgo+' por encima de 1,5':'ninguno en pico',isNaN(acM)?'muted':(acM>1.5||acM<0.8?'bad':acM>1.3?'warn':'ok'))}
-    ${t('Wellness hoy',pctW+'<small>%</small>',respHoy+' de '+ps.length+' han respondido',pctW>=80?'ok':pctW>=50?'warn':'bad')}
+    ${t('Readiness medio',isNaN(rdyM)?'—':Math.round(rdyM),'del equipo',isNaN(rdyM)?'muted':(rdyM>=75?'ok':rdyM>=55?'warn':'bad'),ser.rdy)}
+    ${t('Disponibles',disp+' <small>/ '+ps.length+'</small>','sin limitación',disp===ps.length?'ok':'txt',ser.disp)}
+    ${t('Con molestia',care,care?'siguen entrenando':'ninguno',care?'warn':'ok',ser.care)}
+    ${t('Fuera · físico',fisico,otro?otro+' fuera por otro motivo':'sin bajas',fisico?'bad':'ok',ser.fis)}
+    ${t('ACWR medio',isNaN(acM)?'—':acM.toFixed(2),riesgo?riesgo+' por encima de 1,5':'ninguno en pico',isNaN(acM)?'muted':(acM>1.5||acM<0.8?'bad':acM>1.3?'warn':'ok'),ser.acwr)}
+    ${t('Wellness hoy',pctW+'<small>%</small>',respHoy+' de '+ps.length+' han respondido',pctW>=80?'ok':pctW>=50?'warn':'bad',ser.well)}
   </div>`;
 }
 /* v233 · drawTeamRec retirada: su panel lo sustituye la próxima sesión
@@ -18956,7 +19057,11 @@ function renderTeamNext(){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   const lista=teamNextSessions(3);
   if(!lista.length){
-    box.innerHTML='<h2>Próximas sesiones</h2><div class="tn-vacio">Sin sesiones planificadas.<br><span class="small muted">Planifícalas desde el Calendario.</span></div>';
+    box.innerHTML='<h2>Próximas sesiones</h2><div class="tn-vacio">'
+      +'<span class="vac-ic">🗓</span>'
+      +'<span class="vac-t">Sin sesiones planificadas</span>'
+      +'<span class="vac-s">Cuando pongas entrenamientos en el calendario, los próximos aparecen aquí con su intensidad y su contacto.</span>'
+      +'<button class="vac-a" onclick="event.stopPropagation();go(\'cal\')">Ir al calendario</button></div>';
     return;
   }
   const hoy=dkey(REF());
@@ -20526,7 +20631,9 @@ function renderPartidos(){
             +'<td style="text-align:right"'+(conMin<porDk[dk].length?' class="pt-falta"':'')+'>'+conMin+'</td>'
             +'<td><button class="med-chipbtn" style="color:var(--bad)" onclick="ptBorrar(\''+dk+'\')">✕ Borrar</button></td></tr>';
         }).join('')+'</tbody></table></div>'
-      : '<p class="small muted" style="margin:0">Todavía no has cargado ningún partido medido.</p>';
+      : '<div class="tn-vacio"><span class="vac-ic">🏐</span>'
+        +'<span class="vac-t">Ningún partido medido todavía</span>'
+        +'<span class="vac-s">Los partidos con pulsómetro cargado se comparan aquí contra el perfil del equipo.</span></div>';
   }
   ptRenderSemana();
   ptRenderPerfiles();
@@ -26817,8 +26924,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-23.5*/
-const VER_ACTUAL='2026-09-23.5';
+/*BUILD:2026-09-23.6*/
+const VER_ACTUAL='2026-09-23.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
