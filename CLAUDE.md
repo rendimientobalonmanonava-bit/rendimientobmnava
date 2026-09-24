@@ -300,6 +300,7 @@ No los repitas.
 | Error | Consecuencia |
 |---|---|
 | Datos Polar sin persistir en `localStorage` | Vivían solo en memoria; se perdían al recargar |
+| `seedHR()` sale antes de restaurar lo guardado | `applyHist()` llena `STATE.hr` con el bloque histórico, así que `seedHR()` se encuentra la lista con contenido y sale por su `if(STATE.hr.length)` **sin llegar a `hrLoadSaved()`**. Las sesiones de Polar subidas a mano no estaban en memoria al pintar el Resumen: «Últimas sesiones» enseñaba las viejas, y al abrir Pulsómetros —que sí llama a `hrEnsure()`— aparecían las nuevas. Dos pantallas con datos distintos |
 | Doble declaración de `medPersist()` | La segunda sobrescribía a la primera; el módulo médico no guardaba nada |
 | Carga de sesión multiplicada por nº de cuestionarios | Brais con 2.730 UA en vez de ~900 |
 | Clasificación de sesión ignorando los criterios de apoyo | Clasificaba alto/medio/bajo con una lógica distinta de la que declaraba |
