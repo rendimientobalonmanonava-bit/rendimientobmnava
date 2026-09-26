@@ -300,6 +300,8 @@ No los repitas.
 | Error | Consecuencia |
 |---|---|
 | Datos Polar sin persistir en `localStorage` | Vivían solo en memoria; se perdían al recargar |
+| `renderAll()` reescribía el día de referencia en cada llamada | Lo ponía en la última fecha con wellness o RPE **cada vez**, y la sincronización en segundo plano llama a `renderAll()`: el día elegido se reescribía solo cada pocos minutos. El Resumen volvía a un día viejo con «Últimas sesiones» cortadas ahí y «Próximas» empezando ahí. Ahora el automático solo actúa en el primer pintado |
+| `tnDiaLab` recibía el día ELEGIDO como «hoy» | Etiquetaba «Hoy» y «Mañana» sobre el día del selector, no sobre el real: mirando el 21 marcaba «Hoy» una sesión de hace cinco días mientras el calendario, que usa el reloj, marcaba el 26. Hoy es hoy |
 | `seedHR()` sale antes de restaurar lo guardado | `applyHist()` llena `STATE.hr` con el bloque histórico, así que `seedHR()` se encuentra la lista con contenido y sale por su `if(STATE.hr.length)` **sin llegar a `hrLoadSaved()`**. Las sesiones de Polar subidas a mano no estaban en memoria al pintar el Resumen: «Últimas sesiones» enseñaba las viejas, y al abrir Pulsómetros —que sí llama a `hrEnsure()`— aparecían las nuevas. Dos pantallas con datos distintos |
 | Doble declaración de `medPersist()` | La segunda sobrescribía a la primera; el módulo médico no guardaba nada |
 | Carga de sesión multiplicada por nº de cuestionarios | Brais con 2.730 UA en vez de ~900 |

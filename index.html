@@ -463,6 +463,10 @@ html[data-theme="dark"] .lockup .hp-light{display:block}
 ::-webkit-scrollbar-track{background:transparent}
 button:focus-visible,nav button:focus-visible,.iconbtn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .chip,.tag{border-radius:var(--r-pill)}
+/* v387 · aviso de que el panel no está mostrando el día de hoy */
+.day-hoy{border:1px solid var(--warn);background:var(--warn-bg);color:var(--warn-text,#8a5400);
+  border-radius:var(--r-pill);padding:3px 12px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.day-hoy:hover{background:var(--warn);color:#fff}
 /* ═══ v386 · El arco de los anillos SVG ═══
    Antes el marcado nacía VACÍO y el valor final lo ponía JavaScript. Si nadie
    llamaba al animador —y a los anillos de «A vigilar» no los llamaba nadie,
@@ -8331,7 +8335,14 @@ function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)retur
   const cuenta=c.nSes
     ? `${c.nSes} ${c.nSes===1?'sesión registrada':'sesiones registradas'}`
     : (c.nPlan?`${c.nPlan} ${c.nPlan===1?'sesión planificada':'sesiones planificadas'} · sin RPE todavía`:'0 sesiones');
-  el.innerHTML=`<span class="tag">${wd} ${a[2]}/${a[1]}</span> <span class="chip">${c.mdx}</span> ${matchChip} <span class="muted small">${c.nWell} wellness · ${cuenta}</span>`;}
+  /* v387 · El panel entero cuelga del día elegido: las últimas sesiones se
+     cortan ahí y las próximas empiezan ahí. Cuando ese día no es el de hoy hay
+     que decirlo de forma que se lea, no en gris. */
+  const hoyReal=dkey(new Date());
+  const fuera=c.dk!==hoyReal
+    ? ` <button class="day-hoy" onclick="setRefDate('${hoyReal}');try{syncDatePicker();}catch(e){};renderAll();rerenderCurrent();" title="Volver al día de hoy">No es hoy · ir a hoy</button>`
+    : '';
+  el.innerHTML=`<span class="tag">${wd} ${a[2]}/${a[1]}</span> <span class="chip">${c.mdx}</span> ${matchChip} <span class="muted small">${c.nWell} wellness · ${cuenta}</span>${fuera}`;}
 
 /* ===================== MOTOR ===================== */
 function zIntra(value,history,sdMin){
@@ -16896,9 +16907,21 @@ function renderPlayerReadiness(name){
    archivo — se perdía al recargar. Lo único real que contenía, renderPhysio()
    montado en #physio-box, pasa a vivir en renderPlayerDaily() con su propio
    sitio (Seguimiento del día a día), sin perder nada de esa funcionalidad. */
+/* v387 · Aquí estaba la raíz de «el Resumen se queda en un día viejo».
+   renderAll() colocaba el día de referencia en la ÚLTIMA fecha con wellness o
+   RPE, y lo hacía CADA VEZ que se le llamaba. Como la sincronización en segundo
+   plano llama a renderAll(), el día elegido se reescribía solo cada pocos
+   minutos: si el último cuestionario era del 21, el panel volvía al 21 aunque
+   fuese día 26, con sus «últimas sesiones» cortadas ahí y sus «próximas»
+   empezando ahí. Eso solo tiene sentido la primera vez, para abrir en el último
+   día con datos; a partir de ahí manda lo que haya elegido quien mira. */
+let REF_AUTO_HECHO=false;
 function renderAll(){applyHist();
-  const dks=[...new Set([...STATE.wellness.map(x=>x.dk),...STATE.rpe.map(x=>x.dk)])].sort();
-  if(dks.length){const a=dks[dks.length-1].split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);}
+  if(!REF_AUTO_HECHO&&!STATE.refDate){
+    const dks=[...new Set([...STATE.wellness.map(x=>x.dk),...STATE.rpe.map(x=>x.dk)])].sort();
+    if(dks.length){const a=dks[dks.length-1].split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);}
+    REF_AUTO_HECHO=true;
+  }
   /* v245 · La base médica se carga aquí, antes de construir fisioterapia: al
      cargarla se reconcilian las lesiones abiertas con Disponibilidad, y si eso
      ocurriera después el estado del día saldría sin las bajas. */
@@ -19127,10 +19150,17 @@ function teamNextSessions(max){
   });
   return out;
 }
-function tnDiaLab(dk,hoy){
+/* v387 · Recibía como «hoy» el DÍA ELEGIDO en el selector, así que al mirar un
+   día pasado esta etiqueta marcaba «Hoy» sobre una sesión de hace cinco días,
+   mientras el calendario —que usa el reloj— marcaba otro día distinto. Hoy es
+   hoy: si el día elegido no es el de verdad, se dice el día y la fecha. */
+function tnDiaLab(dk){
+  const hoy=dkey(new Date());
   if(dk===hoy)return 'Hoy';
   const man=dkey(new Date(dkToDate(hoy).getTime()+86400000));
   if(dk===man)return 'Mañana';
+  const ayer=dkey(new Date(dkToDate(hoy).getTime()-86400000));
+  if(dk===ayer)return 'Ayer';
   const d=dkToDate(dk);
   return ['dom','lun','mar','mié','jue','vie','sáb'][d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
 }
@@ -19157,7 +19187,7 @@ function renderTeamNext(){
   const objs0=(primero.e.objs&&primero.e.objs.length?primero.e.objs:(primero.e.note?[primero.e.note]:[]));
   const destacada=`<div class="tn-card tn-hero${sp0?' sp':''}" style="--tc:${sp0?'var(--line)':it0.col}">
     <div class="tn-top">
-      <span class="tn-dia">${tnDiaLab(primero.dk,hoy)}</span>
+      <span class="tn-dia">${tnDiaLab(primero.dk)}</span>
       <span class="tn-tipo">${esc(primero.e.title||tipo0)}</span>
       ${primero.e.time?`<span class="tn-hora">${esc(primero.e.time)}</span>`:''}
     </div>
@@ -19181,7 +19211,7 @@ function renderTeamNext(){
     return `<div class="tn-row${sp?' sp':''}" style="--tc:${sp?'var(--line)':it.col}">
       ${sp?'<div class="tn-sem tn-sem-sm tn-sem-off"><span class="tn-lamp"></span><span class="tn-lamp"></span><span class="tn-lamp"></span></div>':semaforo(i,true)}
       <div class="tn-row-tx">
-        <div class="tn-row-t"><span class="tn-dia">${tnDiaLab(o.dk,hoy)}</span><span class="tn-tipo">${esc(o.e.title||tipo)}</span></div>
+        <div class="tn-row-t"><span class="tn-dia">${tnDiaLab(o.dk)}</span><span class="tn-tipo">${esc(o.e.title||tipo)}</span></div>
         <div class="tn-row-m">${o.e.time?esc(o.e.time)+' · ':''}${sp?'sin programar':it.lab+(c?' · '+esc(CAL_CONTACT_LAB[c]||''):'')}</div>
       </div>
       <div class="tn-row-d">${sp?'<b>—</b>':`<b>${o.e.dur?o.e.dur:'—'}</b><span>min</span>`}</div>
@@ -27017,8 +27047,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-24.2*/
-const VER_ACTUAL='2026-09-24.2';
+/*BUILD:2026-09-26.1*/
+const VER_ACTUAL='2026-09-26.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
