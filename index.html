@@ -8294,10 +8294,20 @@ function rosterPos(name){
   }catch(e){}
   return '';
 }
-function syncDatePicker(){const dks=[...new Set([...STATE.wellness.map(x=>x.dk),...STATE.rpe.map(x=>x.dk)])].sort();const inp=document.getElementById('ref-date');if(!inp||!dks.length)return;inp.min=dks[0];inp.max=dks[dks.length-1];inp.value=dkey(REF());dpSyncLabel();}
+/* v388 · El tope del selector era el último día CON cuestionarios, así que si
+   hoy todavía no ha rellenado nadie, hoy quedaba fuera de rango: ni las flechas
+   ni el calendario llegaban, y «Hoy» iba en realidad a la última jornada con
+   datos. Hoy siempre entra. */
+function syncDatePicker(){const dks=[...new Set([...STATE.wellness.map(x=>x.dk),...STATE.rpe.map(x=>x.dk)])].sort();const inp=document.getElementById('ref-date');if(!inp)return;const hoy=dkey(new Date());if(dks.length)inp.min=dks[0];inp.max=(dks.length&&dks[dks.length-1]>hoy)?dks[dks.length-1]:hoy;inp.value=dkey(REF());dpSyncLabel();}
 function dpSyncLabel(){const lab=document.getElementById('dp-label');if(!lab)return;const inp=document.getElementById('ref-date');const v=(inp&&inp.value)||dkey(REF());const p=v.split('-');lab.textContent=p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):'—';}
-function setRefDate(v){if(!v)return;const a=v.split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);HR_SES_LOCK=false;buildPlayers();renderTeam();renderAlerts();renderDayCtx();if(document.getElementById('v-jugador').classList.contains('on')&&STATE.curPlayer)renderPlayer(STATE.curPlayer);if(document.getElementById('v-carga').classList.contains('on'))renderLoad();if(document.getElementById('v-hr').classList.contains('on'))renderHR();dpSyncLabel();writeHash();}
-function goToday(){const inp=document.getElementById('ref-date');if(inp&&inp.max){inp.value=inp.max;setRefDate(inp.max);}}
+/* v388 · `auto` distingue el día que pone la aplicación del que elige quien
+   mira. Elegir uno a mano corta el seguimiento automático; volver a hoy lo
+   reanuda. Sin esto, o te arrastra a hoy mientras revisas el martes pasado, o
+   te deja clavado en un día viejo: las dos cosas molestan. */
+let REF_SIGUE_HOY=true;
+function setRefDate(v,auto){if(!v)return;if(!auto)REF_SIGUE_HOY=(v===dkey(new Date()));const a=v.split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);HR_SES_LOCK=false;buildPlayers();renderTeam();renderAlerts();renderDayCtx();if(document.getElementById('v-jugador').classList.contains('on')&&STATE.curPlayer)renderPlayer(STATE.curPlayer);if(document.getElementById('v-carga').classList.contains('on'))renderLoad();if(document.getElementById('v-hr').classList.contains('on'))renderHR();dpSyncLabel();writeHash();}
+/* v388 · Iba a inp.max —la última jornada con datos—, no al día de hoy. */
+function goToday(){const hoy=dkey(new Date());const inp=document.getElementById('ref-date');if(inp)inp.value=hoy;REF_SIGUE_HOY=true;setRefDate(hoy,true);}
 /* ---- Calendario propio (liquid glass) ---- */
 let DP_YM=null; // mes visible {y,m}
 function dpToggle(){const pop=document.getElementById('dp-pop');const trg=document.getElementById('dp-trigger');if(!pop)return;if(!pop.hidden){dpClose();return;}
@@ -8323,9 +8333,15 @@ function dpRender(){const pop=document.getElementById('dp-pop');if(!pop||!DP_YM)
   pop.innerHTML='<div class="dp-head"><button type="button" class="dp-mnav" onclick="dpNav(-1)" '+(prevDisabled?'disabled':'')+' aria-label="Mes anterior">‹</button><span class="dp-title">'+MES[m]+' '+y+'</span><button type="button" class="dp-mnav" onclick="dpNav(1)" '+(nextDisabled?'disabled':'')+' aria-label="Mes siguiente">›</button></div>'
   +'<div class="dp-grid dp-dow"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>'
   +'<div class="dp-grid dp-days">'+cells+'</div>'
-  +'<div class="dp-foot"><button type="button" class="dp-foot-btn" onclick="goToday();dpClose()">Última jornada</button></div>';}
+  +'<div class="dp-foot"><button type="button" class="dp-foot-btn" onclick="goToday();dpClose()">Ir a hoy</button></div>';}
 function stepDay(delta){const inp=document.getElementById('ref-date');const cur=inp.value||dkey(REF());const a=cur.split('-').map(Number);const d=new Date(a[0],a[1]-1,a[2]);d.setDate(d.getDate()+delta);const nv=dkey(d);if(inp.min&&nv<inp.min)return;if(inp.max&&nv>inp.max)return;inp.value=nv;setRefDate(nv);}
-function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)return;const ref=REF();const c=dayContext(ref);const a=c.dk.split('-').map(Number);const wd=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(a[0],a[1]-1,a[2]).getDay()];const matchChip=c.isMatch
+function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)return;
+  /* v388 · La serie de readiness del equipo recorre los últimos catorce días
+     moviendo STATE.refDate y devolviéndolo al final (`window.__RD_CALC`). Si la
+     barra del día se pintaba en mitad de ese recorrido, se quedaba con una fecha
+     de paso: salía «Viernes 18/9 · No es hoy» estando en hoy. */
+  if(window.__RD_CALC)return;
+  const ref=REF();const c=dayContext(ref);const a=c.dk.split('-').map(Number);const wd=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(a[0],a[1]-1,a[2]).getDay()];const matchChip=c.isMatch
     ?'<span class="chip bad">Día de partido</span>'
     :(c.trained?'<span class="chip ok">Entrenamiento</span>'
       :(c.nPlan?'<span class="chip">Planificado · sin registrar</span>'
@@ -8340,7 +8356,7 @@ function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)retur
      que decirlo de forma que se lea, no en gris. */
   const hoyReal=dkey(new Date());
   const fuera=c.dk!==hoyReal
-    ? ` <button class="day-hoy" onclick="setRefDate('${hoyReal}');try{syncDatePicker();}catch(e){};renderAll();rerenderCurrent();" title="Volver al día de hoy">No es hoy · ir a hoy</button>`
+    ? ` <button class="day-hoy" onclick="goToday();try{syncDatePicker();}catch(e){};rerenderCurrent();" title="Volver al día de hoy">No es hoy · ir a hoy</button>`
     : '';
   el.innerHTML=`<span class="tag">${wd} ${a[2]}/${a[1]}</span> <span class="chip">${c.mdx}</span> ${matchChip} <span class="muted small">${c.nWell} wellness · ${cuenta}</span>${fuera}`;}
 
@@ -10767,7 +10783,11 @@ function go(v){const ESUB={dispo:1,medico:1,parte:1,fisio:1};let realV=ESUB[v]?'
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'||v==='unif'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
   window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
-function writeHash(){const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){history.replaceState(null,'',h);}}
+function writeHash(){
+  /* v388 · Lo mismo con la dirección: si se escribía durante el recorrido, la
+     URL se quedaba con un día de paso y al recargar se abría en él. */
+  if(window.__RD_CALC)return;
+  const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){history.replaceState(null,'',h);}}
 function readHash(){const h=decodeURIComponent(location.hash.replace(/^#/,''));if(!h)return null;const p=h.split('/');const v=p[0];if(!TABS.some(t=>t[0]===v))return null;return{view:v,date:p[1]||null};}
 const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["unif","Carga integrada"],["avail","Disponibilidad"],["parte","Parte wellness"],["fisio","Fisioterapia"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
 const NAV=[
@@ -16918,8 +16938,11 @@ function renderPlayerReadiness(name){
 let REF_AUTO_HECHO=false;
 function renderAll(){applyHist();
   if(!REF_AUTO_HECHO&&!STATE.refDate){
-    const dks=[...new Set([...STATE.wellness.map(x=>x.dk),...STATE.rpe.map(x=>x.dk)])].sort();
-    if(dks.length){const a=dks[dks.length-1].split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);}
+    /* v388 · Abría en el último día con cuestionarios. Si hoy nadie había
+       rellenado todavía, el panel arrancaba en ayer o antes y había que ir a hoy
+       a mano cada vez. Se abre en hoy. */
+    const h=dkey(new Date()).split('-').map(Number);
+    STATE.refDate=new Date(h[0],h[1]-1,h[2],23,59,59);
     REF_AUTO_HECHO=true;
   }
   /* v245 · La base médica se carga aquí, antes de construir fisioterapia: al
@@ -20473,7 +20496,27 @@ function resetDrawer(){const c=JSON.parse(JSON.stringify(CFG_DEFAULTS));CONFIG.z
 function initKeyboard(){document.addEventListener('keydown',e=>{const tag=(e.target.tagName||'').toLowerCase();const typing=tag==='input'||tag==='textarea'||tag==='select'||e.target.isContentEditable;if(e.key==='Escape'){closeDrawer();if(typing)e.target.blur();return;}if(typing)return;if(e.metaKey||e.ctrlKey||e.altKey)return;if(e.key>='1'&&e.key<='9'){const i=+e.key-1;if(TABS[i])go(TABS[i][0]);}else if(e.key==='/'){e.preventDefault();focusSearch();}else if(e.key==='ArrowLeft')stepDay(-1);else if(e.key==='ArrowRight')stepDay(1);else if(e.key.toLowerCase()==='t')toggleTheme();});}
 
 /* --- Restaurar vista/fecha desde la URL --- */
-function restoreFromHash(){const h=readHash();if(!h)return;if(h.date){const inp=document.getElementById('ref-date');if(inp&&(!inp.min||h.date>=inp.min)&&(!inp.max||h.date<=inp.max)){inp.value=h.date;setRefDate(h.date);}}go(h.view);}
+/* v388 · La dirección guarda el día que estabas viendo, y al volver a entrar se
+   restauraba: por eso el panel abría en un día de hace una semana. Se conserva
+   la pantalla, no la fecha; se abre siempre en hoy. */
+function restoreFromHash(){const h=readHash();if(!h)return;go(h.view);}
+
+/* v388 · La pestaña se queda abierta de un día para otro —la de Daniel llevaba
+   31 horas—, y el panel se quedaba clavado en el día en que se abrió. Cada
+   minuto se comprueba si ha cambiado el día de verdad; si se estaba siguiendo a
+   hoy, se pasa al nuevo día solo. Si hay un día elegido a mano, no se toca. */
+let REF_DIA_VISTO=dkey(new Date());
+setInterval(function(){
+  try{
+    const hoy=dkey(new Date());
+    if(hoy===REF_DIA_VISTO)return;
+    REF_DIA_VISTO=hoy;
+    if(!REF_SIGUE_HOY)return;
+    setRefDate(hoy,true);
+    try{syncDatePicker();}catch(e){}
+    try{rerenderCurrent();}catch(e){}
+  }catch(e){}
+},60000);
 
 /* aplica el tema guardado antes del primer render */
 applyTheme(lsGet('bmnava-theme')==='dark'?'dark':'light');
@@ -21022,6 +21065,12 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   }catch(e){}
   injectPanelActions();
   restoreFromHash();
+  /* v388 · La barra del día se pinta varias veces durante el arranque, y la
+     última que quedaba podía ser de antes de fijar la fecha: salía el aviso de
+     «No es hoy» nada más abrir, estando en hoy. Se repinta al final, ya con la
+     fecha puesta. */
+  try{syncDatePicker();}catch(e){}
+  try{renderDayCtx();}catch(e){}
   /* v272 · la pantalla de arranque se retira aquí, con la app ya pintada. Si
      algo de arriba hubiera fallado, su propio tope de 5s la retira igual. */
   try{if(window.__splashOff)window.__splashOff();}catch(e){}
@@ -27047,8 +27096,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-27.2*/
-const VER_ACTUAL='2026-09-27.2';
+/*BUILD:2026-09-27.3*/
+const VER_ACTUAL='2026-09-27.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
