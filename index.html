@@ -18413,9 +18413,11 @@ function evRpe(e){
   return HREQ_RPE_INT[i]||6.5;
 }
 window.evRpe=evRpe;
-/* Sesiones planificadas de aquí en adelante, para poder cargarlas de un clic. */
+/* Sesiones planificadas de aquí en adelante, para poder cargarlas de un clic.
+   v390 · «de aquí en adelante» es desde hoy, no desde el día que se esté
+   mirando: si no, el desplegable ofrecía sesiones ya jugadas. */
 function hreqProximas(){
-  const cal=STATE.calendar||{};const hoy=dkey(REF());const out=[];
+  const cal=STATE.calendar||{};const hoy=dkey(new Date());const out=[];
   Object.keys(cal).sort().forEach(dk=>{
     if(dk<hoy)return;
     (cal[dk]||[]).forEach(e=>{
@@ -19177,7 +19179,12 @@ window.renderTeamDist=renderTeamDist;
    como si tiene dos (lo habitual, gimnasio y pista) o tres. */
 function teamNextSessions(max){
   calLoad();
-  const hoy=dkey(REF());
+  /* v390 · Usaba el DÍA ELEGIDO en el selector. Al quedarse el panel en un día
+     pasado, «próximas» arrancaba ahí y colaba sesiones ya jugadas: el partido
+     del sábado 26 salía como próximo. Y desde v387 las etiquetas ya iban por el
+     reloj, así que el filtro y los rótulos se contradecían —«sáb 26/9» encima
+     de «Hoy»—. Próximo es lo que está por venir, y eso se mide desde hoy. */
+  const hoy=dkey(new Date());
   const out=[];
   Object.keys(STATE.calendar||{}).sort().forEach(dk=>{
     if(dk<hoy)return;
@@ -19213,7 +19220,6 @@ function renderTeamNext(){
       +'<button class="vac-a" onclick="event.stopPropagation();go(\'cal\')">Ir al calendario</button></div>';
     return;
   }
-  const hoy=dkey(REF());
   const semaforo=(i,tam)=>`<div class="tn-sem${tam?' tn-sem-sm':''}">`
     +[3,2,1].map(k=>`<span class="tn-lamp" style="background:${CAL_INT[k].col};opacity:${i===k?1:.15}"></span>`).join('')
     +'</div>';
@@ -27151,8 +27157,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-28.1*/
-const VER_ACTUAL='2026-09-28.1';
+/*BUILD:2026-09-28.2*/
+const VER_ACTUAL='2026-09-28.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
