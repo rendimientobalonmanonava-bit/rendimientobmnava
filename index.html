@@ -463,6 +463,10 @@ html[data-theme="dark"] .lockup .hp-light{display:block}
 ::-webkit-scrollbar-track{background:transparent}
 button:focus-visible,nav button:focus-visible,.iconbtn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .chip,.tag{border-radius:var(--r-pill)}
+/* v389 · día de sesión sin captura de pulsómetros */
+.ult-nopulso{font-size:11px;color:var(--muted2);background:var(--panel2);border:1px dashed var(--line);
+  border-radius:8px;padding:6px 10px;margin:2px 0 4px;text-align:center}
+.ult-card--nopulso .ult-kpis span:nth-child(3) em{color:var(--muted2)}
 /* v387 · aviso de que el panel no está mostrando el día de hoy */
 .day-hoy{border:1px solid var(--warn);background:var(--warn-bg);color:var(--warn-text,#8a5400);
   border-radius:var(--r-pill);padding:3px 12px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
@@ -17303,25 +17307,33 @@ function classifySession(rows,key,dk){
   const z=pctZones(rows);
   const bz=[bandOf(z.z5,SESSPEC[0].bands),bandOf(z.z4,SESSPEC[1].bands),bandOf(z.z54,SESSPEC[2].bands)];
   const zoneLevel=Math.min(2,Math.max(...bz));
+  /* v389 · Sin pulsómetros, pctZones devuelve ceros y la banda de zonas salía
+     BAJA: el criterio de más peso (40%) puntuaba a partir de un dato que no
+     existe, y arrastraba la sesión al cajón bajo. Cuando no hay pulso, ese
+     criterio no entra y su peso se reparte entre los demás, que es lo que ya
+     hace el modelo con cualquier criterio que falte. */
+  const sinPulso=!(rows&&rows.length)||!rows.some(r=>(r.z||[]).some(x=>x>0));
   const meta=sessMeta(key,dk);
   const lvUA=meta&&meta.ua!=null?(meta.ua<600?0:meta.ua<=900?1:2):null;
   const lvC=meta&&meta.contacto!=null?(meta.contacto<2?0:meta.contacto<=3.5?1:2):null;
   const lvR=meta&&meta.rpe!=null?(meta.rpe<6.3?0:meta.rpe<=7.5?1:2):null;
   const confirms=[];if(lvUA===zoneLevel)confirms.push('UA');if(lvC===zoneLevel)confirms.push('contacto');if(lvR===zoneLevel)confirms.push('RPE');
-  const crits=[{lv:zoneLevel,w:0.40,lab:'zonas FC'}];
+  const crits=sinPulso?[]:[{lv:zoneLevel,w:0.40,lab:'zonas FC'}];
   if(lvUA!=null)crits.push({lv:lvUA,w:0.25,lab:'carga UA'});
   if(lvR!=null)crits.push({lv:lvR,w:0.20,lab:'RPE'});
   if(lvC!=null)crits.push({lv:lvC,w:0.15,lab:'contacto'});
   const tw=crits.reduce((s,c)=>s+c.w,0);
-  const score=crits.reduce((s,c)=>s+c.lv*c.w,0)/tw;
-  const auto=hrNivelDeScore(score,crits);
+  /* sin ningún criterio no hay nivel que dar: se dice que no se sabe */
+  const score=tw?crits.reduce((s,c)=>s+c.lv*c.w,0)/tw:NaN;
+  const auto=tw?hrNivelDeScore(score,crits):null;
   const man=hrNivManual(key);
   const level=(man!=null)?man:auto;
+  const sinNivel=(level==null);
   /* Aviso cuando las zonas están en rango de alarma pero el conjunto no acompaña:
      el dato no se oculta, se explica. */
   const zoneAlarm=Math.max(...bz)>=3;
   const rebajada=auto<zoneLevel;
-  return {z,bz,zoneLevel,meta,lvUA,lvC,lvR,confirms,crits,score,level,auto,manual:(man!=null),key,zoneAlarm,rebajada};
+  return {z,bz,zoneLevel,meta,lvUA,lvC,lvR,confirms,crits,score,level,auto,manual:(man!=null),key,zoneAlarm,rebajada,sinPulso,sinNivel};
 }
 function bandMeter(sp,val){
   const segs=sp.bands.map((b,i)=>{const w=Math.max(0,(Math.min(b[1],sp.cap)-b[0])/sp.cap*100);return `<div style="width:${w}%;background:${BANDCOL[i]};opacity:.92"></div>`;}).join('');
@@ -18167,7 +18179,9 @@ window.renderHRPlayer=renderHRPlayer;window.hrpSimular=hrpSimular;
 
 function renderHRClass(rows,key,dk,target){
   const box=document.getElementById(target||'hr-class');if(!box)return;
-  const c=classifySession(rows,key,dk);const lv=LV[c.level];const vals=[c.z.z5,c.z.z4,c.z.z54];
+  /* v389 · level puede venir nulo si esa sesión no tiene ni pulso ni RPE ni
+     contacto: sin criterios no hay nivel que dar, y aquí se pintaba LV[null]. */
+  const c=classifySession(rows,key,dk);const lv=LV[c.level]||['SIN DATOS','var(--muted2)'];const vals=[c.z.z5,c.z.z4,c.z.z54];
   const chip=(lab,val,lvl,txt)=>{const on=lvl===c.level;const col=lvl==null?'var(--muted2)':BANDCOL[Math.min(lvl,2)];
     return `<div style="flex:1;min-width:130px;border:1px solid var(--line);border-radius:12px;padding:12px 13px;box-shadow:var(--shadow);${on?'outline:2px solid '+col+';outline-offset:-2px':''}">
       <div class="lab" style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">${lab}</div>
@@ -19363,18 +19377,54 @@ function renderTeamIntensity(){
    classifySession —el mismo modelo que firma la clasificación de la sesión— y
    el contacto y las UA de sessMeta, para que Resumen y Pulsómetros no puedan
    contar cosas distintas. */
+/* v389 · Esta tira se alimentaba SOLO de Polar, así que un día entrenado sin
+   pulsómetros —o un partido, que casi nunca los lleva— sencillamente no existía
+   para el Resumen: la última sesión se quedaba en el último día con captura. Se
+   llama «Últimas sesiones», no «últimas sesiones con pulsómetro».
+   Ahora una sesión es un día en el que el equipo hizo algo, venga de donde
+   venga: captura de Polar, cuestionarios de RPE o un partido en el calendario.
+   Lo que hay se pinta; lo que falta se dice. */
 function ultimasSesiones(n){
-  const keys=[...new Set((STATE.hr||[]).map(hrKey))].sort();
-  if(!keys.length)return [];
   let hasta=null;try{hasta=dkey(REF());}catch(e){}
-  const validas=hasta?keys.filter(k=>k.slice(0,k.indexOf('|'))<=hasta):keys;
-  const uso=(validas.length?validas:keys).slice(-(n||3));
-  return uso.reverse().map(key=>{
-    const i=key.indexOf('|'),dk=key.slice(0,i),lab=key.slice(i+1);
+  const dias={};
+  /* a · sesiones con pulsómetro: son las que más cuentan, y traen etiqueta */
+  [...new Set((STATE.hr||[]).map(hrKey))].forEach(key=>{
+    const i=key.indexOf('|'),dk=key.slice(0,i);
+    if(hasta&&dk>hasta)return;
+    const prev=dias[dk];
+    /* si un día tiene dos capturas, manda la de más jugadores */
     const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key);
-    let c=null;try{c=classifySession(rows,key,dk);}catch(e){}
-    const z=[0,0,0,0,0];rows.forEach(r=>r.z.forEach((sg,zi)=>z[zi]+=sg));
-    return {key,dk,lab,rows,c,z,tot:z.reduce((a,b)=>a+b,0)};
+    if(prev&&prev.rows.length>=rows.length)return;
+    dias[dk]={key,dk,lab:key.slice(i+1),rows,fuente:'polar'};
+  });
+  /* b · días con RPE registrado pero sin captura */
+  const porDia={};
+  (STATE.rpe||[]).forEach(r=>{if(!r||!r.dk)return;(porDia[r.dk]=porDia[r.dk]||[]).push(r);});
+  Object.keys(porDia).forEach(dk=>{
+    if(hasta&&dk>hasta)return;
+    if(dias[dk])return;
+    const tipos=porDia[dk].map(x=>norm(x.tipo||''));
+    const lab=tipos.some(t=>t.includes('partido'))?'Partido'
+      :(tipos.some(t=>t.includes('gim'))&&tipos.every(t=>t.includes('gim'))?'Gimnasio':'Entrenamiento');
+    dias[dk]={key:dk+'|'+lab,dk,lab,rows:[],fuente:'rpe'};
+  });
+  /* c · partidos del calendario: se juegan aunque nadie rellene nada */
+  try{
+    calLoad();
+    Object.keys(STATE.calendar||{}).forEach(dk=>{
+      if(hasta&&dk>hasta)return;
+      if(dias[dk])return;
+      const ev=(STATE.calendar[dk]||[]).filter(e=>e&&e.type==='partido');
+      if(!ev.length)return;
+      dias[dk]={key:dk+'|Partido',dk,lab:ev[0].title||'Partido',rows:[],fuente:'cal'};
+    });
+  }catch(e){}
+  const uso=Object.keys(dias).sort().slice(-(n||3));
+  return uso.reverse().map(dk=>{
+    const d=dias[dk];
+    let c=null;try{c=classifySession(d.rows,d.key,dk);}catch(e){}
+    const z=[0,0,0,0,0];d.rows.forEach(r=>{for(let i=0;i<5;i++)z[i]+=zOf(r,i);});
+    return Object.assign({},d,{c,z,tot:z.reduce((a,b)=>a+b,0)});
   });
 }
 /* Una tira de 5 segmentos con el reparto del tiempo en zonas. */
@@ -19402,7 +19452,7 @@ function renderTeamUltimas(){
   try{hrEnsure();}catch(e){}
   const ses=ultimasSesiones(3);
   if(!ses.length){
-    box.innerHTML='<p class="hint">Sin sesiones de pulso todavía. Cárgalas en <b>Pulsómetros</b> y aquí verás el nivel, las zonas y el contacto de las últimas.</p>';
+    box.innerHTML='<p class="hint">Sin sesiones registradas todavía. Aquí aparecerán las últimas con su nivel, sus zonas y su contacto.</p>';
     return;
   }
   const tarjetas=ses.map((s,idx)=>{
@@ -19411,13 +19461,18 @@ function renderTeamUltimas(){
     const z45=s.tot?((s.z[3]+s.z[4])/s.tot*100):null;
     const dd=s.dk.split('-');
     const partido=/partido|^md$|\bmd\b/.test(norm(s.lab));
-    return '<div class="ult-card'+(idx===0?' ult-card--last':'')+'">'
+    /* v389 · Un día sin captura de Polar se pinta igual, con lo que sí hay: la
+       barra de zonas se sustituye por el aviso y el %Z4+Z5 va a raya. */
+    const sinPulso=!s.tot;
+    return '<div class="ult-card'+(idx===0?' ult-card--last':'')+(sinPulso?' ult-card--nopulso':'')+'">'
      +'<div class="ult-head">'
        +'<div class="ult-when"><b>'+dd[2]+'/'+dd[1]+'</b><span>'+medEsc(s.lab)+'</span></div>'
        +(partido?'<span class="ult-mtag">partido</span>':'')
        +(lv?'<span class="ult-lv" style="background:'+lv[1]+'">'+lv[0]+'</span>':'<span class="ult-lv ult-lv--no">SIN NIVEL</span>')
      +'</div>'
-     +ultZonasBarra(s.z,s.tot,idx===0?11:8)
+     +(sinPulso
+        ? '<div class="ult-nopulso">Sin pulsómetros este día'+(lv?' · nivel por carga, RPE y contacto':'')+'</div>'
+        : ultZonasBarra(s.z,s.tot,idx===0?11:8))
      +'<div class="ult-kpis">'
        +'<span><em>'+(meta.ua!=null?Math.round(meta.ua):'—')+'</em>UA</span>'
        +'<span><em>'+(meta.rpe!=null?meta.rpe.toFixed(1):'—')+'</em>RPE</span>'
@@ -19433,7 +19488,7 @@ function renderTeamUltimas(){
     ? '<div class="ult-tira"><span class="ult-tira-l">últimas '+hist.length+'</span>'
       +hist.map(h=>{
          const lv=h.c?LV[h.c.level]:null;const dd=h.dk.split('-');
-         return '<i style="background:'+(lv?lv[1]:'var(--hair)')+'" title="'+dd[2]+'/'+dd[1]+' · '+medEsc(h.lab)+(lv?' · '+lv[0]:'')+'"></i>';
+         return '<i style="background:'+(lv?lv[1]:'var(--hair)')+(h.tot?'':';opacity:.55')+'" title="'+dd[2]+'/'+dd[1]+' · '+medEsc(h.lab)+(lv?' · '+lv[0]:'')+(h.tot?'':' · sin pulsómetros')+'"></i>';
        }).join('')
       +'<span class="ult-tira-r">hoy</span></div>'
     : '';
@@ -27096,8 +27151,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-27.3*/
-const VER_ACTUAL='2026-09-27.3';
+/*BUILD:2026-09-28.1*/
+const VER_ACTUAL='2026-09-28.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
