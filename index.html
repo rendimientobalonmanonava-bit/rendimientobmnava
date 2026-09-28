@@ -10899,6 +10899,14 @@ function teamReadinessSerieAsync(n){
     else setTimeout(r,0);
   });
   RD_SERIE_PROM=(async function(){
+    /* v389 · Aquí estaba el fallo que hacía que el Resumen abriera en un día
+       viejo. Este cuerpo arrancaba EN LA MISMA llamada que pedía la serie: para
+       cuando se cedía el hilo por primera vez, STATE.refDate ya apuntaba al
+       primer día del recorrido, y quien había pedido la serie —renderTeam—
+       seguía pintando debajo con esa fecha prestada. «Últimas sesiones» se
+       quedaba catorce días atrás en todos los arranques. Se cede el hilo ANTES
+       de tocar la fecha, así que el que pide termina de pintar con la suya. */
+    await respira();
     window.__RD_CALC=true;
     try{
       for(const dk of dks){
@@ -10916,6 +10924,11 @@ function teamReadinessSerieAsync(n){
       RD_SERIE_PROM=null;
     }
     RD_SERIE_CACHE={clave,datos:out};
+    /* Lo que quiso pintarse durante el recorrido se saltó el turno para no
+       salir con la fecha prestada. Ahora, con la fecha ya devuelta y la serie
+       en la caché, se le da ese turno. La caché evita que este repintado
+       vuelva a lanzar el recorrido. */
+    if(window.__RD_PEND){window.__RD_PEND=false;try{renderAll();}catch(e){}}
     return out;
   })();
   return RD_SERIE_PROM;
@@ -16947,7 +16960,12 @@ function renderPlayerReadiness(name){
    empezando ahí. Eso solo tiene sentido la primera vez, para abrir en el último
    día con datos; a partir de ahí manda lo que haya elegido quien mira. */
 let REF_AUTO_HECHO=false;
-function renderAll(){applyHist();
+function renderAll(){
+  /* v389 · Mientras la serie de readiness recorre días, STATE.refDate no es el
+     día que mira el usuario. Quien pinte aquí en medio pinta otro día. Se anota
+     y se repinta al terminar el recorrido. */
+  if(window.__RD_CALC){window.__RD_PEND=true;return;}
+  applyHist();
   if(!REF_AUTO_HECHO&&!STATE.refDate){
     /* v388 · Abría en el último día con cuestionarios. Si hoy nadie había
        rellenado todavía, el panel arrancaba en ayer o antes y había que ir a hoy
@@ -27164,8 +27182,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-28.3*/
-const VER_ACTUAL='2026-09-28.3';
+/*BUILD:2026-09-28.4*/
+const VER_ACTUAL='2026-09-28.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
