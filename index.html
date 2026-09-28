@@ -3502,7 +3502,7 @@ body.modal-open #sidebar{overflow:hidden}
 .tb-k{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:1px;
   border-left:3px solid var(--c)}
 .tb-k>i{width:9px;height:9px;border-radius:50%;background:var(--c);display:block;margin-bottom:3px}
-.tb-k b{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.1;color:var(--c);font-variant-numeric:tabular-nums}
+.tb-k b{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.1;color:var(--ct,var(--c));font-variant-numeric:tabular-nums}
 .tb-k span{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .tb-k em{font-style:normal;font-size:9.5px;color:var(--muted2)}
 .tb-glob{margin-top:13px}
@@ -11764,7 +11764,7 @@ function renderCargaResumen(){
      FC, gasto y "carga integrada" nunca podían mostrar un dato de nadie. En su
      sitio entran paneles construidos sobre lo que sí existe: sRPE, ACWR,
      wellness, posiciones y disponibilidad. */
-  const okc='#1ea863',wc='#e08a00',bc='#e23b32';
+  const okc='var(--ok)',wc='var(--warn)',bc='var(--bad)';
   const win=FILTER.window;const end=REF();
   const av=p=>(p.avatar)||window.__AVATAR__||'';
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
@@ -12642,7 +12642,9 @@ function renderTestsBaremo(){
   const fuertes=d.porTest.slice().sort((a,b)=>(b.c[3]+b.c[2])/b.n-(a.c[3]+a.c[2])/a.n).slice(0,3);
   box.innerHTML='<h2>Baremo del equipo <span class="r muted">cada jugador contra las bandas de su puesto</span></h2>'
    +'<div class="tb-kpis">'+[0,1,2,3].map(i=>
-      '<div class="tb-k" style="--c:'+REF_NIV[i][1]+'">'
+      /* v391 · el nivel Champions usa el azul marino, que en oscuro queda por
+         debajo del fondo: para el texto manda --champ-tx, como en el resto */
+      '<div class="tb-k" style="--c:'+REF_NIV[i][1]+';--ct:'+(i===3?'var(--champ-tx)':REF_NIV[i][1])+'">'
        +(i===3?refInsignia(13):'<i></i>')
        +'<b>'+d.tot[i]+'</b><span>'+REF_NIV[i][2]+'</span><em>'+pct(i)+'% de las medidas</em></div>').join('')
     +'</div>'
@@ -13047,9 +13049,14 @@ function renderTestsExtra(){
   const cm=document.getElementById('corr-matrix');
   if(cm){const names=Object.keys(STATE.tests||{});const st=testStats();const zv={};TT.forEach(t=>zv[t.k]=names.map(nm=>{const v=(STATE.tests[nm]||{})[t.k];if(v==null||!(st[t.k].s>0))return null;let z=(v-st[t.k].m)/st[t.k].s;return t.lowerBetter?-z:z;}));
     const pear=(a,b)=>{const xs=[],ys=[];for(let i=0;i<a.length;i++){if(a[i]!=null&&b[i]!=null){xs.push(a[i]);ys.push(b[i]);}}return pearson(xs,ys);};
+    /* v391 · La celda va de rojo a blanco a verde y el texto era siempre tinta
+       oscura: en los extremos saturados (|r| alto) queda ilegible. El texto se
+       elige por la luminancia de la propia celda. */
     const rcol=r=>{const a=Math.abs(r);const base=r>=0?[47,158,99]:[226,59,50];const c=base.map(x=>Math.round(255+(x-255)*a));return`rgb(${c.join(',')})`;};
+    const rtxt=r=>{const a=Math.abs(r);const base=r>=0?[47,158,99]:[226,59,50];const c=base.map(x=>Math.round(255+(x-255)*a));
+      return (0.2126*c[0]+0.7152*c[1]+0.0722*c[2])/255<0.55?'#fff':'#1b2330';};
     let html=`<div style="display:grid;grid-template-columns:90px repeat(${TT.length},1fr);gap:3px;min-width:420px"><div></div>`+TT.map(t=>`<div class="small muted" style="text-align:center">${shortLbl(t)}</div>`).join('');
-    TT.forEach(rt=>{html+=`<div class="small muted">${shortLbl(rt)}</div>`+TT.map(ct=>{const r=rt.k===ct.k?1:pear(zv[rt.k],zv[ct.k]);return `<div title="r=${fmt(r,2)}" style="height:28px;background:${rcol(r)};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#1b2330">${isNaN(r)?'—':fmt(r,2)}</div>`;}).join('');});
+    TT.forEach(rt=>{html+=`<div class="small muted">${shortLbl(rt)}</div>`+TT.map(ct=>{const r=rt.k===ct.k?1:pear(zv[rt.k],zv[ct.k]);return `<div title="r=${fmt(r,2)}" style="height:28px;background:${rcol(r)};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${rtxt(r)}">${isNaN(r)?'—':fmt(r,2)}</div>`;}).join('');});
     html+=`</div>`;cm.innerHTML=html;}
   // selects scatter
   ['sc-x','sc-y'].forEach((id,idx)=>{const s=document.getElementById(id);if(s&&!s.options.length){s.innerHTML=TESTS.map(t=>`<option value="${t.k}">${t.name}</option>`).join('');s.value=TESTS[idx===0?0:1].k;}});
@@ -13351,7 +13358,7 @@ function swCard(name){
   const li=(o,good)=>`<div class="sw-item"><span>${o.lab}</span><span class="sw-z" style="color:${good?'var(--ok)':'var(--bad)'}">${o.z>=0?'+':''}${fmt(o.z,2)}</span></div>`;
   const txt=`${name.split(' ')[0]} destaca en ${strong.map(s=>s.lab.toLowerCase()).join(', ')}; áreas de mejora: ${weak.map(s=>s.lab.toLowerCase()).join(', ')}.`;
   return `<div class="fband-h"><span class="t">Fortalezas y áreas de mejora</span><span class="l"></span></div>
-    <div class="sw-grid"><div class="sw-col"><h4 style="color:#1ea863">Fortalezas</h4>${strong.map(o=>li(o,true)).join('')}</div><div class="sw-col"><h4 style="color:#e23b32">A mejorar</h4>${weak.map(o=>li(o,false)).join('')}</div></div>
+    <div class="sw-grid"><div class="sw-col"><h4 style="color:var(--ok)">Fortalezas</h4>${strong.map(o=>li(o,true)).join('')}</div><div class="sw-col"><h4 style="color:var(--bad)">A mejorar</h4>${weak.map(o=>li(o,false)).join('')}</div></div>
     <div class="small muted" style="margin-top:8px">${txt} <span style="opacity:.8">(z = desviaciones vs media del equipo)</span></div>`;
 }
 /* v367 · El semáforo salía de comparar cada capacidad con la media del equipo,
@@ -19135,7 +19142,7 @@ function renderTeamDist(){
       ${nota?`<div class="small muted" style="margin-top:6px">${nota}</div>`:''}
     </div>`;
   };
-  const okc='#1ea863',wc='#e08a00',bc='#e23b32',am='#e0a800';
+  const okc='var(--ok)',wc='var(--warn)',bc='var(--bad)',am='var(--warn)';
   const rTr=[[rd.filter(v=>v>=75).length,okc,'Óptimo ≥75'],[rd.filter(v=>v>=55&&v<75).length,wc,'Moderado 55–74'],[rd.filter(v=>v<55).length,bc,'Bajo <55']];
   const aTr=[[ac.filter(v=>v<0.8).length,am,'Infracarga <0,8'],[ac.filter(v=>v>=0.8&&v<=1.3).length,okc,'Óptimo 0,8–1,3'],[ac.filter(v=>v>1.3&&v<1.5).length,wc,'Sobrecarga 1,3–1,5'],[ac.filter(v=>v>=1.5).length,bc,'Pico ≥1,5']];
   const sinRd=ps.length-rd.length, sinAc=ps.length-ac.length;
@@ -19367,7 +19374,7 @@ function renderTeamIntensity(){
   const tn=norm(lab);let contact=1,clab='Bajo';
   if(tn.includes('partido')||/\bmd\b/.test(tn)){contact=3;clab='Alto';}
   else if(tn.includes('tactic')||tn.includes('oposic')||tn.includes('especif')){contact=2;clab='Medio';}
-  const okc='#1ea863',wc='#e08a00',bc='#e23b32';
+  const okc='var(--ok)',wc='var(--warn)',bc='var(--bad)';
   const big=arcGauge('Carga general · sRPE',srpe||0,700,[{to:250,color:okc},{to:450,color:wc},{to:700,color:bc}],srpe!=null?Math.round(srpe):'—','UA',172);
   const g1=arcGauge('ACWR',isNaN(teamA)?0:teamA,2,[{to:0.8,color:wc},{to:1.3,color:okc},{to:1.5,color:wc},{to:2,color:bc}],isNaN(teamA)?'—':teamA.toFixed(2),CONFIG.load.acute+':'+CONFIG.load.chronic,98);
   const g2=arcGauge('TRIMP últ.',trimp||0,300,[{to:120,color:okc},{to:220,color:wc},{to:300,color:bc}],Math.round(trimp),'Edwards',98);
@@ -27157,8 +27164,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-28.2*/
-const VER_ACTUAL='2026-09-28.2';
+/*BUILD:2026-09-28.3*/
+const VER_ACTUAL='2026-09-28.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
