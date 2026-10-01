@@ -181,7 +181,7 @@ Pestañas de Cargas: `Resumen | Cuadrantes | RPE | Pulso · Polar`. RPE desplieg
 
 ---
 
-## 5. Plantilla canónica (temporada 26/27, 19 jugadores)
+## 5. Plantilla canónica (temporada 26/27, 18 jugadores)
 
 ```
 Alex Ugalde
@@ -192,7 +192,6 @@ Clemet Esparon
 David Fernández
 David Roca
 Dzmitry Patotski
-Hugo Lima
 Javier Carrión Ortiz
 Josu Arzoz Azofra
 Maiko Vázquez
@@ -206,6 +205,31 @@ Tahu Lufuanitu
 ```
 
 En el roster se usan nombres cortos canónicos (p. ej. "Óscar Marugán", "Pancho Ahumada").
+
+### 5.0 Bajas · jugadores fuera del club
+
+| Jugador | Fecha | Motivo |
+|---|---|---|
+| Hugo Lima | 01/10/2026 | Expulsado del club. Daniel pidió sus datos fuera de toda la aplicación |
+
+La lista vive en `BAJAS` y se comprueba con `esBaja(nombre)`, **la misma regla de nombres que `canonicalName`**: dos palabras coincidentes o una de cinco letras o más. Así «Hugo Lima», «Lima, Hugo» y «HUGO LIMA» caen igual, y un «Hugo» suelto no arrastra a nadie que comparta nombre de pila.
+
+**El filtro va en la lectura de `localStorage` (`lsLeer` → `bajaLimpiar`), no repartido por los módulos.** Dos razones, y las dos importan:
+
+- Hay quince bloques guardados con forma distinta —mapas por nombre, listas de episodios, partes de fisioterapia, sesiones de Polar—. Un filtro por módulo es garantizar que el próximo bloque que se añada se olvide.
+- **La fusión de Supabase une por clave, así que borrar a mano no sirve**: un mapa por nombre vuelve del servidor en la siguiente bajada, y las tumbas solo saben de registros con `id`. Filtrando al leer, vuelva lo que vuelva, ni se ve ni se reescribe.
+
+`bajaLimpiar` no conoce la forma de ningún bloque: quita las claves de mapa que son un nombre dado de baja y los elementos de lista cuyo campo de jugador (`name`, `nombre`, `jugador`, `player`, `atleta`, `nombreCompleto`) lo sea, hasta seis niveles de profundidad.
+
+Además se filtra en los puntos por donde entran las hojas de Google, que no pasan por `localStorage`: `ingestWellness`, `ingestRPE`, `ingestRoster`, `ingestTests`, `applyRosterLive` y `vhResolveName`. Y en los dos sitios donde el nombre se **enseñaba** aunque el dato estuviera fuera: la sugerencia de alta como jugador histórico y el aviso de «nombres sin correspondencia» de la importación de valoraciones.
+
+**Lo que esto NO hace, y hay que decirlo cada vez:**
+
+- **No borra las filas de las hojas de Google.** Desde la aplicación son de solo lectura. El filtro las descarta al entrar; si se quieren fuera de verdad, se borran en la hoja.
+- **No borra lo que ya esté en Supabase.** Deja de verse y deja de reescribirse, pero el registro sigue en el servidor hasta que se borre allí.
+- **El nombre sigue en el código**, en `BAJAS`. Es lo que hace funcionar el filtro; no se puede quitar sin quitar el mecanismo.
+
+La foto (`fotos/<nombre>.png`) **sí se borra del repositorio**: es un archivo servido por URL y el filtro no lo tapa.
 
 ### 5.1 Resolución de nombres — es frágil
 

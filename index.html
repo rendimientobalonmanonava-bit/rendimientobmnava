@@ -7421,12 +7421,75 @@ window.lsTumbarIds=lsTumbarIds;window.lsHrId=lsHrId;
     if(n)console.info('bmnava · retiradas '+n+' tumbas de Polar de la versión anterior');
   }catch(e){}
 })();
+/* ═══════════════ v390 · Bajas del club ═══════════════
+   Jugadores que han dejado el club y cuyos datos salen de la aplicación entera,
+   no solo de la plantilla.
+
+   · Hugo Lima — expulsado del club. Fuera por decisión de Daniel el 01/10/2026.
+
+   El filtro vive en la LECTURA de localStorage, no repartido por los módulos,
+   por dos razones. Una: hay quince bloques guardados con forma distinta —mapas
+   por nombre, listas de episodios, partes de fisioterapia, sesiones de Polar— y
+   un filtro por módulo es garantizar que el próximo bloque que se añada se
+   olvide. Dos: la fusión de Supabase une por clave, así que borrar a mano un
+   mapa por nombre no sirve de nada —vuelve del servidor en la siguiente
+   bajada—; filtrando al leer, vuelva lo que vuelva, ni se ve ni se reescribe.
+
+   Lo que esto NO puede hacer: borrar sus filas de las hojas de Google. Desde
+   aquí son de solo lectura. El filtro las descarta al entrar, pero si se
+   quieren fuera de verdad hay que borrarlas en la hoja. */
+const BAJAS=['Hugo Lima'];
+const BAJAS_NT=s=>String(s==null?'':s).toLowerCase().normalize('NFD')
+  .replace(/[̀-ͯ]/g,'').split(/[^a-z0-9]+/).filter(Boolean);
+const BAJAS_TOK=BAJAS.map(BAJAS_NT);
+const BAJAS_CACHE=Object.create(null);
+/* Misma regla de nombres que canonicalName: dos palabras coincidentes, o una de
+   cinco letras o más. Así «Hugo Lima», «Lima, Hugo» o «HUGO LIMA» caen igual, y
+   un «Hugo» suelto no arrastra a nadie que comparta nombre de pila. */
+function esBaja(name){
+  if(!BAJAS_TOK.length||name==null)return false;
+  const s=String(name);
+  if(!s)return false;
+  const hit=BAJAS_CACHE[s];
+  if(hit!==undefined)return hit;
+  const at=BAJAS_NT(s);
+  let r=false;
+  for(const bt of BAJAS_TOK){
+    let sc=0,lng=false;
+    at.forEach(a=>{if(bt.indexOf(a)>=0){sc++;if(a.length>=5)lng=true;}});
+    if(sc>=2||(sc>=1&&lng)){r=true;break;}
+  }
+  BAJAS_CACHE[s]=r;
+  return r;
+}
+const BAJA_CAMPOS=['name','nombre','jugador','player','atleta','nombreCompleto'];
+/* Retira a los dados de baja de cualquier bloque guardado, sea cual sea su
+   forma: claves de mapa que son un nombre, y elementos de lista cuyo campo de
+   jugador lo sea. Muta lo que recibe, que viene recién salido de JSON.parse. */
+function bajaLimpiar(x,prof){
+  if(!BAJAS_TOK.length||!x||typeof x!=='object')return x;
+  prof=prof||0;
+  if(prof>6)return x;
+  if(Array.isArray(x)){
+    for(let i=x.length-1;i>=0;i--){
+      const e=x[i];
+      if(e&&typeof e==='object'&&BAJA_CAMPOS.some(c=>e[c]!=null&&esBaja(e[c])))x.splice(i,1);
+      else bajaLimpiar(e,prof+1);
+    }
+    return x;
+  }
+  for(const k of Object.keys(x)){
+    if(esBaja(k)){delete x[k];continue;}
+    bajaLimpiar(x[k],prof+1);
+  }
+  return x;
+}
 function lsLeer(clave,vacio){
   LS_LEIDAS[clave]=true;
   try{
     const t=localStorage.getItem(clave);
     LS_VISTO[clave]=t;
-    const v=JSON.parse(t||'null');return v==null?vacio:lsAplicarTumbas(clave,v);
+    const v=JSON.parse(t||'null');return v==null?vacio:bajaLimpiar(lsAplicarTumbas(clave,v));
   }catch(e){return vacio;}
 }
 function lsVacioTexto(t){
@@ -7812,8 +7875,8 @@ function pick(row,keys){const map={};for(const k in row)map[norm(k)]=row[k];
   return undefined;}
 
 /* ===================== INGESTA ===================== */
-function ingestWellness(rows){const v15=x=>{const n=+x;return(n>=1&&n<=5)?n:NaN;};const out=[];for(const r of rows){const name=pick(r,["atleta","jugador","nombre"]);if(!name)continue;const _ts=pick(r,["marca temporal","timestamp","fecha"]);const d=parseDate(_ts);if(!d)continue;const _zona=(pick(r,["zona de dolor","zona"])||"").toString().trim();const _golpe=["si","yes","true","1"].includes(norm(pick(r,["golpe"])));out.push({ts:(_ts||'').toString().trim(),name:name.toString().trim(),date:d,dk:dkey(d),fatiga:v15(pick(r,["fatiga"])),sueno:v15(pick(r,["sueño","sueno","descanso"])),doms:v15(pick(r,["doms"])),stress:v15(pick(r,["stress","estres"])),mood:v15(pick(r,["mood","animo","ánimo"])),horas_sueno:parseSleep(pick(r,["horas de sueño","horas sueno","horas"])),dolor:(_zona!==""||_golpe),zona:_zona,golpe:_golpe,mdx:canonMDx(pick(r,["ubicacion temporal","match","mdx","md"]))});}return out.filter(x=>!isNaN(x.fatiga));}
-function ingestRPE(rows){const out=[];for(const r of rows){const name=pick(r,["nombre","atleta","jugador"]);if(!name)continue;const _ts=pick(r,["marca temporal","timestamp","fecha"]);const d=parseDate(_ts);if(!d)continue;const rpe=+pick(r,["rpes","rpe","dura o intensa","intensa"]);const dur=+pick(r,["dur sesion","dur sesión","duracion","duración"]);let ua=+pick(r,["ua"]);if(isNaN(ua))ua=rpe*dur;const cont=+pick(r,["nivel de contacto","contacto"]);out.push({ts:(_ts||'').toString().trim(),name:name.toString().trim(),date:d,dk:dkey(d),pos:pick(r,["posicion","posición"])||"",rpe,dur,ua:isNaN(ua)?0:ua,contacto:isNaN(cont)?null:cont,cal:(isNaN(cont)?ua:ua*(CONFIG.contactFactor[cont]||1)),tipo:pick(r,["sesion tipo","sesión tipo","que sesion","has realizado","tipo"])||"Sesión",mdx:canonMDx(pick(r,["match ±","match±","match","mdx"]))});}return out.filter(x=>x.ua>=0&&(x.rpe||x.ua));}
+function ingestWellness(rows){const v15=x=>{const n=+x;return(n>=1&&n<=5)?n:NaN;};const out=[];for(const r of rows){const name=pick(r,["atleta","jugador","nombre"]);if(!name||esBaja(name))continue;const _ts=pick(r,["marca temporal","timestamp","fecha"]);const d=parseDate(_ts);if(!d)continue;const _zona=(pick(r,["zona de dolor","zona"])||"").toString().trim();const _golpe=["si","yes","true","1"].includes(norm(pick(r,["golpe"])));out.push({ts:(_ts||'').toString().trim(),name:name.toString().trim(),date:d,dk:dkey(d),fatiga:v15(pick(r,["fatiga"])),sueno:v15(pick(r,["sueño","sueno","descanso"])),doms:v15(pick(r,["doms"])),stress:v15(pick(r,["stress","estres"])),mood:v15(pick(r,["mood","animo","ánimo"])),horas_sueno:parseSleep(pick(r,["horas de sueño","horas sueno","horas"])),dolor:(_zona!==""||_golpe),zona:_zona,golpe:_golpe,mdx:canonMDx(pick(r,["ubicacion temporal","match","mdx","md"]))});}return out.filter(x=>!isNaN(x.fatiga));}
+function ingestRPE(rows){const out=[];for(const r of rows){const name=pick(r,["nombre","atleta","jugador"]);if(name&&esBaja(name))continue;if(!name)continue;const _ts=pick(r,["marca temporal","timestamp","fecha"]);const d=parseDate(_ts);if(!d)continue;const rpe=+pick(r,["rpes","rpe","dura o intensa","intensa"]);const dur=+pick(r,["dur sesion","dur sesión","duracion","duración"]);let ua=+pick(r,["ua"]);if(isNaN(ua))ua=rpe*dur;const cont=+pick(r,["nivel de contacto","contacto"]);out.push({ts:(_ts||'').toString().trim(),name:name.toString().trim(),date:d,dk:dkey(d),pos:pick(r,["posicion","posición"])||"",rpe,dur,ua:isNaN(ua)?0:ua,contacto:isNaN(cont)?null:cont,cal:(isNaN(cont)?ua:ua*(CONFIG.contactFactor[cont]||1)),tipo:pick(r,["sesion tipo","sesión tipo","que sesion","has realizado","tipo"])||"Sesión",mdx:canonMDx(pick(r,["match ±","match±","match","mdx"]))});}return out.filter(x=>x.ua>=0&&(x.rpe||x.ua));}
 /* Ingesta de la hoja de datos básicos de plantilla (Candidato,Fecha Nacimiento,Edad,Dorsal,DNI,Posición,Estado actual,Correo,Teléfono,Estatus club,Notas,Fecha de Llegada).
    Devuelve {nombreCompleto: {campos...}} para fusionar en STATE.info sin pisar datos ricos ya presentes (peso/talla/nac/pasaporte/pos específica). */
 function ingestRoster(rows){
@@ -7822,7 +7885,7 @@ function ingestRoster(rows){
   const isDNI=d=>/^[0-9]{7,8}[A-Za-z]$/.test(d)||/^[XYZ][0-9]{7}[A-Za-z]$/.test(d);
   for(const r of rows){
     const full=(pick(r,["candidato","nombre","atleta","jugador"])||'').toString().trim();
-    if(!full)continue;
+    if(!full||esBaja(full))continue;   /* v390 · los dados de baja no vuelven por la hoja de plantilla */
     const doc=(pick(r,["dni","dni / nie","documento"])||'').toString().trim();
     const rec={
       nombreCompleto:full,
@@ -7860,6 +7923,7 @@ function applyRosterLive(rosterObj){
   const players=Object.keys(STATE.players||{});
   let n=0;
   Object.values(rosterObj).forEach(rec=>{
+    if(esBaja(rec.nombreCompleto))return;   /* v390 */
     const rt=norm(rec.nombreCompleto);
     // emparejar con un jugador existente por solape de tokens; si no, usar el nombre completo como clave
     let key=players.find(pn=>{const at=norm(pn);let sc=0;at.forEach(a=>{if(rt.some(t=>t===a||(a.length>=3&&t.startsWith(a))||(t.length>=3&&a.startsWith(t))))sc++;});return sc>=2||(sc>=1&&at.some(a=>a.length>=5&&rt.includes(a)));})||rec.nombreCompleto;
@@ -12970,7 +13034,7 @@ function ingestTests(rows){
     let nm=null;
     for(const h in row){const nh=normH(h);if(nh.includes('jugador')||nh.includes('nombre')||nh==='name'){nm=(row[h]||'').toString().trim();break;}}
     if(!nm){const f=Object.keys(row)[0];nm=(row[f]||'').toString().trim();}
-    if(!nm)return;
+    if(!nm||esBaja(nm))return;
     const o={};
     TESTS.forEach(t=>{for(const h in row){const hk=normH(h).replace(/[^a-z0-9]/g,'');const tn=normH(t.name).replace(/[^a-z0-9]/g,'');
       if(hk===t.k||hk===tn||(tn.length>3&&(hk.includes(tn)||tn.includes(hk)))||(t.aliases||[]).some(a=>hk===a||hk.includes(a))){
@@ -13874,7 +13938,6 @@ const ROSTER_PDF=[
 {plantilla:'ASOBAL',pos:'LD',dorsal:'10',nombre:'David',apellidos:'Fernández',nacimiento:'1996-04-14',dni:'',pasaporte:'',nac:'',edad:'30',peso:'',talla:'',telefono:'633173972',telEsp:'',correo:'',repre:'',estado:'Disponible',estatusClub:'Ya en el club',llegada:'28/07/26'},
 {plantilla:'ASOBAL',pos:'LD',dorsal:'55',nombre:'David',apellidos:'Roca',nacimiento:'2000-01-09',dni:'45934294M',pasaporte:'',nac:'ESP',edad:'26',peso:'80',talla:'188',telefono:'633170694',telEsp:'',correo:'daviroro00@gmail.com',repre:'',estado:'Disponible',estatusClub:'Ya en el club',llegada:'28/07/26'},
 {plantilla:'ASOBAL',pos:'PO',dorsal:'30',nombre:'Dzmitry',apellidos:'Patotski',nacimiento:'1992-10-03',dni:'',pasaporte:'PD0324787',nac:'BLR',edad:'33',peso:'125',talla:'187',telefono:'649963626',telEsp:'',correo:'vip.potockiy@bk.ru',repre:'',estado:'Disponible',estatusClub:'Ya en el club',llegada:''},
-{plantilla:'ASOBAL',pos:'CE',dorsal:'',nombre:'Hugo',apellidos:'Lima',nacimiento:'1993-04-21',dni:'Z4988388S',pasaporte:'',nac:'',edad:'33',peso:'',talla:'',telefono:'351934467620',telEsp:'',correo:'hugo.lima044@gmail.com',repre:'',estado:'Disponible',estatusClub:'Nueva incorporación',llegada:''},
 {plantilla:'ASOBAL',pos:'CE',dorsal:'32',nombre:'Javier',apellidos:'Carrión Ortiz',nacimiento:'2004-05-20',dni:'48779984C',pasaporte:'',nac:'ARG',edad:'22',peso:'98',talla:'195',telefono:'653604686',telEsp:'',correo:'javiercarrion2004@gmail.com',repre:'',estado:'Disponible',estatusClub:'Ya en el club',llegada:'28/07/26'},
 {plantilla:'ASOBAL',pos:'PI',dorsal:'25',nombre:'Josu',apellidos:'Arzoz Azofra',nacimiento:'2004-05-07',dni:'73117883D',pasaporte:'',nac:'ESP',edad:'22',peso:'104',talla:'199',telefono:'619469441',telEsp:'',correo:'josu.arzozz@gmail.com',repre:'',estado:'Disponible',estatusClub:'Ya en el club',llegada:'28/07/26'},
 {plantilla:'ASOBAL',pos:'LI',dorsal:'',nombre:'Maiko',apellidos:'Vázquez',nacimiento:'2003-09-03',dni:'Z4982755V',pasaporte:'',nac:'',edad:'22',peso:'',talla:'',telefono:'351931997989',telEsp:'',correo:'maikovazquez9@gmail.com',repre:'',estado:'Disponible',estatusClub:'Nueva incorporación',llegada:'10/08/26'},
@@ -25621,7 +25684,7 @@ function exPersist(){return lsGuardar(EX_LS,exLoad());}
 function exNames(){return Object.keys(exLoad()).sort((a,b)=>a.localeCompare(b,'es'));}
 function exIs(n){return !!exLoad()[n];}
 function exAdd(nombre,pos,temp){
-  nombre=String(nombre||'').trim();if(!nombre)return false;
+  nombre=String(nombre||'').trim();if(!nombre||esBaja(nombre))return false;   /* v390 */
   const L=exLoad();
   L[nombre]={pos:(pos||'').trim(),temp:(temp||'').trim(),alta:dkey(new Date())};
   exPersist();VH_NAMEC=null;   // la caché de nombres debe rehacerse
@@ -25763,7 +25826,7 @@ function vhHistApply(){
 }
 window.vhHistApply=vhHistApply;window.VH_CLUB_HIST=VH_CLUB_HIST;
 function vhResolveName(raw){
-  if(!raw)return null;
+  if(!raw||esBaja(raw))return null;   /* v390 · fuera del club, fuera del baremo */
   VH_NAMEC=VH_NAMEC||{};
   if(VH_NAMEC[raw]!==undefined)return VH_NAMEC[raw];
   const squad=Object.keys(STATE.players||{});
@@ -26064,7 +26127,10 @@ function vhReport(r,set){
   if(r.zeros)warn.push(r.zeros+' con valor 0 (se interpretan como no medidas)');
   if(unk.length)warn.push('columnas no reconocidas: '+unk.slice(0,6).map(u=>'"'+u+'"').join(', ')+(unk.length>6?'…':''));
   if(r.errs)warn.push(r.errs+' celdas con error de la hoja (#REF!, #DIV/0!…)');
-  const unp=Object.keys(r.unknownPlayers||{});
+  /* v390 · los dados de baja no se cuentan como «sin correspondencia»: no lo
+     están, están fuera a propósito, y nombrarlos aquí los devolvía a una
+     pantalla de la que se les ha sacado. */
+  const unp=Object.keys(r.unknownPlayers||{}).filter(n=>!esBaja(n));
   /* v242 · se recuerdan para poder ofrecerlos como alta de jugador histórico
      en Conexión, sin tener que teclearlos a mano. */
   try{window.VH_LAST_UNKNOWN=unp.slice();if(window.exRender)exRender();}catch(e){}
@@ -26567,7 +26633,10 @@ function exRender(){
     +'</div>';
   }).join(''):'<p class="small muted">Todavía no hay ningún jugador histórico dado de alta.</p>';
   /* Sugerencias: lo que la última importación no supo colocar. */
-  const sug=(window.VH_LAST_UNKNOWN||[]).filter(n=>!exIs(n));
+  /* v390 · un dado de baja tampoco se ofrece como histórico: exAdd lo rechaza,
+     así que el botón no llevaba a ninguna parte y solo servía para enseñar su
+     nombre en una pantalla de la que se le ha sacado. */
+  const sug=(window.VH_LAST_UNKNOWN||[]).filter(n=>!exIs(n)&&!esBaja(n));
   const sugBox=sug.length?'<div class="expl-sug"><div class="expl-sug-h">De la última importación · sin correspondencia</div>'
     +sug.map(n=>'<button class="btn ghost expl-sugb" onclick="exAltaRapida(\''+q(n)+'\')">+ '+esc(n)+'</button>').join('')
     +'<div class="small muted" style="margin-top:7px">Revísalos antes: si alguno es una errata de un jugador actual, corrígelo en la hoja en vez de darlo de alta.</div></div>':'';
@@ -26759,7 +26828,7 @@ if(window.__PH_LOADED__)return; window.__PH_LOADED__=true;
 const PH_LS='bmnava_photos';
 const PH_DIR='fotos/';
 /* v311 · Sello de versión en la URL de las fotos. Los archivos se llaman igual
-   cuando se cambian —«Hugo Lima.png» sigue siendo «Hugo Lima.png»— así que el
+   cuando se cambian —«David Roca.png» sigue siendo «David Roca.png»— así que el
    navegador servía la copia vieja de su caché y parecía que el cambio no había
    llegado. Subiendo este número, la URL cambia y las pide de nuevo.
    SUBIR ESTE NÚMERO CADA VEZ QUE SE CAMBIEN LAS FOTOS DE LA CARPETA. */
@@ -27182,8 +27251,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-09-28.4*/
-const VER_ACTUAL='2026-09-28.4';
+/*BUILD:2026-10-01.1*/
+const VER_ACTUAL='2026-10-01.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
