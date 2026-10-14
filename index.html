@@ -1560,6 +1560,8 @@ main{padding:20px 18px 80px}
   padding:3px 9px;border-radius:999px;color:#fff}
 .cal-blk-p{background:#3056c4}
 .cal-blk-g{background:#158a56}
+/* v391 · tecnificación · mismo magenta que su franja en el gráfico semanal */
+.cal-blk-t{background:#a84fd0}
 .cal-durin.sm{width:62px;padding:4px 6px;font-size:12px}
 /* v266 · aviso de minutos que faltan en la fila de carga */
 .cal-faltamin{display:inline-block;margin-left:7px;font-size:9.5px;font-weight:800;letter-spacing:.03em;
@@ -6139,15 +6141,45 @@ const LB_MAXBIAS=1.5;    // tope del sesgo, para que un caso raro no lo dispare
 /* ---------- clasificación del tipo de sesión ---------- */
 function lbNorm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
 /* Devuelve 'pista', 'gym' o 'both'. El partido cuenta como pista. */
+/* v391 · Tercer bloque: tecnificación. Trabajo específico de mañana que hacen
+   solo algunos jugadores y que cambia de gente cada semana.
+   Se comprueba ANTES que nada: «tecnificación» no casa con ninguno de los dos
+   patrones de abajo, así que sin esto caía en el `return 'pista'` del final y se
+   mezclaba con la sesión del equipo. Y nunca devuelve 'both': 'both' significa
+   «cuenta para pista Y para gimnasio», que es un jugador que declaró los dos en
+   un solo cuestionario; la tecnificación es un bloque aparte, no un añadido. */
 function lbBucket(tipo){
   const t=lbNorm(tipo);
   if(!t)return 'pista';
+  if(/tecnific|tecnif|individualizad/.test(t))return 'tec';
   const tieneFuerza=/fuerza|gimnasio|gym/.test(t);
   const tienePista=/entrenamiento|partido|pista|sesion/.test(t);
   if(tieneFuerza&&tienePista)return 'both';
   if(tieneFuerza)return 'gym';
   return 'pista';
 }
+/* Los tres bloques, en el orden en que se enseñan. Lo que recorra bloques debe
+   usar esto y no una pareja escrita a mano. */
+const LB_BLOQUES=['pista','gym','tec'];
+const LB_BLOQ_LAB={pista:'Pista',gym:'Gimnasio',tec:'Tecnificación'};
+/* Bloques que describen la sesión DEL EQUIPO. La tecnificación no está, y esa
+   ausencia es el cambio entero: entra en la carga de quien la hace y no toca
+   ninguna media de equipo. */
+const LB_BLOQUES_EQUIPO=['pista','gym'];
+/* ¿Este registro cuenta para este bloque? La pregunta parece trivial y no lo es:
+   'both' significa «pista Y gimnasio» —un cuestionario que declara los dos—, y
+   nunca tecnificación. Mientras esto se escribía a mano como
+   `bucket===b||bucket==='both'`, cualquier día con un registro de «pista y
+   gimnasio» daba por existente también el bloque de tecnificación: aparecían
+   dieciocho botones de «Convocar» a un entrenamiento de mañana que no se había
+   hecho. La regla se escribe una vez y se usa en todas partes. */
+function lbEsDe(tipo,b){
+  const bb=lbBucket(tipo);
+  if(bb===b)return true;
+  return bb==='both'&&(b==='pista'||b==='gym');
+}
+window.lbEsDe=lbEsDe;
+window.LB_BLOQUES=LB_BLOQUES;window.LB_BLOQ_LAB=LB_BLOQ_LAB;window.LB_BLOQUES_EQUIPO=LB_BLOQUES_EQUIPO;
 window.lbBucket=lbBucket;
 
 /* ---------- duraciones ----------
@@ -6218,7 +6250,7 @@ function lbDayKey(dk){return dk;}
    de convocatoria en una celda vacía. */
 function lbBlockExists(dk,b){
   if(lbDur(dk,'__x',b)!=null)return true;
-  return (STATE.rpe||[]).some(r=>r&&r.dk===dk&&(lbBucket(r.tipo)===b||lbBucket(r.tipo)==='both'));
+  return (STATE.rpe||[]).some(r=>r&&r.dk===dk&&lbEsDe(r.tipo,b));
 }
 window.lbBlockExists=lbBlockExists;
 function lbDayAll(dk){
@@ -6240,7 +6272,7 @@ function lbDayAll(dk){
        que descartaría también la respuesta real del bloque que sí rellenó. */
     if(r.bloqueConvocado||r.sinRegistro)return;
     const b=lbBucket(r.tipo);
-    decl[r.name]=decl[r.name]||{pista:[],gym:[]};
+    decl[r.name]=decl[r.name]||{pista:[],gym:[],tec:[]};
     if(b==='both'){decl[r.name].pista.push(r);decl[r.name].gym.push(r);}
     else decl[r.name][b].push(r);
   });
@@ -6258,12 +6290,13 @@ function lbDayAll(dk){
     if(!v.length)return null;
     return v.reduce((a,c)=>a+c,0)/v.length;
   };
-  const teamP=teamOf('pista'),teamG=teamOf('gym');
+  const teamP=teamOf('pista'),teamG=teamOf('gym'),teamT=teamOf('tec');
   const bias=lbBias();
   /* 3 · ¿qué bloques existen ese día? Un bloque solo cuenta si tiene minutos
         introducidos o si alguien lo declaró. */
   const hayP=lbBlockExists(dk,'pista');
   const hayG=lbBlockExists(dk,'gym');
+  const hayT=lbBlockExists(dk,'tec');
   const CF=CONFIG.contactFactor||{};
   const ctOf=arr=>{
     if(!arr.length)return null;
@@ -6278,7 +6311,7 @@ function lbDayAll(dk){
   };
   const names=[...new Set(squad.concat(Object.keys(decl)))];
   names.forEach(n=>{
-    const d=decl[n]||{pista:[],gym:[]};
+    const d=decl[n]||{pista:[],gym:[],tec:[]};
     const legacy=lbDurTotalLegacy(dk,n);
     const mk=(b,hay,team)=>{
       if(!hay)return null;
@@ -6308,7 +6341,7 @@ function lbDayAll(dk){
            tampoco, al total antiguo repartido entre los bloques presentes. */
         const dd=d[b].reduce((s,x)=>s+(x.dur0>0?x.dur0:(x.dur>0?x.dur:0)),0);
         if(dd>0)dur=dd;
-        else if(legacy!=null)dur=legacy/((hayP?1:0)+(hayG?1:0)||1);
+        else if(legacy!=null)dur=legacy/((hayP?1:0)+(hayG?1:0)+(hayT?1:0)||1);
         else dur=0;
       }
       const ct=ctOf(d[b]);
@@ -6319,15 +6352,19 @@ function lbDayAll(dk){
       return {rpe:Math.round(rpe*10)/10,dur:Math.round(dur),durCarga:Math.round(durCarga),
               calent,ua,cal:ua*fOf(ct),ct,est,nDecl:d[b].length};
     };
-    const P=mk('pista',hayP,teamP),G=mk('gym',hayG,teamG);
-    if(!P&&!G)return;
-    const est=[];if(P&&P.est)est.push('pista');if(G&&G.est)est.push('gym');
-    out[n]={pista:P,gym:G,
-      ua:(P?P.ua:0)+(G?G.ua:0),
-      cal:(P?P.cal:0)+(G?G.cal:0),
-      dur:(P?P.dur:0)+(G?G.dur:0),
+    const P=mk('pista',hayP,teamP),G=mk('gym',hayG,teamG),T=mk('tec',hayT,teamT);
+    if(!P&&!G&&!T)return;
+    const est=[];if(P&&P.est)est.push('pista');if(G&&G.est)est.push('gym');if(T&&T.est)est.push('tec');
+    /* ua, cal y dur SUMAN la tecnificación: para el jugador es trabajo real y
+       tiene que llegar a su ACWR, su monotonía y su readiness. uaEquipo deja
+       fuera ese bloque, y es lo que lee todo lo que habla del equipo. */
+    out[n]={pista:P,gym:G,tec:T,
+      ua:(P?P.ua:0)+(G?G.ua:0)+(T?T.ua:0),
+      cal:(P?P.cal:0)+(G?G.cal:0)+(T?T.cal:0),
+      dur:(P?P.dur:0)+(G?G.dur:0)+(T?T.dur:0),
+      uaEquipo:(P?P.ua:0)+(G?G.ua:0),
       est,
-      estTodo:est.length&&est.length===((P?1:0)+(G?1:0))};
+      estTodo:est.length&&est.length===((P?1:0)+(G?1:0)+(T?1:0))};
   });
   LB_CACHE[dk]=out;
   return out;
@@ -6360,7 +6397,7 @@ window.lbTeamDay=function(dk){
   const ns=Object.keys(all).filter(n=>lbEntrenaConGrupo(n,dk));
   if(!ns.length)return null;
   const media=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
-  const hayP=ns.some(n=>all[n].pista), hayG=ns.some(n=>all[n].gym);
+  const hayP=ns.some(n=>all[n].pista), hayG=ns.some(n=>all[n].gym), hayT=ns.some(n=>all[n].tec);
   const val=(b,f)=>media(ns.map(n=>all[n][b]?f(all[n][b]):0));
   const soloCon=(b,f)=>{const v=ns.filter(n=>all[n][b]).map(n=>f(all[n][b]));return media(v);};
   return {
@@ -6370,7 +6407,16 @@ window.lbTeamDay=function(dk){
        dur y rpe solo sobre quien lo hizo, que es lo que describen. */
     pista:hayP?{ua:val('pista',x=>x.ua),dur:soloCon('pista',x=>x.dur),rpe:soloCon('pista',x=>x.rpe)}:null,
     gym:hayG?{ua:val('gym',x=>x.ua),dur:soloCon('gym',x=>x.dur),rpe:soloCon('gym',x=>x.rpe)}:null,
+    /* v391 · La tecnificación la hacen unos pocos, así que su ua se promedia
+       igual sobre TODO el grupo —0 para quien no fue— y la barra sigue sumando
+       lo que dice. `n` dice cuántos la hicieron de verdad, que es el dato que
+       hay que leer, no la media. El RPE y el nivel del día NO la miran. */
+    tec:hayT?{ua:val('tec',x=>x.ua),dur:soloCon('tec',x=>x.dur),rpe:soloCon('tec',x=>x.rpe),
+              n:ns.filter(n=>all[n].tec).length,
+              quien:ns.filter(n=>all[n].tec)}:null,
     ua:media(ns.map(n=>all[n].ua)),
+    /* El RPE del equipo sale solo de pista y gimnasio: es el esfuerzo de la
+       sesión del equipo, y la tecnificación no lo es. */
     rpe:media(ns.map(n=>{const a=[];if(all[n].pista)a.push(all[n].pista.rpe);if(all[n].gym)a.push(all[n].gym.rpe);return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}).filter(x=>x>0)),
     estimados:ns.filter(n=>all[n].est.length).length,
     sinRegistro:ns.filter(n=>all[n].estTodo).map(n=>n)
@@ -6395,6 +6441,11 @@ const COL_PISTA='#3056c4';
 /* v215 · el gimnasio pasa de gris a verde: en el plan las barras van
    translúcidas y el gris apenas se distinguía del fondo. */
 const COL_GYM='#158a56';
+/* v391 · Tecnificación. Magenta: no es rojo —reservado a alertas—, ni el oro del
+   club, ni el azul EHF de Champions. Se eligió tirando a magenta y no a violeta
+   porque el violeta quedaba pegado al índigo de pista y a tamaño de panel las
+   dos franjas parecían la misma. */
+const COL_TEC='#a84fd0';
 const COL_RPE='#0f1e3d';
 const DIAS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
@@ -6415,24 +6466,27 @@ function lbcWeek(dk,player){
   for(let i=0;i<7;i++){
     const d=new Date(mon.getTime());d.setDate(mon.getDate()+i);
     const k=lbcDk(d);
-    let pista=0,gym=0,rpe=null,est=0,n=0;
+    let pista=0,gym=0,tec=0,rpe=null,est=0,n=0,nTec=0;
     if(player){
       const x=window.lbDayOf?lbDayOf(k,player):null;
       if(x){
-        pista=x.pista?x.pista.ua:0;gym=x.gym?x.gym.ua:0;
+        pista=x.pista?x.pista.ua:0;gym=x.gym?x.gym.ua:0;tec=x.tec?x.tec.ua:0;
+        /* v391 · El RPE del jugador en el día sigue siendo el de la sesión del
+           equipo. La tecnificación se ve en su franja y en el detalle del día,
+           pero promediarla aquí mezclaría dos sesiones distintas en un número. */
         const rs=[];if(x.pista)rs.push(x.pista.rpe);if(x.gym)rs.push(x.gym.rpe);
         rpe=rs.length?rs.reduce((a,b)=>a+b,0)/rs.length:null;
-        est=x.est.length;n=1;
+        est=x.est.length;n=1;nTec=x.tec?1:0;
       }
     }else{
       const t=window.lbTeamDay?lbTeamDay(k):null;
       if(t){
-        pista=t.pista?t.pista.ua:0;gym=t.gym?t.gym.ua:0;
-        rpe=t.rpe||null;est=t.estimados||0;n=t.n||0;
+        pista=t.pista?t.pista.ua:0;gym=t.gym?t.gym.ua:0;tec=t.tec?t.tec.ua:0;
+        rpe=t.rpe||null;est=t.estimados||0;n=t.n||0;nTec=t.tec?t.tec.n:0;
       }
     }
-    out.push({dk:k,lab:DIAS[i]+' '+String(d.getDate()).padStart(2,'0'),pista,gym,rpe,est,n,
-      total:pista+gym,hoy:k===dk});
+    out.push({dk:k,lab:DIAS[i]+' '+String(d.getDate()).padStart(2,'0'),pista,gym,tec,rpe,est,n,nTec,
+      total:pista+gym+tec,hoy:k===dk});
   }
   return out;
 }
@@ -6456,6 +6510,10 @@ function lbcDrawWeek(canvasId,dk,player){
     data:{
       labels:w.map(d=>d.lab),
       datasets:[
+        /* v391 · La tecnificación va abajo del todo y solo aparece si la hubo:
+           una franja vacía toda la semana es ruido en la leyenda. */
+        ...(w.some(d=>d.tec>0)?[{label:'Tecnificación',data:w.map(d=>Math.round(d.tec)),backgroundColor:COL_TEC,
+         stack:'ua',borderRadius:3,order:4}]:[]),
         {label:'Gimnasio',data:w.map(d=>Math.round(d.gym)),backgroundColor:COL_GYM,
          stack:'ua',borderRadius:3,order:3},
         {label:'Pista',data:w.map(d=>Math.round(d.pista)),backgroundColor:COL_PISTA,
@@ -6475,6 +6533,9 @@ function lbcDrawWeek(canvasId,dk,player){
             const d=w[items[0].dataIndex];
             const l=[];
             l.push('Total '+Math.round(d.total)+' UA');
+            /* La media de tecnificación se reparte entre toda la plantilla, así
+               que sin saber cuántos la hicieron el número engaña. */
+            if(d.tec>0&&d.nTec)l.push('Tecnificación: '+d.nTec+(d.nTec===1?' jugador':' jugadores'));
             if(d.est)l.push(d.est+(d.est===1?' jugador estimado':' jugadores estimados'));
             return l;
           }
@@ -6561,15 +6622,21 @@ window.lbcPlanWeek=lbcPlanWeek;
 
    Lo excluido no se borra: se sigue viendo en el tooltip y el día lleva una
    marca, para que se sepa que hubo trabajo que no se está contando. */
+/* v391 · La tecnificación pasa de largo: se arrastra para poder dibujarla, pero
+   NO entra en `total`. `total` es contra lo que se mide el plan, la media de la
+   semana y la etiqueta de cada barra, y la tecnificación no se planifica en el
+   calendario: si entrara, lo real superaría al plan todas las semanas y la
+   comparación dejaría de querer decir nada. Se ve, y se ve aparte. */
 function lbcSoloProgramado(r,pl){
   const fuera={pista:0,gym:0};
-  if(!pl||!pl.plan)return {pista:r.pista||0,gym:r.gym||0,total:r.total||0,fuera,hayFuera:false};
+  const tec=r.tec||0, nTec=r.nTec||0;
+  if(!pl||!pl.plan)return {pista:r.pista||0,gym:r.gym||0,tec,nTec,total:r.total0!=null?r.total0:((r.pista||0)+(r.gym||0)),fuera,hayFuera:false};
   const pista=(pl.pista>0)?(r.pista||0):0;
   const gym=(pl.gym>0)?(r.gym||0):0;
   fuera.pista=(r.pista||0)-pista;
   fuera.gym=(r.gym||0)-gym;
   const hayFuera=(fuera.pista+fuera.gym)>0.5;
-  return {pista,gym,total:pista+gym,fuera,hayFuera};
+  return {pista,gym,tec,nTec,total:pista+gym,fuera,hayFuera};
 }
 window.lbcSoloProgramado=lbcSoloProgramado;
 /* ============ v261 · Dibujo del gráfico de carga semanal ============
@@ -6733,6 +6800,12 @@ function lbcDrawCalWeek(canvasId,dk){
         {label:'Gimnasio · real',data:cont.map(d=>Math.round(d.gym)||null),backgroundColor:COL_GYM,
          stack:'real',order:2,borderRadius:{bottomLeft:9,bottomRight:9},borderSkipped:false,
          barPercentage:.74,categoryPercentage:.92,maxBarThickness:86},
+        /* v391 · Tecnificación, en su propia franja y solo los días que la hubo.
+           Va en el mismo apilado para que se vea el trabajo total del día, pero
+           fuera de `total`: no se compara con el plan. */
+        ...(cont.some(d=>d.tec>0)?[{label:'Tecnificación',data:cont.map(d=>Math.round(d.tec)||null),backgroundColor:COL_TEC,
+         stack:'real',order:1.5,borderRadius:{bottomLeft:9,bottomRight:9},borderSkipped:false,
+         barPercentage:.74,categoryPercentage:.92,maxBarThickness:86}]:[]),
         {label:'RPE',data:real.map(d=>d.rpe!=null?Math.round(d.rpe*10)/10:null),
          type:'line',yAxisID:'y2',borderColor:COL_RPE,backgroundColor:COL_RPE,
          borderWidth:2,pointRadius:4,tension:.25,spanGaps:true,order:1}
@@ -17309,9 +17382,14 @@ function bandOf(v,bands){for(let i=0;i<bands.length;i++){if(v<bands[i][1])return
 function zOf(r,i){const v=r&&r.z&&r.z[i];return (v==null||isNaN(v))?0:+v;}
 function pctZones(rows){const p=rows.map(r=>{let t=0;for(let i=0;i<5;i++)t+=zOf(r,i);t=t||1;const z4=zOf(r,3),z5=zOf(r,4);return {z5:z5/t*100,z4:z4/t*100,z54:(z4+z5)/t*100};});const m=k=>p.length?p.reduce((a,b)=>a+b[k],0)/p.length:0;return {z5:m('z5'),z4:m('z4'),z54:m('z54')};}
 window.zOf=zOf;
+/* v391 · La media de la sesión sale de pista y gimnasio, nunca de la
+   tecnificación: la hacen seis jugadores por la mañana, cambian cada semana y no
+   son la sesión del equipo. De aquí beben la clasificación del día y el modelo
+   de pulso del equipo —doce puntos conseguidos a pulso—, así que colar ahí un
+   bloque de otra naturaleza estropea las dos cosas a la vez. */
 function sessMeta(key,dk){
   if(STATE.hrMeta&&STATE.hrMeta[key])return STATE.hrMeta[key];
-  const rp=STATE.rpe.filter(x=>x.dk===dk);if(!rp.length)return null;
+  const rp=STATE.rpe.filter(x=>x.dk===dk&&lbBucket(x.tipo)!=='tec');if(!rp.length)return null;
   const byp={};rp.forEach(x=>{const o=byp[x.name]=byp[x.name]||{name:x.name,pos:x.pos,ua:0,rpe:[],c:[]};o.ua+=x.ua||0;if(x.rpe)o.rpe.push(x.rpe);if(x.contacto&&contactoDePista(x))o.c.push(x.contacto);});
   const arr=Object.values(byp);const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   /* v225 · el contacto medio de la sesión sigue el mismo criterio que el
@@ -19817,7 +19895,7 @@ function asistToggle(dk,block,name,val){
    hay duración configurada). Se usa para pintar el botón "Convocar". */
 function asistPending(dk,block,name){
   if(asistHas(dk,block,name))return false;
-  const answered=(STATE.rpe||[]).some(r=>r&&r.dk===dk&&r.name===name&&!r.estimado&&(lbBucket(r.tipo)===block||lbBucket(r.tipo)==='both'));
+  const answered=(STATE.rpe||[]).some(r=>r&&r.dk===dk&&r.name===name&&!r.estimado&&lbEsDe(r.tipo,block));
   if(answered)return false;
   return !!(window.lbBlockExists&&lbBlockExists(dk,block));
 }
@@ -19831,7 +19909,7 @@ function asistSetAllPending(dk){
     if(!(window.lbBlockExists&&lbBlockExists(dk,b)))return;
     Object.keys(STATE.players||{}).forEach(nm=>{
       if(bajas.has(nm))return;
-      const answered=(STATE.rpe||[]).some(r=>r&&r.dk===dk&&r.name===nm&&!r.estimado&&(lbBucket(r.tipo)===b||lbBucket(r.tipo)==='both'));
+      const answered=(STATE.rpe||[]).some(r=>r&&r.dk===dk&&r.name===nm&&!r.estimado&&lbEsDe(r.tipo,b));
       if(answered)return;
       const k=asistKey(nm,b);
       if(!A[dk][k]){A[dk][k]=true;n++;}
@@ -19867,7 +19945,7 @@ function sessDurApply(){
       if(!d){g.forEach(x=>{x.lb=null;});return;}
       /* peso de cada registro dentro de su bloque */
       const share=(x,b)=>{
-        const mates=g.filter(y=>{const bb=lbBucket(y.tipo);return bb===b||bb==='both';});
+        const mates=g.filter(y=>lbEsDe(y.tipo,b));
         let w=mates.map(y=>y.dur0>0?y.dur0:1);
         const sw=w.reduce((a,c)=>a+c,0)||mates.length;
         const idx=mates.indexOf(x);
@@ -19878,6 +19956,7 @@ function sessDurApply(){
         let ua=0,cal=0,dur=0;
         if((b==='pista'||b==='both')&&d.pista){const f=share(x,'pista');ua+=d.pista.ua*f;cal+=d.pista.cal*f;dur+=d.pista.dur*f;}
         if((b==='gym'||b==='both')&&d.gym){const f=share(x,'gym');ua+=d.gym.ua*f;cal+=d.gym.cal*f;dur+=d.gym.dur*f;}
+        if(b==='tec'&&d.tec){const f=share(x,'tec');ua+=d.tec.ua*f;cal+=d.tec.cal*f;dur+=d.tec.dur*f;}
         x.ua=ua;x.cal=cal;x.dur=dur;
         x.lb=d;
         x.rpeEff=d.pista&&d.gym?Math.round(((d.pista.rpe+d.gym.rpe)/2)*10)/10:(d.pista?d.pista.rpe:(d.gym?d.gym.rpe:x.rpe));
@@ -19893,13 +19972,13 @@ function sessDurApply(){
          semanal, ACWR, monotonía y readiness— se quedaba sin esa parte.
          Aquí se crea el registro que faltaba, marcado como estimado. */
       (d.est||[]).forEach(b=>{
-        const yaHay=g.some(x=>{const bb=lbBucket(x.tipo);return bb===b||bb==='both';});
+        const yaHay=g.some(x=>lbEsDe(x.tipo,b));
         if(yaHay||!d[b])return;
         const a=dk.split('-').map(Number);
         recs.push({name:nm,date:new Date(a[0],a[1]-1,a[2]),dk,
           rpe:d[b].rpe,dur:d[b].dur,dur0:0,ua:d[b].ua,cal:d[b].cal,contacto:d[b].ct,
           pos:(STATE.players[nm]||{}).pos||'',
-          tipo:(b==='gym'?'Gimnasio':'Pista')+' · estimado',mdx:'—',
+          tipo:(LB_BLOQ_LAB[b]||'Pista')+' · estimado',mdx:'—',
           estimado:true,bloqueConvocado:b,lb:d});
       });
       /* Jugadores SIN ningún cuestionario ese día: se les crea un registro
@@ -19911,10 +19990,17 @@ function sessDurApply(){
       const d=all[nm];
       if(!d||!d.est.length)return;
       const a=dk.split('-').map(Number);
+      /* v391 · Si lo único que hizo ese día fue tecnificación, el registro se
+         etiqueta como tal. Con la etiqueta genérica caía en el cajón de pista y
+         su carga entraba en la media de la sesión del equipo con un RPE de 0:
+         un jugador que no estuvo en el entrenamiento tirando hacia abajo la
+         media de los que sí. */
+      const soloTec=!d.pista&&!d.gym&&!!d.tec;
       recs.push({name:nm,date:new Date(a[0],a[1]-1,a[2]),dk,
-        rpe:d.pista?d.pista.rpe:(d.gym?d.gym.rpe:0),
+        rpe:d.pista?d.pista.rpe:(d.gym?d.gym.rpe:(soloTec?d.tec.rpe:0)),
         dur:d.dur,dur0:0,ua:d.ua,cal:d.cal,contacto:null,
-        pos:(STATE.players[nm]||{}).pos||'',tipo:'Estimado',mdx:'—',
+        pos:(STATE.players[nm]||{}).pos||'',
+        tipo:soloTec?'Tecnificación · estimado':'Estimado',mdx:'—',
         estimado:true,sinRegistro:true,lb:d});
     });
   });
@@ -19958,6 +20044,9 @@ function calDurAll(dk,val){
   if(hayP)SD[dk].__pista=n;
   if(hayG)SD[dk].__gym=n;
   if(!hayP&&!hayG)SD[dk].__pista=n;
+  /* v391 · La tecnificación se queda fuera a propósito: dura lo suyo y la hacen
+     otros. «Aplicar a todos» es para la sesión del equipo; sus minutos se
+     escriben en su propia casilla. */
   delete SD[dk].__group;
   sessDurPersist();sessDurRecalc(dk);
   toast('Duración aplicada a todo el equipo'+(hayP&&hayG?' · pista y gimnasio':''));
@@ -20191,6 +20280,11 @@ function calDayBody(dk){
     const isMatch=((STATE.calendar||{})[dk]||[]).some(e=>e.type==='partido');
     const durQuick=[45,60,75,90,120].map(d=>`<button type="button" class="cal-durq" onclick="calDurAll('${dk}',${d})">${d}′</button>`).join('');
     const lbAll=(window.lbDayAll?lbDayAll(dk):{})||{};
+    /* v391 · Las columnas de tecnificación solo salen los días que la hubo. Si
+       salieran siempre, cada día aparecería un «Convocar» por jugador para un
+       bloque que no existe. El bloque nace al escribir sus minutos arriba o en
+       cuanto alguien lo declara en el cuestionario. */
+    const hayTec=!!(window.lbBlockExists&&lbBlockExists(dk,'tec'));
     /* v213 · el gate de convocatoria hace que lbDayAll ya no traiga entrada
        para quien no respondió y no está convocado, pero su fila debe seguir
        apareciendo (con el botón "Convocar"), así que se incluye toda la
@@ -20224,6 +20318,7 @@ function calDayBody(dk){
         const f=[];
         if(d.pista&&d.pista.rpe>0&&!(d.pista.dur>0))f.push('pista');
         if(d.gym&&d.gym.rpe>0&&!(d.gym.dur>0))f.push('gimnasio');
+        if(d.tec&&d.tec.rpe>0&&!(d.tec.dur>0))f.push('tecnificación');
         if(!f.length)return '';
         return '<span class="cal-faltamin" title="Tiene RPE pero no minutos en '+f.join(' y ')
           +': su carga de ese bloque es 0. Escribe los minutos en la columna correspondiente.">faltan min</span>';
@@ -20237,7 +20332,8 @@ function calDayBody(dk){
       const sinReg=d&&d.estTodo;
       return '<tr'+(sinReg?' class="row-sinreg" title="No rellenó ningún cuestionario ese día"':'')+'>'
         +'<td class="cal-du-nm">'+nm+(sinReg?'<span class="est-mark">sin registro</span>':'')+'</td>'
-        +cell('pista')+cell('gym')+durCell('pista')+durCell('gym')
+        +cell('pista')+cell('gym')+(hayTec?cell('tec'):'')
+        +durCell('pista')+durCell('gym')+(hayTec?durCell('tec'):'')
         +'<td class="cal-du-ua">'+(d?Math.round(d.ua):0)+faltanMin(d)+'</td></tr>';
     }).join('');
     /* v205 · el gráfico de la semana ya no vive aquí: está fijo en la vista del
@@ -20248,6 +20344,7 @@ function calDayBody(dk){
       <div class="cal-dur-group">
         <span class="cal-blk cal-blk-p">Pista</span><input type="number" min="0" step="5" id="cal-dur-pista" class="cal-durin" value="${(sessDurGet()[dk]||{}).__pista!=null?(sessDurGet()[dk]||{}).__pista:''}" placeholder="min" onchange="calDurBlock('${dk}','pista',this.value)">
         <span class="cal-blk cal-blk-g">Gimnasio</span><input type="number" min="0" step="5" id="cal-dur-gym" class="cal-durin" value="${(sessDurGet()[dk]||{}).__gym!=null?(sessDurGet()[dk]||{}).__gym:''}" placeholder="min" onchange="calDurBlock('${dk}','gym',this.value)">
+        <span class="cal-blk cal-blk-t">Tecnificación</span><input type="number" min="0" step="5" id="cal-dur-tec" class="cal-durin" value="${(sessDurGet()[dk]||{}).__tec!=null?(sessDurGet()[dk]||{}).__tec:''}" placeholder="min" onchange="calDurBlock('${dk}','tec',this.value)">
         <span class="muted small">o total conjunto:</span><input type="number" min="0" step="5" id="cal-dur-all" class="cal-durin" value="${grp!=null?grp:''}" placeholder="min"><button type="button" class="btn ghost" onclick="calDurAll('${dk}',document.getElementById('cal-dur-all').value)">Aplicar a todos</button>${durQuick}</div>
       ${isMatch?('<div class="small muted" style="margin:2px 0 8px">Día de partido: pon en cada fila los <b>minutos jugados</b> (0 si no jugó).'
         +((window.calCalentDia&&calCalentDia(dk)>0)
@@ -20255,7 +20352,7 @@ function calDayBody(dk){
           : ' Si hubo calentamiento, ponlo en el partido: se suma a la carga de todos sin tocar la tasa de Z4/Z5.')
         +'</div>'):''}
       <div class="small muted" style="margin-bottom:8px">Solo se calcula carga para quien respondió el cuestionario o está convocado · <button type="button" class="btn ghost" style="padding:3px 9px;font-size:12px" onclick="asistSetAllPending('${dk}')">Convocar a todo el equipo disponible</button></div>
-      <table class="cal-dur-tbl cal-dur-tbl2"><thead><tr><th>Jugador</th><th>RPE pista</th><th>RPE gym</th><th>${isMatch?'Min jugados':'Min pista'}</th><th>Min gym</th><th>Carga</th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="cal-dur-tbl cal-dur-tbl2"><thead><tr><th>Jugador</th><th>RPE pista</th><th>RPE gym</th>${hayTec?'<th title="Trabajo específico de mañana. Cuenta en la carga del jugador; no cuenta para el nivel de la sesión del equipo.">RPE tecn.</th>':''}<th>${isMatch?'Min jugados':'Min pista'}</th><th>Min gym</th>${hayTec?'<th>Min tecn.</th>':''}<th>Carga</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="small muted" style="margin-top:6px">La carga (RPE × min), el ACWR y la monotonía se recalculan al instante. Se guarda en este dispositivo. Si un jugador rellenó varios cuestionarios el mismo día, se muestra un <b>único RPE</b>: la media ponderada por la duración de cada sesión, aplicada a los minutos totales que indiques.</div>
     </div>`;
   }
@@ -27251,8 +27348,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-01.1*/
-const VER_ACTUAL='2026-10-01.1';
+/*BUILD:2026-10-14.1*/
+const VER_ACTUAL='2026-10-14.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
