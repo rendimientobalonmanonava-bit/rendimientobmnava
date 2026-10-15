@@ -1696,13 +1696,17 @@ main{padding:20px 18px 80px}
 .cal-blk-t{background:#a84fd0}
 /* v398 · % en Z4+Z5 del día, de los pulsómetros. El asterisco marca el valor
    escrito a mano, para no mezclar medido con estimado. */
-.cal-z45{font-size:11.5px;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+/* v400 · Z5 y Z4 por separado, cada una con el color de SU banda. */
+.cal-zon{display:flex;gap:8px;align-items:baseline;margin-top:1px}
+.cal-zi{display:flex;align-items:baseline;gap:3px;white-space:nowrap}
+.cal-zi i{font-style:normal;font-size:9px;font-weight:800;color:var(--muted2);letter-spacing:.03em}
+.cal-zi b{font-size:11.5px;font-weight:800;letter-spacing:-.01em}
 /* v398 · A 46 px de casilla la píldora del % no cabe y desbordaba la rejilla.
    En móvil pierde el marco y se queda en texto de color: el dato es el número,
    no la cápsula. */
 @media(max-width:700px){
   .cal-dev{border:none;padding:0;font-size:9px;margin-left:auto}
-  .cal-z45{font-size:10px}
+  .cal-zon{gap:5px}.cal-zi b{font-size:10px}.cal-zi i{font-size:8px}
   .cal-nomin{border:none;padding:0;font-size:9px}
   /* v399 · A 46 px de casilla el semáforo y el texto no caben en línea: el
      bloque medía 53 px y la rejilla del mes se salía 6. Apilados caben, y el
@@ -20312,50 +20316,52 @@ function calDurAll(dk,val){
   toast('Duración aplicada a todo el equipo'+(hayP&&hayG?' · pista y gimnasio':''));
 }
 function calRealManual(dk){const meta=(STATE.calMeta||{})[dk];return meta&&meta.real!=null&&meta.real!==''?Math.round(+meta.real):null;}
-/* v398 · % del tiempo en Z4+Z5 de un día, para la casilla del mes. Pedido por
-   Daniel el 15/10/2026: «¿podrías ponerme algo en esa casilla en relación a los
-   Polar?».
+/* v400 · Zonas altas del día para la casilla del mes. Desde el 15/10/2026
+   Daniel pidió las dos cifras por separado —%Z5 y %Z4— en vez de la suma: no
+   es lo mismo un 20% repartido que un 20% que es casi todo Z5.
 
-   Sale de las capturas de Polar de ese día; si no las hay, del valor que se
-   haya escrito a mano en el día. Se exige un mínimo de tres pulsómetros: con
-   uno o dos, el porcentaje describe a ese jugador, no a la sesión, y una
-   casilla de calendario no es sitio para matizarlo. Se dice de dónde viene en
-   el título, que es lo que permite fiarse del número. */
+   Sale de las capturas de Polar de ese día; si no las hay, de los valores que
+   se hayan escrito a mano. Se exige un mínimo de tres pulsómetros: con uno o
+   dos, el porcentaje describe a ese jugador y no a la sesión, y una casilla de
+   calendario no es sitio para matizarlo. Se dice de dónde viene en el título,
+   que es lo que permite fiarse del número. */
 const CAL_Z45_MIN=3;
-/* v399 · Color del % en Z4+Z5. **No se inventan umbrales**: son las bandas
-   oficiales de SESSPEC (8 · 18 · 24) y el mismo aplastado a tres niveles que
-   hace classifySession (`Math.min(2,banda)`). Así el color de la casilla y el
-   nivel con el que se clasifica la sesión no pueden contradecirse.
-   Que el rojo signifique «mucho Z4+Z5» es coherente con el semáforo de
-   intensidad de al lado, que ya usa rojo para ALTA: no es decoración. */
-function calZ45Nivel(pct){
+/* Nivel de una zona contra SU propia banda de SESSPEC. **No se inventan
+   umbrales**: son los de la app, y el mismo aplastado a tres niveles que hace
+   classifySession (`Math.min(2,banda)`), para que el color de la casilla no
+   pueda contradecir al nivel con el que se clasifica la sesión.
+   Z5 y Z4 tienen bandas DISTINTAS (1/3/5 y 8/15/20): un 4% es mucho en Z5 y
+   poco en Z4, así que cada cifra se colorea con la suya. */
+function calZonaNivel(pct,key){
   try{
-    const sp=(typeof SESSPEC!=='undefined')&&SESSPEC.find(x=>x.key==='z54');
-    const bandas=(sp&&sp.bands)||[[0,8],[8,18],[18,24],[24,99]];
-    return Math.min(2,bandOf(pct,bandas));
+    const sp=(typeof SESSPEC!=='undefined')&&SESSPEC.find(x=>x.key===key);
+    if(!sp||!sp.bands)return 1;
+    return Math.min(2,bandOf(pct,sp.bands));
   }catch(e){return 1;}
 }
-function calZ45(dk){
+function calZonasDia(dk){
   try{
     const rows=(STATE.hr||[]).filter(r=>r&&r.dk===dk&&(r.z||[]).some(v=>v>0));
     if(rows.length>=CAL_Z45_MIN){
-      const v=[];
+      const v4=[],v5=[];
       rows.forEach(r=>{
         const t=(r.z||[]).reduce((a,b)=>a+(+b||0),0);
-        if(t>0)v.push(((+r.z[3]||0)+(+r.z[4]||0))/t*100);
+        if(t>0){v4.push((+r.z[3]||0)/t*100);v5.push((+r.z[4]||0)/t*100);}
       });
-      if(v.length>=CAL_Z45_MIN)
-        return {pct:v.reduce((a,b)=>a+b,0)/v.length,n:v.length,fuente:'polar'};
+      if(v4.length>=CAL_Z45_MIN){
+        const m=a=>a.reduce((x,y)=>x+y,0)/a.length;
+        return {z4:m(v4),z5:m(v5),n:v4.length,fuente:'polar'};
+      }
     }
   }catch(e){}
   try{
     const z=calZonesGet(dk);
     const a=(z.z4!=null&&z.z4!=='')?+z.z4:null, b=(z.z5!=null&&z.z5!=='')?+z.z5:null;
-    if(a!=null||b!=null)return {pct:(a||0)+(b||0),n:0,fuente:'manual'};
+    if(a!=null||b!=null)return {z4:a||0,z5:b||0,n:0,fuente:'manual'};
   }catch(e){}
   return null;
 }
-window.calZ45=calZ45;
+window.calZonasDia=calZonasDia;window.calZonaNivel=calZonaNivel;
 function calZonesGet(dk){const meta=(STATE.calMeta||{})[dk]||{};return {z4:meta.z4,z5:meta.z5};}
 function calPlanUA(dk){const evs=(STATE.calendar||{})[dk]||[];return Math.round(evs.reduce((a,e)=>a+CAL_RPE[evIntens(e)]*evDur(e),0));}
 function calDev(planUA,realUA){if(!planUA||realUA==null)return null;const pct=Math.round((realUA-planUA)/planUA*100);const a=Math.abs(pct);const tier=a<=15?'ok':a<=30?'warn':'bad';const col=tier==='ok'?'var(--ok)':tier==='warn'?'var(--warn)':'var(--bad)';   /* v398 · antes hexadecimales: no viraban en oscuro */const lab=a<=15?'Según lo previsto':pct>0?'Por encima del plan':'Por debajo del plan';return{pct,col,lab,tier,arrow:pct>3?'▲':pct<-3?'▼':'≈'};}
@@ -20803,7 +20809,7 @@ function renderCalendar(){
     const rv=real[dk];
     const dev=pl.n?calDev(pl.planUA,rv):null;
     const risk=calRisk(dk);
-    const z45=(window.calZ45?calZ45(dk):null);
+    const zd=(window.calZonasDia?calZonasDia(dk):null);
     const bajas=pl.n?calBajas(dk):[];
     /* v218 · citas médicas del día. Se muestran siempre, haya sesión planificada
        o no: saber que alguien tiene revisión es útil incluso en día libre. */
@@ -20826,7 +20832,20 @@ function renderCalendar(){
     cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" onclick="calOpenDay('${dk}')">
       <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${(citas.length&&(onlyRest||hasMatch))?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length})">🩺 ${citas.length}</span>`:''}${corner}</div>
       ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body"><span class="cal-match-k">Partido</span>${(evRival(matchEv)||matchEv.title)?`<span class="cal-match-rival">${(evRival(matchEv)?'vs '+evRival(matchEv):matchEv.title).replace(/</g,'&lt;')}</span>`:''}${evRival(matchEv)?`<span class="cal-match-comp">${(PARTIDO_COMP[evComp(matchEv)]||'').toLowerCase()}${evOrigenHR(matchEv)==='medido'?' · FC medida':''}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-bars">
-        ${pl.n?`<div class="cal-plan" title="Plan · ${pl.lab} intensidad · contacto ${pl.contacto}/5 · ${pl.totMin}′ (${pl.planUA} UA est.)">${calTraffic(pl.peak,54,'cal-tl')}<div class="cal-plan-tx"><span class="cal-plan-grade" style="color:${pl.col}">${pl.lab}</span><span class="cal-plan-dur"><span class="cal-clock">◷</span> ${pl.totMin}′</span>${pl.contacto>0?`<span class="cal-plan-ct">${calContactBar(pl.contacto)}</span>`:''}${z45?(()=>{const lv=calZ45Nivel(z45.pct);const nm=['bajo','medio','alto'][lv];return `<span class="cal-z45" style="color:${LV[lv][1]}" title="${z45.fuente==='polar'?`${Math.round(z45.pct)}% del tiempo en Z4+Z5 — ${nm} · media de ${z45.n} pulsómetros · bandas 8 / 18 / 24`:`${Math.round(z45.pct)}% en Z4+Z5 — ${nm} · valor escrito a mano`}">♥ ${Math.round(z45.pct)}%${z45.fuente==='manual'?'*':''}</span>`;})():''}</div></div>`:''}
+        ${pl.n?`<div class="cal-plan" title="Plan · ${pl.lab} intensidad · contacto ${pl.contacto}/5 · ${pl.totMin}′ (${pl.planUA} UA est.)">${calTraffic(pl.peak,54,'cal-tl')}<div class="cal-plan-tx"><span class="cal-plan-grade" style="color:${pl.col}">${pl.lab}</span><span class="cal-plan-dur"><span class="cal-clock">◷</span> ${pl.totMin}′</span>${pl.contacto>0?`<span class="cal-plan-ct">${calContactBar(pl.contacto)}</span>`:''}${zd?(()=>{
+          /* El nivel se saca de la cifra REDONDEADA, la que se ve. Con el valor
+             interno, un 0,95% salía coloreado como 1% pero con el nivel del 0:
+             un número verde con el color del de al lado hace que se deje de
+             creer a la pantalla. Misma regla que en el ACWR proyectado. */
+          const p5=Math.round(zd.z5), p4=Math.round(zd.z4);
+          const l5=calZonaNivel(p5,'z5'), l4=calZonaNivel(p4,'z4');
+          const nm=['bajo','medio','alto'], ast=zd.fuente==='manual'?'*':'';
+          const org=zd.fuente==='polar'?`media de ${zd.n} pulsómetros`:'valor escrito a mano';
+          const t=`Z5 ${p5}% (${nm[l5]}, bandas 1/3/5) · Z4 ${p4}% (${nm[l4]}, bandas 8/15/20) · ${org}`;
+          return `<span class="cal-zon" title="${t}">`
+            +`<span class="cal-zi"><i>Z5</i><b style="color:${LV[l5][1]}">${p5}%${ast}</b></span>`
+            +`<span class="cal-zi"><i>Z4</i><b style="color:${LV[l4][1]}">${p4}%${ast}</b></span>`
+          +`</span>`;})():''}</div></div>`:''}
       </div>`)}
       ${(onlyRest||hasMatch)?'':`<div class="cal-l2">
         ${chips?`<div class="cal-chips">${chips}</div>`:''}
@@ -28032,8 +28051,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-15.8*/
-const VER_ACTUAL='2026-10-15.8';
+/*BUILD:2026-10-15.9*/
+const VER_ACTUAL='2026-10-15.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
