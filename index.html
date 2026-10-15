@@ -1556,6 +1556,40 @@ main{padding:20px 18px 80px}
 .cal-durq:hover{border-color:var(--accent);color:var(--accent)}
 .cal-dur-box{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:4px 0 6px}
 /* v203 · bloques pista/gimnasio */
+/* ══ v392 · Microciclo ══ */
+.cal-cerrar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.cal-cerrar>.btn{flex:0 0 auto}
+.cal-cerrar>span{flex:1;min-width:220px}
+.mc-wrap{display:flex;flex-direction:column;gap:16px}
+.mc-tira{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(86px,1fr))}
+.mc-d{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 8px 9px;
+  background:var(--panel);display:flex;flex-direction:column;gap:7px;min-width:0;position:relative}
+.mc-d.is-hoy{border-color:var(--accent);box-shadow:0 0 0 2px rgba(48,86,196,.12)}
+.mc-d.is-part{background:var(--champ-soft);border-color:transparent}
+.mc-md{font-size:var(--fs-h2);font-weight:800;letter-spacing:-.01em;line-height:1}
+.mc-d.is-part .mc-md{color:var(--champ-tx)}
+.mc-dia{font-size:var(--fs-xs);color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.mc-bars{display:flex;flex-direction:column;gap:3px;margin-top:1px}
+.mc-bar{height:7px;border-radius:999px;background:var(--panel2);overflow:hidden}
+.mc-bar i{display:block;height:100%;border-radius:999px}
+.mc-bar.plan i{background:var(--muted2)}
+.mc-bar.real i{background:var(--accent)}
+.mc-ua{font-size:var(--fs-xs);color:var(--muted);display:flex;justify-content:space-between;gap:4px}
+.mc-ua b{color:var(--txt);font-weight:700}
+.mc-leg{font-size:var(--fs-xs);color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.mc-leg i{display:inline-block;width:14px;height:7px;border-radius:999px;margin-right:5px;vertical-align:middle}
+.mc-sec{font-size:var(--fs-sm);font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.mc-sec span{font-weight:500;color:var(--muted)}
+.mc-proj{display:grid;gap:7px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.mc-p{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:8px 11px;background:var(--panel);min-width:0}
+.mc-p-nm{font-weight:600;font-size:var(--fs-sm);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-p-v{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:var(--fs-sm);font-weight:700;white-space:nowrap}
+.mc-p-fl{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
+.mc-ok{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--muted)}
+.mc-ok b{color:var(--ok)}
+@media(max-width:700px){.mc-tira{grid-template-columns:repeat(auto-fit,minmax(74px,1fr))}
+  .mc-md{font-size:var(--fs-body)}}
 .cal-blk{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
   padding:3px 9px;border-radius:999px;color:#fff}
 .cal-blk-p{background:#3056c4}
@@ -4399,6 +4433,9 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
         <div class="cw-plot"><canvas id="cal-week-main"></canvas></div>
       </div>
     </div>
+    <!-- v392 · El microciclo: los días colocados respecto al partido, y dónde
+         aterriza el ACWR de cada jugador si se entrena lo que hay puesto. -->
+    <div class="panel" id="cal-micro-panel"></div>
     <div id="cal-body"></div>
   </section>
   <section class="view" id="v-carga">
@@ -8237,9 +8274,14 @@ window.durIrACalendario=function(dk){
   try{if(window.calSetDay)calSetDay(dk);else if(window.STATE)STATE.calDk=dk;}catch(e){}
   try{go('cal');}catch(e){}
 };
-function acwrToDate(name,ref,field="ua"){
-  const full=contDailyTo(name,ref);
-  if(!full.length)return{ratio:NaN,acute:NaN,chronic:NaN,ewma:NaN,rel:false,dias:0,minDias:CONFIG.load.minBlockDays};
+/* v392 · El cálculo, separado de «hasta qué día». Lo que antes era el cuerpo de
+   acwrToDate vive aquí porque la proyección de la semana necesita exactamente
+   este cálculo sobre una serie que incluye días que todavía no han pasado. Una
+   copia se desincronizaría al primer ajuste de los pesos, que es justo lo que
+   este proyecto no permite. */
+function acwrDeSerie(full,field){
+  field=field||"ua";
+  if(!full||!full.length)return{ratio:NaN,acute:NaN,chronic:NaN,ewma:NaN,rel:false,dias:0,minDias:CONFIG.load.minBlockDays};
   /* La EWMA se recalcula desde el inicio del bloque, no desde el primer registro
      histórico del jugador: así la crónica refleja lo acumulado de verdad. */
   const cont=full.slice(loadBlockFrom(full,field));
@@ -8249,6 +8291,10 @@ function acwrToDate(name,ref,field="ua"){
   const dias=cont.length,minD=CONFIG.load.minBlockDays;
   return{ratio:r.ratio,acute:r.acute,chronic:r.chronic,ewma:ec>0?ea/ec:NaN,
          rel:dias>=minD,dias,minDias:minD};
+}
+window.acwrDeSerie=acwrDeSerie;
+function acwrToDate(name,ref,field="ua"){
+  return acwrDeSerie(contDailyTo(name,ref),field);
 }
 /* v243 · «sesiones» significaba solo registros de RPE, así que un día con el
    entrenamiento planificado en el calendario salía como «Descanso · sin
@@ -19901,7 +19947,7 @@ function asistPending(dk,block,name){
 }
 /* Convoca de un click a todo jugador disponible (excluye bajas/no entrena)
    que no haya respondido, para los bloques que existan ese día. */
-function asistSetAllPending(dk){
+function asistSetAllPending(dk,silencio){
   const A=asistGet();A[dk]=A[dk]||{};
   const bajas=new Set((window.calBajas?calBajas(dk):[]).map(b=>b.name));
   let n=0;
@@ -19917,7 +19963,10 @@ function asistSetAllPending(dk){
   });
   if(!Object.keys(A[dk]).length)delete A[dk];
   asistPersist();sessDurRecalc(dk);
-  if(window.toast)toast(n?('Convocados '+n+' jugadores más'):'No había nadie más que convocar');
+  /* v392 · devuelve el conteo y admite callarse, para que «cerrar sesión» pueda
+     resumir en un solo aviso todo lo que ha hecho en vez de soltar dos. */
+  if(!silencio&&window.toast)toast(n?('Convocados '+n+' jugadores más'):'No había nadie más que convocar');
+  return n;
 }
 window.asistHas=asistHas;window.asistToggle=asistToggle;window.asistPending=asistPending;window.asistSetAllPending=asistSetAllPending;
 /* v203 · La carga la calcula ahora el módulo LB, separando pista y gimnasio con
@@ -20026,6 +20075,68 @@ function calDurSetBlock(dk,name,bucket,val){
   sessDurPersist();if(window.lbResetBias)lbResetBias();sessDurRecalc(dk);
 }
 window.calDurBlock=calDurBlock;window.calDurSetBlock=calDurSetBlock;
+/* ═══ v392 · Cerrar la sesión del día ═══
+   Cerrar un día era entrar en la tabla y escribir minutos bloque por bloque,
+   seis veces por semana. Esto hace de un golpe lo que se hacía a mano siempre
+   igual: pone la duración planificada en cada bloque que no la tenga y convoca
+   a quien no respondió el cuestionario.
+
+   Tres cosas que NO hace, a propósito:
+     · no pisa minutos ya escritos —ni los del equipo ni los de un jugador—,
+       porque lo escrito a mano es un dato y el plan es una suposición;
+     · no toca la tecnificación: la hacen otros y dura lo suyo;
+     · no convoca a quien está de baja, enfermo o no entrena.
+   Y dice en voz alta lo que ha hecho, que es lo que permite fiarse de un botón
+   que toca la carga de todo el equipo. */
+function calCerrarSesion(dk){
+  if(!dk)return;
+  const SD=sessDurGet();SD[dk]=SD[dk]||{};
+  /* Los minutos de cada bloque salen de SU evento, no de la media del día: un
+     día de pista 75′ + gimnasio 45′ no son dos bloques de 60. Fuerza va al
+     gimnasio; entreno y partido, a pista. */
+  const evs=((STATE.calendar||{})[dk]||[]).filter(e=>!evSP(e));
+  const minDe={};
+  evs.forEach(e=>{
+    const b=(e.type==='fuerza')?'gym':((e.type==='entreno'||e.type==='partido')?'pista':null);
+    if(!b)return;
+    minDe[b]=(minDe[b]||0)+evDur(e);
+  });
+  /* v392 · Un día sin sesión planificada NO se cierra. Sin esto, pulsar el
+     botón en un día de descanso convocaba a toda la plantilla a los bloques que
+     «existían» porque alguien había mandado un cuestionario suelto, y convocar
+     imputa carga: el descanso se convertía en una sesión para dieciocho. */
+  if(!Object.keys(minDe).length){
+    toast('Este día no tiene sesión planificada: no hay nada que cerrar');
+    return;
+  }
+  const hechos=[];
+  const puestos=[];
+  ['pista','gym'].forEach(b=>{
+    if(!(window.lbBlockExists&&lbBlockExists(dk,b)))return;
+    if(SD[dk]['__'+b]!=null&&SD[dk]['__'+b]!=='')return;   // ya tenía minutos: no se toca
+    const m=minDe[b];
+    if(!(m>0))return;
+    SD[dk]['__'+b]=m;puestos.push(LB_BLOQ_LAB[b].toLowerCase()+' '+m+'′');
+  });
+  if(puestos.length){delete SD[dk].__group;sessDurPersist();hechos.push(puestos.join(' y '));}
+  /* Dos pasadas, y hacen falta las dos: al escribir los minutos de un bloque
+     ese bloque pasa a existir, y los jugadores que no lo habían declarado solo
+     se vuelven convocables DESPUÉS de esa escritura. Con una sola pasada el día
+     se quedaba a medio cerrar y había que pulsar el botón otra vez. La segunda
+     pasada no puede añadir de más: convocar es idempotente. */
+  let conv=0;
+  try{conv=(asistSetAllPending(dk,true)||0)+(asistSetAllPending(dk,true)||0);}catch(e){}
+  if(conv)hechos.push(conv+(conv===1?' jugador convocado':' jugadores convocados'));
+  let fuera=0;
+  try{fuera=(window.calBajas?calBajas(dk):[]).length;}catch(e){}
+  try{sessDurRecalc(dk);}catch(e){}
+  if(!hechos.length){
+    toast('La sesión ya estaba cerrada: nada que cambiar');
+    return;
+  }
+  toast('Sesión cerrada · '+hechos.join(' · ')+(fuera?' · '+fuera+' fuera del grupo':''));
+}
+window.calCerrarSesion=calCerrarSesion;
 function calDurSetName(dk,name,val){const SD=sessDurGet();SD[dk]=SD[dk]||{};const v=(''+val).trim();if(v==='')delete SD[dk][name];else SD[dk][name]=+v;if(!Object.keys(SD[dk]).length)delete SD[dk];sessDurPersist();sessDurRecalc(dk);}
 /* v266 · Este botón hacía dos cosas mal y las dos movían la carga sin avisar:
      1 · SD[dk]={__group:v} REEMPLAZABA el día entero, así que borraba los
@@ -20068,10 +20179,212 @@ function calPlanPanel(dk,pl,real,dev){if(!pl.n)return '';const grado=pl.lab.toUp
 function calBajas(dk){const out=[];try{buildPhysio();}catch(e){}for(const name in (STATE.players||{})){let cs=null;try{cs=effectiveStatus(name,dk);}catch(e){}if(cs&&(cs.status==='baja'||cs.status==='noentto'))out.push({name,status:cs.status,zone:cs.zone||'',side:cs.side||''});}return out.sort((a,b)=>physioSev(b.status)-physioSev(a.status));}
 function calDayIndiv(dk){const recs=(STATE.rpe||[]).filter(x=>x.dk===dk);if(!recs.length)return null;const byp={};recs.forEach(x=>{byp[x.name]=(byp[x.name]||0)+x.ua;});const arr=Object.keys(byp).map(n=>({name:n,ua:Math.round(byp[n])}));if(arr.length<2)return {arr:arr.map(a=>({...a,tier:'mid'})),mean:arr[0]?arr[0].ua:0};const m=mean(arr.map(a=>a.ua)),s=sd(arr.map(a=>a.ua));arr.forEach(a=>{const z=s>0?(a.ua-m)/s:0;a.tier=z>=0.6?'hi':z<=-0.6?'lo':'mid';});arr.sort((a,b)=>b.ua-a.ua);return {arr,mean:Math.round(m)};}
 function calRisk(dk){const pl=calDayPlan(dk);if(!pl.n||!pl.planUA)return null;const d=dkToDate(dk);const prev=[];for(let i=1;i<=6;i++){const pd=new Date(d);pd.setDate(pd.getDate()-i);const p=calDayPlan(dkey(pd));if(p.n)prev.push(p.planUA);}if(prev.length<2)return null;const avg=mean(prev);if(avg>0&&pl.planUA>avg*1.5)return {msg:`Pico de carga planificada: ${pl.planUA} UA, +${Math.round((pl.planUA/avg-1)*100)}% sobre la media reciente`};return null;}
+/* ═══════════════ v392 · Microciclo ═══════════════
+   El calendario sabía qué días hay entreno pero no sabía CUÁNDO es el partido,
+   y en un deporte de competición semanal eso es la rejilla con la que se
+   planifica: no importa tanto cuánta carga como a qué distancia del partido.
+   Aquí se etiqueta cada día respecto al partido más cercano —MD-3, MD-1, MD,
+   MD+1— y se arma el ciclo completo entre un partido y el siguiente.
+
+   La etiqueta mira SIEMPRE al partido más próximo en el tiempo, y en caso de
+   empate gana el que viene: a mitad de semana entre dos partidos, lo que
+   gobierna la sesión es el que tienes delante, no el que ya jugaste. */
+/* La lista de partidos ya existe desde antes: calMatchDksAll(). Aquí solo se
+   asegura que el calendario esté cargado. */
+function calPartidosDks(){calLoad();return calMatchDksAll();}
+function calDiasEntre(a,b){
+  return Math.round((dkToDate(b)-dkToDate(a))/86400000);
+}
+/* Etiqueta de un día respecto al partido más cercano. null si no hay partidos. */
+function calMd(dk){
+  const ps=calPartidosDks();
+  if(!ps.length)return null;
+  if(ps.indexOf(dk)>=0)return {md:0,txt:'MD',partido:dk,dir:0};
+  let sig=null,ant=null;
+  for(const p of ps){ if(p>dk){sig=p;break;} }
+  for(let i=ps.length-1;i>=0;i--){ if(ps[i]<dk){ant=ps[i];break;} }
+  const dSig=sig?calDiasEntre(dk,sig):null;
+  const dAnt=ant?calDiasEntre(ant,dk):null;
+  if(dSig!=null&&(dAnt==null||dSig<=dAnt))return {md:-dSig,txt:'MD-'+dSig,partido:sig,dir:-1};
+  if(dAnt!=null)return {md:dAnt,txt:'MD+'+dAnt,partido:ant,dir:1};
+  return null;
+}
+/* El ciclo que contiene a este día: desde el día siguiente al partido anterior
+   hasta el partido siguiente, los dos incluidos. Sin partido por delante, se
+   corta a siete días vista, que es hasta donde se planifica. */
+function calMicrociclo(dk){
+  const ps=calPartidosDks();
+  let ant=null,sig=null;
+  for(const p of ps){ if(p>=dk){sig=p;break;} }
+  for(let i=ps.length-1;i>=0;i--){ if(ps[i]<dk){ant=ps[i];break;} }
+  const d0=ant?new Date(dkToDate(ant).getTime()+86400000):dkToDate(dk);
+  let d1=sig?dkToDate(sig):new Date(dkToDate(dk).getTime()+6*86400000);
+  /* Un ciclo de más de catorce días no es un microciclo: es que falta meter
+     partidos en el calendario. Se recorta y se dice. */
+  const MAXD=14;
+  let largo=Math.round((d1-d0)/86400000)+1;
+  let recortado=false;
+  if(largo>MAXD){ d1=new Date(d0.getTime()+(MAXD-1)*86400000); largo=MAXD; recortado=true; }
+  const real=calRealMap();
+  const dias=[];
+  for(let t=d0.getTime();t<=d1.getTime();t+=86400000){
+    const k=dkey(new Date(t));
+    const pl=calDayPlan(k);
+    dias.push({dk:k,md:calMd(k),plan:pl.n?calPlanUA(k):0,nPlan:pl.n,sinProg:pl.sinProg||0,
+               real:real[k]!=null?real[k]:null,partido:ps.indexOf(k)>=0,hoy:k===dkey(new Date())});
+  }
+  return {dias,partidoPrev:ant,partidoSig:sig,recortado};
+}
+window.calMd=calMd;window.calMicrociclo=calMicrociclo;window.calPartidosDks=calPartidosDks;
+
+/* ═══════════════ v392 · Dónde aterriza el ACWR ═══════════════
+   Hasta ahora el ACWR solo miraba hacia atrás: te decía dónde estuviste. Pero
+   es una EWMA, o sea aritmética proyectable: con la carga que tienes PUESTA en
+   el calendario para los días que faltan se puede calcular dónde acaba cada
+   jugador al cerrar el ciclo, y cambiar el plan antes y no después.
+
+   Dos honestidades que van escritas en la pantalla:
+     · la carga planificada del calendario es del EQUIPO, así que se le atribuye
+       entera a cada jugador. Es «si hace lo planificado», no una predicción
+       individualizada;
+     · se proyecta sobre la misma serie diaria y el mismo cálculo que el ACWR de
+       verdad (acwrDeSerie), no sobre una fórmula aparte. */
+function calProyeccionACWR(dk){
+  const ciclo=calMicrociclo(dk||dkey(new Date()));
+  const hoy=dkey(new Date());
+  const futuros=ciclo.dias.filter(d=>d.dk>hoy);
+  const plan={};
+  futuros.forEach(d=>{plan[d.dk]=d.plan||0;});
+  const diasPlan=futuros.filter(d=>d.plan>0).length;
+  const out=[];
+  Object.keys(STATE.players||{}).forEach(name=>{
+    const base=contDailyTo(name,dkToDate(hoy));
+    if(!base.length)return;
+    const ahora=acwrDeSerie(base,'ua');
+    let fin=ahora;
+    if(futuros.length){
+      const ext=base.slice();
+      futuros.forEach(d=>{ext.push({dk:d.dk,date:dkToDate(d.dk),ua:plan[d.dk]||0,cal:plan[d.dk]||0,n:0});});
+      fin=acwrDeSerie(ext,'ua');
+    }
+    out.push({name,pos:(STATE.players[name]||{}).pos||'',
+      ahora:ahora.ewma,fin:fin.ewma,rel:fin.rel,dias:fin.dias,
+      delta:(isFinite(ahora.ewma)&&isFinite(fin.ewma))?fin.ewma-ahora.ewma:NaN});
+  });
+  return {ciclo,futuros,diasPlan,jug:out.filter(x=>isFinite(x.fin))
+    .sort((a,b)=>b.fin-a.fin)};
+}
+window.calProyeccionACWR=calProyeccionACWR;
+/* Dibujo del panel de microciclo. Dos lecturas en el mismo sitio: cómo queda la
+   semana colocada respecto al partido, y dónde acaba el ACWR de cada jugador si
+   se entrena lo que hay puesto. */
+function renderCalMicro(){
+  const box=document.getElementById('cal-micro-panel');if(!box)return;
+  let P=null;
+  try{P=calProyeccionACWR(dkey(new Date()));}catch(e){console.error('bmnava · microciclo',e);}
+  if(!P){box.innerHTML='';return;}
+  const {ciclo,futuros,diasPlan,jug}=P;
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const DIAS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  if(!ciclo.dias.length){box.innerHTML='';return;}
+
+  /* ── cabecera: contra quién y cuándo ── */
+  let sub='sin partido por delante · se muestran siete días';
+  if(ciclo.partidoSig){
+    const ev=((STATE.calendar||{})[ciclo.partidoSig]||[]).find(e=>evEsPartido(e));
+    const d=dkToDate(ciclo.partidoSig);
+    const faltan=calDiasEntre(dkey(new Date()),ciclo.partidoSig);
+    sub=(ev&&evRival(ev)?'vs '+esc(evRival(ev)):'Partido')+' · '+DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1)
+       +(faltan>0?' · faltan '+faltan+(faltan===1?' día':' días'):(faltan===0?' · hoy':''));
+  }
+
+  /* ── tira de días ── */
+  const maxUA=Math.max(1,...ciclo.dias.map(d=>Math.max(d.plan||0,d.real||0)));
+  const tira=ciclo.dias.map(d=>{
+    const dt=dkToDate(d.dk);
+    const cls='mc-d'+(d.hoy?' is-hoy':'')+(d.partido?' is-part':'');
+    const md=d.md?d.md.txt:'—';
+    const barra=(v,c)=>'<div class="mc-bar '+c+'"><i style="width:'+Math.round(Math.min(100,(v||0)/maxUA*100))+'%"></i></div>';
+    const hayAlgo=(d.plan>0)||(d.real!=null&&d.real>0);
+    return '<div class="'+cls+'" title="'+esc(d.dk)+(d.sinProg?' · '+d.sinProg+' sin programar':'')+'">'
+      +'<div class="mc-md">'+md+'</div>'
+      +'<div class="mc-dia">'+DIAS[dt.getDay()]+' '+dt.getDate()+'</div>'
+      +(hayAlgo
+        ? '<div class="mc-bars">'+barra(d.plan,'plan')+barra(d.real,'real')+'</div>'
+          +'<div class="mc-ua"><span>'+(d.plan>0?Math.round(d.plan):'—')+'</span><b>'+(d.real!=null?Math.round(d.real):'·')+'</b></div>'
+        : '<div class="mc-ua" style="justify-content:center">'+(d.nPlan?'sin UA':'libre')+'</div>')
+      +'</div>';
+  }).join('');
+
+  /* ── dónde aterriza el ACWR ── */
+  const Y=CONFIG.load.acwrYellowHi, R=CONFIG.load.acwrRedHi, LO=CONFIG.load.acwrYellowLo;
+  /* Se compara sobre la cifra REDONDEADA, la misma que se enseña. Comparando el
+     valor interno, un 0,7996 salía señalado como fuera de banda mostrando 0.80:
+     quien lo lee ve un número dentro de la banda marcado en ámbar y deja de
+     fiarse de la pantalla. */
+  const r2=v=>Math.round(v*100)/100;
+  const fueraDe=v=>{const x=r2(v);return x>Y||x<LO;};
+  const fuera=jug.filter(j=>j.rel&&fueraDe(j.fin));
+  const dentro=jug.filter(j=>j.rel&&!fueraDe(j.fin)).length;
+  const sinBase=jug.filter(j=>!j.rel).length;
+  const flecha=d=>{
+    if(!isFinite(d)||Math.abs(d)<0.02)return '<span class="mc-p-fl">=</span>';
+    return '<span class="mc-p-fl">'+(d>0?'▲':'▼')+' '+Math.abs(d).toFixed(2)+'</span>';
+  };
+  const col=v=>r2(v)>R?'var(--bad)':(fueraDe(v)?'var(--warn)':'var(--ok)');
+  let proy;
+  if(!futuros.length){
+    proy='<p class="hint">El ciclo ya está jugado: no quedan días por delante que proyectar.</p>';
+  }else if(!diasPlan){
+    proy='<p class="hint">No hay nada planificado en los '+futuros.length+(futuros.length===1?' día':' días')
+      +' que faltan. Pon intensidad y duración en el calendario y aquí verás dónde acaba cada jugador.</p>';
+  }else{
+    proy=(fuera.length
+      ? '<div class="mc-proj">'+fuera.map(j=>
+          '<div class="mc-p"><span class="mc-p-nm">'+esc(j.name)+'</span>'
+          +flecha(j.delta)
+          +'<span class="mc-p-v" style="color:'+col(j.fin)+'">'+j.fin.toFixed(2)+'</span></div>').join('')+'</div>'
+      : '')
+      +'<div class="mc-ok" style="margin-top:'+(fuera.length?'9px':'0')+'">'
+      +(fuera.length?'':'<b>✓</b> ')
+      +'<b>'+dentro+'</b>&nbsp;'+(dentro===1?'jugador acabaría':'jugadores acabarían')+' dentro de la banda '
+      +LO+'–'+Y+(sinBase?' · '+sinBase+' sin bloque suficiente para valorarlo':'')+'</div>';
+  }
+
+  box.innerHTML='<h2>Microciclo <span class="r muted">'+sub+'</span></h2>'
+    +'<div class="mc-wrap">'
+      +'<div class="mc-tira">'+tira+'</div>'
+      +'<div class="mc-leg"><span><i style="background:var(--muted2)"></i>planificado</span>'
+        +'<span><i style="background:var(--accent)"></i>real</span>'
+        +'<span>UA del equipo · MD = día de partido</span>'
+        +(ciclo.recortado?'<span>· ciclo recortado a 14 días: falta meter el próximo partido</span>':'')+'</div>'
+      +'<div><div class="mc-sec">Dónde aterriza el ACWR <span>al cerrar el ciclo, si se entrena lo planificado</span></div>'
+        +proy
+        +'<p class="hint" style="margin-top:8px">La carga planificada del calendario es del equipo, así que se le atribuye entera a cada jugador: es «si hace lo que hay puesto», no una predicción individual. Se calcula con la misma EWMA 7:21 que el ACWR real.</p>'
+      +'</div>'
+    +'</div>';
+}
+window.renderCalMicro=renderCalMicro;
 function calWeekStart(d){const t=new Date(d.getFullYear(),d.getMonth(),d.getDate());const dy=(t.getDay()+6)%7;t.setDate(t.getDate()-dy);return t;}
 function calWeekDks(mon){const out=[];for(let i=0;i<7;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);out.push(dkey(x));}return out;}
 function calMatchDksAll(){const cal=STATE.calendar||{};return Object.keys(cal).filter(dk=>(cal[dk]||[]).some(e=>e.type==='partido')).sort();}
-function calMDmap(weekDks){const matches=calMatchDksAll();let ref=weekDks.find(dk=>matches.includes(dk));if(!ref){ref=matches.filter(m=>m>=weekDks[0])[0]||null;}const map={};if(ref){const rd=dkToDate(ref);weekDks.forEach(dk=>{const diff=Math.round((dkToDate(dk)-rd)/86400000);map[dk]=diff===0?'MD':(diff<0?'MD'+diff:'MD+'+diff);});}return {map,ref};}
+/* v392 · Antes esto elegía UN partido de referencia para toda la semana y
+   etiquetaba los siete días contra él. En una semana con partido el sábado, el
+   lunes salía MD-5 aunque el sábado anterior también se hubiera jugado: el lunes
+   es MD+2, que es lo que gobierna esa sesión. Ahora cada día pregunta por su
+   propio partido más cercano con la misma regla que usa el panel de microciclo
+   (calMd), para que las dos pantallas no digan cosas distintas del mismo día. */
+function calMDmap(weekDks){
+  const map={};let ref=null;
+  (weekDks||[]).forEach(dk=>{
+    const m=calMd(dk);
+    if(!m)return;
+    map[dk]=m.txt;
+    if(!ref||(m.partido&&m.partido<ref))ref=m.partido;
+  });
+  const dentro=(weekDks||[]).find(dk=>map[dk]==='MD');
+  return {map,ref:dentro||ref};
+}
 function calWeekSummary(mon){const dks=calWeekDks(mon);const real=calRealMap();let planUA=0,realUA=0;const realVals=[];dks.forEach(dk=>{const pl=calDayPlan(dk);planUA+=pl.planUA||0;const rv=real[dk];if(rv!=null){realUA+=rv;realVals.push(rv);}});const m=mean(realVals),s=sd(realVals);const mono=realVals.length>=2&&s>0?m/s:NaN;const strain=isNaN(mono)?NaN:mono*realUA;return {dks,planUA:Math.round(planUA),realUA:Math.round(realUA),mono,strain,nReal:realVals.length};}
 function calMonoTier(mono){if(isNaN(mono))return {c:'var(--muted)',lab:'—'};if(mono>2.5)return {c:'#e23b32',lab:'alta'};if(mono>2)return {c:'#e08a00',lab:'elevada'};return {c:'#1ea863',lab:'ok'};}
 function calSetMode(m){CALMODE=m;renderCalendar();}
@@ -20082,7 +20395,7 @@ function calDupWeek(){calLoad();const mon=CALWEEK||calWeekStart(new Date());cons
 function calTplSaveFromWeek(){calLoad();const mon=CALWEEK||calWeekStart(new Date());const dks=calWeekDks(mon);const days=dks.map(dk=>(STATE.calendar[dk]||[]).map(e=>({type:e.type,intens:evIntens(e),dur:evDur(e),title:e.title||'',time:e.time||'',note:e.note||'',objs:evObjs(e)})));if(!days.some(d=>d.length)){alert('Esta semana no tiene sesiones que guardar como plantilla.');return;}const name=prompt('Nombre de la plantilla (microciclo):','Microciclo '+((STATE.calTpl||[]).length+1));if(!name)return;STATE.calTpl=STATE.calTpl||[];STATE.calTpl.push({name:name.trim(),days});calTplPersist();renderCalendar();}
 function calTplApply(idx){calLoad();const tpl=(STATE.calTpl||[])[idx];if(!tpl)return;const mon=CALWEEK||calWeekStart(new Date());const dks=calWeekDks(mon);dks.forEach((dk,i)=>{const evs=(tpl.days[i]||[]).map(e=>({...e,id:'e'+Math.random().toString(36).slice(2,8)}));if(evs.length)STATE.calendar[dk]=(STATE.calendar[dk]||[]).concat(evs);});calPersist();renderCalendar();}
 function calTplDel(idx){if(!confirm('¿Borrar esta plantilla guardada?'))return;STATE.calTpl.splice(idx,1);calTplPersist();renderCalendar();}
-function calExportWeek(){exportNodePNG('cal-week-card','microciclo_'+(CALWEEK?dkey(CALWEEK):dkey(new Date()))+'.png');}
+function calExportWeek(){exportNodePNG('cal-week-card','semana_'+(CALWEEK?dkey(CALWEEK):dkey(new Date()))+'.png');}
 /* v205 · semana que muestra el panel superior del calendario. Independiente del
    mes que se esté viendo, para poder mirar la semana pasada sin perder el mes. */
 let CAL_WEEK_DK=null;
@@ -20115,6 +20428,7 @@ window.calWeekRender=calWeekRender;
 function renderCalendar(){
   calLoad();
   try{calWeekRender();}catch(e){}
+  try{renderCalMicro();}catch(e){console.error('bmnava · microciclo',e);}
   const box=document.getElementById('cal-body');if(!box)return;
   if(!CALVIEW){const t=new Date();CALVIEW={y:t.getFullYear(),m:t.getMonth()};}
   if(CALMODE==='semana'){renderCalWeek(box);return;}
@@ -20176,7 +20490,7 @@ function renderCalendar(){
   box.innerHTML=`
    <div class="cal-head">
      <div class="cal-nav"><button class="btn ghost" onclick="calPrev()">‹</button><div class="cal-title">${CAL_MES[m]} ${y}</div><button class="btn ghost" onclick="calNext()">›</button><button class="btn ghost" onclick="calToday()">Hoy</button></div>
-     <div class="cal-headr"><div class="cal-modetog"><button class="cal-mtg on" onclick="calSetMode('mes')">Mes</button><button class="cal-mtg" onclick="calSetMode('semana')">Microciclo</button></div><div class="cal-legend">${Object.values(CAL_TYPES).map(v=>`<span><i style="background:${v.col}"></i>${v.lab}</span>`).join('')}</div></div>
+     <div class="cal-headr"><div class="cal-modetog"><button class="cal-mtg on" onclick="calSetMode('mes')">Mes</button><button class="cal-mtg" onclick="calSetMode('semana')">Semana</button></div><div class="cal-legend">${Object.values(CAL_TYPES).map(v=>`<span><i style="background:${v.col}"></i>${v.lab}</span>`).join('')}</div></div>
    </div>
    <div class="cal-stats"><span><b>${nEnt}</b> entrenos</span><span><b>${nFue}</b> fuerza</span><span><b>${nPar}</b> partidos</span><span><b>${nEv}</b> eventos</span></div>
    <div class="cal-grid">${wd.map(w=>`<div class="cal-wd">${w}</div>`).join('')}${cells}</div>
@@ -20222,7 +20536,7 @@ function renderCalWeek(box){
   box.innerHTML=`
    <div class="cal-head">
      <div class="cal-nav"><button class="btn ghost" onclick="calWeekPrev()">‹</button><div class="cal-title" style="min-width:230px">${title}</div><button class="btn ghost" onclick="calWeekNext()">›</button><button class="btn ghost" onclick="calWeekToday()">Esta semana</button></div>
-     <div class="cal-headr"><div class="cal-modetog"><button class="cal-mtg" onclick="calSetMode('mes')">Mes</button><button class="cal-mtg on" onclick="calSetMode('semana')">Microciclo</button></div></div>
+     <div class="cal-headr"><div class="cal-modetog"><button class="cal-mtg" onclick="calSetMode('mes')">Mes</button><button class="cal-mtg on" onclick="calSetMode('semana')">Semana</button></div></div>
    </div>
    <div class="cal-wk-tools">
      <button class="btn ghost" id="cal-exp-btn" onclick="calExportWeek()">Exportar PNG</button>
@@ -20231,7 +20545,7 @@ function renderCalWeek(box){
      ${tplOpts?`<span class="cal-tpl-lab">Plantillas:</span>${tplOpts}`:'<span class="small muted">Aún no hay plantillas guardadas.</span>'}
    </div>
    <div id="cal-week-card" class="cal-week-card">
-     <div class="cw-cardhd"><div><b>Microciclo</b> · ${title}${mdRef?` · partido ${mdRef.split('-').reverse().slice(0,2).join('/')}`:''}</div><div class="cw-cardhd-sum">Plan <b>${wsum.planUA} UA</b> · Real <b>${wsum.nReal?wsum.realUA+' UA':'—'}</b>${wdev?` · <span style="color:${wdev.col}">${wdev.arrow}${wdev.pct>0?'+':''}${wdev.pct}%</span>`:''} · Monotonía <b style="color:${mt.c}">${isNaN(wsum.mono)?'—':fmt(wsum.mono,2)}</b> · Strain <b>${isNaN(wsum.strain)?'—':Math.round(wsum.strain)}</b></div></div>
+     <div class="cw-cardhd"><div><b>Semana</b> · ${title}${mdRef?` · partido ${mdRef.split('-').reverse().slice(0,2).join('/')}`:''}</div><div class="cw-cardhd-sum">Plan <b>${wsum.planUA} UA</b> · Real <b>${wsum.nReal?wsum.realUA+' UA':'—'}</b>${wdev?` · <span style="color:${wdev.col}">${wdev.arrow}${wdev.pct>0?'+':''}${wdev.pct}%</span>`:''} · Monotonía <b style="color:${mt.c}">${isNaN(wsum.mono)?'—':fmt(wsum.mono,2)}</b> · Strain <b>${isNaN(wsum.strain)?'—':Math.round(wsum.strain)}</b></div></div>
      <div class="cw-grid">${cols}</div>
      <div class="cw-foot"><span class="cal-sc"><i style="background:#1ea863"></i>Baja</span><span class="cal-sc"><i style="background:#e6a700"></i>Media</span><span class="cal-sc"><i style="background:#e23b32"></i>Alta</span><span class="small muted">MD = día de partido · Z4/Z5 = % en zona (manual) · ⚕ bajas</span></div>
    </div>
@@ -20351,7 +20665,10 @@ function calDayBody(dk){
           ? ' Al calcular la carga se suman además <b>'+calCalentDia(dk)+'\u2032 de calentamiento</b> a todo el equipo; ese tiempo no entra en la tasa de Z4/Z5 del perfil de partido.'
           : ' Si hubo calentamiento, ponlo en el partido: se suma a la carga de todos sin tocar la tasa de Z4/Z5.')
         +'</div>'):''}
-      <div class="small muted" style="margin-bottom:8px">Solo se calcula carga para quien respondió el cuestionario o está convocado · <button type="button" class="btn ghost" style="padding:3px 9px;font-size:12px" onclick="asistSetAllPending('${dk}')">Convocar a todo el equipo disponible</button></div>
+      <div class="cal-cerrar">
+        <button type="button" class="btn" onclick="calCerrarSesion('${dk}')" title="Pone la duración planificada en los bloques que no la tengan y convoca a quien no respondió. No pisa nada escrito a mano ni toca la tecnificación.">✓ Cerrar sesión del día</button>
+        <span class="small muted">Solo se calcula carga para quien respondió el cuestionario o está convocado · <button type="button" class="btn ghost" style="padding:3px 9px;font-size:12px" onclick="asistSetAllPending('${dk}')">Convocar a todo el equipo disponible</button></span>
+      </div>
       <table class="cal-dur-tbl cal-dur-tbl2"><thead><tr><th>Jugador</th><th>RPE pista</th><th>RPE gym</th>${hayTec?'<th title="Trabajo específico de mañana. Cuenta en la carga del jugador; no cuenta para el nivel de la sesión del equipo.">RPE tecn.</th>':''}<th>${isMatch?'Min jugados':'Min pista'}</th><th>Min gym</th>${hayTec?'<th>Min tecn.</th>':''}<th>Carga</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="small muted" style="margin-top:6px">La carga (RPE × min), el ACWR y la monotonía se recalculan al instante. Se guarda en este dispositivo. Si un jugador rellenó varios cuestionarios el mismo día, se muestra un <b>único RPE</b>: la media ponderada por la duración de cada sesión, aplicada a los minutos totales que indiques.</div>
     </div>`;
@@ -27348,8 +27665,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-14.1*/
-const VER_ACTUAL='2026-10-14.1';
+/*BUILD:2026-10-15.1*/
+const VER_ACTUAL='2026-10-15.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
