@@ -1436,8 +1436,31 @@ main{padding:20px 18px 80px}
    (551px de columnas dentro de un contenedor de 372 en móvil). */
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
 .cal-wd{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted2);text-align:center;padding-bottom:2px}
-.cal-cell{min-height:124px;border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:7px 8px;cursor:pointer;display:flex;flex-direction:column;gap:4px;transition:border-color .12s,box-shadow .12s,transform .12s;position:relative}
-.cal-cell:hover{border-color:var(--accent);box-shadow:0 4px 14px rgba(11,13,18,.1);transform:translateY(-1px)}
+/* v393 · fundido entre Mes y Semana */
+#cal-body{transition:opacity .15s ease,transform .15s ease}
+#cal-body.cal-fade{opacity:0;transform:translateY(4px)}
+@media(prefers-reduced-motion:reduce){#cal-body{transition:none}#cal-body.cal-fade{opacity:1;transform:none}}
+.cal-cell{position:relative;min-height:124px;border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:7px 8px;cursor:pointer;display:flex;flex-direction:column;gap:4px;transition:border-color .12s,box-shadow .12s,transform .12s;position:relative}
+.cal-cell:hover{border-color:var(--accent);box-shadow:var(--e2,0 4px 14px rgba(11,13,18,.1));transform:translateY(-1px)}
+/* ══ v393 · Dos niveles en la celda del mes ══
+   La casilla llegó a tener nueve datos compitiendo: semáforo, grado, minutos,
+   contacto, chips de evento, plan, real, desviación, bajas y citas. En reposo
+   se queda lo que decide de un vistazo —qué día es, qué intensidad, cuánto
+   dura, si hay partido y si hay bajas— y lo demás aparece al pasar por encima.
+   Va en capa ABSOLUTA y no empujando: si creciera la celda, al pasar el ratón
+   se movería la rejilla entera. */
+.cal-l2{position:absolute;left:0;right:0;bottom:0;padding:6px 7px 7px;
+  display:flex;flex-direction:column;gap:3px;
+  background:var(--panel);border-radius:0 0 11px 11px;
+  border-top:1px solid var(--line);
+  opacity:0;transform:translateY(5px);pointer-events:none;
+  transition:opacity .16s ease,transform .16s ease}
+.cal-cell:hover .cal-l2{opacity:1;transform:none}
+.cal-l2-dev{font-size:var(--fs-xs);font-weight:800}
+.cal-l2-cita{font-size:var(--fs-xs);color:var(--muted)}
+/* Sin ratón no hay segundo nivel: en móvil el día se abre de un toque y ahí
+   está todo, así que la celda se queda con lo esencial y gana aire. */
+@media(hover:none){.cal-l2{display:none}}
 .cal-empty{background:transparent;border:none;cursor:default}
 .cal-empty:hover{box-shadow:none;transform:none}
 .cal-out{opacity:.48;background:var(--panel2)}
@@ -1561,23 +1584,42 @@ main{padding:20px 18px 80px}
 .cal-cerrar>.btn{flex:0 0 auto}
 .cal-cerrar>span{flex:1;min-width:220px}
 .mc-wrap{display:flex;flex-direction:column;gap:16px}
-.mc-tira{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(86px,1fr))}
-.mc-d{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 8px 9px;
-  background:var(--panel);display:flex;flex-direction:column;gap:7px;min-width:0;position:relative}
-.mc-d.is-hoy{border-color:var(--accent);box-shadow:0 0 0 2px rgba(48,86,196,.12)}
-.mc-d.is-part{background:var(--champ-soft);border-color:transparent}
-.mc-md{font-size:var(--fs-h2);font-weight:800;letter-spacing:-.01em;line-height:1}
-.mc-d.is-part .mc-md{color:var(--champ-tx)}
+/* v393 · El partido es el ancla del microciclo, así que se ve desde lejos. */
+.mc-hero{display:flex;align-items:center;gap:16px;padding:14px 18px;border-radius:var(--radius-sm);
+  background:linear-gradient(100deg,
+    color-mix(in srgb,var(--accent) 11%,transparent),
+    color-mix(in srgb,var(--accent) 3%,transparent));
+  border:1px solid color-mix(in srgb,var(--accent) 20%,transparent)}
+.mc-hero-l{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.mc-hero-k{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--accent)}
+.mc-hero-r{font-size:var(--fs-h1);font-weight:800;letter-spacing:-.02em;line-height:1.1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-hero-m{font-size:var(--fs-sm);color:var(--muted)}
+.mc-hero-d{text-align:center;flex:0 0 auto;line-height:1}
+.mc-hero-d b{display:block;font-size:var(--fs-hero);font-weight:800;letter-spacing:-.03em;color:var(--accent)}
+.mc-hero-d span{font-size:var(--fs-xs);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.mc-hero-d.es-hoy b{font-size:var(--fs-h1);line-height:1.3}
+/* v393 · Perfil de etapa: la altura ES la carga. La forma del microciclo se lee
+   sin mirar un solo número — si la semana es plana, se ve que es plana. */
+.mc-perfil{display:grid;gap:6px;grid-template-columns:repeat(7,minmax(0,1fr))}
+.mc-col{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 2px 9px;
+  border-radius:var(--radius-sm);border:1px solid transparent;min-width:0}
+.mc-col.is-hoy{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.mc-col.is-part{background:var(--champ-soft)}
+.mc-cif{font-size:var(--fs-xs);color:var(--muted);font-weight:700;height:13px;line-height:13px}
+/* Un día sin planificar pero con carga real: la cifra es real, no plan, y se
+   dice con el color en vez de obligar a deducirlo. */
+.mc-cif.es-real{color:var(--accent)}
+.mc-track{height:84px;display:flex;align-items:flex-end;justify-content:center;gap:3px;width:100%}
+.mc-track i{display:block;border-radius:3px 3px 0 0;min-height:2px}
+.mc-track i.plan{width:15px;background:var(--muted2)}
+.mc-track i.real{width:10px;background:var(--accent)}
+.mc-track.vacio{border-bottom:1px dashed var(--line)}
+.mc-md{font-size:var(--fs-sm);font-weight:800;letter-spacing:-.01em;line-height:1}
+.mc-col.is-part .mc-md{color:var(--champ-tx)}
 .mc-dia{font-size:var(--fs-xs);color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-.mc-bars{display:flex;flex-direction:column;gap:3px;margin-top:1px}
-.mc-bar{height:7px;border-radius:999px;background:var(--panel2);overflow:hidden}
-.mc-bar i{display:block;height:100%;border-radius:999px}
-.mc-bar.plan i{background:var(--muted2)}
-.mc-bar.real i{background:var(--accent)}
-.mc-ua{font-size:var(--fs-xs);color:var(--muted);display:flex;justify-content:space-between;gap:4px}
-.mc-ua b{color:var(--txt);font-weight:700}
 .mc-leg{font-size:var(--fs-xs);color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
-.mc-leg i{display:inline-block;width:14px;height:7px;border-radius:999px;margin-right:5px;vertical-align:middle}
+.mc-leg i{display:inline-block;width:10px;height:7px;border-radius:2px;margin-right:5px;vertical-align:middle}
 .mc-sec{font-size:var(--fs-sm);font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:2px}
 .mc-sec span{font-weight:500;color:var(--muted)}
 .mc-proj{display:grid;gap:7px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
@@ -1588,8 +1630,14 @@ main{padding:20px 18px 80px}
 .mc-p-fl{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
 .mc-ok{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--muted)}
 .mc-ok b{color:var(--ok)}
-@media(max-width:700px){.mc-tira{grid-template-columns:repeat(auto-fit,minmax(74px,1fr))}
-  .mc-md{font-size:var(--fs-body)}}
+@media(max-width:700px){
+  .mc-track{height:58px}.mc-track i.plan{width:11px}.mc-track i.real{width:8px}
+  .mc-hero{gap:12px;padding:12px 14px}.mc-hero-r{font-size:var(--fs-h2)}
+  .mc-hero-d b{font-size:var(--fs-h1)}
+  .mc-md{font-size:var(--fs-xs)}.mc-dia{font-size:10px}.mc-perfil{gap:3px}
+  /* El rótulo y su aclaración no caben en línea a 375 px: se apilan. */
+  .mc-sec{flex-direction:column;align-items:flex-start;gap:1px}
+}
 .cal-blk{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
   padding:3px 9px;border-radius:999px;color:#fff}
 .cal-blk-p{background:#3056c4}
@@ -20288,32 +20336,64 @@ function renderCalMicro(){
   const DIAS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   if(!ciclo.dias.length){box.innerHTML='';return;}
 
-  /* ── cabecera: contra quién y cuándo ── */
-  let sub='sin partido por delante · se muestran siete días';
-  if(ciclo.partidoSig){
-    const ev=((STATE.calendar||{})[ciclo.partidoSig]||[]).find(e=>evEsPartido(e));
-    const d=dkToDate(ciclo.partidoSig);
-    const faltan=calDiasEntre(dkey(new Date()),ciclo.partidoSig);
-    sub=(ev&&evRival(ev)?'vs '+esc(evRival(ev)):'Partido')+' · '+DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1)
-       +(faltan>0?' · faltan '+faltan+(faltan===1?' día':' días'):(faltan===0?' · hoy':''));
+  /* ── v393 · sin partidos en el calendario no hay microciclo que enseñar ── */
+  if(!calPartidosDks().length){
+    box.innerHTML='<h2>Microciclo</h2><div class="tn-vacio">'
+      +'<span class="vac-ic">⚑</span>'
+      +'<span class="vac-t">Sin partidos en el calendario</span>'
+      +'<span class="vac-s">El microciclo se mide contra el partido. Pon el próximo y aquí verás cada día como MD-3, MD-2, MD-1, y dónde acaba el ACWR de cada jugador si entrenáis lo planificado.</span>'
+      +'<button class="vac-a" onclick="event.stopPropagation();calSetMode(\'mes\')">Añadir el próximo partido</button></div>';
+    return;
   }
 
-  /* ── tira de días ── */
+  /* ── cabecera: contra quién y cuándo ── */
+  const DIAS_L=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  let sub='sin partido por delante · se muestran siete días';
+  let hero='';
+  if(ciclo.partidoSig){
+    const ev=((STATE.calendar||{})[ciclo.partidoSig]||[]).find(e=>evEsPartido(e))||{};
+    const d=dkToDate(ciclo.partidoSig);
+    const faltan=calDiasEntre(dkey(new Date()),ciclo.partidoSig);
+    const rival=evRival(ev)?('vs '+esc(evRival(ev))):(ev.title?esc(ev.title):'Partido');
+    const comp=(PARTIDO_COMP[evComp(ev)]||evComp(ev)||'').toString();
+    sub=DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
+    const cuenta=faltan<=0
+      ? '<b>hoy</b>'
+      : (faltan===1?'<b>1</b><span>día</span>':'<b>'+faltan+'</b><span>días</span>');
+    hero='<div class="mc-hero">'
+      +'<div class="mc-hero-l">'
+        +'<span class="mc-hero-k">Próximo partido</span>'
+        +'<span class="mc-hero-r">'+rival+'</span>'
+        +'<span class="mc-hero-m">'+(comp?esc(comp)+' · ':'')
+          +DIAS_L[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1)
+          +(ev.time?' · '+esc(ev.time):'')+'</span>'
+      +'</div>'
+      +'<div class="mc-hero-d'+(faltan<=0?' es-hoy':'')+'">'+cuenta+'</div>'
+    +'</div>';
+  }
+
+  /* ── perfil de etapa: la altura es la carga ── */
   const maxUA=Math.max(1,...ciclo.dias.map(d=>Math.max(d.plan||0,d.real||0)));
+  const alto=v=>Math.max(2,Math.round((v||0)/maxUA*100));
   const tira=ciclo.dias.map(d=>{
     const dt=dkToDate(d.dk);
-    const cls='mc-d'+(d.hoy?' is-hoy':'')+(d.partido?' is-part':'');
-    const md=d.md?d.md.txt:'—';
-    const barra=(v,c)=>'<div class="mc-bar '+c+'"><i style="width:'+Math.round(Math.min(100,(v||0)/maxUA*100))+'%"></i></div>';
-    const hayAlgo=(d.plan>0)||(d.real!=null&&d.real>0);
-    return '<div class="'+cls+'" title="'+esc(d.dk)+(d.sinProg?' · '+d.sinProg+' sin programar':'')+'">'
-      +'<div class="mc-md">'+md+'</div>'
+    const cls='mc-col'+(d.hoy?' is-hoy':'')+(d.partido?' is-part':'');
+    const hayPlan=d.plan>0, hayReal=(d.real!=null&&d.real>0);
+    const tit=esc(d.dk)+(hayPlan?' · plan '+Math.round(d.plan)+' UA':' · sin planificar')
+      +(hayReal?' · real '+Math.round(d.real)+' UA':'')+(d.sinProg?' · '+d.sinProg+' sin programar':'');
+    const track=(hayPlan||hayReal)
+      ? '<div class="mc-track">'
+          +(hayPlan?'<i class="plan" style="height:'+alto(d.plan)+'%"></i>':'')
+          +(hayReal?'<i class="real" style="height:'+alto(d.real)+'%"></i>':'')
+        +'</div>'
+      : '<div class="mc-track vacio"></div>';
+    return '<div class="'+cls+'" title="'+tit+'">'
+      +'<div class="mc-cif'+(!hayPlan&&hayReal?' es-real':'')+'">'
+        +(hayPlan?Math.round(d.plan):(hayReal?Math.round(d.real):''))+'</div>'
+      +track
+      +'<div class="mc-md">'+(d.md?d.md.txt:'—')+'</div>'
       +'<div class="mc-dia">'+DIAS[dt.getDay()]+' '+dt.getDate()+'</div>'
-      +(hayAlgo
-        ? '<div class="mc-bars">'+barra(d.plan,'plan')+barra(d.real,'real')+'</div>'
-          +'<div class="mc-ua"><span>'+(d.plan>0?Math.round(d.plan):'—')+'</span><b>'+(d.real!=null?Math.round(d.real):'·')+'</b></div>'
-        : '<div class="mc-ua" style="justify-content:center">'+(d.nPlan?'sin UA':'libre')+'</div>')
-      +'</div>';
+    +'</div>';
   }).join('');
 
   /* ── dónde aterriza el ACWR ── */
@@ -20353,10 +20433,11 @@ function renderCalMicro(){
 
   box.innerHTML='<h2>Microciclo <span class="r muted">'+sub+'</span></h2>'
     +'<div class="mc-wrap">'
-      +'<div class="mc-tira">'+tira+'</div>'
+      +hero
+      +'<div class="mc-perfil">'+tira+'</div>'
       +'<div class="mc-leg"><span><i style="background:var(--muted2)"></i>planificado</span>'
         +'<span><i style="background:var(--accent)"></i>real</span>'
-        +'<span>UA del equipo · MD = día de partido</span>'
+        +'<span>altura = UA del equipo · MD = día de partido</span>'
         +(ciclo.recortado?'<span>· ciclo recortado a 14 días: falta meter el próximo partido</span>':'')+'</div>'
       +'<div><div class="mc-sec">Dónde aterriza el ACWR <span>al cerrar el ciclo, si se entrena lo planificado</span></div>'
         +proy
@@ -20387,7 +20468,24 @@ function calMDmap(weekDks){
 }
 function calWeekSummary(mon){const dks=calWeekDks(mon);const real=calRealMap();let planUA=0,realUA=0;const realVals=[];dks.forEach(dk=>{const pl=calDayPlan(dk);planUA+=pl.planUA||0;const rv=real[dk];if(rv!=null){realUA+=rv;realVals.push(rv);}});const m=mean(realVals),s=sd(realVals);const mono=realVals.length>=2&&s>0?m/s:NaN;const strain=isNaN(mono)?NaN:mono*realUA;return {dks,planUA:Math.round(planUA),realUA:Math.round(realUA),mono,strain,nReal:realVals.length};}
 function calMonoTier(mono){if(isNaN(mono))return {c:'var(--muted)',lab:'—'};if(mono>2.5)return {c:'#e23b32',lab:'alta'};if(mono>2)return {c:'#e08a00',lab:'elevada'};return {c:'#1ea863',lab:'ok'};}
-function calSetMode(m){CALMODE=m;renderCalendar();}
+/* v393 · Mes y Semana son dos miradas al mismo calendario, pero el cambio se
+   pintaba de golpe y parecían dos pantallas distintas. Un fundido corto —y solo
+   de opacidad y un par de píxeles— basta para que se lean como la misma cosa.
+   No se funde el color del texto, por lo mismo que no se funde al cambiar de
+   tema: deja un gris lavado que parece que algo se ha roto. */
+function calSetMode(m){
+  if(CALMODE===m)return;
+  CALMODE=m;
+  const box=document.getElementById('cal-body');
+  if(!box||!box.animate){renderCalendar();return;}
+  box.classList.add('cal-fade');
+  setTimeout(()=>{
+    renderCalendar();
+    const b=document.getElementById('cal-body');
+    if(b){b.classList.add('cal-fade');
+      requestAnimationFrame(()=>requestAnimationFrame(()=>b.classList.remove('cal-fade')));}
+  },150);
+}
 function calWeekPrev(){if(!CALWEEK)CALWEEK=calWeekStart(new Date());CALWEEK=new Date(CALWEEK);CALWEEK.setDate(CALWEEK.getDate()-7);renderCalendar();}
 function calWeekNext(){if(!CALWEEK)CALWEEK=calWeekStart(new Date());CALWEEK=new Date(CALWEEK);CALWEEK.setDate(CALWEEK.getDate()+7);renderCalendar();}
 function calWeekToday(){CALWEEK=calWeekStart(new Date());renderCalendar();}
@@ -20467,12 +20565,16 @@ function renderCalendar(){
     const chips=evs.slice(0,3).map(e=>{const t=calTipo(e.type),sp=evSP(e),du=sp?0:evDur(e);return `<div class="cal-chip${sp?' sp':''}" style="--c:${t.col}"><span class="cal-chip-dot" style="background:${t.col}"></span><span class="cal-chip-tx">${e.title||t.lab}</span>${du?`<span class="cal-chip-dur">${du}′</span>`:''}</div>`;}).join('')+(evs.length>3?`<div class="cal-more">+${evs.length-3} más</div>`:'');
     const corner=hasMatch?'':(dev?`<span class="cal-dev" style="color:${dev.col};border-color:${dev.col}" title="Desviación plan vs real: ${dev.lab}">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:(rv!=null?`<span class="cal-realbadge" title="Carga real (RPE): ${rv} UA">${rv}</span>`:''));
     cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" onclick="calOpenDay('${dk}')">
-      <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${citas.length?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length}): ${citas.map(c=>c.name+(c.e.time?' '+c.e.time:'')+(c.e.afecta==='pierde'?' · pierde entreno':c.e.afecta==='parcial'?' · parcial':'')).join(' · ')}">🩺 ${citas.length}</span>`:''}${corner}</div>
-      ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body"><span class="cal-match-k">Partido</span>${(evRival(matchEv)||matchEv.title)?`<span class="cal-match-rival">${(evRival(matchEv)?'vs '+evRival(matchEv):matchEv.title).replace(/</g,'&lt;')}</span>`:''}${evRival(matchEv)?`<span class="cal-match-comp">${(PARTIDO_COMP[evComp(matchEv)]||'').toLowerCase()}${evOrigenHR(matchEv)==='medido'?' · FC medida':''}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-chips">${chips}</div>
-      <div class="cal-bars">
+      <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${(citas.length&&(onlyRest||hasMatch))?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length})">🩺 ${citas.length}</span>`:''}${(onlyRest||hasMatch)?corner:''}</div>
+      ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body"><span class="cal-match-k">Partido</span>${(evRival(matchEv)||matchEv.title)?`<span class="cal-match-rival">${(evRival(matchEv)?'vs '+evRival(matchEv):matchEv.title).replace(/</g,'&lt;')}</span>`:''}${evRival(matchEv)?`<span class="cal-match-comp">${(PARTIDO_COMP[evComp(matchEv)]||'').toLowerCase()}${evOrigenHR(matchEv)==='medido'?' · FC medida':''}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-bars">
         ${pl.n?`<div class="cal-plan" title="Plan · ${pl.lab} intensidad · contacto ${pl.contacto}/5 · ${pl.totMin}′ (${pl.planUA} UA est.)">${calTraffic(pl.peak,38,'cal-tl')}<div class="cal-plan-tx"><span class="cal-plan-grade" style="color:${pl.col}">${pl.lab}</span><span class="cal-plan-dur"><span class="cal-clock">◷</span> ${pl.totMin}′</span>${pl.contacto>0?`<span class="cal-plan-ct">${calContactBar(pl.contacto)}</span>`:''}</div></div>`:''}
-        ${rv!=null?`<div class="cal-real-row" title="Carga real: ${rv} UA${calRealManual(dk)!=null?' (manual)':' (RPE)'}"><span class="cal-rl-lab">REAL</span><div class="cal-bar"><div style="width:${Math.max(8,Math.min(100,Math.round(rv/700*100)))}%;background:var(--c-data,#3f5572)"></div></div><span class="cal-rl-val">${rv}</span></div>`:(pl.n?`<div class="cal-real-row cal-real-empty" title="Sin carga real registrada este día"><span class="cal-rl-lab">REAL</span><div class="cal-bar"></div><span class="cal-rl-val">—</span></div>`:'')}
       </div>`)}
+      ${(onlyRest||hasMatch)?'':`<div class="cal-l2">
+        ${chips?`<div class="cal-chips">${chips}</div>`:''}
+        ${rv!=null?`<div class="cal-real-row" title="Carga real: ${rv} UA${calRealManual(dk)!=null?' (manual)':' (RPE)'}"><span class="cal-rl-lab">REAL</span><div class="cal-bar"><div style="width:${Math.max(8,Math.min(100,Math.round(rv/700*100)))}%;background:var(--c-data,#3f5572)"></div></div><span class="cal-rl-val">${rv}</span></div>`:(pl.n?`<div class="cal-real-row cal-real-empty" title="Sin carga real registrada este día"><span class="cal-rl-lab">REAL</span><div class="cal-bar"></div><span class="cal-rl-val">—</span></div>`:'')}
+        ${dev?`<div class="cal-l2-dev" style="color:${dev.col}">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}% vs plan</div>`:''}
+        ${citas.length?`<div class="cal-l2-cita">🩺 ${citas.length} ${citas.length===1?'cita':'citas'}${citasPierde?' · '+citasPierde+' pierde entreno':''}</div>`:''}
+      </div>`}
     </div>`;
   }
   // resumen por semana del mes
@@ -27665,8 +27767,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-15.1*/
-const VER_ACTUAL='2026-10-15.1';
+/*BUILD:2026-10-15.2*/
+const VER_ACTUAL='2026-10-15.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
