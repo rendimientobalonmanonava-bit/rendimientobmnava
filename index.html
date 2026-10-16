@@ -1697,6 +1697,18 @@ main{padding:20px 18px 80px}
 /* v398 · % en Z4+Z5 del día, de los pulsómetros. El asterisco marca el valor
    escrito a mano, para no mezclar medido con estimado. */
 /* v400 · Z5 y Z4 por separado, cada una con el color de SU banda. */
+/* ══ v401 · Umbrales propios ══ */
+.sc-tbl th{font-size:var(--fs-xs);font-weight:700;color:var(--muted);text-align:center}
+.sc-tbl td{text-align:center;font-size:var(--fs-sm)}
+.sc-tbl td:first-child{text-align:left;font-weight:700}
+.sc-tbl tr.sc-sub th{font-size:10px;font-weight:600;color:var(--muted2);text-transform:lowercase}
+.sc-d{font-size:10px;font-weight:800}
+.sc-d.up{color:var(--warn)}.sc-d.dn{color:var(--ok)}
+.sc-imp{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-top:12px}
+.sc-imp>div{border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 11px;font-size:var(--fs-sm)}
+.sc-imp-k{display:block;font-size:var(--fs-xs);color:var(--muted);font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.sc-nuevo{font-size:var(--fs-xs);color:var(--accent);font-weight:700;align-self:center}
 .cal-zon{display:flex;gap:8px;align-items:baseline;margin-top:1px}
 .cal-zi{display:flex;align-items:baseline;gap:3px;white-space:nowrap}
 .cal-zi i{font-style:normal;font-size:9px;font-weight:800;color:var(--muted2);letter-spacing:.03em}
@@ -4744,6 +4756,9 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     <!-- v373/v375 · modelo de sesión del equipo: de la RPE y el contacto que se
          planifican, a los objetivos de pulso que hay que alcanzar. -->
     <div class="panel panel--hq" id="hreq-card"></div>
+    <!-- v401 · umbrales propios: calculados con nuestras sesiones y movidos
+         cuando Daniel lo decide, nunca solos. -->
+    <div class="panel" id="sescal-card"></div>
     <div class="panel" id="hri-card">
       <h2>Sesión vs perfil individual <span class="r muted">cada jugador contra su propio histórico · caja = su rango típico (p25–p75)</span>
       <span style="float:right"><button class="btn ghost" style="padding:4px 12px;font-size:11px" onclick="exportNodePNG('hri-card','hr_individual_'+((document.getElementById('hr-session')||{}).value||'sesion').split('|')[0]+'.png')">PNG</button></span></h2>
@@ -17555,6 +17570,202 @@ const SESSPEC=[
  {key:'z54',label:'% Tiempo en Z4+Z5',cap:28,bands:[[0,8],[8,18],[18,24],[24,99]],ticks:['0','8','18','24']}
 ];
 const LV=[['BAJA','var(--ok)'],['MEDIA','var(--warn)'],['ALTA','var(--bad)']];
+
+/* ═══════════════ v401 · Umbrales propios del BM Nava ═══════════════
+   Instrucción permanente de Daniel (15/10/2026): «los umbrales de sesiones
+   siempre con nuestros propios datos, y que no sean fijos, que vayan
+   moviéndose con el tiempo a medida que lo hace el equipo».
+
+   SESSPEC de arriba se queda como está y NO se toca nunca: es la línea de
+   partida y el sitio al que se vuelve. La calibración vive aparte, en
+   `bmnava_sespec`, y se lee SIEMPRE por `SESEF()`. Esa es la decisión que hace
+   que esto no pueda romper nada: hay un único punto de lectura, igual que
+   `lbEsDe` con los bloques. Si mañana se quita la calibración, todo vuelve al
+   estado anterior sin tocar una sola línea de los consumidores.
+
+   Tres cosas que NO hace, y son las que evitan el desastre:
+
+   · **No se aplica sola.** Calcula, enseña el antes y el después, dice cuántas
+     sesiones del histórico cambiarían de nivel, y espera. Mover estos umbrales
+     reclasifica TODO el histórico de golpe; eso se decide mirándolo, no se
+     hereda de un `setTimeout`.
+   · **No calibra con cuatro sesiones.** Exige `SESCAL_MIN` sesiones con al
+     menos cinco pulsómetros —el mismo listón de calidad que `hreqDatos`—.
+     Un percentil sobre seis sesiones es ruido con aspecto de umbral.
+   · **No se recalcula a cada sesión.** Vuelve a proponer cuando hay
+     `SESCAL_PASO` sesiones nuevas desde la última calibración aplicada. Un
+     umbral que se mueve cada día no es un umbral: las sesiones cambiarían de
+     nivel solas y nadie volvería a fiarse de la etiqueta.
+
+   Los cortes son **p33 · p66 · p90** de las propias sesiones. Los dos primeros
+   porque el nivel de sesión ya se reparte en tercios por decisión de Daniel
+   (12/09/2026) y sería incoherente que las bandas dijeran otra cosa; el tercero
+   marca la sesión excepcional, que es lo que la cuarta banda significaba. */
+const SESCAL_LS='bmnava_sespec';
+const SESCAL_MIN=20;      // sesiones con pulso para que un percentil signifique algo
+const SESCAL_PASO=10;     // sesiones nuevas antes de volver a proponer
+let SESCAL=null;
+function sesCalLoad(){
+  if(SESCAL)return SESCAL;
+  SESCAL=lsLeer(SESCAL_LS,{})||{};
+  return SESCAL;
+}
+function sesCalSave(){return lsGuardar(SESCAL_LS,sesCalLoad());}
+/* La calibración vigente, o null si se está con los valores de partida. */
+function sesCalVigente(){
+  const c=sesCalLoad();
+  return (c&&c.aplicado&&c.aplicado.z5&&c.aplicado.z4&&c.aplicado.z54)?c:null;
+}
+/* De tres cortes a las cuatro bandas que espera bandOf(). */
+function sesBandasDe(cortes){
+  const c=cortes.map(x=>Math.round(x*10)/10);
+  return [[0,c[0]],[c[0],c[1]],[c[1],c[2]],[c[2],99]];
+}
+/* ÚNICO punto de lectura de las bandas en toda la app. */
+function SESEF(){
+  const cal=sesCalVigente();
+  if(!cal)return SESSPEC;
+  return SESSPEC.map(sp=>{
+    const cortes=cal.aplicado[sp.key];
+    if(!cortes||cortes.length!==3)return sp;
+    const b=sesBandasDe(cortes);
+    const tope=Math.max(sp.cap,Math.ceil(b[2][1]*1.15));
+    return Object.assign({},sp,{bands:b,cap:tope,
+      ticks:['0'].concat(b.slice(0,3).map(x=>String(Math.round(x[1]*10)/10))),calibrado:true});
+  });
+}
+window.SESEF=SESEF;window.sesCalVigente=sesCalVigente;
+
+/* Las sesiones del equipo que valen para calibrar: las que tienen pulso de
+   verdad. Mismo listón que el modelo de pulso del equipo —cinco pulsómetros—,
+   porque describir al equipo con tres capturas no lo describe. */
+function sesCalSesiones(){
+  const keys=[...new Set((STATE.hr||[]).map(hrKey))];
+  const out=[];
+  keys.forEach(key=>{
+    const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key&&(r.z||[]).some(v=>v>0));
+    if(rows.length<5)return;
+    const z=pctZones(rows);
+    if(z&&isFinite(z.z5)&&isFinite(z.z4)&&isFinite(z.z54))
+      out.push({key,dk:key.slice(0,key.indexOf('|')),z5:z.z5,z4:z.z4,z54:z.z54});
+  });
+  return out.sort((a,b)=>a.dk<b.dk?-1:1);
+}
+/* La propuesta: percentiles propios. Devuelve null si todavía no hay con qué. */
+function sesCalPropuesta(){
+  const ses=sesCalSesiones();
+  if(ses.length<SESCAL_MIN)return {n:ses.length,falta:SESCAL_MIN-ses.length,cortes:null};
+  const cortes={};
+  ['z5','z4','z54'].forEach(k=>{
+    const a=ses.map(s=>s[k]);
+    cortes[k]=[hrpQ(a,.33),hrpQ(a,.66),hrpQ(a,.90)].map(x=>Math.round(x*10)/10);
+  });
+  /* Un corte que no sube nunca deja una banda vacía y bandOf la salta: se
+     separan un décimo para que las cuatro bandas existan de verdad. */
+  Object.keys(cortes).forEach(k=>{
+    for(let i=1;i<3;i++)if(cortes[k][i]<=cortes[k][i-1])cortes[k][i]=Math.round((cortes[k][i-1]+0.1)*10)/10;
+  });
+  return {n:ses.length,falta:0,cortes,desde:ses[0].dk,hasta:ses[ses.length-1].dk};
+}
+/* Cuántas sesiones del histórico cambiarían de nivel con unos cortes dados.
+   Es el número que decide: sin esto, aplicar es firmar a ciegas. */
+function sesCalImpacto(cortes){
+  const ses=sesCalSesiones();
+  const nivel=(s,bandas)=>Math.min(2,Math.max(
+    bandOf(s.z5,bandas.z5),bandOf(s.z4,bandas.z4),bandOf(s.z54,bandas.z54)));
+  const act={};SESEF().forEach(sp=>{act[sp.key]=sp.bands;});
+  const nue={};['z5','z4','z54'].forEach(k=>{nue[k]=sesBandasDe(cortes[k]);});
+  let cambian=0;const reparto=[0,0,0],repartoAntes=[0,0,0];
+  ses.forEach(s=>{
+    const a=nivel(s,act), b=nivel(s,nue);
+    repartoAntes[a]++;reparto[b]++;
+    if(a!==b)cambian++;
+  });
+  return {n:ses.length,cambian,reparto,repartoAntes};
+}
+window.sesCalPropuesta=sesCalPropuesta;window.sesCalImpacto=sesCalImpacto;
+/* Aplicar y volver atrás. Cada calibración queda fechada en el historial: un
+   modelo que no sabe cuándo cambió no se puede auditar. */
+function sesCalAplicar(){
+  const p=sesCalPropuesta();
+  if(!p||!p.cortes){toast('Todavía no hay sesiones suficientes para calibrar');return;}
+  const c=sesCalLoad();
+  c.hist=(c.hist||[]).concat([{fecha:dkey(new Date()),n:p.n,cortes:p.cortes}]).slice(-20);
+  c.aplicado=p.cortes;c.fecha=dkey(new Date());c.n=p.n;
+  sesCalSave();
+  try{renderSesCal();}catch(e){}
+  try{if(window.renderHR)renderHR();}catch(e){}
+  try{if(window.renderCalendar)renderCalendar();}catch(e){}
+  toast('Umbrales actualizados con '+p.n+' sesiones propias');
+}
+function sesCalQuitar(){
+  const c=sesCalLoad();
+  delete c.aplicado;delete c.fecha;delete c.n;
+  sesCalSave();
+  try{renderSesCal();}catch(e){}
+  try{if(window.renderHR)renderHR();}catch(e){}
+  try{if(window.renderCalendar)renderCalendar();}catch(e){}
+  toast('Vuelta a los umbrales de partida');
+}
+window.sesCalAplicar=sesCalAplicar;window.sesCalQuitar=sesCalQuitar;
+
+/* El panel. Enseña de dónde viene cada corte, qué cambiaría y cuánto, y deja
+   aplicar o volver. Nada se mueve sin que alguien lo lea antes. */
+function renderSesCal(){
+  const box=document.getElementById('sescal-card');if(!box)return;
+  const cal=sesCalVigente(), p=sesCalPropuesta();
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const NOM={z5:'% en Z5',z4:'% en Z4',z54:'% en Z4+Z5'};
+  const cab='<h2>Umbrales propios <span class="r muted">'
+    +(cal?'calibrados el '+esc(cal.fecha)+' con '+cal.n+' sesiones':'sin calibrar · valores de partida')+'</span></h2>';
+
+  if(!p.cortes){
+    box.innerHTML=cab
+      +'<p class="hint">Con <b>'+p.n+'</b> '+(p.n===1?'sesión':'sesiones')+' de al menos cinco pulsómetros todavía no se puede calibrar: '
+      +'faltan <b>'+p.falta+'</b> para llegar a '+SESCAL_MIN+'. Un percentil sobre pocas sesiones es ruido con aspecto de umbral.</p>'
+      +(cal?'<div class="ctrlrow" style="margin-top:10px"><button class="btn ghost" onclick="sesCalQuitar()">Volver a los umbrales de partida</button></div>':'');
+    return;
+  }
+  const imp=sesCalImpacto(p.cortes);
+  const act={};SESEF().forEach(sp=>{act[sp.key]=sp.bands;});
+  const fil=['z5','z4','z54'].map(k=>{
+    const a=act[k], n=p.cortes[k];
+    const cmp=(i)=>{
+      const v0=a[i][1], v1=n[i];
+      const d=Math.round((v1-v0)*10)/10;
+      return '<td class="mono">'+v0+'</td><td class="mono"><b>'+v1+'</b>'
+        +(Math.abs(d)>=0.1?' <span class="sc-d '+(d>0?'up':'dn')+'">'+(d>0?'+':'')+d+'</span>':'')+'</td>';
+    };
+    return '<tr><td>'+NOM[k]+'</td>'+cmp(0)+cmp(1)+cmp(2)+'</tr>';
+  }).join('');
+
+  const nuevo=p.n>=SESCAL_MIN&&(!cal||p.n-(cal.n||0)>=SESCAL_PASO);
+  const rep=(a)=>a.map((v,i)=>'<span style="color:'+LV[i][1]+'"><b>'+v+'</b> '+LV[i][0].toLowerCase()+'</span>').join(' · ');
+
+  box.innerHTML=cab
+    +'<p class="hint">Los cortes salen de <b>vuestras</b> sesiones, no de la literatura: percentiles 33, 66 y 90 de las '
+      +p.n+' con pulso ('+esc(p.desde)+' → '+esc(p.hasta)+'). '
+      +'Los dos primeros porque el nivel de sesión ya se reparte en tercios; el tercero marca la sesión excepcional.</p>'
+    +'<div class="wrap-x"><table class="tbl sc-tbl"><thead><tr><th></th>'
+      +'<th colspan="2">Corte bajo→media</th><th colspan="2">media→alta</th><th colspan="2">alta→excepcional</th></tr>'
+      +'<tr class="sc-sub"><th></th><th>ahora</th><th>propuesto</th><th>ahora</th><th>propuesto</th><th>ahora</th><th>propuesto</th></tr></thead>'
+      +'<tbody>'+fil+'</tbody></table></div>'
+    +'<div class="sc-imp">'
+      +'<div><span class="sc-imp-k">Qué cambiaría</span>'
+        +'<b>'+imp.cambian+'</b> de '+imp.n+' sesiones del histórico cambiarían de nivel</div>'
+      +'<div><span class="sc-imp-k">Reparto ahora</span>'+rep(imp.repartoAntes)+'</div>'
+      +'<div><span class="sc-imp-k">Reparto después</span>'+rep(imp.reparto)+'</div>'
+    +'</div>'
+    +'<div class="ctrlrow" style="margin-top:12px;gap:8px">'
+      +'<button class="btn" onclick="sesCalAplicar()">'+(cal?'Recalibrar con '+p.n+' sesiones':'Aplicar umbrales propios')+'</button>'
+      +(cal?'<button class="btn ghost" onclick="sesCalQuitar()">Volver a los de partida</button>':'')
+      +(nuevo?'<span class="sc-nuevo">hay sesiones nuevas desde la última calibración</span>':'')
+    +'</div>'
+    +'<p class="hint" style="margin-top:8px">Aplicar reclasifica <b>todo el histórico</b> de sesiones a la vez: el nivel de una sesión de hace un mes puede cambiar. Por eso no se hace solo. La corrección manual de nivel de una sesión sigue mandando por encima de esto.</p>';
+}
+window.renderSesCal=renderSesCal;
+
+
 function bandOf(v,bands){for(let i=0;i<bands.length;i++){if(v<bands[i][1])return i;}return bands.length-1;}
 /* v376 · Un registro con el vector de zonas incompleto daba NaN y el NaN se
    colaba hasta la pantalla («% Tiempo en Z5: NaN%»). Lo que falta cuenta como
@@ -17651,7 +17862,8 @@ function hrNivFijar(key,lv){
 window.hrNivFijar=hrNivFijar;
 function classifySession(rows,key,dk){
   const z=pctZones(rows);
-  const bz=[bandOf(z.z5,SESSPEC[0].bands),bandOf(z.z4,SESSPEC[1].bands),bandOf(z.z54,SESSPEC[2].bands)];
+  const SP=SESEF();
+  const bz=[bandOf(z.z5,SP[0].bands),bandOf(z.z4,SP[1].bands),bandOf(z.z54,SP[2].bands)];
   const zoneLevel=Math.min(2,Math.max(...bz));
   /* v389 · Sin pulsómetros, pctZones devuelve ceros y la banda de zonas salía
      BAJA: el criterio de más peso (40%) puntuaba a partir de un dato que no
@@ -17797,7 +18009,7 @@ function hrpResumen(vals){
 }
 /* Las bandas del baremo, estiradas a la escala que use el jugador. */
 function hrpBandas(cap){
-  const sp=SESSPEC[2];let prev=0;
+  const sp=SESEF()[2];let prev=0;
   return sp.bands.map((b,i)=>{
     const hasta=Math.min(b[1],cap);
     const w=Math.max(0,(hasta-prev)/cap*100);prev=hasta;
@@ -18542,7 +18754,7 @@ function renderHRClass(rows,key,dk,target){
        ${c.manual?`<div class="hrn-manual">✓ puesto a mano · el cálculo decía <b>${LV[c.auto][0]}</b></div>`:''}
        <div class="small muted" style="margin-top:9px;max-width:180px;margin-left:auto;margin-right:auto">${c.rebajada?'Las zonas de FC daban <b>'+LV[c.zoneLevel][0]+'</b>, pero la carga, el RPE y el contacto no acompañan':(c.confirms.length?'Confirmada por: <b style="color:var(--txt)">'+c.confirms.join(', ')+'</b>':'Nivel resultante de los cuatro criterios')}${c.zoneAlarm&&c.rebajada?'<br><span style="color:var(--warn)">Ojo: zonas en rango de alarma con carga total baja · sesión corta e intensa</span>':''}</div>
      </div>
-     <div style="flex:1;min-width:280px">${SESSPEC.map((sp,i)=>bandMeter(sp,vals[i])).join('')}</div>
+     <div style="flex:1;min-width:280px">${SESEF().map((sp,i)=>bandMeter(sp,vals[i])).join('')}</div>
    </div>
    <div style="display:flex;gap:11px;flex-wrap:wrap;margin-top:8px">
      ${chip('Carga · UA',c.meta&&c.meta.ua!=null?Math.round(c.meta.ua):'—',c.lvUA,'&lt;600 · 600–900 · &gt;900')}
@@ -18987,6 +19199,7 @@ function hreqGrid(mod){
 }
 window.renderHREq=renderHREq;
 function renderHR(){
+  try{renderSesCal();}catch(e){console.error('bmnava · umbrales propios',e);}
   /* v249 · Si el arranque se quedó a medias, las sesiones guardadas seguían en
      disco pero no se veían. Al abrir Pulsómetros se restauran igualmente. */
   try{hrEnsure();}catch(e){}
@@ -19880,8 +20093,8 @@ function renderTeamHR(){
   /* La FC media es el único sin baremo propio en el proyecto —el modelo v1.0
      avisa de que no marca bien la sesión— así que va con una escala orientativa
      de intensidad y se dice en el subtítulo. */
-  const bandaZ=(typeof bandOf==='function'&&typeof SESSPEC!=='undefined')
-    ? bandOf(z45,(SESSPEC.find(x=>x.key==='z54')||{bands:[[0,8],[8,18],[18,24],[24,99]]}).bands) : null;
+  const bandaZ=(typeof bandOf==='function'&&typeof SESEF!=='undefined')
+    ? bandOf(z45,(SESEF().find(x=>x.key==='z54')||{bands:[[0,8],[8,18],[18,24],[24,99]]}).bands) : null;
   const sevZ=bandaZ==null?'muted':(bandaZ===0?'ok':bandaZ===1?'warn':'bad');
   box.innerHTML=`<div class="kpis" style="margin-bottom:14px">${
     k('Jugadores',rows.length,nPl?'de '+nPl+' · '+Math.round(cob)+'% con pulsómetro':'con pulsómetro',sevCob)+
@@ -20334,7 +20547,7 @@ const CAL_Z45_MIN=3;
    poco en Z4, así que cada cifra se colorea con la suya. */
 function calZonaNivel(pct,key){
   try{
-    const sp=(typeof SESSPEC!=='undefined')&&SESSPEC.find(x=>x.key===key);
+    const sp=(typeof SESEF!=='undefined')&&SESEF().find(x=>x.key===key);
     if(!sp||!sp.bands)return 1;
     return Math.min(2,bandOf(pct,sp.bands));
   }catch(e){return 1;}
@@ -28051,8 +28264,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-15.9*/
-const VER_ACTUAL='2026-10-15.9';
+/*BUILD:2026-10-16.1*/
+const VER_ACTUAL='2026-10-16.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){

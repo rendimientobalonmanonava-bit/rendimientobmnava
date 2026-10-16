@@ -75,15 +75,26 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 | TSA — resto | Bloqueado |
 | contactFactor | Bloqueado |
 
-### 2.1.1 Umbrales de sesión · instrucción permanente de Daniel
+### 2.1.1 Umbrales de sesión · modelo interno del club
 
-> *«Recuerda actualizar los umbrales de sesiones siempre con nuestros propios datos a medida que vamos teniendo más datos.»* — 15/10/2026
+> *«Recuerda actualizar los umbrales de sesiones siempre con nuestros propios datos a medida que vamos teniendo más datos.»* — Daniel, 15/10/2026
+> *«Un modelo de preparación física interna, en el que calculemos nuestros umbrales y esos umbrales no sean fijos, sino que vayan moviéndose con el tiempo a medida que lo hace el equipo.»* — Daniel, 16/10/2026
 
-Las bandas de `SESSPEC` (`z5` 1/3/5 · `z4` 8/15/20 · `z54` 8/18/24) **no son valores de la literatura: son del BM Nava** y deben recalibrarse con las sesiones propias según se acumulen. Gobiernan `classifySession` y, desde v400, el color de las zonas en la casilla del mes.
+**`SESSPEC` no se toca nunca.** Es la línea de partida y el sitio al que se vuelve. La calibración vive aparte en `bmnava_sespec` y se lee **siempre por `SESEF()`** — único punto de lectura en toda la app, igual que `lbEsDe` con los bloques. Quitar la calibración devuelve el estado anterior sin tocar una línea de los consumidores: `classifySession`, `bandMeter`, `hrpBandas`, `calZonaNivel` y la banda del Resumen.
 
-**Siguen siendo cálculo bloqueado**: recalibrar es una decisión de Daniel, con el antes y el después delante, no un ajuste automático. Cambiarlas en silencio movería la clasificación de todas las sesiones del histórico sin que nadie se entere.
+**Cortes: p33 · p66 · p90 de las propias sesiones.** Los dos primeros porque el nivel de sesión ya se reparte en tercios por decisión de Daniel (12/09/2026) y sería incoherente que las bandas dijeran otra cosa; el tercero marca la sesión excepcional, que es lo que la cuarta banda significaba.
 
-**Pendiente**: las sesiones de Polar viven en el `localStorage` de Daniel y en Supabase, así que desde aquí no se pueden leer para recalcular. Para hacerlo hace falta que las exporte, o construir dentro de la app el cálculo de los percentiles propios para que proponga las bandas y él las confirme.
+**Tres frenos, y son lo que evita el destrozo:**
+
+- **No se aplica sola.** Calcula, enseña el antes y el después y **cuántas sesiones del histórico cambiarían de nivel**, y espera. Mover estos umbrales reclasifica todo el histórico de golpe.
+- **No calibra con pocas sesiones**: `SESCAL_MIN`=20 con al menos cinco pulsómetros —el listón de `hreqDatos`—. Un percentil sobre seis sesiones es ruido con aspecto de umbral.
+- **No se recalcula a cada sesión**: vuelve a proponer con `SESCAL_PASO`=10 sesiones nuevas. Un umbral que se mueve cada día no es un umbral.
+
+Cada calibración aplicada queda fechada en `hist`: un modelo que no sabe cuándo cambió no se puede auditar. **La corrección manual de nivel sigue mandando por encima de todo esto.**
+
+**Lo que midieron los datos del club (68 sesiones, feb–may 2026):** Z5 pasa de 1/3/5 a **0,4 / 1,1 / 2** — o sea que los umbrales de partida estaban muy por encima de lo que el equipo hace de verdad en Z5. Z4 de 8/15/20 a **8,5 / 11,8 / 16,4**. 26 de 68 sesiones cambiarían de nivel.
+
+**Ojo al leer el reparto final**: el nivel de sesión es el **máximo** de los tres criterios de zona, así que calibrar cada métrica por separado a tercios **no** da un reparto de tercios (en esa muestra: 18/39/11 → 16/21/31). Por eso el panel enseña el reparto resultante y no solo los cortes.
 
 **CMJ y demás tests están excluidos del readiness a propósito.** No los incorpores.
 
