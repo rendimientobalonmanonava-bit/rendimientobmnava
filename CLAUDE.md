@@ -90,6 +90,8 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 - **No calibra con pocas sesiones**: `SESCAL_MIN`=20 con al menos cinco pulsómetros —el listón de `hreqDatos`—. Un percentil sobre seis sesiones es ruido con aspecto de umbral.
 - **No se recalcula a cada sesión**: vuelve a proponer con `SESCAL_PASO`=10 sesiones nuevas. Un umbral que se mueve cada día no es un umbral.
 
+**Infografía A4 apaisada (v402)**, botón en el mismo panel: 1123×794 px = A4 a 96 ppp, tokens fijados a claro como la ficha del jugador porque es un documento impreso. Se genera **dentro de la app y no como archivo aparte a propósito**: así sale siempre con las sesiones y la fecha de quien la abre, no con una foto de los números de un día. Exporta a PNG (`exportNodePNG`) y tiene `@media print` con `@page{size:A4 landscape}`. Reglas de lectura que no se tocan: **la escala de la barra es común a los dos juegos de umbrales** —si cada uno tuviera la suya no se comparan, y que en Z5 los tramos nuevos salgan comprimidos ES el mensaje—, y **ningún dato va codificado solo por color**: cada tramo lleva su rótulo y su cifra, para que funcione fotocopiado en blanco y negro.
+
 Cada calibración aplicada queda fechada en `hist`: un modelo que no sabe cuándo cambió no se puede auditar. **La corrección manual de nivel sigue mandando por encima de todo esto.**
 
 **Lo que midieron los datos del club (68 sesiones, feb–may 2026):** Z5 pasa de 1/3/5 a **0,4 / 1,1 / 2** — o sea que los umbrales de partida estaban muy por encima de lo que el equipo hace de verdad en Z5. Z4 de 8/15/20 a **8,5 / 11,8 / 16,4**. 26 de 68 sesiones cambiarían de nivel.
