@@ -97,6 +97,8 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 - **El semáforo se dibuja con `calTraffic`**, el mismo del calendario: la lámina y la app no pueden decir cosas distintas.
 - **El corredor y la sirena van en SVG, no como imagen**: tienen que salir igual en el PNG, en la impresora de cualquiera y sin conexión.
 - **El violeta del cuarto nivel es exclusivo de esta lámina** y significa «excepcional», no alerta: aquí el rojo ya está ocupado por el tercer nivel, que es el que el club lleva un año leyendo como «alta».
+- **La tarjeta de nivel ES la fila** (v404): `.a4-row` va con `align-items:stretch`, no `center`. Con `center` las tarjetas flotaban en medio de una fila de 212 px y sobraban 110 por fila, 330 en toda la lámina — que es lo que Daniel vio como «muy mal optimizado, se ve muy pequeño». Ahora sobran 22, que son el borde y el relleno.
+- **El cuerpo de los rangos está al límite del ancho de tarjeta.** A 23 px, «11.8–16.4%» se salía de una tarjeta de 100. Si en el futuro se tocan anchos, tipografías o el número de decimales, hay que volver a medir `scrollWidth` de `.a4-lv b` contra el ancho de la tarjeta: es lo primero que se rompe.
 
 Cada calibración aplicada queda fechada en `hist`: un modelo que no sabe cuándo cambió no se puede auditar. **La corrección manual de nivel sigue mandando por encima de todo esto.**
 
