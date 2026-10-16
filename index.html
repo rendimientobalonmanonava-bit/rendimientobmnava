@@ -1803,6 +1803,20 @@ main{padding:20px 18px 80px}
   .a4-page{box-shadow:none;border-radius:0}
   @page{size:A4 landscape;margin:0}}
 
+/* ══ v408 · Carga antes de las lesiones ══ */
+.lc-tbl td,.lc-tbl th{text-align:center}
+.lc-tbl td:first-child,.lc-tbl th:first-child{text-align:left}
+.lc-tbl td b{font-size:var(--fs-sm);font-weight:800}
+.lc-n{display:block;font-size:9.5px;color:var(--muted2);font-weight:600}
+.lc-pocos{border:1px dashed var(--line);border-radius:var(--radius-sm);padding:10px 12px;
+  font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.5}
+.lc-pocos b{color:var(--txt)}
+.lc-med{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:11px}
+.lc-med span{border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 11px;
+  font-size:var(--fs-sm);color:var(--muted)}
+.lc-med i{display:block;font-style:normal;font-size:var(--fs-xs);color:var(--muted2);font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.lc-med b{color:var(--txt);font-weight:800}
 /* ══ v407 · Familias de sesión ══ */
 .fm-g{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
 .fm{border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 12px;background:var(--panel)}
@@ -4783,6 +4797,8 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
 
     <div class="carga-pane" id="carga-grupal">
       <div id="carga-hero"></div>
+      <!-- v408 · lo que tenían detrás vuestras propias lesiones -->
+      <div class="panel" id="lescarga-card"></div>
       <div class="panel">
         <h2>Semana por jugador <span class="r muted">gimnasio + pista · UA</span></h2>
         <div class="ctrlrow" style="margin-bottom:8px">
@@ -12480,6 +12496,7 @@ function renderCargaResumen(){
   }
 }
 function renderCargaGrupal(){
+  try{renderLesCarga();}catch(e){console.error('bmnava · carga vs lesiones',e);}
   const ps=Object.values(STATE.players);const win=FILTER.window;
   const end=REF();const lim=new Date(end);lim.setDate(lim.getDate()-win);
   const inWin=STATE.rpe.filter(x=>x.date>=lim&&x.date<=end);
@@ -19379,6 +19396,145 @@ function hreqDetalle(mod){
    +'<div class="hq-sec">Con qué sesiones está construido <span class="muted">· reparto por grado de contacto</span></div>'+base
    +'</div></details>';
 }
+/* ═══════════════ v408 · Carga contra lesiones propias ═══════════════
+   Propuesta 3.1, pedida por Daniel el 16/10/2026. Es lo único que convierte un
+   sistema de control de carga en conocimiento: contrastar los umbrales con lo
+   que de verdad le ha pasado a ESTA plantilla.
+
+   Cómo está montado, y por qué importa el cómo:
+   · se mira el estado de carga del jugador **el día anterior** al inicio del
+     episodio, no el mismo día: el día de la lesión la carga ya está
+     contaminada por la propia lesión;
+   · se compara contra una **población de control** formada por todos los
+     días-jugador SIN episodio abierto ni episodio a la vista en los siguientes
+     siete días. Sin control no hay nada que decir: que el 60% de las lesiones
+     llegue con ACWR alto no significa nada si el 60% de los días normales
+     también lo tienen;
+   · el resultado se da como **tasa en lesiones frente a tasa en días
+     normales**, nunca como «el ACWR causa lesiones».
+
+   Y lo más importante: **con pocas lesiones esto no demuestra nada y lo dice**.
+   Por debajo de LES_MIN episodios se enseña el recuento y se calla la
+   conclusión. */
+const LES_MIN=6;
+function lesCarga(){
+  try{medDbLoad();}catch(e){}
+  const eps=((STATE.med&&STATE.med.inj)||[])
+    .filter(x=>x&&x.name&&x.dk&&STATE.players&&STATE.players[x.name])
+    .map(x=>({name:x.name,dk:x.dk,kind:x.kind||'lesion',zona:x.zona||'',title:x.title||''}))
+    .sort((a,b)=>a.dk<b.dk?-1:1);
+  /* marcadores de carga de un jugador en un día */
+  const marc=(name,dk)=>{
+    let d;try{d=dkToDate(dk);}catch(e){return null;}
+    d.setDate(d.getDate()-1);                       // la víspera
+    let a=null;try{a=acwrToDate(name,d,'ua');}catch(e){}
+    if(!a||!isFinite(a.ewma)||!a.rel)return null;
+    /* v408b · Un jugador sin carga calculable da una EWMA de prácticamente
+       cero, y eso NO es «ACWR bajo»: es «no sabemos». Contándolo, cada día sin
+       minutos entraba en la estadística como si fuese un día tranquilo y
+       hundía las tasas de los dos lados. Sin carga aguda, fuera. */
+    if(!(a.acute>0))return null;
+    let mono=NaN;try{const w=weekly(name,'ua',d);mono=w.length?w[w.length-1].mono:NaN;}catch(e){}
+    /* salto de un día para otro en la última semana */
+    let salto=NaN;
+    try{
+      const cont=contDailyTo(name,d).slice(-8).map(x=>x.ua||0);
+      let mx=0;for(let i=1;i<cont.length;i++){const prev=cont[i-1];
+        if(prev>50){const r=(cont[i]-prev)/prev;if(r>mx)mx=r;}}
+      salto=mx*100;
+    }catch(e){}
+    return {acwr:a.ewma,mono:isFinite(mono)?mono:null,salto:isFinite(salto)?salto:null};
+  };
+  const casos=[];
+  eps.forEach(e=>{const m=marc(e.name,e.dk);if(m)casos.push(Object.assign({},e,m));});
+  /* población de control: días-jugador sin episodio abierto ni episodio en los
+     siete días siguientes */
+  const porJug={};
+  eps.forEach(e=>{(porJug[e.name]=porJug[e.name]||[]).push(e.dk);});
+  const ctrl=[];
+  Object.keys(STATE.players||{}).forEach(name=>{
+    let cont=[];try{cont=contDaily(name)||[];}catch(e){return;}
+    const fechas=porJug[name]||[];
+    cont.forEach(d=>{
+      const dk=d.dk;
+      if(!dk||!(d.ua>0))return;
+      /* fuera si hay un episodio del jugador en la ventana [-21, +7] días */
+      const cerca=fechas.some(f=>{
+        const dd=Math.round((dkToDate(f)-dkToDate(dk))/86400000);
+        return dd>=-21&&dd<=7;});
+      if(cerca)return;
+      const m=marc(name,dk);
+      if(m)ctrl.push(m);
+    });
+  });
+  /* tasas con los umbrales que la app ya usa */
+  const Y=CONFIG.load.acwrYellowHi, R=CONFIG.load.acwrRedHi, MO=CONFIG.load.monoHi;
+  const crit=[
+    {k:'acwr',lab:'ACWR por encima de '+Y,test:x=>x.acwr!=null&&x.acwr>Y},
+    {k:'acwrR',lab:'ACWR por encima de '+R,test:x=>x.acwr!=null&&x.acwr>R},
+    {k:'mono',lab:'Monotonía por encima de '+MO,test:x=>x.mono!=null&&x.mono>MO},
+    {k:'salto',lab:'Salto de un día a otro mayor del 50%',test:x=>x.salto!=null&&x.salto>50}
+  ].map(c=>{
+    const nl=casos.filter(c.test).length, nc=ctrl.filter(c.test).length;
+    const tl=casos.length?nl/casos.length*100:null;
+    const tc=ctrl.length?nc/ctrl.length*100:null;
+    return {k:c.k,lab:c.lab,nl,nc,tl,tc,
+      ratio:(tc!=null&&tc>0&&tl!=null)?tl/tc:null};
+  });
+  return {n:casos.length,nCtrl:ctrl.length,casos,crit,
+    suficiente:casos.length>=LES_MIN,
+    medianas:{
+      lesion:{acwr:hrpQ(casos.map(x=>x.acwr).filter(v=>v!=null),.5),
+              mono:hrpQ(casos.map(x=>x.mono).filter(v=>v!=null),.5)},
+      ctrl:{acwr:hrpQ(ctrl.map(x=>x.acwr).filter(v=>v!=null),.5),
+            mono:hrpQ(ctrl.map(x=>x.mono).filter(v=>v!=null),.5)}
+    }};
+}
+window.lesCarga=lesCarga;
+function renderLesCarga(){
+  const box=document.getElementById('lescarga-card');if(!box)return;
+  let L=null;try{L=lesCarga();}catch(e){console.error('bmnava · carga vs lesiones',e);}
+  const cab='<h2>Carga antes de las lesiones <span class="r muted">qué dicen vuestros propios episodios</span></h2>';
+  if(!L){box.innerHTML='';return;}
+  const n1=v=>v==null||!isFinite(v)?'—':String(Math.round(v*100)/100);
+  const p0=v=>v==null||!isFinite(v)?'—':Math.round(v)+'%';
+  if(!L.n){
+    box.innerHTML=cab+'<p class="hint">No hay episodios médicos con carga suficiente alrededor para contrastar. '
+      +'En cuanto haya episodios registrados con historial de carga detrás, aquí se verá qué tenían en común.</p>';
+    return;
+  }
+  const filas=L.crit.map(c=>{
+    const mas=c.ratio!=null&&c.ratio>1.25, menos=c.ratio!=null&&c.ratio<0.8;
+    const col=mas?'var(--bad)':(menos?'var(--ok)':'var(--muted)');
+    return '<tr><td>'+c.lab+'</td>'
+      +'<td class="mono"><b>'+p0(c.tl)+'</b><span class="lc-n">'+c.nl+'/'+L.n+'</span></td>'
+      +'<td class="mono">'+p0(c.tc)+'<span class="lc-n">'+c.nc+'/'+L.nCtrl+'</span></td>'
+      +'<td class="mono" style="color:'+col+';font-weight:800">'
+        +(c.ratio!=null?(c.ratio>=1?'×'+n1(c.ratio):'×'+n1(c.ratio)):'—')+'</td></tr>';
+  }).join('');
+  const aviso=L.suficiente
+    ? ''
+    : '<div class="lc-pocos"><b>'+L.n+' episodio'+(L.n===1?'':'s')+' con carga detrás.</b> '
+      +'Por debajo de '+LES_MIN+' esto no sostiene ninguna conclusión: se enseña el recuento y nada más. '
+      +'Cada mes que pasa registrando episodios vale más que cualquier umbral de manual.</div>';
+  box.innerHTML=cab+aviso
+    +'<div class="wrap-x"><table class="tbl lc-tbl"><thead><tr>'
+      +'<th>Qué tenían detrás</th><th>En las lesiones</th><th>En días normales</th><th>Veces más</th>'
+    +'</tr></thead><tbody>'+filas+'</tbody></table></div>'
+    +'<div class="lc-med">'
+      +'<span><i>ACWR mediano la víspera</i><b>'+n1(L.medianas.lesion.acwr)+'</b> en lesiones · '
+        +n1(L.medianas.ctrl.acwr)+' en días normales</span>'
+      +'<span><i>Monotonía mediana</i><b>'+n1(L.medianas.lesion.mono)+'</b> en lesiones · '
+        +n1(L.medianas.ctrl.mono)+' en días normales</span>'
+    +'</div>'
+    +'<p class="hint"><b>Cómo leer esto.</b> Se mira la carga de <b>la víspera</b>, no la del día del episodio: ese día la carga ya está contaminada por la propia lesión. '
+      +'Y se compara contra los días en los que el jugador no tenía ningún episodio abierto ni ninguno en los siete días siguientes — '
+      +'sin esa comparación el dato no dice nada, porque un 60% en lesiones no significa nada si los días normales también están al 60%. '
+      +'<b>Esto describe lo que ha pasado, no demuestra que una cosa cause la otra.</b> '
+      +'Si una fila dice ×1 o menos, ese umbral no está separando nada en vuestro equipo, y eso también es información.</p>';
+}
+window.renderLesCarga=renderLesCarga;
+
 /* ═══════════════ v407 · Familias de sesión ═══════════════
    Propuesta 2.5, pedida por Daniel el 16/10/2026. Hasta ahora cada sesión de
    Polar se miraba una vez y se quedaba ahí. Esto hace que se acumulen.
@@ -28946,8 +29102,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-16.7*/
-const VER_ACTUAL='2026-10-16.7';
+/*BUILD:2026-10-16.8*/
+const VER_ACTUAL='2026-10-16.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
