@@ -1803,6 +1803,27 @@ main{padding:20px 18px 80px}
   .a4-page{box-shadow:none;border-radius:0}
   @page{size:A4 landscape;margin:0}}
 
+/* ══ v406 · Coste cardíaco ══ */
+.he-list{display:flex;flex-direction:column;gap:1px}
+.he-r{display:flex;align-items:center;gap:12px;padding:7px 2px;border-bottom:1px solid var(--hair)}
+.he-r:last-child{border-bottom:none}
+.he-nm{flex:1;min-width:0;font-size:var(--fs-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.he-sp{flex:none;line-height:0}
+.he-v{flex:none;text-align:right;line-height:1.15;min-width:74px}
+.he-v b{display:block;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:var(--fs-sm);font-weight:700;color:var(--e)}
+.he-v i{display:block;font-style:normal;font-size:10px;color:var(--muted2)}
+.he-z{flex:none;min-width:52px;text-align:right;font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:var(--fs-sm);font-weight:700;color:var(--e)}
+.he-z i{font-style:normal;font-size:10px;color:var(--muted2);margin-left:1px}
+.he-e{flex:none;min-width:150px;font-size:var(--fs-xs);font-weight:700;color:var(--e)}
+.he-ok{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--muted)}
+.he-ok b{color:var(--ok)}
+.he-det>summary{list-style:none;cursor:pointer;font-size:var(--fs-xs);font-weight:700;color:var(--muted);
+  padding:9px 0 3px;display:flex;align-items:center;gap:6px}
+.he-det>summary::-webkit-details-marker{display:none}
+.he-det>summary::before{content:'▸';color:var(--muted2);font-size:11px;transition:transform .15s ease}
+.he-det[open]>summary::before{transform:rotate(90deg)}
+@media(max-width:700px){.he-e{display:none}.he-sp{display:none}}
 /* ══ v405 · ¿Cumplimos el objetivo? ══ */
 .hc-plan{font-size:var(--fs-sm);color:var(--muted);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .hc-plan b{color:var(--txt);font-weight:800}
@@ -4892,6 +4913,8 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     <div class="panel panel--hq" id="hreq-card"></div>
     <!-- v405 · el otro lado del modelo: ¿se cumplió el objetivo de esta sesión? -->
     <div class="panel" id="hrcump-card"></div>
+    <!-- v406 · coste cardíaco: cada jugador contra su propio patrón -->
+    <div class="panel" id="hrefi-card"></div>
     <!-- v401 · umbrales propios: calculados con nuestras sesiones y movidos
          cuando Daniel lo decide, nunca solos. -->
     <div class="panel" id="sescal-card"></div>
@@ -19329,6 +19352,96 @@ function hreqDetalle(mod){
    +'<div class="hq-sec">Con qué sesiones está construido <span class="muted">· reparto por grado de contacto</span></div>'+base
    +'</div></details>';
 }
+/* ═══════════════ v406 · Coste cardíaco por unidad de esfuerzo ═══════════════
+   Propuesta 2.3, pedida por Daniel el 16/10/2026.
+
+   La idea: para un mismo trabajo, un pulso más alto de lo habitual en ESE
+   jugador suele ir por delante de que algo no va — fatiga acumulada, algo
+   incubando, mala noche—. Y un pulso más bajo con el mismo trabajo, de que
+   está adaptando.
+
+   Lo que se mide aquí, dicho sin adornos: **FC media ÷ RPE del propio
+   jugador**. No es la eficiencia cardíaca del laboratorio, que necesita carga
+   externa medida —vatios, metros, velocidad— y aquí no la hay. Es la relación
+   entre lo que dice su pulso y lo que dice él, y esa discrepancia es la señal
+   que sí se puede leer con lo que tenemos. Va escrito en la pantalla para que
+   nadie lo lea como otra cosa.
+
+   Cada jugador se compara SOLO consigo mismo: mediana y MAD de su propio
+   historial. Josu y Óscar tienen el pulso sistemáticamente bajo —está anotado
+   como anomalía conocida— y comparándolos con el equipo saldrían marcados
+   todos los días; contra su propia línea base, no.
+
+   Mínimo `HRE_MIN` sesiones para tener línea base. Con cuatro, la mediana es
+   una anécdota. */
+const HRE_MIN=6;
+function hrEficiencia(dias){
+  const out=[];
+  Object.keys(STATE.players||{}).forEach(name=>{
+    let ses=[];
+    try{ses=hrpDatos(name,dias||0)||[];}catch(e){return;}
+    const v=ses.filter(x=>x&&x.hrAvg>0&&x.rpe>0&&x.rpe>=3)
+      .map(x=>({dk:x.dk,lab:x.lab,fc:x.hrAvg,rpe:x.rpe,r:x.hrAvg/x.rpe,nivel:x.nivel}))
+      .sort((a,b)=>a.dk<b.dk?-1:1);
+    if(v.length<HRE_MIN)return;
+    const rs=v.map(x=>x.r);
+    const med=hrpQ(rs,.5);
+    /* escalado robusto por MAD, igual que en las valoraciones: una sesión rara
+       no puede mover la línea base del jugador */
+    const mad=hrpQ(rs.map(x=>Math.abs(x-med)),.5);
+    const sd=(mad*1.4826)||0;
+    const ult=v[v.length-1];
+    const z=sd>0?(ult.r-med)/sd:0;
+    /* las tres últimas, para no colgar la lectura de una sola sesión */
+    const ult3=v.slice(-3);
+    const z3=sd>0?((hrpMedia(ult3.map(x=>x.r))-med)/sd):0;
+    out.push({name,n:v.length,serie:v,med,sd,ult,z,z3,
+      estado:(sd<=0)?'plano':(z3>=1.5?'alto':(z3<=-1.5?'bajo':'normal'))});
+  });
+  return out.sort((a,b)=>Math.abs(b.z3)-Math.abs(a.z3));
+}
+window.hrEficiencia=hrEficiencia;
+function renderHREfic(){
+  const box=document.getElementById('hrefi-card');if(!box)return;
+  let L=[];try{L=hrEficiencia(0);}catch(e){console.error('bmnava · coste cardíaco',e);}
+  const cab='<h2>Coste cardíaco <span class="r muted">FC media por punto de RPE · cada jugador contra su propio historial</span></h2>';
+  if(!L.length){
+    box.innerHTML=cab+'<p class="hint">Ningún jugador llega todavía a '+HRE_MIN
+      +' sesiones con pulso y RPE a la vez. Hasta entonces no hay línea base con la que comparar.</p>';
+    return;
+  }
+  const n1=v=>Math.round(v*10)/10;
+  const EST={alto:['var(--bad)','Por encima de lo suyo'],bajo:['var(--accent)','Por debajo de lo suyo'],
+             normal:['var(--ok)','En su rango'],plano:['var(--muted2)','Sin variación']};
+  const fuera=L.filter(x=>x.estado==='alto'||x.estado==='bajo');
+  const fila=x=>{
+    const e=EST[x.estado];
+    const serie=x.serie.slice(-12).map(s=>s.r);
+    return '<div class="he-r" style="--e:'+e[0]+'" title="'+medEsc(x.name)+' · última sesión '
+      +medEsc(x.ult.dk)+': FC '+n1(x.ult.fc)+'% con RPE '+n1(x.ult.rpe)
+      +' → '+n1(x.ult.r)+' · su mediana es '+n1(x.med)+' · '+x.n+' sesiones">'
+      +'<span class="he-nm">'+medEsc(x.name)+'</span>'
+      +'<span class="he-sp">'+sparkline(serie,{w:92,h:24,color:e[0]})+'</span>'
+      +'<span class="he-v"><b>'+n1(x.ult.r)+'</b><i>suyo '+n1(x.med)+'</i></span>'
+      +'<span class="he-z">'+(x.z3>0?'+':'')+n1(x.z3)+'<i>σ</i></span>'
+      +'<span class="he-e">'+e[1]+'</span>'
+    +'</div>';
+  };
+  box.innerHTML=cab
+    +(fuera.length
+      ? '<div class="he-list">'+fuera.map(fila).join('')+'</div>'
+      : '<div class="he-ok"><b>✓</b> Los '+L.length+' jugadores con línea base están dentro de su rango habitual</div>')
+    +(fuera.length?'<div class="he-ok" style="margin-top:9px">'+(L.length-fuera.length)
+      +' jugadores más dentro de su rango</div>':'')
+    +'<details class="he-det"><summary>Ver a todos</summary><div class="he-list">'
+      +L.map(fila).join('')+'</div></details>'
+    +'<p class="hint"><b>Qué es y qué no es.</b> Es la relación entre lo que dice su pulso y lo que dice él: FC media dividida entre su RPE. '
+      +'No es la eficiencia cardíaca de laboratorio, que necesita carga externa medida —vatios, metros— y aquí no la hay. '
+      +'Se compara a cada jugador solo consigo mismo (mediana y MAD de su historial), y la lectura va sobre las tres últimas sesiones, no sobre una. '
+      +'Un valor alto quiere decir que su pulso va por encima de lo que él percibe: mirar descanso, enfermedad o carga acumulada antes que concluir nada.</p>';
+}
+window.renderHREfic=renderHREfic;
+
 /* ═══════════════ v405 · ¿Cumplimos el objetivo? ═══════════════
    El modelo de sesión del equipo dice, antes de entrenar, hasta dónde hay que
    llegar. Hasta ahora ahí se acababa: nadie comprobaba después si se había
@@ -19586,6 +19699,7 @@ function renderHR(){
   const rows=STATE.hr.filter(r=>hrKey(r)===key);
   renderHRIndiv(rows);
   try{renderHRCumpl(key);}catch(e){console.error('bmnava · cumplimiento',e);}
+  try{renderHREfic();}catch(e){console.error('bmnava · coste cardíaco',e);}
   renderHRClass(rows,key,key.slice(0,key.indexOf('|')));
   renderHRTE(rows,key,key.slice(0,key.indexOf('|')));
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
@@ -28631,8 +28745,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-16.5*/
-const VER_ACTUAL='2026-10-16.5';
+/*BUILD:2026-10-16.6*/
+const VER_ACTUAL='2026-10-16.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
