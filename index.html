@@ -1803,6 +1803,21 @@ main{padding:20px 18px 80px}
   .a4-page{box-shadow:none;border-radius:0}
   @page{size:A4 landscape;margin:0}}
 
+/* ══ v410 · Comparativa de puestos ══ */
+.cp-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.cp-g{border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 12px;background:var(--panel)}
+.cp-g-h{display:flex;align-items:baseline;gap:8px;margin-bottom:9px;padding-bottom:8px;border-bottom:1px solid var(--hair)}
+.cp-g-h b{font-size:var(--fs-sm);font-weight:800}
+.cp-g-h span{font-size:var(--fs-xs);color:var(--muted2);margin-left:auto}
+.cp-m{display:flex;flex-direction:column;gap:1px;margin-bottom:8px;line-height:1.2}
+.cp-m i{font-style:normal;font-size:10px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.cp-m b{font-size:var(--fs-h2);font-weight:800;letter-spacing:-.02em}
+.cp-m u{text-decoration:none;font-size:10px;font-weight:700}
+.cp-mas{color:var(--bad)}.cp-menos{color:var(--accent)}.cp-ig{color:var(--muted2);font-weight:600}
+.cp-j{display:flex;flex-wrap:wrap;gap:5px;padding-top:8px;border-top:1px solid var(--hair)}
+.cp-j span{display:inline-flex;align-items:baseline;gap:4px;font-size:10px;color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:2px 8px}
+.cp-j b{font-weight:800;color:var(--txt);font-size:var(--fs-xs)}
 /* ══ v409 · De describir a decidir ══ */
 .cg-at{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(265px,1fr))}
 .cg-a{border:1px solid var(--line);border-left:3px solid var(--s);border-radius:var(--radius-sm);padding:10px 12px}
@@ -4927,7 +4942,10 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
       </details>
     </div>
     <div class="carga-pane" id="carga-posicion" style="display:none">
-      <div class="ctrlrow"><span class="tag">Posición</span><select id="carga-pos-sel" onchange="renderCargaPos()"></select></div>
+      <!-- v410 · primero la comparación entre puestos, que es la pregunta de
+           esta pestaña; el detalle de un puesto suelto queda debajo -->
+      <div class="panel" id="cpuestos-card"></div>
+      <div class="ctrlrow" style="margin-top:4px"><span class="tag">Detalle de un puesto</span><select id="carga-pos-sel" onchange="renderCargaPos()"></select></div>
       <div class="kpis" id="cpos-kpis"></div>
       <div class="panel"><h2>Informe de cargas · últimos 7 días <span class="r muted" id="cpos-lab"></span></h2><div id="cpos-tbl7"></div></div>
       <div class="panel"><h2>Carga acumulada semanal · últimas 4 semanas</h2><div id="cpos-tblw"></div></div>
@@ -12204,6 +12222,7 @@ function cargaKPIs(id,s,acwrVal){
   try{animateKPIs(box);}catch(e){}
 }
 function renderCargaPos(){
+  try{renderCargaPuestos();}catch(e){console.error('bmnava · puestos',e);}
   const sel=document.getElementById('carga-pos-sel');if(!sel)return;
   const pos=sel.value||FILTER.cargaPos;if(!pos)return;FILTER.cargaPos=pos;
   const s=dayAggBy(x=>posOf(x.name)===pos);
@@ -19440,6 +19459,115 @@ function hreqDetalle(mod){
    +'<div class="hq-sec">Con qué sesiones está construido <span class="muted">· reparto por grado de contacto</span></div>'+base
    +'</div></details>';
 }
+/* ═══════════════ v410 · Comparar puestos, no filtrar por puesto ═══════════════
+   Daniel, 16/10/2026: «Cargas › RPE me parece casi absurdo y no lo uso».
+   Tenía razón y el motivo es concreto: «Por posición» e «Individual» eran el
+   MISMO panel con otro filtro. Siete gráficos repetidos que, filtrados, no
+   responden ninguna pregunta de puesto.
+
+   La pregunta de puesto es comparativa: ¿los pivotes están absorbiendo más
+   contacto que los extremos? ¿la primera línea acumula más carga? ¿los
+   porteros van por otro sitio, como debe ser? Eso no se ve filtrando: se ve
+   poniendo los cuatro al lado.
+
+   Dos decisiones que evitan leer humo:
+   · **todo por jugador y por día**, nunca totales: un grupo de siete suma más
+     que uno de dos por ser siete, no por entrenar más;
+   · **cada puesto contra la mediana del equipo**, para que el número diga algo
+     sin tener que recordar de memoria qué es mucho. */
+const CPU_ORDEN=['Portero','1ª Línea','Extremo','Pivote'];
+function cgPorPuesto(dias){
+  dias=dias||28;
+  const hasta=dkey(REF());
+  const desde=dkey(new Date(dkToDate(hasta).getTime()-dias*86400000));
+  const porJug={};
+  Object.keys(STATE.players||{}).forEach(name=>{
+    const p=STATE.players[name]||{};
+    const puesto=p.pos||'—';
+    let ua=[],n=0;
+    try{
+      contDailyTo(name,dkToDate(hasta)).forEach(d=>{
+        if(d.dk>=desde&&d.ua>0){ua.push(d.ua);n++;}
+      });
+    }catch(e){}
+    if(!n)return;
+    /* contacto declarado por el jugador en el periodo */
+    const cs=(STATE.rpe||[]).filter(x=>x&&x.name===name&&x.dk>=desde&&x.dk<=hasta
+      &&x.contacto!=null&&(!window.contactoDePista||contactoDePista(x))).map(x=>+x.contacto);
+    const rs=(STATE.rpe||[]).filter(x=>x&&x.name===name&&x.dk>=desde&&x.dk<=hasta&&x.rpe>0).map(x=>+x.rpe);
+    /* %Z4+Z5 propio, si lleva pulsómetro */
+    const hs=(STATE.hr||[]).filter(r=>r&&r.name===name&&r.dk>=desde&&r.dk<=hasta&&(r.z||[]).some(v=>v>0));
+    const z=hs.map(r=>{const t=(r.z||[]).reduce((a,b)=>a+(+b||0),0);
+      return t>0?((+r.z[3]||0)+(+r.z[4]||0))/t*100:null;}).filter(v=>v!=null);
+    porJug[name]={name,puesto,
+      uaDia:hrpMedia(ua), dias:n,
+      ct:cs.length?hrpMedia(cs):null,
+      rpe:rs.length?hrpMedia(rs):null,
+      z45:z.length?hrpMedia(z):null,
+      acwr:(p.acwr&&isFinite(p.acwr.ewma)&&p.acwr.rel&&p.acwr.acute>0)?p.acwr.ewma:null};
+  });
+  const todos=Object.values(porJug);
+  if(!todos.length)return {n:0,desde,hasta,grupos:[]};
+  const medEq={
+    uaDia:hrpQ(todos.map(x=>x.uaDia).filter(v=>v!=null),.5),
+    ct:hrpQ(todos.map(x=>x.ct).filter(v=>v!=null),.5),
+    rpe:hrpQ(todos.map(x=>x.rpe).filter(v=>v!=null),.5),
+    z45:hrpQ(todos.map(x=>x.z45).filter(v=>v!=null),.5),
+    acwr:hrpQ(todos.map(x=>x.acwr).filter(v=>v!=null),.5)
+  };
+  const grupos=[];
+  const nombres=[...new Set(todos.map(x=>x.puesto))]
+    .sort((a,b)=>{const ia=CPU_ORDEN.indexOf(a),ib=CPU_ORDEN.indexOf(b);
+      return (ia<0?99:ia)-(ib<0?99:ib);});
+  nombres.forEach(pz=>{
+    const g=todos.filter(x=>x.puesto===pz);
+    if(!g.length)return;
+    const med=k=>hrpQ(g.map(x=>x[k]).filter(v=>v!=null),.5);
+    grupos.push({puesto:pz,n:g.length,
+      uaDia:med('uaDia'),ct:med('ct'),rpe:med('rpe'),z45:med('z45'),acwr:med('acwr'),
+      jug:g.sort((a,b)=>(b.uaDia||0)-(a.uaDia||0))});
+  });
+  return {n:todos.length,desde,hasta,dias,medEq,grupos};
+}
+window.cgPorPuesto=cgPorPuesto;
+function renderCargaPuestos(){
+  const box=document.getElementById('cpuestos-card');if(!box)return;
+  let P=null;try{P=cgPorPuesto(28);}catch(e){console.error('bmnava · puestos',e);}
+  const cab='<h2>Los cuatro puestos, uno al lado del otro <span class="r muted">últimos 28 días · por jugador y día</span></h2>';
+  if(!P||!P.grupos.length){
+    box.innerHTML=cab+'<p class="hint">Todavía no hay carga registrada en este periodo para comparar puestos.</p>';
+    return;
+  }
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const n0=v=>v==null||!isFinite(v)?'—':String(Math.round(v));
+  const n1=v=>v==null||!isFinite(v)?'—':String(Math.round(v*10)/10);
+  const n2=v=>v==null||!isFinite(v)?'—':(Math.round(v*100)/100).toFixed(2);
+  /* desvío contra la mediana del equipo, que es lo que da sentido al número */
+  const dv=(v,m)=>{
+    if(v==null||m==null||!isFinite(v)||!isFinite(m)||m===0)return '';
+    const d=Math.round((v-m)/m*100);
+    if(Math.abs(d)<8)return '<u class="cp-ig">igual que el equipo</u>';
+    return '<u class="'+(d>0?'cp-mas':'cp-menos')+'">'+(d>0?'+':'')+d+'% vs equipo</u>';
+  };
+  const M=[['uaDia','Carga por día','UA',n0],['ct','Contacto','/5',n1],
+           ['rpe','RPE','',n1],['z45','% en Z4+Z5','%',n1],['acwr','ACWR','',n2]];
+  const col=P.grupos.map(g=>
+    '<div class="cp-g">'
+      +'<div class="cp-g-h"><b>'+esc(g.puesto)+'</b><span>'+g.n+(g.n===1?' jugador':' jugadores')+'</span></div>'
+      +M.map(([k,lab,u,f])=>
+        '<div class="cp-m"><i>'+lab+'</i><b>'+f(g[k])+(g[k]!=null&&isFinite(g[k])?u:'')+'</b>'
+        +dv(g[k],P.medEq[k])+'</div>').join('')
+      +'<div class="cp-j">'+g.jug.slice(0,6).map(j=>
+          '<span>'+esc(j.name.split(' ')[0])+'<b>'+n0(j.uaDia)+'</b></span>').join('')+'</div>'
+    +'</div>').join('');
+  box.innerHTML=cab
+    +'<div class="cp-grid">'+col+'</div>'
+    +'<p class="hint">Todo va <b>por jugador y día</b>, nunca en totales: un grupo de siete suma más que uno de dos por ser siete, no por entrenar más. '
+      +'Cada cifra se compara con la mediana del equipo para que diga algo sin tener que recordar de memoria qué es mucho. '
+      +'Los porteros salen distintos a propósito: es lo que tiene que pasar.</p>';
+}
+window.renderCargaPuestos=renderCargaPuestos;
+
 /* ═══════════════ v409 · Quién necesita algo hoy ═══════════════
    Propuesta 3.2. Cargas tenía cuatro gráficos repetidos tres veces: todos
    describían, ninguno terminaba en una decisión. Esto es lo contrario — una
@@ -29343,8 +29471,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-16.9*/
-const VER_ACTUAL='2026-10-16.9';
+/*BUILD:2026-10-17.1*/
+const VER_ACTUAL='2026-10-17.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
