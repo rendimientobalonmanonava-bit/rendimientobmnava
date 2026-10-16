@@ -90,7 +90,13 @@ Estas no se cambian nunca sin confirmación explícita de Daniel en la conversac
 - **No calibra con pocas sesiones**: `SESCAL_MIN`=20 con al menos cinco pulsómetros —el listón de `hreqDatos`—. Un percentil sobre seis sesiones es ruido con aspecto de umbral.
 - **No se recalcula a cada sesión**: vuelve a proponer con `SESCAL_PASO`=10 sesiones nuevas. Un umbral que se mueve cada día no es un umbral.
 
-**Infografía A4 apaisada (v402)**, botón en el mismo panel: 1123×794 px = A4 a 96 ppp, tokens fijados a claro como la ficha del jugador porque es un documento impreso. Se genera **dentro de la app y no como archivo aparte a propósito**: así sale siempre con las sesiones y la fecha de quien la abre, no con una foto de los números de un día. Exporta a PNG (`exportNodePNG`) y tiene `@media print` con `@page{size:A4 landscape}`. Reglas de lectura que no se tocan: **la escala de la barra es común a los dos juegos de umbrales** —si cada uno tuviera la suya no se comparan, y que en Z5 los tramos nuevos salgan comprimidos ES el mensaje—, y **ningún dato va codificado solo por color**: cada tramo lleva su rótulo y su cifra, para que funcione fotocopiado en blanco y negro.
+**Infografía A4 apaisada**, botón en el mismo panel: 1123×794 px = A4 a 96 ppp, tokens fijados a claro como la ficha del jugador porque es un documento impreso. Se genera **dentro de la app y no como archivo aparte a propósito**: así sale siempre con las sesiones y la fecha de quien la abre, no con una foto de los números de un día. Exporta a PNG (`exportNodePNG`) y tiene `@media print` con `@page{size:A4 landscape}`.
+
+**Sigue el lenguaje gráfico del modelo v1.0 del club** (v403, Daniel aportó su lámina del año pasado): semáforo por nivel, azulejos de zona con el numeral fantasma y el corredor, cuatro tarjetas pastel por métrica y una columna con «qué hace que una sesión sea baja, media o alta». La lámina nueva es la **v2.0**. Tres reglas:
+
+- **El semáforo se dibuja con `calTraffic`**, el mismo del calendario: la lámina y la app no pueden decir cosas distintas.
+- **El corredor y la sirena van en SVG, no como imagen**: tienen que salir igual en el PNG, en la impresora de cualquiera y sin conexión.
+- **El violeta del cuarto nivel es exclusivo de esta lámina** y significa «excepcional», no alerta: aquí el rojo ya está ocupado por el tercer nivel, que es el que el club lleva un año leyendo como «alta».
 
 Cada calibración aplicada queda fechada en `hist`: un modelo que no sabe cuándo cambió no se puede auditar. **La corrección manual de nivel sigue mandando por encima de todo esto.**
 
