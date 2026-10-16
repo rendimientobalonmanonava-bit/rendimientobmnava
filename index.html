@@ -1803,7 +1803,35 @@ main{padding:20px 18px 80px}
   .a4-page{box-shadow:none;border-radius:0}
   @page{size:A4 landscape;margin:0}}
 
-/* ══ v401 · Umbrales propios ══ *//* ══ v401 · Umbrales propios ══ */
+/* ══ v405 · ¿Cumplimos el objetivo? ══ */
+.hc-plan{font-size:var(--fs-sm);color:var(--muted);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.hc-plan b{color:var(--txt);font-weight:800}
+.hc-plan-s{margin-left:auto;font-size:var(--fs-xs);color:var(--muted2)}
+.hc-ms{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
+.hc-m{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px 11px;background:var(--panel)}
+.hc-m-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px}
+.hc-m-h span{font-size:var(--fs-xs);color:var(--muted);font-weight:700}
+.hc-m-h b{font-size:var(--fs-h2);font-weight:800;letter-spacing:-.02em;color:var(--e)}
+.hc-bar{position:relative;height:10px;border-radius:5px;background:var(--panel2);margin-bottom:8px}
+.hc-bar i{position:absolute;display:block}
+.hc-rango{top:0;height:10px;border-radius:5px;background:color-mix(in srgb,var(--muted2) 34%,transparent)}
+.hc-obj{top:-2px;width:2px;height:14px;background:var(--muted);transform:translateX(-50%);border-radius:1px}
+.hc-real{top:-4px;width:4px;height:18px;border-radius:2px;background:var(--e);transform:translateX(-50%);
+  box-shadow:0 0 0 2px var(--panel)}
+.hc-m-f{display:flex;align-items:baseline;gap:8px;font-size:var(--fs-xs)}
+.hc-est{font-weight:800;color:var(--e)}
+.hc-ped{color:var(--muted2)}
+.hc-dif{margin-left:auto;font-weight:800;color:var(--e)}
+.hc-sec{font-size:var(--fs-sm);font-weight:700;margin:14px 0 8px}
+.hc-sec span{font-weight:500;color:var(--muted);font-size:var(--fs-xs)}
+.hc-js{display:flex;flex-wrap:wrap;gap:6px}
+.hc-j{display:inline-flex;align-items:baseline;gap:5px;font-size:var(--fs-xs);font-weight:600;
+  border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.hc-j b{font-weight:800}
+.hc-j.ok{border-color:color-mix(in srgb,var(--ok) 45%,transparent);color:var(--ok)}
+.hc-j.corto{border-color:color-mix(in srgb,var(--warn) 45%,transparent);color:var(--warn)}
+.hc-j.pasado{border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)}
+/* ══ v401 · Umbrales propios ══ */
 .sc-tbl th{font-size:var(--fs-xs);font-weight:700;color:var(--muted);text-align:center}
 .sc-tbl td{text-align:center;font-size:var(--fs-sm)}
 .sc-tbl td:first-child{text-align:left;font-weight:700}
@@ -4862,6 +4890,8 @@ html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!impo
     <!-- v373/v375 · modelo de sesión del equipo: de la RPE y el contacto que se
          planifican, a los objetivos de pulso que hay que alcanzar. -->
     <div class="panel panel--hq" id="hreq-card"></div>
+    <!-- v405 · el otro lado del modelo: ¿se cumplió el objetivo de esta sesión? -->
+    <div class="panel" id="hrcump-card"></div>
     <!-- v401 · umbrales propios: calculados con nuestras sesiones y movidos
          cuando Daniel lo decide, nunca solos. -->
     <div class="panel" id="sescal-card"></div>
@@ -19299,6 +19329,111 @@ function hreqDetalle(mod){
    +'<div class="hq-sec">Con qué sesiones está construido <span class="muted">· reparto por grado de contacto</span></div>'+base
    +'</div></details>';
 }
+/* ═══════════════ v405 · ¿Cumplimos el objetivo? ═══════════════
+   El modelo de sesión del equipo dice, antes de entrenar, hasta dónde hay que
+   llegar. Hasta ahora ahí se acababa: nadie comprobaba después si se había
+   llegado. Esto cierra el bucle con la sesión que esté elegida en el selector.
+
+   Tres honestidades, y las tres van escritas en la pantalla:
+   · se compara contra lo que se PLANIFICÓ ese día en el calendario (RPE
+     objetivo y contacto), no contra lo que a uno le parezca ahora;
+   · el objetivo es un RANGO, no una cifra: «dentro» significa dentro del
+     rango, y por eso se dice también por cuánto se sale;
+   · sin plan en el calendario no hay objetivo que comparar, y se dice en vez
+     de inventar uno.
+   Pedido por Daniel el 16/10/2026. */
+function hreqCumpl(key){
+  if(!key)return null;
+  const i=key.indexOf('|');const dk=key.slice(0,i);
+  const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key&&(r.z||[]).some(v=>v>0));
+  if(rows.length<3)return {dk,motivo:'pocos',n:rows.length};
+  const mod=hreqMod();
+  if(!mod||!mod.ok)return {dk,motivo:'sinmodelo'};
+  /* el plan del día: eventos de entreno/partido del calendario */
+  let ev=null;
+  try{calLoad();ev=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&(e.type==='entreno'||e.type==='partido'||e.type==='fuerza'))[0]||null;}catch(e){}
+  if(!ev)return {dk,motivo:'sinplan'};
+  const dur=evDur(ev), rpe=evRpe(ev), ct=evContacto(ev);
+  const pred=hreqPred(mod,rpe,ct,dur);
+  if(!pred)return {dk,motivo:'sinmodelo'};
+  /* lo que de verdad salió */
+  const z=pctZones(rows);
+  const durMed=hrpMedia(rows.map(r=>r.dur).filter(v=>v>0));
+  const real={
+    z45:z.z54, z5:z.z5,
+    fc:hrpMedia(rows.map(r=>r.hrAvg).filter(v=>v>0)),
+    min45:hrpMedia(rows.map(r=>{const t=(r.z||[]).reduce((a,b)=>a+(+b||0),0);
+      return t>0?((+r.z[3]||0)+(+r.z[4]||0))/60:0;}))
+  };
+  const comparar=(v,r)=>{
+    if(v==null||!r||!isFinite(v))return null;
+    const dentro=v>=r.lo&&v<=r.hi;
+    const fuera=dentro?0:(v<r.lo?v-r.lo:v-r.hi);
+    return {v,lo:r.lo,mid:r.mid,hi:r.hi,dentro,fuera,
+      estado:dentro?'ok':(v<r.lo?'corto':'pasado')};
+  };
+  return {dk,key,n:rows.length,ev,rpe,ct,dur,durMed,
+    obj:{z45:comparar(real.z45,pred.z45),
+         z5:pred.z5?comparar(real.z5,pred.z5):null,
+         min45:pred.min45?comparar(real.min45,pred.min45):null,
+         fc:comparar(real.fc,pred.fc)},
+    /* por jugador: quién llegó al objetivo de Z4+Z5 y quién no */
+    jug:rows.map(r=>{const t=(r.z||[]).reduce((a,b)=>a+(+b||0),0)||1;
+      const v=((+r.z[3]||0)+(+r.z[4]||0))/t*100;
+      return {name:r.name,z45:v,
+        estado:(v>=pred.z45.lo&&v<=pred.z45.hi)?'ok':(v<pred.z45.lo?'corto':'pasado')};})
+      .sort((a,b)=>b.z45-a.z45),
+    grado:mod.grado};
+}
+window.hreqCumpl=hreqCumpl;
+function renderHRCumpl(key){
+  const box=document.getElementById('hrcump-card');if(!box)return;
+  const c=hreqCumpl(key);
+  const cab='<h2>¿Cumplimos el objetivo? <span class="r muted">lo que pedía el plan → lo que salió</span></h2>';
+  if(!c){box.innerHTML='';return;}
+  if(c.motivo){
+    const t={pocos:'Esta sesión tiene '+(c.n||0)+' pulsómetros. Con menos de tres, el porcentaje describe a un jugador y no a la sesión.',
+      sinmodelo:'El modelo de pulso del equipo todavía no está ajustado, así que no hay objetivo contra el que comparar.',
+      sinplan:'Este día no tiene sesión planificada en el calendario. Sin RPE objetivo y contacto no hay objetivo que comprobar: ponlos en el calendario y vuelve aquí.'}[c.motivo];
+    box.innerHTML=cab+'<p class="hint">'+t+'</p>';return;
+  }
+  const n1=v=>Math.round(v*10)/10;
+  const EST={ok:['var(--ok)','Dentro'],corto:['var(--warn)','Por debajo'],pasado:['var(--accent)','Por encima']};
+  const M=[['z45','% en Z4+Z5','%'],['min45','Minutos en Z4+Z5','′'],['z5','% en Z5','%'],['fc','FC media','%']];
+  const tarj=M.map(([k,lab,u])=>{
+    const o=c.obj[k];
+    if(!o)return '';
+    const e=EST[o.estado];
+    /* la barra sitúa lo conseguido dentro del rango pedido, con margen a los
+       lados para que se vea cuánto se sale cuando se sale */
+    const span=Math.max(o.hi-o.lo,0.001), m=span*0.9;
+    const x0=o.lo-m, x1=o.hi+m;
+    const pc=v=>Math.max(0,Math.min(100,(v-x0)/(x1-x0)*100));
+    return '<div class="hc-m" style="--e:'+e[0]+'">'
+      +'<div class="hc-m-h"><span>'+lab+'</span><b>'+n1(o.v)+u+'</b></div>'
+      +'<div class="hc-bar">'
+        +'<i class="hc-rango" style="left:'+pc(o.lo).toFixed(1)+'%;width:'+(pc(o.hi)-pc(o.lo)).toFixed(1)+'%"></i>'
+        +'<i class="hc-obj" style="left:'+pc(o.mid).toFixed(1)+'%"></i>'
+        +'<i class="hc-real" style="left:'+pc(o.v).toFixed(1)+'%"></i>'
+      +'</div>'
+      +'<div class="hc-m-f"><span class="hc-est">'+e[1]+'</span>'
+        +'<span class="hc-ped">pedía '+n1(o.lo)+'–'+n1(o.hi)+u+'</span>'
+        +(o.dentro?'':'<span class="hc-dif">'+(o.fuera>0?'+':'')+n1(o.fuera)+u+'</span>')+'</div>'
+    +'</div>';
+  }).join('');
+  const cuentan={ok:0,corto:0,pasado:0};c.jug.forEach(j=>{cuentan[j.estado]++;});
+  const chips=c.jug.map(j=>'<span class="hc-j '+j.estado+'">'+medEsc(j.name.split(' ')[0])
+    +'<b>'+Math.round(j.z45)+'%</b></span>').join('');
+  box.innerHTML=cab
+    +'<div class="hc-plan">Se planificó <b>RPE '+n1(c.rpe)+'</b> · contacto <b>'+c.ct+'/5</b> · <b>'+c.dur+'′</b>'
+      +'<span class="hc-plan-s">'+c.n+' pulsómetros · modelo '+c.grado+'</span></div>'
+    +'<div class="hc-ms">'+tarj+'</div>'
+    +'<div class="hc-sec">Por jugador <span>· % en Z4+Z5 frente al rango pedido · '
+      +cuentan.ok+' dentro · '+cuentan.corto+' por debajo · '+cuentan.pasado+' por encima</span></div>'
+    +'<div class="hc-js">'+chips+'</div>'
+    +'<p class="hint">El objetivo sale del RPE y el contacto que pusiste en el calendario para este día. Es un rango, no una cifra: «dentro» es dentro del rango.</p>';
+}
+window.renderHRCumpl=renderHRCumpl;
 function renderHREq(){
   const box=document.getElementById('hreq-card');if(!box)return;
   const mod=hreqMod();
@@ -19450,6 +19585,7 @@ function renderHR(){
   const key=sel?sel.value:defKey;
   const rows=STATE.hr.filter(r=>hrKey(r)===key);
   renderHRIndiv(rows);
+  try{renderHRCumpl(key);}catch(e){console.error('bmnava · cumplimiento',e);}
   renderHRClass(rows,key,key.slice(0,key.indexOf('|')));
   renderHRTE(rows,key,key.slice(0,key.indexOf('|')));
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
@@ -28495,8 +28631,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-16.4*/
-const VER_ACTUAL='2026-10-16.4';
+/*BUILD:2026-10-16.5*/
+const VER_ACTUAL='2026-10-16.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
