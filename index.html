@@ -2372,6 +2372,17 @@ main{padding:20px 18px 80px}
 .tn-obj-hr b{color:var(--txt);font-family:var(--mono,monospace);font-weight:800}
 .tn-obj-hr .tn-obj-t{font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#0e7490}
 /* v416 · objetivo cardíaco: se planifica el pulso y el RPE sale solo */
+/* v417 · cierre del bucle: lo esperado frente a lo reportado */
+.hc-rpe{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;
+  padding:11px 14px;border-radius:var(--radius-sm);border:1px solid var(--hair);
+  background:var(--panel-2,var(--bg));border-left:3px solid var(--e,var(--accent))}
+.hc-rpe-l{display:flex;flex-direction:column;gap:1px;min-width:0}
+.hc-rpe-l span{font-size:var(--fs-xs);font-weight:700;color:var(--muted)}
+.hc-rpe-l b{font-size:var(--fs-h2);font-weight:800;letter-spacing:-.02em}
+.hc-rpe-ar{font-size:var(--fs-h2);color:var(--muted2)}
+.hc-rpe-e{margin-left:auto;display:flex;align-items:center;gap:8px}
+.hc-rpe-e .hc-est{color:var(--e)}
+.hc-rpe-no{display:block;font-size:var(--fs-sm);color:var(--muted);border-left-color:var(--line)}
 .cal-card-row{display:flex;gap:7px;flex-wrap:wrap}
 .cal-card-pill{display:flex;flex-direction:column;align-items:center;gap:1px;
   padding:6px 13px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);
@@ -18305,6 +18316,44 @@ function sesCalQuitar(){
   try{if(window.renderCalendar)renderCalendar();}catch(e){}
   toast('Vuelta a los umbrales de partida');
 }
+/* ═══ v418 · Los umbrales del club se aplican SOLOS ═══════════════════════════
+   Daniel, 19/10/2026: «usa nuestros propios umbrales y percentiles siempre».
+   Es la segunda vez que lo pide —la primera fue el 15/10— y hasta hoy la
+   calibración calculaba, enseñaba el impacto y esperaba a que alguien pulsase.
+   Resultado: llevaba sin aplicarse y toda la app leía las bandas de partida.
+
+   Cambia QUIÉN decide, no las salvaguardas. Los tres frenos siguen, pero como
+   puertas en vez de como permisos:
+   · `SESCAL_MIN`=20 sesiones con ≥5 pulsómetros. Un percentil sobre seis
+     sesiones es ruido con aspecto de umbral.
+   · `SESCAL_PASO`=10 sesiones nuevas antes de volver a mover nada. Un umbral
+     que se mueve cada día no es un umbral.
+   · Cada aplicación queda fechada en `hist` con su impacto. Un modelo que no
+     sabe cuándo cambió no se puede auditar.
+
+   Y sigue siendo REVERSIBLE: `SESSPEC` no se toca nunca y «Volver a los de
+   partida» deja la app exactamente como estaba. Eso es lo que hace que esto se
+   pueda automatizar sin red: lo peor que puede pasar se deshace con un botón.
+
+   No repinta nada al aplicarse: corre ANTES del primer pintado de Pulsómetros,
+   así que lo que se dibuja después ya sale con los umbrales nuevos. */
+function sesCalAuto(){
+  let p=null;try{p=sesCalPropuesta();}catch(e){return null;}
+  if(!p||!p.cortes)return null;
+  const c=sesCalLoad();
+  const yaN=(c&&c.n)||0;
+  const aplicado=!!(c&&c.aplicado);
+  /* Sin nada aplicado se aplica en cuanto hay muestra; con algo aplicado, solo
+     cuando han entrado SESCAL_PASO sesiones nuevas. */
+  if(aplicado&&p.n<yaN+SESCAL_PASO)return null;
+  let imp=null;try{imp=sesCalImpacto(p.cortes);}catch(e){}
+  c.hist=(c.hist||[]).concat([{fecha:dkey(new Date()),n:p.n,cortes:p.cortes,
+    auto:true,cambian:imp?imp.cambian:null}]).slice(-20);
+  c.aplicado=p.cortes;c.fecha=dkey(new Date());c.n=p.n;c.auto=true;
+  sesCalSave();
+  return {n:p.n,primera:!aplicado,cambian:imp?imp.cambian:null};
+}
+window.sesCalAuto=sesCalAuto;
 window.sesCalAplicar=sesCalAplicar;window.sesCalQuitar=sesCalQuitar;
 
 /* El panel. Enseña de dónde viene cada corte, qué cambiaría y cuánto, y deja
@@ -21227,7 +21276,16 @@ function hreqCumpl(key){
   try{calLoad();ev=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&(e.type==='entreno'||e.type==='partido'||e.type==='fuerza'))[0]||null;}catch(e){}
   if(!ev)return {dk,motivo:'sinplan'};
   const dur=evDur(ev), rpe=evRpe(ev), ct=evContacto(ev);
-  const pred=hreqPred(mod,rpe,ct,dur);
+  /* v417 · Si el día se planificó por objetivo cardíaco, se comprueba contra
+     LO QUE SE PIDIÓ, no contra lo que una regresión habría predicho a partir
+     del RPE: sería comprobar el plan contra otro plan. */
+  const card=evCard(ev)?calCardObj(ev):null;
+  const cen=r=>r?{lo:r.lo,mid:(r.lo+r.hi)/2,hi:r.hi}:null;
+  const pred=card
+    ? {z45:cen(card.z45),min45:cen(card.min45),
+       z5:card.z5?{lo:card.z5.lo,mid:card.z5.mid,hi:card.z5.hi}:null,
+       fc:card.fc?{lo:card.fc.lo,mid:card.fc.mid,hi:card.fc.hi}:null}
+    : hreqPred(mod,rpe,ct,dur);
   if(!pred)return {dk,motivo:'sinmodelo'};
   /* lo que de verdad salió */
   const z=pctZones(rows);
@@ -21245,7 +21303,23 @@ function hreqCumpl(key){
     return {v,lo:r.lo,mid:r.mid,hi:r.hi,dentro,fuera,
       estado:dentro?'ok':(v<r.lo?'corto':'pasado')};
   };
+  /* El eje que faltaba para cerrar el bucle: lo que el equipo REPORTÓ.
+     Con objetivo cardíaco, el RPE era una predicción y se comprueba contra su
+     rango; sin él, el RPE era la entrada del plan y lo que se mide es la
+     desviación respecto a lo que se pidió. Son dos preguntas distintas y se
+     rotulan distinto. */
+  let meta=null;try{meta=sessMeta(key,dk);}catch(e){}
+  const rpeReal=(meta&&meta.rpe!=null&&isFinite(meta.rpe))?+meta.rpe:null;
+  const rpeObj=card&&card.rpe
+    ? {modo:'esperado',lo:card.rpe.lo,mid:card.rpe.mid,hi:card.rpe.hi}
+    : {modo:'pedido',lo:null,mid:rpe,hi:null};
+  const rpeCmp=(rpeReal==null)?null
+    : (rpeObj.lo!=null
+        ? comparar(rpeReal,rpeObj)
+        : {v:rpeReal,lo:null,mid:rpe,hi:null,dentro:Math.abs(rpeReal-rpe)<=0.5,
+           fuera:rpeReal-rpe,estado:Math.abs(rpeReal-rpe)<=0.5?'ok':(rpeReal<rpe?'corto':'pasado')});
   return {dk,key,n:rows.length,ev,rpe,ct,dur,durMed,
+    card, rpeReal, rpeObj, rpeCmp, nRpe:(meta&&meta.n)||null,
     obj:{z45:comparar(real.z45,pred.z45),
          z5:pred.z5?comparar(real.z5,pred.z5):null,
          min45:pred.min45?comparar(real.min45,pred.min45):null,
@@ -21297,14 +21371,40 @@ function renderHRCumpl(key){
   const cuentan={ok:0,corto:0,pasado:0};c.jug.forEach(j=>{cuentan[j.estado]++;});
   const chips=c.jug.map(j=>'<span class="hc-j '+j.estado+'">'+medEsc(j.name.split(' ')[0])
     +'<b>'+Math.round(j.z45)+'%</b></span>').join('');
+  /* v417 · el eje que cierra el bucle: lo que el equipo reportó de verdad.
+     Con objetivo cardíaco el RPE era una PREDICCIÓN y se comprueba contra su
+     rango; sin él era la ENTRADA del plan y lo que se mide es la desviación.
+     Son dos preguntas distintas y van rotuladas distinto. */
+  let rpeBox='';
+  if(c.rpeCmp){
+    const e=EST[c.rpeCmp.estado];
+    const esperado=c.rpeObj.lo!=null;
+    rpeBox='<div class="hc-rpe" style="--e:'+e[0]+'">'
+      +'<div class="hc-rpe-l"><span>'+(esperado?'Esperabas':'Pediste')+'</span><b>'
+        +(esperado?(n1(c.rpeObj.lo)+'–'+n1(c.rpeObj.hi)):n1(c.rpeObj.mid))+'</b></div>'
+      +'<div class="hc-rpe-ar">→</div>'
+      +'<div class="hc-rpe-l"><span>Reportaron</span><b>'+n1(c.rpeCmp.v)+'</b></div>'
+      +'<div class="hc-rpe-e"><span class="hc-est">'+e[1]+'</span>'
+        +(c.rpeCmp.dentro?'':'<span class="hc-dif">'+(c.rpeCmp.fuera>0?'+':'')+n1(c.rpeCmp.fuera)+'</span>')
+      +'</div></div>';
+  }else{
+    rpeBox='<div class="hc-rpe hc-rpe-no">Sin RPE del equipo este día: el bucle se cierra cuando lleguen los cuestionarios.</div>';
+  }
   box.innerHTML=cab
-    +'<div class="hc-plan">Se planificó <b>RPE '+n1(c.rpe)+'</b> · contacto <b>'+c.ct+'/5</b> · <b>'+c.dur+'′</b>'
-      +'<span class="hc-plan-s">'+c.n+' pulsómetros · modelo '+c.grado+'</span></div>'
+    +'<div class="hc-plan">'
+      +(c.card
+        ? 'Se pidió <b>pulso '+medEsc(c.card.lab)+'</b> ('+n1(c.card.z45.lo)+'–'+n1(c.card.z45.hi)+'% en Z4+Z5) · contacto <b>'+c.ct+'/5</b> · <b>'+c.dur+'′</b>'
+        : 'Se planificó <b>RPE '+n1(c.rpe)+'</b> · contacto <b>'+c.ct+'/5</b> · <b>'+c.dur+'′</b>')
+      +'<span class="hc-plan-s">'+c.n+' pulsómetros'+(c.nRpe?' · '+c.nRpe+' cuestionarios':'')+' · modelo '+c.grado+'</span></div>'
     +'<div class="hc-ms">'+tarj+'</div>'
+    +rpeBox
     +'<div class="hc-sec">Por jugador <span>· % en Z4+Z5 frente al rango pedido · '
       +cuentan.ok+' dentro · '+cuentan.corto+' por debajo · '+cuentan.pasado+' por encima</span></div>'
     +'<div class="hc-js">'+chips+'</div>'
-    +'<p class="hint">El objetivo sale del RPE y el contacto que pusiste en el calendario para este día. Es un rango, no una cifra: «dentro» es dentro del rango.</p>';
+    +'<p class="hint">'+(c.card
+        ? 'El objetivo de pulso es el que pediste en el calendario; el RPE era lo que el modelo esperaba a partir de ese pulso y el contacto. Si el pulso se cumple pero el RPE se dispara, la sesión costó más de lo que marcaba el pulsómetro.'
+        : 'El objetivo sale del RPE y el contacto que pusiste en el calendario para este día. Es un rango, no una cifra: «dentro» es dentro del rango.')
+      +'</p>';
 }
 window.renderHRCumpl=renderHRCumpl;
 function renderHREq(){
@@ -21438,6 +21538,9 @@ function hreqGrid(mod){
 }
 window.renderHREq=renderHREq;
 function renderHR(){
+  /* antes de pintar nada: así lo que se dibuja ya sale con los umbrales del
+     club y no hay que repintar media vista después */
+  try{hrEnsure();}catch(e){}   /* restaura Polar y, con ello, calibra si toca */
   try{renderSesCal();}catch(e){console.error('bmnava · umbrales propios',e);}
   /* v249 · Si el arranque se quedó a medias, las sesiones guardadas seguían en
      disco pero no se veían. Al abrir Pulsómetros se restauran igualmente. */
@@ -21574,10 +21677,25 @@ const HR_LS='bmnava_hr';
    Es lo que hacía desaparecer la sesión del día anterior. hrEnsure() garantiza
    que lo guardado está en memoria ANTES de tocar nada. */
 let HR_RESTAURADO=false;
-function hrEnsure(){
-  if(HR_RESTAURADO)return 0;
-  try{return hrLoadSaved();}catch(e){HR_RESTAURADO=true;return 0;}
+var SESCAL_AUTO_N=-1;
+/* Los umbrales del club se aplican en cuanto hay datos de pulso cargados, no
+   solo al abrir Pulsómetros: el calendario, la casilla del mes y la lámina A4
+   leen las bandas por `SESEF()` sin pasar por esa vista. Se recalcula solo si
+   ha cambiado el número de registros, que es lo único que puede moverlos. */
+function sesCalAutoSiToca(){
+  const n=(STATE.hr||[]).length;
+  if(n===SESCAL_AUTO_N)return;
+  SESCAL_AUTO_N=n;
+  try{sesCalAuto();}catch(e){console.error('bmnava · calibración automática',e);}
 }
+function hrEnsure(){
+  if(HR_RESTAURADO){sesCalAutoSiToca();return 0;}
+  let r=0;
+  try{r=hrLoadSaved();}catch(e){HR_RESTAURADO=true;}
+  sesCalAutoSiToca();
+  return r;
+}
+window.sesCalAutoSiToca=sesCalAutoSiToca;
 window.hrEnsure=hrEnsure;
 function hrPersist(){
   if(!HR_RESTAURADO)hrEnsure();
@@ -30884,8 +31002,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-19.7*/
-const VER_ACTUAL='2026-10-19.7';
+/*BUILD:2026-10-19.8*/
+const VER_ACTUAL='2026-10-19.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
