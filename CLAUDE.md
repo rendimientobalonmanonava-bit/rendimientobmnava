@@ -221,6 +221,10 @@ Chart.js 4.4.1 · PapaParse 5.4.1 · html2canvas 1.4.1 · Inter · `localStorage
 
 Hoy todo lo local vive en el `localStorage` de cada usuario y es **invisible para los demás**. Virginia no ve lo que registra Daniel y viceversa. La solución acordada es **Supabase con políticas RLS**; el SQL de configuración y la guía ya están entregados, pero Daniel aún no ha confirmado el alta.
 
+### 4.3.0 «Exportar PNG» de la semana (retirado de la barra)
+
+Desde el 19/10/2026, por decisión de Daniel, el botón **«Exportar PNG»** del calendario semanal (`calExportWeek`, que sacaba la tarjeta de la semana tal y como se ve) **no aparece en la barra**: tener dos botones de exportar al lado solo obligaba a elegir, y la lámina A4 lleva lo mismo más el microciclo y los objetivos de pulso. **La función sigue entera en el código**; para recuperarla basta devolver su botón a `cal-wk-tools`. El botón que queda se llama **«Exportar semana · A4»** y conserva a propósito la palabra «Exportar», que es la que Daniel busca. **No se ha borrado nada.**
+
 ### 4.3.1 Cuadrantes (retirado de la navegación)
 
 Desde el 11/09/2026, por decisión de Daniel, **Cuadrantes no aparece** ni en las pestañas de Cargas ni en el Resumen: no le estaba dando uso. El módulo sigue entero en el código, con sus datos (`bmnava_quadrants`), sus importaciones y su enganche con el Calendario. Para reactivarlo, devolver su entrada a `CARGAS_TABS` y a `CARGA_PANES`. **No se ha borrado nada.**
