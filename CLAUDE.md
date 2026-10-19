@@ -213,6 +213,16 @@ Los estados de lesión los gobierna **exclusivamente el módulo Médico**. Dispo
 
 Chart.js 4.4.1 · PapaParse 5.4.1 · html2canvas 1.4.1 · Inter · `localStorage`.
 
+### 4.1.1 Rendimiento · lo que de verdad cuesta
+
+Medido el 20/10/2026 con los datos del club (726 sesiones de Polar, 2.500 RPE, 2.876 de wellness):
+
+- **El código no es el problema.** `renderAll()` tarda 218 ms y cambiar de vista entre 19 y 29 ms. El HTML (2,69 MB) se parsea en 64 ms.
+- **El problema es la red.** Las cuatro hojas de Google suman **~4,3 s** y la última no acaba hasta el segundo 3,7. Antes eran cinco peticiones: **la hoja de valoraciones se pedía dos veces a la vez**, una desde `connect()` y otra desde `vhAutoload()`, en el mismo milisegundo. Desde v422 comparten la promesa **en vuelo** (`vhTexto`). **No se cachea el resultado a propósito**: cachearlo dejaría a «Actualizar» sin traer datos nuevos.
+- **Las fotos se repiden mucho** y **16 de ellas son de jugadores que ya no están** (plantilla anterior). En local no se cachean porque `python -m http.server` no manda cabeceras; en GitHub Pages sí. La parte real del desperdicio son esas 16 de la primera carga.
+
+**Antes de optimizar nada más, medir.** La primera sospecha —que lo nuevo de la sesión ralentizaba— era falsa: el archivo creció 119 KB (+4,6 %) y las operaciones siguen por debajo de 30 ms.
+
 ### 4.2 Fuentes de datos
 
 **Lectura (Google Sheets publicados como CSV, `pub?output=csv`), vía `CONFIG.sources`:**

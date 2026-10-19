@@ -18223,7 +18223,26 @@ function renderAll(){
    siempre. Es el "sigue sin cargar" de Daniel: no es lentitud, es una espera sin
    final. Veinte segundos es de sobra —por curl las hojas responden en menos de
    uno y medio— y si se agota se sigue con lo que haya en vez de morir. */
+/* v422 · Rendimiento · una misma hoja no se pide dos veces A LA VEZ.
+   Al arrancar, la hoja de valoraciones la piden `connect()` (por
+   `vhLoadURLQuiet`) y `vhAutoload()` a la vez: dos peticiones idénticas de
+   1,5 s cada una, lanzadas en el mismo milisegundo. Aquí se comparte la
+   promesa en vuelo, así que los dos que la piden reciben lo mismo y solo
+   viaja una.
+
+   Solo se comparte MIENTRAS está en vuelo; nada se guarda al terminar. Eso
+   importa: si se cacheara el resultado, «Actualizar» dejaría de traer datos
+   nuevos. Al no haber caché, el comportamiento es idéntico al de antes y lo
+   único que cambia es cuántas veces sale la petición. */
+const CSV_EN_VUELO=new Map();
 async function fetchCSV(url,ms){
+  const k=String(url)+'|'+(ms||'');
+  if(CSV_EN_VUELO.has(k))return CSV_EN_VUELO.get(k);
+  const p=fetchCSVReal(url,ms).finally(()=>{CSV_EN_VUELO.delete(k);});
+  CSV_EN_VUELO.set(k,p);
+  return p;
+}
+async function fetchCSVReal(url,ms){
   const tope=ms||20000;
   let ctrl=null,t=null;
   try{ctrl=(typeof AbortController!=='undefined')?new AbortController():null;}catch(e){ctrl=null;}
@@ -30231,9 +30250,7 @@ async function vhLoadURL(url,msgEl){
   if(!url){set('Pega la URL CSV publicada de la hoja de valoraciones.');return null;}
   set('Cargando…');
   try{
-    const res=await (window.fetchConTope?fetchConTope(url,null,20000):fetch(url));
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const txt=await res.text();
+    const txt=await vhTexto(url);
     vhResetNameCache();
     return await vhParseAndIngest(txt,set);
   }catch(e){
@@ -30274,14 +30291,28 @@ function vhReport(r,set){
 const VH_LS='bmnava_vhurl';
 function vhSavedUrl(){try{return localStorage.getItem(VH_LS)||'';}catch(e){return '';}}
 function vhSaveUrl(u){try{u?localStorage.setItem(VH_LS,u):localStorage.removeItem(VH_LS);}catch(e){}}
+/* v422 · Rendimiento · el texto de la hoja se pide UNA vez aunque lo pidan dos.
+   Al arrancar, la hoja de valoraciones la cargan `connect()` —por aquí— y
+   `vhAutoload()` —por `vhLoadURL`— en el mismo milisegundo: dos peticiones
+   idénticas de 1,5 s. Las dos comparten ahora la misma promesa mientras está
+   EN VUELO; nada se guarda al terminar, porque cachear el resultado dejaría a
+   «Actualizar» sin traer datos nuevos. */
+window.__VH_VUELO=window.__VH_VUELO||new Map();
+window.vhTexto=function(url){
+  const m=window.__VH_VUELO;
+  if(m.has(url))return m.get(url);
+  const p=(window.fetchConTope?fetchConTope(url,null,20000):fetch(url))
+    .then(res=>{if(!res.ok)throw new Error('HTTP '+res.status);return res.text();})
+    .finally(()=>{m.delete(url);});
+  m.set(url,p);
+  return p;
+};
 /* Carga sin escribir en el panel de Perfil físico: la usa la pantalla de Conexión,
    que muestra su propio mensaje conjunto con el resto de fuentes. */
 window.vhLoadURLQuiet=async function(url){
   if(!url)return null;
   vhResetNameCache();
-  const res=await (window.fetchConTope?fetchConTope(url,null,20000):fetch(url));
-  if(!res.ok)throw new Error('HTTP '+res.status);
-  const txt=await res.text();
+  const txt=await vhTexto(url);
   const r=await new Promise(resolve=>{
     Papa.parse(txt,{header:true,skipEmptyLines:true,complete:c=>{
       let out=vhIngestAuto(c.data);
@@ -31380,8 +31411,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.1*/
-const VER_ACTUAL='2026-10-20.1';
+/*BUILD:2026-10-20.2*/
+const VER_ACTUAL='2026-10-20.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
