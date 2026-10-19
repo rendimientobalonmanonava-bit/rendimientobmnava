@@ -1867,9 +1867,14 @@ main{padding:20px 18px 80px}
    altura de cada una la fija el día más alto. Antes cada día era una columna
    suelta y, con una sesión más, todo lo de debajo bajaba: los objetivos de
    pulso arrancaban a dos alturas y las bandas no se alineaban. */
-.sa-week{flex:none;height:322px;display:grid;
+/* La fila ELÁSTICA es la de las sesiones, no la del objetivo. Al revés, un
+   recuadro de objetivo más alto que su fila se desbordaba hacia arriba y tapaba
+   la segunda sesión del día. El objetivo tiene contenido fijo y se lleva su
+   altura entera; lo que sobra o falta lo absorbe la lista de sesiones, que es
+   lo que de verdad varía entre días. */
+.sa-week{flex:none;height:336px;display:grid;
   grid-template-columns:repeat(7,minmax(0,1fr));
-  grid-template-rows:auto auto auto auto minmax(0,1fr) auto;
+  grid-template-rows:auto auto auto minmax(0,1fr) auto auto;
   column-gap:7px;row-gap:6px}
 /* el fondo de la tarjeta cruza las seis filas por detrás de las celdas */
 .sa-bg{grid-row:1/-1;border:1px solid var(--sa-line);border-radius:11px;background:#fff}
@@ -1879,9 +1884,11 @@ main{padding:20px 18px 80px}
 .sa-bg.sa-part{border-color:#1b2330;box-shadow:inset 0 0 0 1px #1b2330}
 .sa-cell{position:relative;z-index:1;padding:0 9px;min-width:0;display:flex;flex-direction:column}
 .sa-r1{padding-top:9px}
-.sa-r5{justify-content:flex-end}
+/* si un día tuviera más sesiones de las que caben, se recortan en vez de
+   empujar al resto fuera de la tarjeta */
+.sa-cell.sa-r4{overflow:hidden;justify-content:flex-start}
 .sa-r6{padding-bottom:9px}
-.sa-r5>.sa-obj{margin-top:0}
+
 .sa-ch{display:flex;flex-direction:column;gap:1px;padding-bottom:6px;border-bottom:1px solid var(--sa-line)}
 .sa-ch1{display:flex;align-items:center;gap:6px}
 .sa-wd{font-size:12.5px;font-weight:800;letter-spacing:-.015em;white-space:nowrap}
@@ -1904,14 +1911,27 @@ main{padding:20px 18px 80px}
 /* ── el objetivo de pulso: es lo nuevo, así que es lo que más pesa ── */
 .sa-obj{border-radius:9px;background:var(--sa-soft);
   border:1px solid var(--sa-line);padding:7px 8px;display:flex;flex-direction:column;gap:3px}
-.sa-obj-h{font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--sa-accent)}
-.sa-obj-h em{font-style:normal;font-weight:700;color:var(--sa-ink2);letter-spacing:.02em;text-transform:none}
-.sa-obj-k{display:flex;align-items:baseline;gap:5px;margin:1px 0 2px}
-.sa-obj-k b{font-size:18px;font-weight:800;letter-spacing:-.03em;line-height:1}
-.sa-obj-k span{font-size:9.5px;font-weight:700;color:var(--sa-ink2)}
-.sa-obj-r{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:10.5px}
+/* Cabecera SIEMPRE en una línea: «· 2 sesiones» la partía en dos y el
+   recuadro de ese día salía apretado. El recuento se fue a la línea de la
+   unidad, donde sí cabe. */
+.sa-obj-h{font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--sa-accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* La cifra va sola y la unidad debajo a todo lo ancho: así la altura del
+   recuadro no depende de cuántos dígitos tenga el rango. */
+.sa-obj-k{margin:2px 0 0}
+.sa-obj-k b{font-size:19px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.sa-obj-u{font-size:9.5px;font-weight:700;color:var(--sa-ink2);margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Cada zona, con el color de SU banda. No es decoración: es la misma escala
+   que el semáforo de intensidad de arriba y que la casilla del mes, así que
+   el rojo aquí significa «mucho Z4+Z5», igual que ALTA. */
+.sa-obj-r{display:flex;justify-content:space-between;align-items:baseline;gap:6px;
+  font-size:10.5px;padding:2px 5px;border-radius:5px;margin:0 -2px}
 .sa-obj-r span{font-weight:600;color:var(--sa-ink2)}
 .sa-obj-r b{font-weight:800}
+.sa-obj-r.n0{background:#e7f6ee}.sa-obj-r.n0 b{color:#14764a}
+.sa-obj-r.n1{background:#fdf3e0}.sa-obj-r.n1 b{color:#8a5a00}
+.sa-obj-r.n2{background:#fdeceb}.sa-obj-r.n2 b{color:#c0271f}
 .sa-obj-p{background:#1b2330;border-color:#1b2330;color:#fff}
 .sa-obj-p .sa-obj-h{color:#aeb8c8}
 .sa-obj-riv{font-size:13px;font-weight:800;letter-spacing:-.01em;line-height:1.2}
@@ -22869,12 +22889,29 @@ function calSemanaA4(){
       ? '<div class="sa-sem">'+calTraffic(pl.peak,40)+'<b style="color:'+tinta(pl.col)+'">'+pl.lab.toUpperCase()+'</b></div>'
       : '<div class="sa-sem sa-sem-off"><span>—</span><b>'+(soloDescanso?'DESCANSO':'SIN SESIÓN')+'</b></div>';
     const rival=(evs.find(evEsPartido)||{}).rival||'';
+    /* El recuadro tenía la altura a merced del contenido: «· 2 sesiones» partía
+       la cabecera en dos líneas y un número ancho («14–25») empujaba «min en
+       Z4+Z5» a otras dos, así que los días de dos sesiones salían apretados
+       aunque la fila de la rejilla estuviera alineada. Ahora la cabecera es
+       SIEMPRE una línea, el número va solo y la unidad debajo a todo lo ancho:
+       la altura ya no depende de cuántos dígitos tenga la cifra.
+       El nivel de cada zona sale de `calZonaNivel`, que lee las bandas
+       calibradas por `SESEF()`: la lámina no puede decir que un 12% es media
+       si el calendario lo pinta alta. Se evalúa el CENTRO del rango, porque el
+       objetivo es un rango y no una cifra. */
+    const nivZona=(lo,hi,key)=>{try{return calZonaNivel((lo+hi)/2,key);}catch(e){return 1;}};
+    const filaZona=(etq,lo,hi,dec,key)=>{
+      const lv=nivZona(lo,hi,key);
+      return '<div class="sa-obj-r n'+lv+'"><span>'+etq+'</span><b>'
+        +(dec?r1(lo):r0(lo))+'–'+(dec?r1(hi):r0(hi))+'%</b></div>';
+    };
     const objBox=obj
       ? '<div class="sa-obj">'
-        +'<div class="sa-obj-h">Objetivo de pulso'+(obj.n>1?' <em>· '+obj.n+' sesiones</em>':'')+'</div>'
-        +'<div class="sa-obj-k"><b>'+r0(obj.min45[0])+'–'+r0(obj.min45[1])+'</b><span>min en Z4+Z5</span></div>'
-        +'<div class="sa-obj-r"><span>% del tiempo</span><b>'+r0(obj.z45[0])+'–'+r0(obj.z45[1])+'%</b></div>'
-        +(obj.z5?'<div class="sa-obj-r"><span>en Z5</span><b>'+r1(obj.z5[0])+'–'+r1(obj.z5[1])+'%</b></div>':'')
+        +'<div class="sa-obj-h">Objetivo de pulso</div>'
+        +'<div class="sa-obj-k"><b>'+r0(obj.min45[0])+'–'+r0(obj.min45[1])+'</b></div>'
+        +'<div class="sa-obj-u">min en Z4+Z5'+(obj.n>1?' · '+obj.n+' sesiones':'')+'</div>'
+        +filaZona('% del tiempo',obj.z45[0],obj.z45[1],false,'z54')
+        +(obj.z5?filaZona('en Z5',obj.z5[0],obj.z5[1],true,'z5'):'')
         +'<div class="sa-obj-r"><span>FC media</span><b>'+r0(obj.fc[0])+'–'+r0(obj.fc[1])+'%</b></div>'
       +'</div>'
       : esPart
@@ -30670,8 +30707,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-19.5*/
-const VER_ACTUAL='2026-10-19.5';
+/*BUILD:2026-10-19.6*/
+const VER_ACTUAL='2026-10-19.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
