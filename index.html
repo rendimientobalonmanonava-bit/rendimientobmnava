@@ -1872,7 +1872,7 @@ main{padding:20px 18px 80px}
    la segunda sesión del día. El objetivo tiene contenido fijo y se lleva su
    altura entera; lo que sobra o falta lo absorbe la lista de sesiones, que es
    lo que de verdad varía entre días. */
-.sa-week{flex:none;height:336px;display:grid;
+.sa-week{flex:none;height:346px;display:grid;
   grid-template-columns:repeat(7,minmax(0,1fr));
   grid-template-rows:auto auto auto minmax(0,1fr) auto auto;
   column-gap:7px;row-gap:6px}
@@ -1909,7 +1909,7 @@ main{padding:20px 18px 80px}
 .sa-ses em{flex:none;font-style:normal;font-weight:800;color:var(--sa-ink2)}
 
 /* ── el objetivo de pulso: es lo nuevo, así que es lo que más pesa ── */
-.sa-obj{border-radius:9px;background:var(--sa-soft);
+.sa-obj{flex:1;border-radius:9px;background:var(--sa-soft);
   border:1px solid var(--sa-line);padding:7px 8px;display:flex;flex-direction:column;gap:3px}
 /* Cabecera SIEMPRE en una línea: «· 2 sesiones» la partía en dos y el
    recuadro de ese día salía apretado. El recuento se fue a la línea de la
@@ -1932,10 +1932,16 @@ main{padding:20px 18px 80px}
 .sa-obj-r.n0{background:#e7f6ee}.sa-obj-r.n0 b{color:#14764a}
 .sa-obj-r.n1{background:#fdf3e0}.sa-obj-r.n1 b{color:#8a5a00}
 .sa-obj-r.n2{background:#fdeceb}.sa-obj-r.n2 b{color:#c0271f}
-.sa-obj-p{background:#1b2330;border-color:#1b2330;color:#fff}
+/* La fila del RPE esperado se separa del resto: lo de arriba es lo que se
+   pide, esto es lo que se espera que ocurra. Son dos cosas distintas. */
+.sa-obj-rpe{display:flex;justify-content:space-between;align-items:baseline;gap:6px;
+  font-size:10.5px;margin-top:auto;padding-top:4px;border-top:1px dashed var(--sa-line)}
+.sa-obj-rpe span{font-weight:700;color:var(--sa-accent)}
+.sa-obj-rpe b{font-weight:800}
+.sa-obj-p{flex:1;background:#1b2330;border-color:#1b2330;color:#fff}
 .sa-obj-p .sa-obj-h{color:#aeb8c8}
 .sa-obj-riv{font-size:13px;font-weight:800;letter-spacing:-.01em;line-height:1.2}
-.sa-obj-no{font-size:9.5px;font-weight:600;color:var(--sa-ink2);
+.sa-obj-no{flex:1;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--sa-ink2);
   background:none;border:1px dashed var(--sa-line);text-align:center;padding:8px 6px}
 .sa-ua{display:flex;flex-direction:column;gap:2px;padding-top:7px;border-top:1px solid var(--sa-line)}
 .sa-ua-r{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:11px}
@@ -2365,6 +2371,18 @@ main{padding:20px 18px 80px}
 .tn-obj-hr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px;font-size:11px;color:var(--muted)}
 .tn-obj-hr b{color:var(--txt);font-family:var(--mono,monospace);font-weight:800}
 .tn-obj-hr .tn-obj-t{font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#0e7490}
+/* v416 · objetivo cardíaco: se planifica el pulso y el RPE sale solo */
+.cal-card-row{display:flex;gap:7px;flex-wrap:wrap}
+.cal-card-pill{display:flex;flex-direction:column;align-items:center;gap:1px;
+  padding:6px 13px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);
+  cursor:pointer;font-size:var(--fs-sm);line-height:1.15;color:var(--txt)}
+.cal-card-pill b{font-weight:800}
+.cal-card-pill em{font-style:normal;font-size:var(--fs-xs);color:var(--muted);font-weight:700}
+.cal-card-pill.on{border-color:var(--accent);background:rgba(48,86,196,.08)}
+.cal-card-pill.on em{color:var(--accent)}
+.cal-card-off{justify-content:center;font-weight:600;color:var(--muted)}
+.cal-obj-card .cal-obj-sep{width:1px;height:12px;background:var(--line);margin:0 2px}
+.cal-obj-warn{color:var(--warn);font-weight:800;cursor:help}
 .cal-rpe-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .cal-rpe-row input[type=range]{flex:1;min-width:130px;accent-color:var(--accent)}
 .cal-rpe-v{font-family:var(--mono,monospace);font-size:16px;font-weight:800;min-width:34px;text-align:right}
@@ -19074,7 +19092,7 @@ function hreqMod(){
   try{HREQ_CACHE=hreqModelo(hreqDatos());}catch(e){HREQ_CACHE={ok:false,motivo:'degenerado',n:0};}
   return HREQ_CACHE;
 }
-function hreqInvalidar(){HREQ_CACHE=null;}
+function hreqInvalidar(){HREQ_CACHE=null;HRP_TEAM_CACHE=null;}
 window.hreqMod=hreqMod;window.hreqInvalidar=hreqInvalidar;
 function hrpModelo(d){
   const rows=d.filter(x=>x.z45!=null&&x.rpe!=null&&x.ct!=null&&isFinite(x.z45)&&isFinite(x.rpe)&&isFinite(x.ct));
@@ -19674,6 +19692,108 @@ function evRpe(e){
   return HREQ_RPE_INT[i]||6.5;
 }
 window.evRpe=evRpe;
+
+/* ═══════════════ v416 · Objetivo cardíaco · el RPE como SALIDA ═══════════════
+   Daniel, 19/10/2026: hay sesiones de mucha carrera y transición con poco
+   contacto —mucho pulso, RPE moderado— y al revés, mucho juego real con poco
+   pulso. Hasta ahora el planificador solo sabía ir en un sentido: RPE objetivo
+   + contacto → objetivos de pulso. Y como el RPE se hereda de la intensidad,
+   marcar «alta» subía el RPE y con él el objetivo de pulso: un solo mando para
+   dos cosas distintas.
+
+   Lo que dicen sus 68 sesiones, y por eso se hace esto:
+   · `famAgrupar` ya separó «alta sin contacto» (17,9 % de Z4+Z5, contacto 2,2,
+     RPE 7,2) de «alta con contacto y larga» (14,9 %, contacto 3,3, RPE 7,4).
+     Un punto más de contacto = tres puntos menos de Z4+Z5 al mismo RPE.
+   · Pero 43 de 68 sesiones están en contacto 3 y el recorrido real es 2–3,75,
+     así que de los extremos se sabe poco. Por eso aquí se avisa siempre de
+     cuántas sesiones hay detrás.
+
+   La inversión: se planifica **objetivo cardíaco + contacto** y el **RPE es la
+   salida**, por `hrpModelo`, que es el modelo individual del revés y ya existía.
+
+   Tres cosas que NO hace, a propósito:
+   · **No toca `intens`.** Ese campo alimenta la carga planificada, el semáforo,
+     la casilla del mes y `calRefMD` en todo el histórico; redefinirlo
+     reinterpretaría en silencio todo lo ya planificado. Es un campo aparte.
+   · **No inventa umbrales.** El objetivo cardíaco bajo/medio/alto son las
+     bandas de `z54` que devuelve `SESEF()`, las mismas calibradas con sus
+     datos que usan la casilla del mes y el nivel de sesión.
+   · **No modela el %Z5 ni la FC.** Se leen de las sesiones reales que cayeron
+     en esa banda: mediana y rango intercuartílico. Con pocas, se dice. */
+const CARD_NIV=[null,'bajo','medio','alto'];
+function evCard(e){const v=e&&e.card;return (v===1||v===2||v===3)?v:null;}
+window.evCard=evCard;
+
+var HRP_TEAM_CACHE=null;   /* var, no let: `hreqInvalidar` está declarada más arriba y la toca */
+function hrpTeam(){
+  if(HRP_TEAM_CACHE)return HRP_TEAM_CACHE;
+  try{HRP_TEAM_CACHE=hrpModelo(hreqDatos());}catch(e){HRP_TEAM_CACHE={ok:false,motivo:'degenerado',n:0};}
+  return HRP_TEAM_CACHE;
+}
+window.hrpTeam=hrpTeam;
+
+/* Rango de %Z4+Z5 de cada nivel, tal y como lo define la banda del club. */
+function cardBanda(niv){
+  try{
+    const sp=SESEF().find(x=>x.key==='z54');
+    if(!sp||!sp.bands)return null;
+    const b=sp.bands[Math.max(0,Math.min(2,niv-1))];
+    return b?{lo:b[0],hi:b[1],calibrado:!!sp.calibrado}:null;
+  }catch(e){return null;}
+}
+window.cardBanda=cardBanda;
+
+/* Objetivo completo de una sesión planificada por objetivo cardíaco.
+   Devuelve null si el evento no lo usa: entonces manda el camino de siempre. */
+function calCardObj(e){
+  const niv=evCard(e);
+  if(!niv)return null;
+  const banda=cardBanda(niv);
+  if(!banda)return null;
+  const dur=(e.dur!=null?+e.dur:evDur(e))||75;
+  const ct=(e.contacto!=null?+e.contacto:evContacto(e));
+  const centro=(banda.lo+banda.hi)/2;
+  /* %Z5 y FC media NO se modelan: se leen de las sesiones que de verdad
+     cayeron en esta banda. Es el modelo interno del club, no una fórmula. */
+  let z5=null, fc=null, nObs=0;
+  try{
+    const d=hreqDatos().filter(x=>x.z45>=banda.lo&&x.z45<banda.hi);
+    nObs=d.length;
+    if(d.length>=3){
+      const z=d.map(x=>x.z5).filter(v=>v!=null&&isFinite(v));
+      const f=d.map(x=>x.fc).filter(v=>v!=null&&isFinite(v));
+      if(z.length>=3)z5={lo:hrpQ(z,.25),mid:hrpQ(z,.5),hi:hrpQ(z,.75),n:z.length};
+      if(f.length>=3)fc={lo:hrpQ(f,.25),mid:hrpQ(f,.5),hi:hrpQ(f,.75),n:f.length};
+    }
+  }catch(x){}
+  /* El RPE esperado, que es lo que esta vuelta de tuerca añade. */
+  let rpe=null, grado=null, motivo='';
+  const M=hrpTeam();
+  if(M&&M.ok&&M.grado!=='flojo'){
+    /* El modelo se evalúa DENTRO de lo que el equipo ha hecho: extrapolar una
+       regresión lineal fuera del rango observado da números con aspecto de
+       dato. Se recorta y se avisa solo cuando el recorte es de verdad —más de
+       un punto de %Z4+Z5—; si no, el aviso saltaría en dos de los tres niveles
+       y dejaría de leerse. */
+    const zc=Math.max(M.zMin,Math.min(M.zMax,centro));
+    const v=M.pred(zc,ct);
+    const err=Math.max(0.3,M.rmse||0.5);
+    rpe={lo:Math.max(1,v-err),mid:v,hi:Math.min(10,v+err)};
+    grado=M.grado;
+    if(Math.abs(zc-centro)>1)
+      motivo='el equipo nunca ha entrenado ahí ('+(centro>zc?'máx.':'mín.')+' '+(Math.round(zc*10)/10).toString().replace('.',',')+'% de Z4+Z5): el RPE es una extrapolación';
+    else if(M.nivCount&&(M.nivCount[Math.round(ct)]||0)<3)
+      motivo='apenas hay sesiones con contacto '+Math.round(ct)+', el RPE esperado es flojo ahí';
+  }else{
+    motivo=(M&&M.motivo==='pocas')?('solo hay '+((M&&M.n)||0)+' sesiones con pulso, RPE y contacto'):'el ajuste todavía es débil';
+  }
+  return {niv,lab:CARD_NIV[niv],banda,ct,dur,
+    z45:{lo:banda.lo,hi:banda.hi},
+    min45:{lo:banda.lo*dur/100,hi:banda.hi*dur/100},
+    z5,fc,nObs,rpe,grado,motivo,calibrado:banda.calibrado};
+}
+window.calCardObj=calCardObj;
 /* Sesiones planificadas de aquí en adelante, para poder cargarlas de un clic.
    v390 · «de aquí en adelante» es desde hoy, no desde el día que se esté
    mirando: si no, el desplegable ofrecía sesiones ya jugadas. */
@@ -22905,7 +23025,24 @@ function calSemanaA4(){
       return '<div class="sa-obj-r n'+lv+'"><span>'+etq+'</span><b>'
         +(dec?r1(lo):r0(lo))+'–'+(dec?r1(hi):r0(hi))+'%</b></div>';
     };
-    const objBox=obj
+    /* v416 · Si el día se planificó por objetivo cardíaco, la hoja lo lee al
+       revés: arriba lo que se PIDE (pulso) y abajo lo que se ESPERA (RPE).
+       Es el único sitio del documento donde aparece un RPE, y va rotulado como
+       esperado para que nadie lo confunda con el que luego reporten. */
+    const evCard3=evs.find(x=>!evSP(x)&&evCard(x));
+    const card=evCard3?calCardObj(evCard3):null;
+    const objBox=card
+      ? '<div class="sa-obj sa-obj-card">'
+        +'<div class="sa-obj-h">Pides · pulso</div>'
+        +'<div class="sa-obj-k"><b>'+r0(card.min45.lo)+'–'+r0(card.min45.hi)+'</b></div>'
+        +'<div class="sa-obj-u">min en Z4+Z5 · '+esc(card.lab)+'</div>'
+        +filaZona('% del tiempo',card.z45.lo,card.z45.hi,false,'z54')
+        +(card.fc?'<div class="sa-obj-r"><span>FC media</span><b>'
+            +(r0(card.fc.lo)===r0(card.fc.hi)?r0(card.fc.mid):(r0(card.fc.lo)+'–'+r0(card.fc.hi)))+'%</b></div>':'')
+        +(card.rpe?'<div class="sa-obj-rpe"><span>Esperas RPE</span><b>'
+            +r1(card.rpe.lo)+'–'+r1(card.rpe.hi)+'</b></div>':'')
+      +'</div>'
+      : obj
       ? '<div class="sa-obj">'
         +'<div class="sa-obj-h">Objetivo de pulso</div>'
         +'<div class="sa-obj-k"><b>'+r0(obj.min45[0])+'–'+r0(obj.min45[1])+'</b></div>'
@@ -23624,6 +23761,13 @@ function calDayBody(dk){
      de la intensidad, que es lo único que había antes. */
   const curR=ed?evRpe(ed):(CAL_FORM.rpe!=null?CAL_FORM.rpe:HREQ_RPE_INT[curI]||6.5);
   CAL_FORM.rpe=curR;
+  /* v416 · objetivo cardíaco. Opcional: sin él, todo sigue como siempre. */
+  const curCard=ed?evCard(ed):(CAL_FORM.card!=null?CAL_FORM.card:null);
+  CAL_FORM.card=curCard;
+  const cardPills=[1,2,3].map(n=>{const b=cardBanda(n);
+    return '<button type="button" class="cal-card-pill'+(curCard===n?' on':'')+'" data-n="'+n+'" onclick="calSetCard('+n+')">'
+      +'<b>'+CARD_NIV[n][0].toUpperCase()+CARD_NIV[n].slice(1)+'</b>'
+      +(b?'<em>'+(Math.round(b.lo*10)/10)+'–'+(Math.round(b.hi*10)/10)+'%</em>':'')+'</button>';}).join('');
   const intPills=[1,2,3].map(i=>`<button type="button" class="cal-int-pill${curI===i?' on':''}" data-i="${i}" style="--ic:${CAL_INT[i].col}" onclick="calSetIntens(${i})"><span class="dot"></span>${CAL_INT[i].lab}</button>`).join('');
   const durChips=[45,60,75,90,120].map(d=>`<button type="button" class="cal-dur-chip${curD===d?' on':''}" onclick="calSetDur(${d})">${d}′</button>`).join('');
   const ctPills=[1,2,3,4,5].map(c=>`<button type="button" class="cal-ct-pill${curC===c?' on':''}" data-c="${c}" onclick="calSetContacto(${c})">${c}</button>`).join('');
@@ -23743,6 +23887,8 @@ function calDayBody(dk){
        </div>
        <div class="full"><div class="cm-sub">Intensidad</div><div class="cal-int-row">${intPills}</div></div>
        <div class="full"><div class="cm-sub">Grado de contacto <span class="muted" style="font-weight:400">· <span id="cal-ct-lab">${CAL_CONTACT_LAB[curC]||''}</span></span></div><div class="cal-ct-row">${ctPills}<span class="cal-ct-scale">1 sin contacto · 5 juego real</span></div></div>
+       <div class="full"><div class="cm-sub">Objetivo cardíaco <span class="muted" style="font-weight:400">· % del tiempo en Z4+Z5 · con esto el RPE se calcula, no se fija</span></div>
+         <div class="cal-card-row">${cardPills}<button type="button" class="cal-card-pill cal-card-off${curCard==null?' on':''}" onclick="calSetCard(null)">Lo marca la intensidad</button></div></div>
        <div class="full"><div class="cm-sub">RPE objetivo <span class="muted" style="font-weight:400">· cómo de dura quieres que la sientan</span></div>
          <div class="cal-rpe-row"><input type="range" id="cal-rpe" min="3" max="10" step="0.1" value="${curR}" oninput="calSetRpe(this.value)"><span class="cal-rpe-v" id="cal-rpe-v">${fmt(curR,1)}</span><span class="cal-rpe-lab" id="cal-rpe-lab">${hrpRpeLab(curR)}</span></div>
          <div id="cal-rpe-obj"></div></div>
@@ -23793,14 +23939,45 @@ window.calSetRpe=calSetRpe;
 function calObjPreview(){
   const box=document.getElementById('cal-rpe-obj');if(!box)return;
   const dur=+((document.getElementById('cal-dur')||{}).value)||CAL_FORM.dur||75;
-  box.innerHTML=calObjHtml({rpe:CAL_FORM.rpe,contacto:CAL_FORM.contacto,dur},true)
+  box.innerHTML=calObjHtml({rpe:CAL_FORM.rpe,contacto:CAL_FORM.contacto,dur,card:CAL_FORM.card},true)
     ||'<div class="small muted" style="margin-top:7px">Aún no hay sesiones suficientes con pulso, RPE y contacto para calcular el objetivo de FC.</div>';
 }
+function calSetCard(n){
+  CAL_FORM.card=(n===null||n===undefined)?null:n;
+  document.querySelectorAll('.cal-card-pill').forEach(b=>{
+    const d=b.dataset.n;
+    b.classList.toggle('on', d? (+d===CAL_FORM.card) : (CAL_FORM.card==null));
+  });
+  calObjPreview();
+}
+window.calSetCard=calSetCard;
 window.calObjPreview=calObjPreview;
 /* Resumen del objetivo de pulso de una sesión planificada. Se usa en el
    formulario, en la lista del día y en las próximas sesiones del Resumen. */
 function calObjHtml(e,ancho){
   if(!e)return '';
+  /* v416 · Con objetivo cardíaco puesto, la lectura va al revés: el pulso es
+     lo que se pide y el RPE lo que se espera. Sin él, el camino de siempre. */
+  if(evCard(e)){
+    const c=calCardObj(e);
+    if(c){
+      const n1=x=>(Math.round(x*10)/10).toString().replace('.',',');
+      const r0=x=>String(Math.round(x));
+      const rpeTxt=c.rpe
+        ? '<b>'+n1(c.rpe.lo)+'–'+n1(c.rpe.hi)+'</b>'
+        : '<b>—</b>';
+      return '<div class="cal-obj cal-obj-card">'
+        +'<span class="cal-obj-t">Pides</span>'
+        +'<span><b>'+r0(c.min45.lo)+'–'+r0(c.min45.hi)+'</b> min en Z4+Z5</span>'
+        +'<span>·</span><span><b>'+n1(c.z45.lo)+'–'+n1(c.z45.hi)+'%</b> del tiempo</span>'
+        +(c.fc?'<span>·</span><span>FC media <b>'+(r0(c.fc.lo)===r0(c.fc.hi)?r0(c.fc.mid):(r0(c.fc.lo)+'–'+r0(c.fc.hi)))+'%</b></span>':'')
+        +'<span class="cal-obj-sep"></span>'
+        +'<span class="cal-obj-t">Esperas</span>'
+        +'<span>RPE '+rpeTxt+'</span>'
+        +(c.motivo?'<span class="cal-obj-warn" title="'+c.motivo+'">⚠</span>':'')
+        +'</div>';
+    }
+  }
   let mod=null;try{mod=hreqMod();}catch(x){}
   if(!mod||!mod.ok||mod.grado==='flojo')return '';
   const dur=(e.dur!=null?+e.dur:(typeof evDur==='function'?evDur(e):75))||75;
@@ -23842,7 +24019,7 @@ function calCancelEdit(){CAL_EDIT=null;CAL_FORM={intens:2,dur:75,contacto:3,rpe:
       sin sitio, pero aquí se anunciaba «Sesión programada» igual. La sesión se
       veía en pantalla —está en memoria— y desaparecía al recargar. Es
       exactamente el síntoma de perder la planificación cuatro veces. */
-function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;try{calLoad();}catch(e){}const g=id=>(document.getElementById(id)||{}).value;const type=g('cal-type')||'entreno';const _objs=['cal-obj-0','cal-obj-1','cal-obj-2'].map(id=>(g(id)||'').trim()).filter(Boolean).slice(0,3);const data={type,title:(g('cal-title')||'').trim(),time:g('cal-time')||'',intens:CAL_FORM.intens||2,dur:+(g('cal-dur')||CAL_FORM.dur||0),contacto:CAL_FORM.contacto!=null?CAL_FORM.contacto:3,rpe:CAL_FORM.rpe!=null?+CAL_FORM.rpe:null,objs:_objs,note:_objs.join(' · ')};
+function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;try{calLoad();}catch(e){}const g=id=>(document.getElementById(id)||{}).value;const type=g('cal-type')||'entreno';const _objs=['cal-obj-0','cal-obj-1','cal-obj-2'].map(id=>(g(id)||'').trim()).filter(Boolean).slice(0,3);const data={type,title:(g('cal-title')||'').trim(),time:g('cal-time')||'',intens:CAL_FORM.intens||2,dur:+(g('cal-dur')||CAL_FORM.dur||0),contacto:CAL_FORM.contacto!=null?CAL_FORM.contacto:3,rpe:CAL_FORM.rpe!=null?+CAL_FORM.rpe:null,card:CAL_FORM.card||null,objs:_objs,note:_objs.join(' · ')};
   /* v256 · datos propios del partido. Si la sesión deja de ser un partido se
      retiran, para que no quede un rival colgado en un entreno. */
   if(type==='partido'){
@@ -23862,7 +24039,7 @@ function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;try{calLoad();}catch(e){}
     toast('NO SE HA GUARDADO · revisa el aviso');
     console.error('bmnava · calendario: calPersist() ha fallado para '+dk);
   }
-  CAL_FORM={intens:2,dur:75,contacto:3};calBody(dk);setTimeout(calTypeChanged,30);renderCalendar();
+  CAL_FORM={intens:2,dur:75,contacto:3,card:null};calBody(dk);setTimeout(calTypeChanged,30);renderCalendar();
   /* v241 · el resumen de equipo muestra las próximas sesiones, así que al
      programar una hay que repintarlo: si no, seguía diciendo «sin programar»
      una sesión que se acababa de completar. */
@@ -30707,8 +30884,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-19.6*/
-const VER_ACTUAL='2026-10-19.6';
+/*BUILD:2026-10-19.7*/
+const VER_ACTUAL='2026-10-19.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
