@@ -4963,6 +4963,93 @@ html[data-theme="dark"] .seg button.on{background:rgba(255,255,255,.16);box-shad
    Medio punto en vez de uno entero. En pantallas de retina se ve igual de
    nítido y deja de pesar. */
 hr,.hairline{border:none;border-top:.5px solid var(--line)}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v421 · APPLE DE VERDAD · superficies
+   Daniel, 19/10/2026: «no ha cambiado casi nada, lo noto prácticamente
+   igual». Tenía razón. La v420 era pulido de tokens —sombras, curvas,
+   controles— y el cambio de tipografía es invisible por construcción, porque
+   Inter se diseñó para imitar a SF Pro.
+
+   Lo que hacía que la app no pareciese de Apple era el fondo: degradado
+   azulado con tres manchas de color y tarjetas translúcidas. Eso es
+   glassmorphism de 2021. Apple usa fondo plano y neutro, tarjetas OPACAS, y
+   reserva el cristal para barras y sidebar.
+
+   ⚠ ESTO LEVANTA UN BLOQUEO. El 23/09/2026 Daniel fijó que «el efecto cristal
+   y los blobs del fondo no se tocan». El 19/10/2026 lo revocó él mismo
+   después de que se le explicara que era justo lo que impedía el estilo que
+   pedía. Queda anotado aquí porque un bloqueo levantado sin dejar rastro es
+   peor que no haberlo tenido.
+
+   Sigue siendo reversible: borrando este bloque vuelve el cristal.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Fondo plano y superficies opacas ─────────────────────────────────── */
+:root{
+  --bg:#f2f2f7;                    /* el gris agrupado del sistema */
+  --sheet-grad:#f2f2f7;            /* fuera degradado y manchas */
+  --glass:#ffffff;                 /* las tarjetas pasan a opacas */
+  --glass-border:rgba(0,0,0,.055);
+  --glass-blur:none;
+  --panel:#ffffff; --panel2:#f2f2f7;
+  --hair:rgba(0,0,0,.055); --line:rgba(0,0,0,.08)}
+/* El fondo había que declararlo en los DOS temas: `--sheet-grad` solo existía
+   para claro y en oscuro se pintaba igual encima del lienzo negro. */
+html[data-theme="dark"]{
+  --bg:#000000; --sheet-grad:#000000;
+  --glass:#1c1c1e; --glass-border:rgba(255,255,255,.08);
+  --panel:#1c1c1e; --panel2:#2c2c2e;
+  --hair:rgba(255,255,255,.08); --line:rgba(255,255,255,.12)}
+@media(prefers-color-scheme:dark){html:not([data-theme="light"]){
+  --bg:#000000; --sheet-grad:#000000;
+  --glass:#1c1c1e; --glass-border:rgba(255,255,255,.08);
+  --panel:#1c1c1e; --panel2:#2c2c2e;
+  --hair:rgba(255,255,255,.08); --line:rgba(255,255,255,.12)}}
+body{background:var(--bg)!important}
+/* por si los blobs fuesen elementos y no capas del degradado */
+.blob,.blobs,.bg-blob,body>.blob{display:none!important}
+
+/* Tarjetas de contenido: opacas, sin desenfoque, separadas por sombra y no
+   por borde. Es la capa de CONTENIDO, y la guía es explícita: «do NOT use
+   Liquid Glass for content layer elements». El cristal se queda arriba. */
+.panel,.kpi,.card-pro,.eq-tile,.crs-tile,.pl-tile,.drawer,.add-menu,.zc,.pcard{
+  background:var(--glass)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  border:1px solid var(--glass-border)!important;
+  box-shadow:var(--e1)!important}
+.panel:hover{transform:none;box-shadow:var(--e1)!important}
+
+/* ── Aire ─────────────────────────────────────────────────────────────── */
+main{padding:26px 22px 96px}
+.panel{padding:26px;margin-bottom:22px;border-radius:20px}
+.grid,.eq-r3,.eq-r2{gap:20px}
+.kpis{gap:16px;margin-bottom:22px}
+.kpi{padding:20px 22px}
+
+/* ── Esquinas ─────────────────────────────────────────────────────────── */
+:root{--radius:20px;--radius-sm:16px;--r-panel:20px;--r-ctl:12px;--r-chip:9px}
+.kpi,.eq-tile,.crs-tile,.pl-tile,.card-pro{border-radius:16px}
+
+/* ── Título grande ────────────────────────────────────────────────────────
+   El Large Title del sistema. Solo el título de la VISTA: `.panel h2` es el
+   título de panel y se queda en 17 px. */
+.pagehead h1,.view>.ctrlrow>div>h2{
+  font-size:34px;font-weight:700;letter-spacing:-.021em;line-height:1.09}
+.pagehead .ph-sub,.view>.ctrlrow>div>.small.muted{
+  font-size:var(--fs-body);margin-top:4px;color:var(--muted)}
+.pagehead{margin-bottom:22px}
+@media(max-width:760px){.pagehead h1,.view>.ctrlrow>div>h2{font-size:28px}}
+
+/* ── Listas y tablas al estilo del sistema ────────────────────────────────
+   Separadores de medio punto que NO llegan al borde de la tarjeta, sin línea
+   bajo la última fila: es el remate de las listas agrupadas de Ajustes. */
+.panel .tbl{border-collapse:separate;border-spacing:0}
+.panel .tbl td{border-bottom:.5px solid var(--hair)}
+.panel .tbl tbody tr:last-child td{border-bottom:none}
+.panel .tbl tbody tr:hover{background:rgba(0,0,0,.022)}
+html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.04)}
+.panel .tbl th{border-bottom:.5px solid var(--line);background:transparent}
 </style>
 </head>
 <body>
@@ -31293,8 +31380,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-19.10*/
-const VER_ACTUAL='2026-10-19.10';
+/*BUILD:2026-10-20.1*/
+const VER_ACTUAL='2026-10-20.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
