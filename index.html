@@ -17703,6 +17703,18 @@ function exportNodePNG(id,filename){
   const el=document.getElementById(id);
   if(!el){alert('No hay nada que exportar todavía.');return;}
   if(!window.html2canvas){alert('El exportador no está disponible en este entorno (sin conexión). Alternativa: Imprimir → Guardar como PDF.');return;}
+  /* v413 · El emparejado original↔copia se hacía por índice sobre dos listas
+     planas. html2canvas inserta nodos propios en la copia para representar los
+     `::before`/`::after`, así que la copia puede tener MÁS elementos que el
+     original: a partir del primero insertado, cada elemento heredaba el color
+     de otro. En la lámina A4 eran 354 contra 352 y el día de hoy acababa con
+     los bordes de un elemento cualquiera.
+     Ya se intentó arreglar una vez (v222) moviendo el borrado de imágenes al
+     final; eso quitó UNA causa, pero la de fondo es el índice. Ahora cada
+     elemento lleva una marca y la copia se busca por ella. */
+  const marcados=[el].concat(Array.prototype.slice.call(el.querySelectorAll('*')));
+  marcados.forEach((nd,i)=>{try{nd.setAttribute('data-x2p',i);}catch(e){}});
+  const desmarcar=()=>marcados.forEach(nd=>{try{nd.removeAttribute('data-x2p');}catch(e){}});
   html2canvas(el,{scale:2,useCORS:true,backgroundColor:cssVar('--bg')||'#ffffff',logging:false,
     onclone:(doc)=>{try{const c=doc.getElementById(id);if(!c)return;
       /* v222 · El emparejado original↔copia es por índice, así que la copia debe
@@ -17713,7 +17725,7 @@ function exportNodePNG(id,filename){
       const _cv=document.createElement('canvas');_cv.width=_cv.height=1;const _cx=_cv.getContext('2d');
       const MOD=/\b(color|oklch|oklab|lab|lch|hwb|color-mix)\(/;
       const toRGB=(col)=>{if(!col||!MOD.test(col))return col;try{_cx.fillStyle='#000';_cx.fillStyle=col;_cx.fillRect(0,0,1,1);const d=_cx.getImageData(0,0,1,1).data;return 'rgba('+d[0]+','+d[1]+','+d[2]+','+(d[3]/255)+')';}catch(_){return col;}};
-      const src=el.querySelectorAll('*'),cl=c.querySelectorAll('*');
+      const mapa={};c.querySelectorAll('[data-x2p]').forEach(d=>{mapa[d.getAttribute('data-x2p')]=d;});
       const RVARS=['--c','--cwc','--vc','--pc','--ic','--accent','--bad','--ok','--warn','--line','--hair','--muted','--muted2','--txt','--panel','--panel2','--bg','--dc','--tl-off','--tl-body','--tl-edge','--c-data','--sv'];
       const ap=(s,d)=>{if(!s||!d||!d.style)return;const cs=getComputedStyle(s);
         RVARS.forEach(p=>{const v=cs.getPropertyValue(p);if(v&&v.trim())d.style.setProperty(p,toRGB(v.trim()));});
@@ -17723,16 +17735,48 @@ function exportNodePNG(id,filename){
         d.style.setProperty('color',toRGB(cs.color),'important');
         ['border-top-color','border-right-color','border-bottom-color','border-left-color'].forEach(p=>d.style.setProperty(p,toRGB(cs.getPropertyValue(p)),'important'));
         if(cs.fill&&MOD.test(cs.fill))d.style.setProperty('fill',toRGB(cs.fill),'important');
-        if(cs.stroke&&MOD.test(cs.stroke))d.style.setProperty('stroke',toRGB(cs.stroke),'important');};
+        if(cs.stroke&&MOD.test(cs.stroke))d.style.setProperty('stroke',toRGB(cs.stroke),'important');
+        /* v413 · html2canvas 1.4.1 NO sabe dibujar `box-shadow: inset`: en vez
+           del filo interior RELLENA el elemento entero con el color de la
+           sombra. En el PNG de la semana, el día de hoy salía como un bloque
+           azul macizo que tapaba la columna completa; lo mismo le pasaba a
+           `.cal-today`, `.fc-d--hoy` y a la lámina A4.
+           Se tiran solo las capas `inset` —las de fuera se conservan— y, cuando
+           la capa era un simple filo (`0 0 0 Npx`), se vuelve a dibujar con un
+           BORDE, que html2canvas sí pinta. Con `box-sizing:border-box` global
+           el borde no agranda la caja, así que no descuadra nada. */
+        const sh=cs.boxShadow;
+        if(sh&&sh!=='none'&&sh.indexOf('inset')>=0){
+          /* no vale partir por comas a secas: `rgba(0, 0, 0, .5)` lleva comas */
+          const capas=[];let prof=0,buf='';
+          for(let i=0;i<sh.length;i++){const ch=sh[i];
+            if(ch==='(')prof++;else if(ch===')')prof--;
+            if(ch===','&&prof===0){capas.push(buf);buf='';}else buf+=ch;}
+          capas.push(buf);
+          const limpias=capas.map(x=>x.trim()).filter(x=>x&&x.indexOf('inset')<0);
+          d.style.setProperty('box-shadow',limpias.length?limpias.join(', '):'none','important');
+          const filo=capas.map(x=>x.trim()).find(x=>/\binset\b/.test(x)&&/0px\s+0px\s+0px\s+[\d.]+px/.test(x));
+          if(filo){
+            const mc=filo.match(/(rgba?\([^)]*\)|#[0-9a-f]{3,8})/i);
+            const mw=filo.match(/0px\s+0px\s+0px\s+([\d.]+)px/);
+            if(mc&&mw){
+              const w=Math.max(1,Math.round(parseFloat(mw[1])));
+              const conBorde=['border-top-width','border-right-width','border-bottom-width','border-left-width']
+                .some(pp=>parseFloat(cs.getPropertyValue(pp))>0);
+              d.style.setProperty('border-style','solid','important');
+              d.style.setProperty('border-color',toRGB(mc[1]),'important');
+              if(!conBorde)d.style.setProperty('border-width',w+'px','important');
+            }
+          }
+        }};
       ap(el,c);
-      const n=Math.min(src.length,cl.length);
-      for(let i=0;i<n;i++)ap(src[i],cl[i]);
+      marcados.forEach((sn,i)=>{if(i===0)return;const d=mapa[i];if(d)ap(sn,d);});
       /* ya copiados los estilos, se pueden quitar las imágenes vacías sin
          descuadrar nada */
       c.querySelectorAll('img').forEach(im=>{const v=im.getAttribute('src')||'';if(!v||v==='about:blank')im.remove();});
     }catch(e){}}
-  }).then(cv=>{const a=document.createElement('a');a.download=filename;a.href=cv.toDataURL('image/png');a.click();})
-   .catch(e=>{alert('No se pudo generar el PNG ('+((e&&e.message)||e)+'). Como alternativa, usa Imprimir → Guardar como PDF.');});
+  }).then(cv=>{desmarcar();const a=document.createElement('a');a.download=filename;a.href=cv.toDataURL('image/png');a.click();})
+   .catch(e=>{desmarcar();alert('No se pudo generar el PNG ('+((e&&e.message)||e)+'). Como alternativa, usa Imprimir → Guardar como PDF.');});
 }
 function exportParte(){exportNodePNG('parte-card','wellness_parte_'+dkey(REF())+'.png');}
 
@@ -30574,8 +30618,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-19.2*/
-const VER_ACTUAL='2026-10-19.2';
+/*BUILD:2026-10-19.3*/
+const VER_ACTUAL='2026-10-19.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
