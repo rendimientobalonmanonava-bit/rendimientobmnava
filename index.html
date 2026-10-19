@@ -1872,7 +1872,9 @@ main{padding:20px 18px 80px}
    la segunda sesión del día. El objetivo tiene contenido fijo y se lleva su
    altura entera; lo que sobra o falta lo absorbe la lista de sesiones, que es
    lo que de verdad varía entre días. */
-.sa-week{flex:none;height:346px;display:grid;
+/* v419 · 16 px más: el recuadro gana la fila del veredicto («salió X%»). Los
+   cede el microciclo, que tenía holgura. */
+.sa-week{flex:none;height:362px;display:grid;
   grid-template-columns:repeat(7,minmax(0,1fr));
   grid-template-rows:auto auto auto minmax(0,1fr) auto auto;
   column-gap:7px;row-gap:6px}
@@ -1938,9 +1940,23 @@ main{padding:20px 18px 80px}
   font-size:10.5px;margin-top:auto;padding-top:4px;border-top:1px dashed var(--sa-line)}
 .sa-obj-rpe span{font-weight:700;color:var(--sa-accent)}
 .sa-obj-rpe b{font-weight:800}
+/* v419 · el veredicto en la lámina: lo que de verdad salió. Va pegado abajo
+   del recuadro y lleva SÍMBOLO Y PALABRA además del color, porque la hoja se
+   fotocopia en blanco y negro y ahí el color desaparece. */
+.sa-obj-cmp{display:flex;align-items:center;gap:5px;margin-top:4px;
+  padding:3px 6px;border-radius:5px;background:#fff;border:1px solid var(--sa-line);
+  border-left:3px solid var(--e);font-size:9.5px;font-weight:700;color:var(--sa-ink2)}
+.sa-cmp-s{color:var(--e);font-weight:900;font-size:11px;line-height:1}
+.sa-cmp-t{white-space:nowrap}
+.sa-obj-cmp b{margin-left:auto;color:var(--e);font-weight:800;white-space:nowrap}
 .sa-obj-p{flex:1;background:#1b2330;border-color:#1b2330;color:#fff}
 .sa-obj-p .sa-obj-h{color:#aeb8c8}
 .sa-obj-riv{font-size:13px;font-weight:800;letter-spacing:-.01em;line-height:1.2}
+/* lo medido en el partido: dato, no veredicto */
+.sa-obj-pm{display:flex;align-items:baseline;gap:5px;margin-top:auto;padding-top:5px;
+  border-top:1px solid rgba(255,255,255,.18);font-size:10px;font-weight:700;color:#aeb8c8}
+.sa-obj-pm b{font-size:14px;font-weight:800;color:#fff;letter-spacing:-.02em}
+.sa-obj-pm em{font-style:normal}
 .sa-obj-no{flex:1;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--sa-ink2);
   background:none;border:1px dashed var(--sa-line);text-align:center;padding:8px 6px}
 .sa-ua{display:flex;flex-direction:column;gap:2px;padding-top:7px;border-top:1px solid var(--sa-line)}
@@ -2372,6 +2388,15 @@ main{padding:20px 18px 80px}
 .tn-obj-hr b{color:var(--txt);font-family:var(--mono,monospace);font-weight:800}
 .tn-obj-hr .tn-obj-t{font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#0e7490}
 /* v416 · objetivo cardíaco: se planifica el pulso y el RPE sale solo */
+/* v419 · veredicto del día en la semana del calendario: ¿pasó lo programado?
+   Símbolo, palabra y color, por ese orden de importancia: el color es lo
+   último, nunca lo único. */
+.cw-cmp{display:flex;align-items:center;gap:5px;margin-top:5px;padding:4px 7px;
+  border-radius:7px;background:var(--panel-2,var(--bg));border:1px solid var(--hair);
+  border-left:3px solid var(--e);font-size:var(--fs-xs);font-weight:700;color:var(--muted)}
+.cw-cmp-s{color:var(--e);font-weight:900}
+.cw-cmp b{margin-left:auto;font-weight:800;color:var(--txt)}
+
 /* v417 · cierre del bucle: lo esperado frente a lo reportado */
 .hc-rpe{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;
   padding:11px 14px;border-radius:var(--radius-sm);border:1px solid var(--hair);
@@ -19843,6 +19868,63 @@ function calCardObj(e){
     z5,fc,nObs,rpe,grado,motivo,calibrado:banda.calibrado};
 }
 window.calCardObj=calCardObj;
+
+/* ═══ v419 · ¿Pasó lo que programamos? ════════════════════════════════════════
+   Daniel, 19/10/2026: «si programamos FC alta, que sea alta o no sea alta», y
+   que se vaya completando a medida que entran los pulsómetros. Es la pregunta
+   del entrenador, y hasta ahora había que abrir Pulsómetros y elegir la sesión
+   para contestarla.
+
+   `calCumplDia(dk)` la contesta por DÍA, que es como está organizado tanto el
+   calendario como la lámina. Devuelve null mientras no haya con qué medir: un
+   día sin pulsómetros no es un día incumplido, es un día del que no se sabe.
+
+   Dos reglas:
+   · **Se compara contra lo que se PIDIÓ ese día.** Con objetivo cardíaco, su
+     banda; sin él, el rango que salía del RPE y el contacto planificados. Sin
+     plan no hay nada contra lo que comparar y se dice.
+   · **El veredicto lleva símbolo Y palabra**, no solo color: la lámina se
+     fotocopia en blanco y negro y el color desaparece. Y el rojo no entra
+     aquí: pasarse de pulso no es una alerta, es una desviación, así que se usa
+     el color de acción, igual que hace `hreqCumpl`. */
+function calCumplDia(dk){
+  const z=calZonasDia(dk);
+  if(!z)return null;
+  const z45=(+z.z4||0)+(+z.z5||0);
+  if(!isFinite(z45))return null;
+  let ev=null;
+  try{ev=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&e.type!=='descanso'&&e.type!=='evento')[0]||null;}catch(e){}
+  if(!ev)return {z45,n:z.n,fuente:z.fuente,motivo:'sinplan'};
+  let rango=null, modo='';
+  const card=evCard(ev)?calCardObj(ev):null;
+  if(card){rango={lo:card.z45.lo,hi:card.z45.hi};modo='card';}
+  else{
+    let mod=null;try{mod=hreqMod();}catch(e){}
+    if(mod&&mod.ok&&mod.grado!=='flojo'){
+      const q=hreqPred(mod,evRpe(ev),evContacto(ev),evDur(ev));
+      if(q&&q.z45){rango={lo:q.z45.lo,hi:q.z45.hi};modo='rpe';}
+    }
+  }
+  if(!rango)return {z45,n:z.n,fuente:z.fuente,motivo:'sinobjetivo'};
+  const estado=(z45>=rango.lo&&z45<=rango.hi)?'ok':(z45<rango.lo?'corto':'pasado');
+  const fuera=estado==='ok'?0:(z45<rango.lo?z45-rango.lo:z45-rango.hi);
+  /* el segundo eje, si hay cuestionarios: lo que dijeron ellos */
+  let rpe=null;
+  try{
+    const key=[...new Set((STATE.hr||[]).filter(r=>r&&r.dk===dk).map(hrKey))][0];
+    const meta=key?sessMeta(key,dk):null;
+    if(meta&&meta.rpe!=null&&isFinite(meta.rpe)){
+      const esp=card&&card.rpe?{lo:card.rpe.lo,hi:card.rpe.hi}:null;
+      rpe={v:+meta.rpe, esp, pedido:card?null:evRpe(ev),
+        estado:esp?((meta.rpe>=esp.lo&&meta.rpe<=esp.hi)?'ok':(meta.rpe<esp.lo?'corto':'pasado'))
+                  :(Math.abs(meta.rpe-evRpe(ev))<=0.5?'ok':(meta.rpe<evRpe(ev)?'corto':'pasado'))};
+    }
+  }catch(e){}
+  return {z45,lo:rango.lo,hi:rango.hi,estado,fuera,modo,rpe,n:z.n,fuente:z.fuente};
+}
+window.calCumplDia=calCumplDia;
+/* Símbolo + palabra + color, en ese orden de importancia. */
+const CUMPL_EST={ok:['✓','Dentro','var(--ok)'],corto:['↓','Corto','var(--warn)'],pasado:['↑','Pasado','var(--accent)']};
 /* Sesiones planificadas de aquí en adelante, para poder cargarlas de un clic.
    v390 · «de aquí en adelante» es desde hoy, no desde el día que se esté
    mirando: si no, el desplegable ofrecía sesiones ya jugadas. */
@@ -23149,6 +23231,17 @@ function calSemanaA4(){
        esperado para que nadie lo confunda con el que luego reporten. */
     const evCard3=evs.find(x=>!evSP(x)&&evCard(x));
     const card=evCard3?calCardObj(evCard3):null;
+    /* v419 · lo que de verdad salió, en cuanto hay pulsómetros de ese día.
+       Mientras no los haya, la fila no existe: un día sin medir no es un día
+       incumplido. */
+    const cmp=calCumplDia(dk);
+    const veredicto=(cmp&&cmp.estado)?(function(){
+      const E=CUMPL_EST[cmp.estado];
+      return '<div class="sa-obj-cmp" style="--e:'+E[2]+'">'
+        +'<span class="sa-cmp-s">'+E[0]+'</span>'
+        +'<span class="sa-cmp-t">Salió '+r1(cmp.z45)+'%</span>'
+        +'<b>'+E[1]+'</b></div>';})()
+      :'';
     const objBox=card
       ? '<div class="sa-obj sa-obj-card">'
         +'<div class="sa-obj-h">Pides · pulso</div>'
@@ -23159,6 +23252,7 @@ function calSemanaA4(){
             +(r0(card.fc.lo)===r0(card.fc.hi)?r0(card.fc.mid):(r0(card.fc.lo)+'–'+r0(card.fc.hi)))+'%</b></div>':'')
         +(card.rpe?'<div class="sa-obj-rpe"><span>Esperas RPE</span><b>'
             +r1(card.rpe.lo)+'–'+r1(card.rpe.hi)+'</b></div>':'')
+        +veredicto
       +'</div>'
       : obj
       ? '<div class="sa-obj">'
@@ -23168,10 +23262,16 @@ function calSemanaA4(){
         +filaZona('% del tiempo',obj.z45[0],obj.z45[1],false,'z54')
         +(obj.z5?filaZona('en Z5',obj.z5[0],obj.z5[1],true,'z5'):'')
         +'<div class="sa-obj-r"><span>FC media</span><b>'+r0(obj.fc[0])+'–'+r0(obj.fc[1])+'%</b></div>'
+        +veredicto
       +'</div>'
       : esPart
+        /* En partido se enseña lo que se MIDIÓ, pero sin veredicto: el modelo
+           está ajustado con entrenamientos y juzgar un partido con él sería
+           extrapolar. El dato sirve igual al entrenador; la etiqueta, no. */
         ? ('<div class="sa-obj sa-obj-p"><div class="sa-obj-h">Partido</div>'
-           +'<div class="sa-obj-riv">'+(rival?esc(rival):'Rival por confirmar')+'</div></div>')
+           +'<div class="sa-obj-riv">'+(rival?esc(rival):'Rival por confirmar')+'</div>'
+           +(cmp?'<div class="sa-obj-pm"><span>Salió</span><b>'+r1(cmp.z45)+'%</b><em>en Z4+Z5</em></div>':'')
+           +'</div>')
         : (modOk&&pl.n&&!soloDescanso?'<div class="sa-obj sa-obj-no">Sin objetivo de pulso para este día</div>':'');
     /* v415 · Cada día ya no es una columna independiente, sino SEIS CELDAS de
        una rejilla compartida con el resto de la semana. Con columnas sueltas,
@@ -23208,7 +23308,14 @@ function calSemanaA4(){
   /* ── microciclo: partido → partido, NO la semana natural ── */
   let micro='';
   try{
-    const ci=calMicrociclo(hoyDk);
+    /* v419 · El microciclo se ancla a la SEMANA QUE SE IMPRIME, no a hoy.
+       Al navegar a otra semana, la hoja salía con la semana de mayo arriba y
+       el ciclo de octubre abajo. Si hoy cae dentro de la semana mostrada se
+       usa hoy —que es el caso normal y mantiene el comportamiento de siempre—;
+       si no, el jueves, que es el día con más probabilidad de pertenecer al
+       ciclo del que trata esa semana. */
+    const anclaMicro=(hoyDk>=dks[0]&&hoyDk<=dks[6])?hoyDk:dks[3];
+    const ci=calMicrociclo(anclaMicro);
     /* Sin partidos, siete días seguidos no son un microciclo: es la misma
        guarda que `renderCalMicro` en la aplicación. */
     if(ci.dias.length&&calPartidosDks().length){
@@ -23807,6 +23914,10 @@ function renderCalWeek(box){
       <div class="cw-dur">${pl.n?`<span class="cal-clock">◷</span> ${pl.totMin}′`:''}</div>
       ${pl.n&&pl.contacto>0?`<div class="cw-ct"><span class="cw-ct-lab">Contacto</span>${calContactBar(pl.contacto)}<b>${pl.contacto}</b></div>`:''}
       <div class="cw-evs">${evList}</div>
+      ${(function(){const c=calCumplDia(dk);if(!c||!c.estado)return '';
+          const E=CUMPL_EST[c.estado];
+          return `<div class="cw-cmp" style="--e:${E[2]}" title="Programado ${fmt(c.lo,1)}–${fmt(c.hi,1)}% en Z4+Z5 · salió ${fmt(c.z45,1)}% · ${c.n} pulsómetros">`
+            +`<span class="cw-cmp-s">${E[0]}</span><span>FC ${E[1].toLowerCase()}</span><b>${fmt(c.z45,1)}%</b></div>`;})()}
       ${zoneStr}
       <div class="cw-load">
         <div class="cw-load-row"><span>Plan</span><b>${pl.n?pl.planUA+' UA':'—'}</b></div>
@@ -31002,8 +31113,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-19.8*/
-const VER_ACTUAL='2026-10-19.8';
+/*BUILD:2026-10-19.9*/
+const VER_ACTUAL='2026-10-19.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
