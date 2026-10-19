@@ -4783,6 +4783,186 @@ html[data-theme="dark"] body.perf-lite .eq-tile,html[data-theme="dark"] body.per
 html[data-theme="dark"] body.perf-lite .pl-tile{
   background:rgba(28,34,46,.96)!important}
 html[data-theme="dark"] body.perf-lite header{background:rgba(20,25,35,.95)!important}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v420 · CAPA APPLE
+   Pedido por Daniel el 19/10/2026: «estilo Apple en toda la página, solo a
+   nivel visual, sin tocar nada funcional».
+
+   Va al FINAL de la hoja principal y es ADITIVA: no se ha borrado ni
+   reescrito una sola regla anterior, así que quitando este bloque la
+   aplicación vuelve exactamente a como estaba. Tampoco toca el JavaScript ni
+   el marcado: solo tokens y componentes base, que es lo que la propaga a
+   todas las vistas de una vez.
+
+   Lo que NO toca, a propósito:
+   · El efecto cristal y los blobs del fondo (bloqueados por Daniel el
+     23/09/2026). La guía de Apple dice que el cristal es de la capa funcional
+     —barras, sidebar— y no de las tarjetas de contenido; aquí se refuerza en
+     la cabecera y el sidebar, que es donde la guía lo pide, y se deja en paz
+     el de los paneles.
+   · Los semáforos, que siguen siendo semáforos.
+   · Los colores semánticos: rojo solo alertas, oro solo sidebar, índigo de
+     acción. Nada de esta capa inventa un color.
+   · Las tres hojas imprimibles (ficha, lámina A4 e informe isocinético)
+     declaran su propia tipografía y sus propias medidas, así que quedan
+     fuera. Son documentos, no interfaz.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1 · Tipografía ───────────────────────────────────────────────────────
+   En Mac, iPhone y iPad esto pasa a ser SF Pro de verdad —la tipografía del
+   sistema— en vez de su imitación. Inter se queda como respaldo para Windows
+   y Android, así que fuera de Apple no cambia nada.
+   «Minimize the number of typefaces you use»: siguen siendo las mismas tres
+   familias, solo cambia cuál se prefiere. */
+html,body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;
+  letter-spacing:-.005em}
+h1,h2,h3,.cond{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter Tight","Inter",sans-serif}
+/* Los tres documentos imprimibles se quedan en Inter. Las dos láminas ya la
+   declaraban; la ficha del jugador no, y habría heredado SF. Son papel, su
+   maqueta está medida al píxel y los tres tienen que salir iguales entre sí:
+   «minimize the number of typefaces» vale también para lo impreso. */
+.ficha-card,.ficha-card h1,.ficha-card h2,.ficha-card h3{
+  font-family:"Inter Tight","Inter",system-ui,sans-serif}
+/* Apple aprieta el texto grande y suelta el pequeño: a 34px el espaciado por
+   defecto se ve disperso, y a 11px en versalitas se ve amontonado. */
+.metric-xl,.kpi .val,.eq-v{letter-spacing:-.028em}
+h1{letter-spacing:-.026em}
+h2,.panel h2{letter-spacing:-.021em}
+.tag,.eq-l,.kpi .lab,.tbl th{letter-spacing:.055em}
+/* Cifras siempre tabulares: en una tabla que se actualiza, los dígitos de
+   ancho variable hacen bailar las columnas. */
+.kpi .val,.eq-v,.metric-xl,.tbl td,.hc-rpe-l b{font-variant-numeric:tabular-nums}
+
+/* ── 2 · Movimiento ───────────────────────────────────────────────────────
+   La curva de la app era la de Material (.4,0,.2,1). La de Apple arranca más
+   deprisa y frena mucho más largo: es casi todo lo que hace que una interfaz
+   «se sienta» de Apple sin cambiar un píxel de sitio. */
+:root{
+  --ease:.24s cubic-bezier(.32,.72,0,1);
+  --ease-out:cubic-bezier(.32,.72,0,1);
+  --ease-in-out:cubic-bezier(.65,0,.35,1);
+  /* Foco más visible: el anterior quedaba en .16 de opacidad y apenas se
+     veía. La accesibilidad pide que el foco de teclado se distinga. */
+  --focus:0 0 0 4px rgba(48,86,196,.28);
+  /* Elevación más suave y más alta, al gusto de Apple: menos contraste de
+     sombra, más desenfoque, y el brillo interior muy rebajado —era lo que
+     daba el aire de botón de los 2010—. */
+  --e1:0 .5px 1px rgba(16,21,31,.05),0 6px 16px -8px rgba(16,21,31,.10);
+  --e2:0 .5px 1px rgba(16,21,31,.06),0 12px 28px -12px rgba(16,21,31,.14);
+  --e3:0 2px 6px rgba(16,21,31,.07),0 32px 72px -16px rgba(16,21,31,.26)}
+html[data-theme="dark"]{
+  --focus:0 0 0 4px rgba(109,140,255,.34);
+  --e1:0 .5px 1px rgba(0,0,0,.5),0 6px 16px -8px rgba(0,0,0,.6);
+  --e2:0 .5px 1px rgba(0,0,0,.55),0 12px 28px -12px rgba(0,0,0,.7);
+  --e3:0 2px 6px rgba(0,0,0,.6),0 32px 72px -16px rgba(0,0,0,.8)}
+@media(prefers-reduced-motion:reduce){
+  :root{--ease:0s linear}
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+/* ── 3 · La capa funcional: cabecera y sidebar ────────────────────────────
+   «Do use Liquid Glass for: toolbars and top app bars, sidebars and
+   navigation panels.» Es justo donde la guía lo pide, y es lo único del
+   cristal que se toca: más desenfoque y un filo superior claro, que es el
+   remate que Apple le pone a sus barras. El de los paneles no se toca. */
+header{
+  background:rgba(255,255,255,.72);
+  backdrop-filter:saturate(180%) blur(32px);
+  -webkit-backdrop-filter:saturate(180%) blur(32px);
+  border-bottom:.5px solid rgba(16,21,31,.10)}
+html[data-theme="dark"] header{
+  background:rgba(18,22,30,.70);
+  border-bottom:.5px solid rgba(255,255,255,.10)}
+
+/* ── 4 · Controles ────────────────────────────────────────────────────────
+   Tres niveles, como en el sistema: relleno para la acción principal, tinte
+   para la secundaria y plano para la terciaria. Y el gesto de pulsar, que en
+   Apple es un encogimiento muy corto, no un cambio de color. */
+.btn{
+  min-height:32px;padding:7px 16px;
+  font-size:var(--fs-body);font-weight:590;letter-spacing:-.01em;
+  border-radius:var(--r-pill);
+  transition:transform var(--ease),background-color var(--ease),box-shadow var(--ease),opacity var(--ease)}
+.btn:not(.ghost){box-shadow:0 1px 2px rgba(16,21,31,.10)}
+.btn:hover{filter:none;background:var(--accent-hover)}
+.btn:active{transform:scale(.97)}
+/* Secundario con relleno NEUTRO, no tintado de azul. Tintarlo de acento
+   convertía cada «Semana anterior» en algo que parecía la acción principal, y
+   dejaba la pantalla llena de azul. El tinte de color se reserva para lo que
+   de verdad es del acento. */
+.btn.ghost{
+  background:rgba(20,29,46,.06);color:var(--txt);border:none;box-shadow:none}
+.btn.ghost:hover{background:rgba(20,29,46,.10)}
+html[data-theme="dark"] .btn.ghost{background:rgba(255,255,255,.10);color:var(--txt)}
+html[data-theme="dark"] .btn.ghost:hover{background:rgba(255,255,255,.16)}
+.btn:disabled,.btn[disabled]{opacity:.38;pointer-events:none}
+/* Área de pulsación cómoda en el móvil: la guía pide 44 px. */
+@media(max-width:760px){.btn{min-height:44px;padding:11px 18px}}
+
+/* Campos: relleno suave en vez de borde marcado, que es como los pinta el
+   sistema. El borde se queda en medio punto para que el campo siga teniendo
+   límite sin convertirse en una caja. */
+input,select,textarea{
+  background:var(--panel2);
+  border:.5px solid var(--line);
+  border-radius:var(--r-ctl);
+  padding:9px 12px;
+  font-size:var(--fs-body);
+  transition:background-color var(--ease),border-color var(--ease),box-shadow var(--ease)}
+input:hover,select:hover,textarea:hover{border-color:rgba(20,29,46,.16)}
+input:focus,select:focus,textarea:focus{
+  background:var(--panel);border-color:var(--accent);outline:none}
+input::placeholder,textarea::placeholder{color:var(--muted2)}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{
+  background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12)}
+html[data-theme="dark"] input:hover,html[data-theme="dark"] select:hover,
+html[data-theme="dark"] textarea:hover{border-color:rgba(255,255,255,.2)}
+@media(max-width:760px){input,select,textarea{min-height:44px}}
+
+/* Control segmentado: pista hundida y pastilla blanca con sombra corta. Es
+   la pieza que más delata a una interfaz Apple. */
+.seg{
+  background:rgba(20,29,46,.06);
+  border:none;border-radius:10px;padding:2px;gap:0}
+.seg button{
+  border-radius:8px;font-weight:590;letter-spacing:-.01em;
+  transition:color var(--ease),background-color var(--ease),transform var(--ease)}
+/* El segmento activo pasa a pastilla clara con texto oscuro, que es el
+   control segmentado del sistema. OJO: la app lo tenía relleno de acento con
+   texto BLANCO (línea 795), así que cambiar solo el fondo dejaba blanco sobre
+   blanco —contraste 1:1, invisible—. El color del texto va obligatoriamente
+   junto al fondo. */
+.seg button.on{
+  background:var(--panel);color:var(--txt);border:none;
+  box-shadow:0 1px 3px rgba(16,21,31,.12),0 .5px .5px rgba(16,21,31,.06)}
+.seg button:active{transform:scale(.97)}
+html[data-theme="dark"] .seg{background:rgba(255,255,255,.08)}
+html[data-theme="dark"] .seg button.on{background:rgba(255,255,255,.16);box-shadow:none}
+
+/* Etiquetas y píldoras: Apple las hace más bajas y más redondas. */
+.tag{padding:3px 9px;font-weight:590;border-radius:var(--r-pill)}
+
+/* ── 5 · Tablas ───────────────────────────────────────────────────────────
+   Separadores de medio punto y encabezado sin peso de más: la rejilla se
+   sugiere, no se dibuja. */
+.tbl th{font-weight:590;border-bottom:.5px solid var(--line)}
+.tbl td{border-bottom:.5px solid var(--grid)}
+.tbl tbody tr{transition:background-color var(--ease)}
+.tbl tbody tr:last-child td{border-bottom:none}
+
+/* ── 6 · Radios concéntricos ──────────────────────────────────────────────
+   Cuando una esquina redondeada vive dentro de otra, la de dentro tiene que
+   ser la de fuera menos el hueco que las separa; si no, las curvas no son
+   paralelas y se nota aunque no se sepa por qué. El panel tiene 20 px de
+   radio y 22 de relleno, así que lo de dentro pide 12–14. */
+.panel>.tbl-wrap,.panel>.wrap-x{border-radius:var(--r-ctl)}
+
+/* ── 7 · Separadores ──────────────────────────────────────────────────────
+   Medio punto en vez de uno entero. En pantallas de retina se ve igual de
+   nítido y deja de pesar. */
+hr,.hairline{border:none;border-top:.5px solid var(--line)}
 </style>
 </head>
 <body>
@@ -31113,8 +31293,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-19.9*/
-const VER_ACTUAL='2026-10-19.9';
+/*BUILD:2026-10-19.10*/
+const VER_ACTUAL='2026-10-19.10';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
