@@ -2388,6 +2388,39 @@ main{padding:20px 18px 80px}
 .tn-obj-hr b{color:var(--txt);font-family:var(--mono,monospace);font-weight:800}
 .tn-obj-hr .tn-obj-t{font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#0e7490}
 /* v416 · objetivo cardíaco: se planifica el pulso y el RPE sale solo */
+/* v426 · Cada jugador, esta semana */
+.sem-head,.sem-r{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.6fr) minmax(0,2fr) minmax(0,1fr) minmax(0,.7fr);
+  gap:12px;align-items:center}
+.sem-head{padding:0 0 7px;border-bottom:1px solid var(--line);
+  font-size:var(--fs-xs);font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.sem-head em{font-style:normal;font-weight:600;letter-spacing:0;text-transform:none;margin-left:5px}
+.sem-rows{display:flex;flex-direction:column}
+.sem-r{padding:8px 0;border-bottom:.5px solid var(--hair);cursor:pointer;transition:background-color var(--ease)}
+.sem-r:last-child{border-bottom:0}
+.sem-r:hover{background:var(--panel2)}
+.sem-n{font-size:var(--fs-sm);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sem-n em{font-style:normal;font-weight:600;color:var(--muted);margin-left:6px;font-size:var(--fs-xs)}
+.sem-ua{display:flex;align-items:center;gap:8px;min-width:0}
+.sem-ua i{flex:1;height:8px;border-radius:999px;background:var(--accent);opacity:.45;min-width:2px}
+.sem-ua b{flex:none;font-size:var(--fs-sm);font-weight:800;font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
+/* la banda óptima del ACWR dibujada, no explicada: se ve de un vistazo quién se sale */
+/* El punto y la cifra en carriles separados: con el punto suelto dentro de la
+   celda, un ACWR alto lo llevaba al 85% del ancho y se montaba encima del
+   número. */
+.sem-ac{display:flex;align-items:center;gap:10px;min-width:0;height:18px}
+.sem-track{position:relative;flex:1;min-width:46px;height:18px}
+.sem-band{position:absolute;left:20%;right:46.7%;top:6px;height:6px;border-radius:3px;background:var(--ok);opacity:.22}
+.sem-dot{position:absolute;top:3px;width:12px;height:12px;margin-left:-6px;border-radius:50%;
+  border:2px solid var(--panel);box-shadow:0 1px 3px rgba(16,21,31,.25)}
+.sem-ac b{flex:none;width:40px;text-align:right;font-size:var(--fs-sm);font-weight:800;font-variant-numeric:tabular-nums}
+.sem-mo{font-size:var(--fs-sm);font-weight:800;font-variant-numeric:tabular-nums}
+.sem-mo em{display:block;font-style:normal;font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
+.sem-st{font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
+@media(max-width:860px){
+  .sem-head{display:none}
+  .sem-r{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.4fr);gap:8px}
+  .sem-mo,.sem-st{display:none}}
+
 /* v425 · ¿llegan a ritmo de partido? */
 .lst-ref{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .lst-ref>div{flex:1;min-width:190px;padding:11px 14px;border-radius:var(--radius-sm);
@@ -13110,14 +13143,75 @@ function renderCargaResumen(){
   // ---- tira de titulares ----
   const tile=(lab,val,sub,sev,extra)=>`<div class="crs-tile"><div class="crs-l">${lab}</div><div class="crs-v" style="color:var(--${sev||'txt'})">${val}</div><div class="crs-s">${sub||''}</div>${extra||''}</div>`;
   const acSev=isNaN(teamA)?'muted':(teamA>1.5||teamA<0.8?'bad':teamA>1.3?'warn':'ok');
+  /* v426 · Fuera «ACWR medio», «Readiness medio» y «Disponibles»: los tres
+     están ya en la cabecera del Resumen, que es la pantalla de entrada. Si se
+     ven dos veces, la segunda no aporta y hace que esta vista parezca una
+     copia. Se quedan los tres que SOLO están aquí. */
   const strip=`<div class="crs-strip">
     ${tile('Última sesión',isNaN(lastUA)?'—':Math.round(lastUA)+' <small>UA</small>',lastFecha+' · '+esc(lastTipo))}
-    ${tile('ACWR medio',isNaN(teamA)?'—':teamA.toFixed(2),zrisk?zrisk+' en riesgo':'ninguno en riesgo',acSev)}
     ${tile('Monotonía',isNaN(monoM)?'—':monoM.toFixed(2),monoM>2?'poca variación':'variación correcta',isNaN(monoM)?'muted':(monoM>2?'warn':'ok'))}
-    ${tile('Readiness medio',isNaN(rdyM)?'—':Math.round(rdyM),'del equipo',isNaN(rdyM)?'muted':(rdyM>=75?'ok':rdyM>=55?'warn':'bad'))}
     ${tile('Contacto',clab,'media ponderada',isNaN(meanC)?'muted':(meanC>=2.5?'warn':'ok'))}
-    ${tile('Disponibles',dispo.disp+' <small>/ '+ps.length+'</small>',dispo.care+' con molestia · '+dispo.fuera+' fuera',dispo.fuera?'warn':'ok')}
   </div>`;
+
+  /* ═══ v426 · Cada jugador, esta semana ═══════════════════════════════════
+     Lo que Daniel echaba en falta y no estaba en ninguna pantalla: la
+     monotonía y el strain POR JUGADOR. Hasta ahora solo existía la media del
+     equipo, y una media de monotonía no dice quién lleva tres semanas
+     entrenando siempre igual, que es justo lo que importa.
+
+     Sustituye además al gráfico de 14 días del equipo: el gráfico era del
+     equipo y el problema es individual.
+
+     Ni un umbral inventado: la banda del ACWR es la que ya usa el reparto de
+     arriba (0,8–1,3 óptimo · 1,3–1,5 sobrecarga · ≥1,5 riesgo) y la monotonía
+     va por `calMonoTier`, el mismo criterio del calendario. */
+  const AC_MIN=0.5, AC_MAX=2.0;
+  const acPos=v=>Math.max(0,Math.min(100,(v-AC_MIN)/(AC_MAX-AC_MIN)*100));
+  const semana=ps.map(p=>{
+    const w=wkLast[p.name]||null;
+    const ac=(p.acwr&&!isNaN(p.acwr.ratio))?p.acwr.ratio:NaN;
+    return {p,ua:w?w.ua:NaN,mono:w?w.mono:NaN,strain:w?w.strain:NaN,
+            parcial:w?w.parcial:true,ac};
+  }).filter(r=>!isNaN(r.ua)||!isNaN(r.ac));
+  /* Orden por lo que hay que mirar antes: fuera de banda primero, luego
+     monotonía alta, luego el resto. */
+  const sev=r=>{
+    if(!isNaN(r.ac)&&(r.ac>=1.5||r.ac<0.8))return 0;
+    if(!isNaN(r.ac)&&r.ac>1.3)return 1;
+    if(!isNaN(r.mono)&&r.mono>2)return 2;
+    return 3;
+  };
+  semana.sort((a,b)=>(sev(a)-sev(b))||((b.strain||0)-(a.strain||0)));
+  const uaMaxS=Math.max(1,...semana.map(r=>r.ua||0));
+  const filaSem=r=>{
+    const mt=calMonoTier(r.mono);
+    const acCol=isNaN(r.ac)?'var(--muted2)':(r.ac>=1.5||r.ac<0.8?'var(--bad)':(r.ac>1.3?'var(--warn)':'var(--ok)'));
+    return `<div class="sem-r" onclick="openPlayer('${r.p.name.replace(/'/g,"\\'")}')">
+      <span class="sem-n">${esc(r.p.name.split(' ').slice(0,2).join(' '))}<em>${esc(r.p.pos||'')}</em></span>
+      <span class="sem-ua"><i style="width:${Math.round((r.ua||0)/uaMaxS*100)}%"></i><b>${isNaN(r.ua)?'—':Math.round(r.ua)}</b></span>
+      <span class="sem-ac">
+        <span class="sem-track"><i class="sem-band"></i>${isNaN(r.ac)?'':`<i class="sem-dot" style="left:${acPos(r.ac).toFixed(1)}%;background:${acCol}"></i>`}</span>
+        <b style="color:${acCol}">${isNaN(r.ac)?'—':r.ac.toFixed(2)}</b>
+      </span>
+      <span class="sem-mo" style="color:${mt.c}">${isNaN(r.mono)?'—':r.mono.toFixed(2)}<em>${mt.lab}</em></span>
+      <span class="sem-st">${isNaN(r.strain)?'—':Math.round(r.strain)}</span>
+    </div>`;
+  };
+  const panelSemana=`<div class="panel" style="margin-top:14px">
+      <h2>Cada jugador, esta semana <span class="r muted">carga, ACWR, monotonía y strain · pulsa para abrir la ficha</span></h2>
+      ${semana.length?`<div class="sem-head">
+          <span class="sem-n">Jugador</span><span class="sem-ua">UA de la semana</span>
+          <span class="sem-ac">ACWR <em>banda 0,8–1,3</em></span>
+          <span class="sem-mo">Monotonía</span><span class="sem-st">Strain</span>
+        </div>
+        <div class="sem-rows">${semana.map(filaSem).join('')}</div>
+        <p class="small muted" style="margin:10px 0 0;line-height:1.45">
+          La <b>monotonía</b> es cuánto se parecen entre sí los días de la semana: alta significa entrenar siempre igual, que cansa sin preparar.
+          El <b>strain</b> la multiplica por la carga de la semana, así que sube cuando se acumula mucho Y monótono.
+          ${semana.some(r=>r.parcial)?'Las semanas a medias no se comparan con la anterior.':''}
+        </p>`
+      :'<p class="small muted" style="padding:10px 0">Sin sRPE suficiente esta semana.</p>'}
+    </div>`;
 
   box.innerHTML=strip+`
     <div class="grid g3" style="align-items:stretch;margin-top:14px">
@@ -13132,13 +13226,6 @@ function renderCargaResumen(){
         </div>
       </div>
       <div class="panel">
-        <h2>Carga del equipo · 14 días <span class="r muted">UA media por sesión</span></h2>
-        <div style="height:172px"><canvas id="ch-res-ev14"></canvas></div>
-        <div class="res-evolab" style="margin-top:12px">Cumplimiento del parte wellness · 7 días</div>
-        <div style="height:104px"><canvas id="ch-res-cumpl"></canvas></div>
-        <div class="small muted" style="margin-top:6px">${isNaN(cumpl)?'Sin cuestionarios en la última semana.':'Media de respuesta: <b>'+Math.round(cumpl)+'%</b> de la plantilla en los días con parte.'}</div>
-      </div>
-      <div class="panel">
         <h2>Reparto de carga sugerido <span class="r muted">readiness y ACWR</span></h2>
         <div class="load-sug" style="margin-top:6px">
           <div class="load-h"><span class="ld" style="background:${okc}"></span>Pueden asumir más carga</div>
@@ -13147,43 +13234,26 @@ function renderCargaResumen(){
           ${lessLoad.length?lessLoad.map(o=>loadRow(o.p,`Rdy <b style="color:${o.p.readiness<55?bc:wc}">${Math.round(o.p.readiness)}</b> · ACWR <b style="color:${o.ac>=1.5?bc:o.ac>=1.3?wc:'inherit'}">${cell(o.ac,2)}</b>`)).join(''):'<div class="small muted" style="padding:6px 8px">Nadie en zona de bajar carga.</div>'}
         </div>
       </div>
-    </div>
-
-    <div class="grid g23" style="margin-top:14px;align-items:start">
-      <div class="panel">
-        <h2>A vigilar por carga <span class="r muted">riesgo combinado</span></h2>
-        ${watch.length?`<div class="watch-grid">
-        ${watch.map(o=>{const lvl=(!isNaN(o.ac)&&o.ac>=1.5)?'bad':((!isNaN(o.ac)&&o.ac>=1.3)||(!isNaN(o.mo)&&o.mo>2)||(!isNaN(o.dl)&&o.dl>20))?'warn':'ok';const col='var(--'+lvl+')';
-          const dchip=isNaN(o.dl)?'':`<span class="wm-chip">Salto<b style="color:${o.dl>20?'var(--bad)':o.dl>10?'var(--warn)':'var(--txt)'}">${o.dl>0?'+':''}${fmt(o.dl,0)}%</b></span>`;
-          return `<div class="watch-card" style="border-left-color:${col}" onclick="openPlayer('${o.p.name.replace(/'/g,"\\'")}')">
-            <div class="watch-top"><div><div class="watch-name"><i class="posband-dot" style="background:var(--${o.p.sev||'muted2'})"></i>${esc(o.p.name)}</div><div class="watch-pos">${esc(o.p.pos||'')}</div></div>
-              <div style="text-align:right"><div class="watch-big" style="color:${col}">${cell(o.ac,2)}</div><div class="watch-meta">ACWR</div></div></div>
-            <div class="watch-chips"><span class="wm-chip">Monot<b style="color:${!isNaN(o.mo)&&o.mo>2?'var(--warn)':'var(--txt)'}">${cell(o.mo,2)}</b></span>${dchip}<span class="wm-chip">Aguda<b>${cell(o.aguda,0)}</b></span></div>
-          </div>`;}).join('')}
-        </div>`:'<p class="muted" style="padding:14px 0">Ningún jugador en zona de vigilancia por carga ahora mismo.</p>'}
-      </div>
       <div class="panel">
         <h2>Carga por posición <span class="r muted">acumulada por jugador · ${win} días</span></h2>
         ${posRows.length?posRows.map(r=>`<div class="crs-pos">
             <div class="crs-pos-h"><span>${esc(r.g)} <span class="muted">· ${r.n}</span></span><b>${Math.round(r.media)} UA</b></div>
             <div class="crs-pos-bar"><span style="width:${Math.round(r.media/posMax*100)}%"></span></div>
           </div>`).join(''):'<p class="small muted" style="padding:10px 0">Sin sRPE en la ventana seleccionada.</p>'}
+        <div class="res-evolab" style="margin-top:14px">Cumplimiento del parte wellness · 7 días</div>
+        <div style="height:92px"><canvas id="ch-res-cumpl"></canvas></div>
+        <div class="small muted" style="margin-top:6px">${isNaN(cumpl)?'Sin cuestionarios en la última semana.':'Media de respuesta: <b>'+Math.round(cumpl)+'%</b> de la plantilla en los días con parte.'}</div>
       </div>
     </div>
-
-    <div class="panel" style="margin-top:14px">
-      <h2>Últimas sesiones <span class="r muted">sRPE registrado</span></h2>
-      ${sesiones.length?`<div class="crs-tw"><table class="crs-table"><thead><tr>
-        <th>Fecha</th><th>Tipo</th><th>MD</th><th class="n">Jugadores</th><th class="n">Duración</th><th class="n">RPE medio</th><th class="n">UA media</th><th class="n">UA máx</th></tr></thead><tbody>
-        ${sesiones.map(s=>`<tr><td><b>${s.dk.split('-').reverse().slice(0,2).join('/')}</b></td><td>${esc(s.tipo)}</td><td>${esc(s.mdx)}</td>
-          <td class="n">${s.n}</td><td class="n">${cell(s.dur,0)}'</td><td class="n">${cell(s.rpe,1)}</td>
-          <td class="n"><b>${cell(s.ua,0)}</b></td><td class="n">${cell(s.max,0)}</td></tr>`).join('')}
-      </tbody></table></div>`:'<p class="small muted" style="padding:10px 0">Sin sesiones registradas.</p>'}
-    </div>`;
+    ${panelSemana}`;
 
   // ---- gráficos (todos sobre dato real) ----
   const mc=cssVar('--muted')||'#8a93a0';
   killCharts(['ch-res-ev14','ch-res-cumpl']);
+  /* v426 · el gráfico de 14 días del equipo se retira: era del equipo y el
+     problema es individual. Su sitio lo ocupa «Cada jugador, esta semana».
+     El bloque de dibujo se deja porque no estorba y el lienzo ya no existe
+     (`elR` sale null), así que basta con no reponerlo para recuperarlo. */
   const ev=tda.slice(-14);
   const elR=document.getElementById('ch-res-ev14');
   if(elR&&ev.length){
@@ -31707,8 +31777,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.5*/
-const VER_ACTUAL='2026-10-20.5';
+/*BUILD:2026-10-20.6*/
+const VER_ACTUAL='2026-10-20.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
