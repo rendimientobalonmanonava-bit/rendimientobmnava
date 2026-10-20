@@ -1874,7 +1874,7 @@ main{padding:20px 18px 80px}
    lo que de verdad varía entre días. */
 /* v419 · 16 px más: el recuadro gana la fila del veredicto («salió X%»). Los
    cede el microciclo, que tenía holgura. */
-.sa-week{flex:none;height:382px;display:grid;
+.sa-week{flex:none;height:395px;display:grid;
   grid-template-columns:repeat(7,minmax(0,1fr));
   grid-template-rows:auto auto auto minmax(0,1fr) auto auto;
   column-gap:7px;row-gap:6px}
@@ -24017,9 +24017,11 @@ window.calSemA4Obj=calSemA4Obj;
    · **La palabra dice la dirección y el color dice si está dentro de lo
      pedido**, que son dos cosas distintas: es la misma separación ya escrita
      para las flechas del Camino a Champions.
-   · **El contacto va en neutro, sin veredicto de color.** No tiene banda en la
-     app y no se inventa una, igual que la FC media del recuadro del día: se
-     enseñan las dos cifras y la diferencia, que es lo que se preguntó.
+   · **El contacto se juzga contra el contacto planificado ± medio punto**
+     (v432, a petición de Daniel): medio punto es la resolución de la escala,
+     que se planifica en enteros del 1 al 5, así que no es un umbral nuevo. Es
+     la misma construcción que el RPE. El plan se pondera por duración, no se
+     coge el pico: pista a 4 más gimnasio a 1 no se planificó «a 4».
    · **El %Z4 se deriva, no se modela**: el modelo predice %Z4+Z5 y %Z5, así
      que el %Z4 pedido es la resta. El rango se ensancha a propósito
      (lo45−hi5 … hi45−lo5), porque la resta de dos intervalos ajustados por
@@ -24078,7 +24080,7 @@ function calSemA4Efectos(dks){
   if(A.rpe.n){const p=A.rpe.p/A.rpe.w, r=A.rpe.r/A.rpe.w;
     out.rpe={plan:p,real:r,dif:r-p,n:A.rpe.n,card:A.rpe.card,d:calDesvio(r,p-0.5,p+0.5)};}
   if(A.ct.n){const p=A.ct.p/A.ct.w, r=A.ct.r/A.ct.w;
-    out.ct={plan:p,real:r,dif:r-p,n:A.ct.n,d:null};}
+    out.ct={plan:p,real:r,dif:r-p,n:A.ct.n,d:calDesvio(r,p-0.5,p+0.5)};}
   return out;
 }
 window.calSemA4Efectos=calSemA4Efectos;
@@ -24276,11 +24278,33 @@ function calSemanaA4(){
       return null;
     })();
     const uaLo=pl.planUA>0?pl.planUA*0.85:null, uaHi=pl.planUA>0?pl.planUA*1.15:null;
+    /* v432 · Daniel, 20/10/2026: «añádeme el contacto también, para ver si se
+       han pegado más o menos de lo que planificábamos».
+
+       La franja es **el contacto planificado ± medio punto**, igual que el
+       RPE. No es un umbral nuevo: **medio punto es la resolución de la
+       escala** —el contacto se planifica en enteros del 1 al 5, así que por
+       debajo de medio punto la escala no distingue—. Con la regla de
+       `calDesvio`, eso deja el ámbar hasta un punto entero de diferencia y el
+       rojo más allá: en una escala de cinco, pasarse de un punto entero sí es
+       pegarse bastante más de lo que se pidió.
+
+       El plan se pondera por DURACIÓN, no se coge el pico: un día de pista a
+       contacto 4 más gimnasio a contacto 1 no se planificó «a 4», y lo que
+       reportan los jugadores es también una media de sus bloques. El pico
+       sigue en la línea de arriba, que es la instrucción de la sesión. */
+    const ctPlan=(function(){let sv=0,sw=0;
+      evs.filter(e=>!evSP(e)&&e.type!=='descanso'&&e.type!=='evento').forEach(e=>{
+        const d=evDur(e)||75, c=evContacto(e);
+        if(c!=null&&isFinite(c)){sv+=c*d;sw+=d;}});
+      return sw>0?sv/sw:null;})();
+    const ctLo=ctPlan!=null?ctPlan-0.5:null, ctHi=ctPlan!=null?ctPlan+0.5:null;
     const filas=barra('Carga',uaLo,uaHi,D.ua,mil,'')
       +(P?barra('Z4+Z5',P.z45[0],P.z45[1],D.z45,r1,'%'):barra('Z4+Z5',null,null,D.z45,r1,'%'))
       +(P&&P.z5?barra('Z5',P.z5[0],P.z5[1],D.z5,r1,'%'):barra('Z5',null,null,D.z5,r1,'%'))
       +(P&&P.fc?barra('FC',P.fc[0],P.fc[1],D.fc,r0,'%'):barra('FC',null,null,D.fc,r0,'%'))
-      +(P&&P.rpe?barra('RPE',P.rpe[0],P.rpe[1],D.rpe,r1,''):barra('RPE',null,null,D.rpe,r1,''));
+      +(P&&P.rpe?barra('RPE',P.rpe[0],P.rpe[1],D.rpe,r1,''):barra('RPE',null,null,D.rpe,r1,''))
+      +barra('Contacto',ctLo,ctHi,D.ct,r1,'');
     const objBox=esPart
       /* En partido se enseña lo que se MIDIÓ, pero sin franja ni veredicto: el
          modelo está ajustado con entrenamientos y juzgar un partido con él
@@ -24293,6 +24317,7 @@ function calSemanaA4(){
           +barra('Z5',null,null,D.z5,r1,'%')
           +barra('FC',null,null,D.fc,r0,'%')
           +barra('RPE',null,null,D.rpe,r1,'')
+          +barra('Contacto',null,null,D.ct,r1,'')
         +'</div></div>'
       : (pl.n&&!soloDescanso)
       ? '<div class="sa-obj'+(P&&P.card?' sa-obj-card':'')+'">'
@@ -24322,7 +24347,7 @@ function calSemanaA4(){
     cel(2,'',sem);
     cel(3,'',(pl.n&&!soloDescanso)
       ? '<div class="sa-meta"><span>◷ '+pl.totMin+'′</span>'
-        +(pl.contacto>0?'<span>Contacto '+pl.contacto+(D.ct!=null?' → <b>'+r1(D.ct)+'</b>':'/5')+'</span>':'')+'</div>'
+        +(pl.contacto>0?'<span>Contacto '+pl.contacto+'/5</span>':'')+'</div>'
       : '');
     cel(4,'',ses?'<div class="sa-sess">'+ses+'</div>':'');
     cel(5,'sa-r5',objBox);
@@ -24364,7 +24389,7 @@ function calSemanaA4(){
       +celda(zona[0],zona[1],r1,'%',dPts)
       +celda('% Z5',ef.z5,r1,'%',dPts)
       +celda(ef.rpe&&ef.rpe.card?'RPE (esperado)':'RPE',ef.rpe,r1,'',dNum)
-      +celda('Contacto',ef.ct,r1,'',dNum,true);
+      +celda('Contacto',ef.ct,r1,'',dNum);
     const hay=!!(ef.ua||ef.z4||ef.z45||ef.z5||ef.rpe||ef.ct);
     /* v430 · De cinco tarjetas a una línea. El resultado de cada día vive
        ahora en su propia columna, que es lo que pidió Daniel; esto se queda
@@ -32228,8 +32253,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.11*/
-const VER_ACTUAL='2026-10-20.11';
+/*BUILD:2026-10-20.12*/
+const VER_ACTUAL='2026-10-20.12';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
