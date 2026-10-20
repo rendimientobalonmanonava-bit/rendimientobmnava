@@ -2388,6 +2388,32 @@ main{padding:20px 18px 80px}
 .tn-obj-hr b{color:var(--txt);font-family:var(--mono,monospace);font-weight:800}
 .tn-obj-hr .tn-obj-t{font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#0e7490}
 /* v416 · objetivo cardíaco: se planifica el pulso y el RPE sale solo */
+/* v425 · ¿llegan a ritmo de partido? */
+.lst-ref{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.lst-ref>div{flex:1;min-width:190px;padding:11px 14px;border-radius:var(--radius-sm);
+  background:var(--panel2);border:1px solid var(--hair);display:flex;flex-direction:column;gap:1px}
+.lst-ref em{font-style:normal;font-size:var(--fs-xs);font-weight:800;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted)}
+.lst-ref b{font-size:var(--fs-h1);font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.lst-ref span{font-size:var(--fs-xs);color:var(--muted)}
+.lst-g{margin-bottom:12px;padding-left:11px;border-left:3px solid var(--g)}
+.lst-g-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:7px}
+.lst-g-h b{font-size:var(--fs-body);font-weight:800;color:var(--g)}
+.lst-g-h span{font-size:var(--fs-xs);font-weight:800;color:#fff;background:var(--g);border-radius:999px;padding:1px 7px}
+.lst-g-h em{font-style:normal;font-size:var(--fs-xs);color:var(--muted);flex:1 1 100%}
+.lst-rows{display:flex;flex-direction:column;gap:3px}
+.lst-r{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:.5px solid var(--hair)}
+.lst-r:last-child{border-bottom:0}
+.lst-n{flex:0 0 160px;font-size:var(--fs-sm);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lst-n em{font-style:normal;font-weight:600;color:var(--muted);margin-left:6px;font-size:var(--fs-xs)}
+.lst-m{flex:0 0 150px;font-size:var(--fs-xs);color:var(--muted)}
+.lst-a{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.lst-bar{flex:1;height:7px;border-radius:999px;background:var(--panel2);overflow:hidden;min-width:40px}
+.lst-bar i{display:block;height:100%;border-radius:999px;background:var(--g)}
+.lst-a b{flex:none;font-size:var(--fs-sm);font-weight:800;min-width:38px;text-align:right}
+.lst-na{font-size:var(--fs-xs);color:var(--muted2)}
+@media(max-width:700px){.lst-n{flex-basis:110px}.lst-m{flex-basis:100%;order:3}}
+
 /* v419 · veredicto del día en la semana del calendario: ¿pasó lo programado?
    Símbolo, palabra y color, por ese orden de importancia: el color es lo
    último, nunca lo único. */
@@ -5249,6 +5275,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 </div>
         <div class="panel" id="team-ultimas" style="cursor:pointer" onclick="go('hr')"><h2>Últimas sesiones <span class="r muted">nivel, zonas y contacto ›</span></h2><div id="eq-ultimas"></div></div>
         <div class="panel" id="team-next"></div>
+        <!-- v425 · «Plan contra real, por jugador», también desde Cargas › RPE -->
+        <div class="panel" id="cgplan-card"></div>
         <div class="panel"><h2>Intensidad de la sesión <span class="r muted">última</span></h2><div id="team-intensity"></div></div>
         <div class="panel" id="team-hr-panel" style="cursor:pointer" onclick="go('hr')">
         <h2>Resumen de pulso · zonas de FC <span class="r muted">interna + externa ›</span></h2>
@@ -5258,6 +5286,9 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--warn)"></span>A vigilar</div>
         <div class="panel" id="team-rings"></div>
+        <!-- v425 · «Quién necesita algo hoy» se muda aquí desde Cargas › RPE:
+             dice el motivo y qué hacer, y esta es la columna de esa pregunta. -->
+        <div class="panel" id="cgaten-card"></div>
         <div class="panel" id="team-fisio"></div>
         <div class="panel" id="team-reuniones"></div>
         <div class="panel"><h2>Estado de carga del equipo</h2><div id="team-meters"></div></div>
@@ -5422,12 +5453,13 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 
     <div class="carga-pane" id="carga-grupal">
       <div id="carga-hero"></div>
-      <!-- v409 · de describir a decidir -->
-      <div class="panel" id="cgaten-card"></div>
-      <!-- v408 · lo que tenían detrás vuestras propias lesiones -->
-      <div class="panel" id="lescarga-card"></div>
-      <div class="panel" id="cgplan-card"></div>
-      <div class="panel" id="cgmin-card"></div>
+      <!-- v425 · «Quién necesita algo hoy» y «Plan contra real» se han mudado al
+           Resumen; «Carga contra minutos jugados» a Pulsómetros. «Carga antes de
+           las lesiones» se queda sin sitio en la navegación junto con esta
+           pestaña: el código sigue entero y basta devolverle un contenedor.
+           Los ids NO se repiten: si existieran aquí y en el Resumen, el
+           `getElementById` cogería el primero y el panel se pintaría en la
+           pestaña retirada, que está oculta. -->
       <div class="panel">
         <h2>Semana por jugador <span class="r muted">gimnasio + pista · UA</span></h2>
         <div class="ctrlrow" style="margin-bottom:8px">
@@ -5590,6 +5622,9 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     <div class="panel" id="hrefi-card"></div>
     <!-- v407 · familias de sesión: agrupadas por cómo son y qué cuestan -->
     <div class="panel" id="hrfam-card"></div>
+    <!-- v425 · ¿llega cada jugador a la exigencia del partido? Sustituye a
+         «Carga contra minutos jugados», que vivía en Cargas › RPE. -->
+    <div class="panel" id="hrlistos-card"></div>
     <!-- v401 · umbrales propios: calculados con nuestras sesiones y movidos
          cuando Daniel lo decide, nunca solos. -->
     <div class="panel" id="sescal-card"></div>
@@ -12277,6 +12312,10 @@ function teamFiltered(){
 function renderTeam(){
   /* v273 · si quedan bloques de carga puestos, se retiran antes de pintar. */
   try{if(Object.keys(STATE.players||{}).length)skelFuera();}catch(e){}
+  /* v425 · «Quién necesita algo hoy» y «Plan contra real» viven ahora aquí.
+     Se calculan DESPUÉS de pintar, por la misma razón que en Cargas: son los
+     dos bloques caros y el Resumen es la pantalla de entrada. */
+  try{cargaDiferir();}catch(e){}
   const all=Object.values(STATE.players);const withR=all.filter(p=>p.readiness!=null);
   const avg=mean(withR.map(p=>p.readiness));
   const reds=STATE.alerts.filter(a=>a.sev==="bad").length,warns=STATE.alerts.filter(a=>a.sev==="warn").length;
@@ -21226,6 +21265,175 @@ function cgMinutosCarga(dias){
     jug:jug.sort((a,b)=>(b.carga-b.min*8)-(a.carga-a.min*8))};
 }
 window.cgMinutosCarga=cgMinutosCarga;
+
+/* ═══ v425 · ¿Llega cada jugador a la exigencia del partido? ═══════════════════
+   Sustituye a «Carga contra minutos jugados», que vivía en Cargas › RPE y que
+   Daniel no usaba: decía cuánta carga acumulaba cada uno y cuántos minutos
+   jugaba, pero no qué hacer con eso. Un entrenador no decide con «570 UA y 12
+   minutos»; decide con «este no está llegando a ritmo de partido».
+
+   La pregunta es: **lo que este jugador hace entrenando, ¿se parece a lo que
+   exige un partido?** Si no juega Y además no alcanza esa intensidad
+   entrenando, no está preparado para entrar, y eso es misión 2 —disponibilidad
+   y ayuda a la selección— con una respuesta accionable.
+
+   Tres reglas de la casa que se respetan:
+   · **La referencia no se inventa: es su propio partido.** La exigencia es la
+     mediana de %Z4+Z5 que marca ESTE equipo en SUS partidos medidos. Nada de
+     valores de literatura.
+   · **El listón de «juega» tampoco se inventa**: es la mediana de minutos de
+     los que juegan. Si media plantilla juega 50 minutos, 20 es poco; si juegan
+     25, 20 es normal.
+   · **Sin pulso no hay juicio.** Un jugador sin sesiones con pulsómetro sale
+     aparte, no como «no llega». */
+const LISTO_MIN_SES=3;    // sesiones con pulso para que su mediana signifique algo
+function hrListos(dias){
+  dias=dias||42;
+  const hasta=dkey(REF());
+  const desde=dkey(new Date(dkToDate(hasta).getTime()-dias*86400000));
+  let partidos=[];
+  try{calLoad();partidos=calMatchDksAll().filter(dk=>dk>=desde&&dk<=hasta);}catch(e){}
+  const setP=new Set(partidos);
+
+  /* La exigencia: qué %Z4+Z5 marca el equipo en sus propios partidos. */
+  const exig=[];
+  (STATE.hr||[]).forEach(r=>{
+    if(!r||!setP.has(r.dk))return;
+    const t=(r.z||[]).reduce((a,b)=>a+(+b||0),0);
+    if(t>0)exig.push(((+r.z[3]||0)+(+r.z[4]||0))/t*100);
+  });
+  /* Una referencia por debajo del corte «baja» del club no es una referencia:
+     dividir por ella da porcentajes absurdos. El suelo sale de la banda `z54`
+     de `SESEF()` —vuestros propios umbrales calibrados—, no de un número
+     inventado. Josu y Óscar tienen el pulso sistemáticamente bajo por
+     configuración: su mediana propia en partido era 0,5 % y 2 %, y al dividir
+     salían «611 % de la exigencia». Con suelo, no se les compara con nada. */
+  let piso=null;
+  try{const sp=SESEF().find(x=>x.key==='z54');piso=(sp&&sp.bands&&sp.bands[0])?sp.bands[0][1]:null;}catch(e){}
+  const medEx=exig.length>=5?hrpQ(exig,.5):null;
+  const exigencia=(medEx!=null&&(!piso||medEx>=piso))?medEx:null;
+
+  const jug=[];
+  Object.keys(STATE.players||{}).forEach(name=>{
+    /* minutos jugados en los partidos de la ventana */
+    let min=0,nPart=0;
+    partidos.forEach(dk=>{
+      let m=null;try{m=lbDur(dk,name,'pista');}catch(e){}
+      if(m!=null&&isFinite(m)&&m>0){min+=m;nPart++;}
+    });
+    /* lo que alcanza ENTRENANDO: sus sesiones con pulso que no son partido */
+    const ent=[];
+    (STATE.hr||[]).forEach(r=>{
+      if(!r||r.name!==name||r.dk<desde||r.dk>hasta||setP.has(r.dk))return;
+      const t=(r.z||[]).reduce((a,b)=>a+(+b||0),0);
+      if(t>0)ent.push(((+r.z[3]||0)+(+r.z[4]||0))/t*100);
+    });
+    const z45Ent=ent.length>=LISTO_MIN_SES?hrpQ(ent,.5):null;
+    /* Su propia exigencia de partido, si la tiene. Josu y Óscar llevan el pulso
+       sistemáticamente bajo —anomalía conocida de configuración, no de forma—,
+       así que medirlos contra la mediana del EQUIPO los señalaría siempre.
+       Cada uno contra su propio partido, que es la misma regla que ya usa el
+       coste cardíaco. Solo se cae a la referencia del equipo cuando no tiene
+       ni dos lecturas suyas en partido. */
+    const prop=[];
+    (STATE.hr||[]).forEach(r=>{
+      if(!r||r.name!==name||!setP.has(r.dk)||r.dk<desde||r.dk>hasta)return;
+      const t=(r.z||[]).reduce((a,b)=>a+(+b||0),0);
+      if(t>0)prop.push(((+r.z[3]||0)+(+r.z[4]||0))/t*100);
+    });
+    const medProp=prop.length>=2?hrpQ(prop,.5):null;
+    const exigPropia=(medProp!=null&&(!piso||medProp>=piso))?medProp:null;
+    /* Tiene lecturas propias en partido pero ni siquiera ahí llega al corte de
+       sesión baja: su pulsómetro no es de fiar (FC máx mal configurada, el caso
+       conocido de Josu y Óscar). No se le compara con el equipo para no
+       condenarlo con un dato malo: se dice que no se puede juzgar. */
+    const pulsoDudoso=(medProp!=null&&exigPropia==null);
+    /* carga de entrenamiento, para el contexto */
+    let carga=0;
+    try{contDailyTo(name,dkToDate(hasta)).forEach(d=>{if(d.dk>=desde)carga+=(d.ua||0);});}catch(e){}
+    jug.push({name,pos:(STATE.players[name]||{}).pos||'',
+      min:Math.round(min),nPart,z45Ent,nSes:ent.length,carga:Math.round(carga),
+      exigPropia,nPropia:prop.length,pulsoDudoso});
+  });
+
+  /* El listón de «juega»: la mediana de los que juegan algo. */
+  const juegan=jug.filter(j=>j.min>0).map(j=>j.min);
+  const listonMin=juegan.length>=3?hrpQ(juegan,.5):null;
+
+  jug.forEach(j=>{
+    const ref=j.exigPropia||exigencia;
+    j.ref=ref; j.refPropia=j.exigPropia!=null;
+    j.alcanza=(j.z45Ent!=null&&ref)?Math.round(j.z45Ent/ref*100):null;
+    j.juegaPoco=(listonMin!=null)?(j.min<listonMin):null;
+    /* Sin exigencia medida NO se acusa a nadie de quedarse corto: sin partidos
+       con pulsómetro no hay contra qué comparar, y eso es «no se sabe», no «no
+       llega». Con el orden anterior, los 11 jugadores con pulso caían en
+       «no llega» por el simple hecho de que faltaba la referencia. */
+    if(j.z45Ent==null)j.grupo='sinpulso';
+    else if(j.pulsoDudoso)j.grupo='dudoso';
+    else if(j.alcanza==null)j.grupo='sinref';
+    else if(j.juegaPoco===false)j.grupo='compite';
+    else if(j.alcanza>=100)j.grupo='cubierto';
+    else j.grupo='corto';
+  });
+  const orden={corto:0,cubierto:1,compite:2,dudoso:3,sinref:4,sinpulso:5};
+  jug.sort((a,b)=>(orden[a.grupo]-orden[b.grupo])||((a.alcanza||999)-(b.alcanza||999)));
+  return {desde,hasta,dias,partidos:partidos.length,exigencia,listonMin,nExig:exig.length,jug};
+}
+window.hrListos=hrListos;
+
+function renderHRListos(){
+  const box=document.getElementById('hrlistos-card');if(!box)return;
+  let L=null;try{L=hrListos(FILTER.listosDias||42);}catch(e){console.error('bmnava · listos',e);}
+  const cab='<h2>¿Llegan a ritmo de partido? <span class="r muted">lo que alcanzan entrenando frente a lo que exige vuestro partido</span></h2>';
+  if(!L){box.innerHTML='';return;}
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const n1=v=>(Math.round(v*10)/10).toString().replace('.',',');
+  if(!L.exigencia){
+    box.innerHTML=cab+'<p class="hint">Hacen falta partidos con pulsómetros para saber qué exige un partido vuestro. '
+      +'Con '+L.nExig+' lectura'+(L.nExig===1?'':'s')+' en '+L.partidos+' partido'+(L.partidos===1?'':'s')+' todavía no hay referencia'
+      +(L.nExig>=5?', o la que sale queda por debajo del corte de sesión baja y no sirve para comparar':'')+'.</p>';
+    return;
+  }
+  const G={
+    corto:['var(--warn)','No llega a ritmo de partido','Juega poco y entrenando se queda por debajo de lo que pide un partido.'],
+    cubierto:['var(--ok)','Cubierto entrenando','Juega poco, pero entrenando sí alcanza la exigencia del partido.'],
+    compite:['var(--accent)','Compite','Juega por encima de la mediana del equipo.'],
+    dudoso:['var(--muted2)','Pulsómetro poco fiable','Ni en partido llegan al corte de sesión baja: apunta a FC máxima mal configurada, no a falta de forma. No se les juzga con esto.'],
+    sinref:['var(--muted2)','Sin referencia de partido','Tienen sesiones con pulso, pero no hay partidos medidos contra los que compararlas.'],
+    sinpulso:['var(--muted2)','Sin pulso suficiente','Menos de '+LISTO_MIN_SES+' sesiones con pulsómetro: no se puede decir.']
+  };
+  let html=cab
+    +'<div class="lst-ref">'
+      +'<div><em>Exigencia de vuestro partido</em><b>'+n1(L.exigencia)+'%</b><span>del tiempo en Z4+Z5 · mediana de '+L.nExig+' lecturas</span></div>'
+      +'<div><em>Listón de «juega»</em><b>'+(L.listonMin!=null?Math.round(L.listonMin)+'′':'—')+'</b><span>mediana de los que juegan · '+L.partidos+' partidos</span></div>'
+    +'</div>';
+  ['corto','cubierto','compite','dudoso','sinref','sinpulso'].forEach(g=>{
+    const f=L.jug.filter(j=>j.grupo===g);
+    if(!f.length)return;
+    html+='<div class="lst-g" style="--g:'+G[g][0]+'">'
+      +'<div class="lst-g-h"><b>'+G[g][1]+'</b><span>'+f.length+'</span><em>'+G[g][2]+'</em></div>'
+      +'<div class="lst-rows">'+f.map(j=>{
+        const pc=j.alcanza;
+        const barra=pc!=null
+          ? '<span class="lst-bar"><i style="width:'+Math.min(100,pc)+'%"></i></span><b>'+pc+'%</b>'
+          : '<span class="lst-na">sin dato</span>';
+        return '<div class="lst-r">'
+          +'<span class="lst-n">'+esc(j.name.split(' ').slice(0,2).join(' '))+'<em>'+esc(j.pos)+'</em></span>'
+          +'<span class="lst-m">'+(j.min>0?j.min+'′ en '+j.nPart+(j.nPart===1?' partido':' partidos'):'sin minutos')
+            +(j.refPropia?'<em title="Comparado con sus propios partidos, no con la media del equipo"> · vs lo suyo</em>':'')+'</span>'
+          +'<span class="lst-a">'+barra+'</span></div>';
+      }).join('')+'</div></div>';
+  });
+  html+='<p class="small muted" style="margin:12px 0 0;line-height:1.45">'
+    +'El <b>%</b> es lo que alcanza entrenando frente a la exigencia de vuestro partido: 100% es entrenar al ritmo que luego se le va a pedir. '
+    +'Ni la exigencia ni el listón de minutos son valores de manual: salen de <b>vuestros</b> partidos de los últimos '+L.dias+' días. '
+    +'A quien tiene dos o más lecturas propias en partido se le compara <b>contra sus propios partidos</b> («vs lo suyo»), no contra la media: hay jugadores con el pulso sistemáticamente bajo y medirlos contra el equipo los señalaría siempre. '
+    +'<b>Describe, no manda</b>: un pivote y un extremo no tienen por qué llegar igual.</p>';
+  box.innerHTML=html;
+}
+window.renderHRListos=renderHRListos;
+
 function renderCargaDecide(){
   const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const SEV=[null,['var(--ok)','Seguimiento'],['var(--warn)','Atención'],['var(--bad)','Prioritario']];
@@ -22013,6 +22221,7 @@ function renderHR(){
   try{renderHRCumpl(key);}catch(e){console.error('bmnava · cumplimiento',e);}
   try{renderHREfic();}catch(e){console.error('bmnava · coste cardíaco',e);}
   try{renderHRFam(key);}catch(e){console.error('bmnava · familias',e);}
+  try{renderHRListos();}catch(e){console.error('bmnava · listos para competir',e);}
   renderHRClass(rows,key,key.slice(0,key.indexOf('|')));
   renderHRTE(rows,key,key.slice(0,key.indexOf('|')));
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
@@ -25313,7 +25522,13 @@ window.ptEstRender=function(){
    configuración y el enganche del calendario— se queda intacto en el código y
    en bmnava_quadrants; para volver a activarlo basta con devolver la entrada a
    CARGAS_TABS y a CARGA_PANES. No se ha borrado nada. */
-const CARGAS_TABS=[['resumen','Resumen'],['rpe','RPE'],['pulso','Pulso · Polar'],['partidos','Perfil de partido']];
+/* v425 · RPE sale de la navegación por decisión de Daniel (20/10/2026): «apenas
+   lo uso, poca información útil». Lo que sí usaba se ha mudado —«Quién necesita
+   algo hoy» y «Plan contra real» al Resumen, «Carga contra minutos» a
+   Pulsómetros—. El resto del módulo se queda intacto en el código, igual que
+   Cuadrantes: para volver a activarlo, devolver 'rpe' aquí y a CARGA_PANES.
+   No se ha borrado nada. */
+const CARGAS_TABS=[['resumen','Resumen'],['pulso','Pulso · Polar'],['partidos','Perfil de partido']];
 const RPE_SUBS=[['grupal','Grupal'],['individual','Individual'],['posicion','Por posición']];
 const RPE_KEYS=RPE_SUBS.map(s=>s[0]);
 const CARGA_PANES=['resumen','grupal','individual','posicion','partidos'];
@@ -31492,8 +31707,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.4*/
-const VER_ACTUAL='2026-10-20.4';
+/*BUILD:2026-10-20.5*/
+const VER_ACTUAL='2026-10-20.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
