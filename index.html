@@ -1909,6 +1909,28 @@ main{padding:20px 18px 80px}
 .sa-ses i{flex:none;width:7px;height:7px;border-radius:2px}
 .sa-ses span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sa-ses em{flex:none;font-style:normal;font-weight:800;color:var(--sa-ink2)}
+/* v433 · Los objetivos del entrenamiento, los mismos `evObjs` de la rejilla.
+   Una línea cada uno y recortados: lo que no cabe se dice con puntos
+   suspensivos, no empujando el recuadro de objetivo del día hacia abajo. */
+.sa-objs{display:flex;flex-direction:column;gap:1px;margin:1px 0 3px 12px}
+.sa-obj1{font-size:8.5px;font-weight:600;color:var(--sa-ink2);line-height:1.25;
+  padding-left:6px;border-left:1.5px solid var(--sa-line);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* v433 · La hoja dentro de la vista de semana ───────────────────────────────
+   Mismo marcado que la lámina; lo que cambia: altura libre (en papel son 794
+   px exactos, en pantalla no hay papel), sin microciclo —la app tiene el suyo
+   debajo, con la proyección del ACWR— y cada día abre su ficha al pulsarlo.
+   El microciclo SE CONSTRUYE igual aunque no se vea: al exportar se clona la
+   hoja y se le quita esta clase, y el clon sale completo. */
+.sa-fit{position:relative;overflow:hidden}
+.sa-page--inline{height:auto;box-shadow:none;border:1px solid var(--line);margin:0}
+.sa-page--inline .sa-micro{display:none}
+.sa-page--inline .sa-cell{pointer-events:none}
+.sa-page--inline .sa-bg{pointer-events:auto;cursor:pointer;
+  transition:border-color .12s,box-shadow .12s}
+.sa-page--inline .sa-bg:hover{border-color:var(--sa-accent);
+  box-shadow:0 2px 10px rgba(16,21,31,.12)}
 
 /* ── v430 · el recuadro del día: lo pedido Y lo que salió ── */
 .sa-obj{flex:1;border-radius:9px;background:var(--sa-soft);
@@ -2077,6 +2099,8 @@ main{padding:20px 18px 80px}
   body.sa-print *{visibility:hidden}
   body.sa-print #sa-page,body.sa-print #sa-page *{visibility:visible}
   body.sa-print #sa-page{position:absolute;left:0;top:0;margin:0;box-shadow:none;border-radius:0}
+  /* La hoja de pantalla no se imprime: la que va al papel es la completa. */
+  body.sa-print .sa-fit{display:none!important}
   @page{size:A4 landscape;margin:0}}
 /* ══ v411 · Informe isocinético ══════════════════════════════════════════════
    Hoja A4 apaisada (1123×794 = A4 a 96 ppp), igual que la lámina de umbrales.
@@ -24085,8 +24109,20 @@ function calSemA4Efectos(dks){
 }
 window.calSemA4Efectos=calSemA4Efectos;
 
-function calSemanaA4(){
-  const host=document.getElementById('cal-sem-a4');if(!host)return;
+/* v433 · La hoja se usa en dos sitios: dentro de la vista de semana —donde
+   SUSTITUYE a la rejilla de siete tarjetas, por decisión de Daniel el
+   20/10/2026: «que directamente aparezca lo que viene al dar el botón»— y en
+   la exportación. Es el MISMO marcado, y lo único que cambia es `inline`:
+   quita la barra de botones, deja la altura libre en vez de los 794 px del
+   A4, oculta el microciclo —la app ya tiene el suyo justo debajo, y además
+   con la proyección del ACWR— y hace que cada día abra su ficha al pulsarlo.
+   **El microciclo se construye siempre, aunque inline no se vea**: al exportar
+   se clona la hoja, se le quita la clase y el clon sale completo, así que la
+   lámina impresa no pierde nada y no hay que volver a calcularla. */
+function calSemanaA4(opts){
+  opts=opts||{};
+  const host=document.getElementById(opts.host||'cal-sem-a4');if(!host)return;
+  const pid=opts.id||'sa-page';
   calLoad();
   const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const r0=x=>(x==null||!isFinite(x))?'—':String(Math.round(x));
@@ -24181,11 +24217,19 @@ function calSemanaA4(){
     const bajas=calBajas(dk);
     const obj=calSemA4Obj(dk);
     const ref=md?refMD[md]:null;
+    /* v433 · Daniel: «lo único que quiero que añadas es meter los objetivos de
+       los entrenamientos también». Son los mismos `evObjs` que ya enseña la
+       rejilla de semana, hasta tres por sesión, cada uno en una línea y
+       recortado con puntos suspensivos: la fila de sesiones es la elástica de
+       la rejilla, así que lo que crece aquí se lo quita al aire, no a los
+       recuadros de objetivo, que son los que tienen que quedar alineados. */
     const ses=evs.filter(e=>!evSP(e)).map(e=>{
       const t=calTipo(e.type), ci=calIntens(evIntens(e));
+      const os=(typeof evObjs==='function')?evObjs(e):[];
       return '<div class="sa-ses"><i style="background:'+ci.col+'"></i>'
         +'<span>'+esc((e.title||t.lab)).slice(0,22)+'</span>'
-        +'<em>'+(evDur(e)||0)+'′</em></div>';
+        +'<em>'+(evDur(e)||0)+'′</em></div>'
+        +(os.length?'<div class="sa-objs">'+os.map(o=>'<div class="sa-obj1">'+esc(o)+'</div>').join('')+'</div>':'');
     }).join('');
     /* El semáforo va con su palabra al lado: en blanco y negro el color
        desaparece y la lámina tiene que seguir leyéndose. */
@@ -24336,7 +24380,14 @@ function calSemanaA4(){
        solas, pase lo que pase con el número de sesiones.
        La tarjeta se dibuja aparte, con un fondo que cruza las seis filas. */
     const C=i+1;
-    bgs.push('<i class="sa-bg'+(dk===hoyDk?' sa-hoy':'')+(esPart?' sa-part':'')+'" style="grid-column:'+C+'"></i>');
+    /* El fondo del día recibe el clic siendo un `<i>`, igual que la rejilla de
+       semana anterior abría el día desde un `div` con `onclick`. Se probó con
+       `<button>` y se revirtió creyendo que rompía la exportación; resultó ser
+       una captura mal leída, así que el botón tampoco estaba roto. Se queda el
+       `<i>` por ser lo mismo que ya hacía la vista anterior. */
+    bgs.push('<i class="sa-bg'+(dk===hoyDk?' sa-hoy':'')+(esPart?' sa-part':'')+'"'
+      +(opts.inline?' onclick="calOpenDay(\''+dk+'\')" title="Abrir '+WD[i].toLowerCase()+' '+(+a[2])+'/'+(+a[1])+'"':'')
+      +' style="grid-column:'+C+'"></i>');
     const cel=(fila,cls,html)=>{if(!html)return;
       cel2.push('<div class="sa-cell'+(cls?' '+cls:'')+'" style="grid-column:'+C+';grid-row:'+fila+'">'+html+'</div>');};
     cel(1,'sa-r1','<div class="sa-ch">'
@@ -24349,7 +24400,13 @@ function calSemanaA4(){
       ? '<div class="sa-meta"><span>◷ '+pl.totMin+'′</span>'
         +(pl.contacto>0?'<span>Contacto '+pl.contacto+'/5</span>':'')+'</div>'
       : '');
-    cel(4,'',ses?'<div class="sa-sess">'+ses+'</div>':'');
+    /* v433 · La clase `sa-r4` NO se estaba pasando: la regla de la hoja que
+       recorta la lista de sesiones en vez de empujar al resto llevaba muerta
+       desde la v415 y no se notaba porque un día tenía a lo sumo dos títulos
+       cortos. Con los objetivos del entrenamiento dentro, un día de dos
+       sesiones con tres objetivos cada una sí desborda, y lo que se come es el
+       recuadro de objetivo de debajo. */
+    cel(4,'sa-r4',ses?'<div class="sa-sess">'+ses+'</div>':'');
     cel(5,'sa-r5',objBox);
     /* v430 · La carga vive ahora en la tabla de barras del recuadro, con su
        franja y su punto como las demás métricas. Aquí se queda la referencia
@@ -24484,13 +24541,13 @@ function calSemanaA4(){
   }catch(e){console.error('bmnava · lámina semana',e);}
 
   host.innerHTML=''
-   +'<div class="a4-tools">'
+   +(opts.inline?'':'<div class="a4-tools">'
      +'<span class="a4-tools-t">Lámina A4 apaisada · semana, microciclo y objetivos de pulso</span>'
      +'<button class="btn" onclick="calSemanaA4PNG()">Descargar PNG</button>'
      +'<button class="btn ghost" onclick="calSemanaA4Imprimir()">Imprimir</button>'
      +'<button class="btn ghost" onclick="calSemanaA4Cerrar()">Cerrar ✕</button>'
-   +'</div>'
-   +'<div class="sa-page" id="sa-page">'
+   +'</div>')
+   +'<div class="sa-page'+(opts.inline?' sa-page--inline':'')+'" id="'+pid+'">'
      +'<header class="sa-top">'
        +(logoClub?'<img class="sa-logo" src="'+logoClub+'" alt="Club Balonmano Nava">':'')
        +'<div class="sa-ttl">'
@@ -24546,18 +24603,69 @@ function calSemanaA4Abrir(){
   h.scrollIntoView({block:'start',behavior:'smooth'});
 }
 function calSemanaA4Cerrar(){const h=document.getElementById('cal-sem-a4');if(h)h.style.display='none';}
+/* v433 · Dentro de la vista de semana hay una hoja en pantalla (`sa-page-wk`,
+   escalada y sin microciclo) y para exportar o imprimir se monta la COMPLETA
+   en su host de siempre, `#cal-sem-a4` con `#sa-page`.
+
+   Se probó antes a clonar la de pantalla y exportar el clon para no volver a
+   calcular, y se descartó. **El motivo por el que se descartó resultó ser una
+   lectura equivocada**: las capturas con las que se comparaba estaban
+   reescaladas de 2246 px a 800 y en JPEG, y ahí el filo oscuro de la columna
+   del partido parecía un relleno negro y las muestras de 8 px de la leyenda
+   desaparecían. Muestreando los píxeles del canvas, las dos salidas eran
+   correctas. Se mantiene esta versión porque es más simple de razonar —lo que
+   se exporta es un nodo normal de la página, no una copia con clases
+   quitadas— y porque montar la hoja cuesta milisegundos; pero **que conste que
+   el clon no estaba roto**. */
+function calSemanaA4Montar(){
+  const h=document.getElementById('cal-sem-a4');if(!h)return null;
+  const era=h.style.display;
+  h.style.display='block';
+  calSemanaA4();
+  return {h,cerrar:()=>{h.style.display=era||'none';if(era!=='block')h.innerHTML='';}};
+}
 function calSemanaA4PNG(){
   const mon=calWeekStart(CALWEEK||new Date());
-  exportNodePNG('sa-page','semana_a4_'+dkey(mon)+'.png');
+  const m=calSemanaA4Montar();
+  if(!m||!document.getElementById('sa-page')){alert('No hay nada que exportar todavía.');return;}
+  const fin=()=>{try{m.cerrar();}catch(e){}};
+  try{Promise.resolve(exportNodePNG('sa-page','semana_a4_'+dkey(mon)+'.png')).then(fin,fin);}
+  catch(e){fin();}
 }
 /* La clase en el body es lo que activa el @media print, y se quita al terminar
    para no dejar la aplicación en blanco si se cancela el diálogo. */
 function calSemanaA4Imprimir(){
+  const m=calSemanaA4Montar();
   document.body.classList.add('sa-print');
-  const limpiar=()=>{document.body.classList.remove('sa-print');window.removeEventListener('afterprint',limpiar);};
+  const limpiar=()=>{document.body.classList.remove('sa-print');
+    if(m)try{m.cerrar();}catch(e){}
+    window.removeEventListener('afterprint',limpiar);};
   window.addEventListener('afterprint',limpiar);
   setTimeout(()=>{try{window.print();}finally{setTimeout(limpiar,1200);}},30);
 }
+/* La hoja mide 1123 px fijos; dentro de la app se escala para caber en el
+   ancho que haya. El alto del hueco se fija a mano porque `transform` no lo
+   reserva: sin esto, el microciclo de debajo se solaparía con la hoja. */
+function calA4Fit(){
+  const f=document.getElementById('cal-wk-fit');if(!f)return;
+  const p=f.querySelector('.sa-page');
+  if(!p){f.style.height='';return;}
+  const w=f.clientWidth||0;
+  const k=w>0?Math.min(1,w/1123):1;
+  p.style.transformOrigin='top left';
+  p.style.transform=k<1?('scale('+k.toFixed(4)+')'):'';
+  f.style.height=Math.round(p.offsetHeight*k)+'px';
+}
+window.calA4Fit=calA4Fit;
+/* Al cambiar el ancho hay dos cosas que pueden tener que pasar: reescalar, o
+   cambiar de vista si se cruza el listón por debajo del cual la hoja ya no se
+   lee y vuelve la rejilla de tarjetas. */
+if(!window.__calA4Resize){window.__calA4Resize=true;let t=null,ancho=window.innerWidth;
+  window.addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(()=>{
+    const antes=calA4Cabe(ancho),ahora=calA4Cabe(window.innerWidth);ancho=window.innerWidth;
+    if(antes!==ahora&&CALMODE==='semana'&&document.getElementById('cal-body')){try{renderCalendar();}catch(e){}}
+    else calA4Fit();
+  },180);});}
 window.calSemanaA4=calSemanaA4;window.calSemanaA4Abrir=calSemanaA4Abrir;
 window.calSemanaA4Cerrar=calSemanaA4Cerrar;window.calSemanaA4PNG=calSemanaA4PNG;
 window.calSemanaA4Imprimir=calSemanaA4Imprimir;
@@ -25011,6 +25119,18 @@ function renderCalendar(){
 function calPrev(){CALVIEW.m--;if(CALVIEW.m<0){CALVIEW.m=11;CALVIEW.y--;}renderCalendar();}
 function calNext(){CALVIEW.m++;if(CALVIEW.m>11){CALVIEW.m=0;CALVIEW.y++;}renderCalendar();}
 function calToday(){const t=new Date();CALVIEW={y:t.getFullYear(),m:t.getMonth()};renderCalendar();}
+/* v433 · La hoja mide 1123 px. Escalada por debajo de ~0,73 el cuerpo de 9 px
+   se queda en 6,5 y deja de leerse, así que por debajo de ese ancho útil vuelve
+   la rejilla de tarjetas, que sí se apila bien. **Móvil sigue siendo de primera
+   clase**: Carlos consulta desde el teléfono y una hoja apaisada de 1123 px
+   encogida a un tercio no es una vista, es una foto. */
+const CAL_A4_MIN=820;
+function calA4Cabe(winW){
+  const b=document.getElementById('cal-body');
+  const w=(b&&b.clientWidth)||((winW||window.innerWidth)-280);
+  return w>=CAL_A4_MIN;
+}
+window.calA4Cabe=calA4Cabe;
 function renderCalWeek(box){
   calLoad();
   if(!CALWEEK)CALWEEK=calWeekStart(new Date());
@@ -25052,6 +25172,7 @@ function renderCalWeek(box){
   const wsum=calWeekSummary(mon);const mt=calMonoTier(wsum.mono);const wdev=(wsum.planUA&&wsum.nReal)?calDev(wsum.planUA,wsum.realUA):null;
   const monEnd=new Date(mon);monEnd.setDate(mon.getDate()+6);
   const title=`${mon.getDate()} ${CAL_MES[mon.getMonth()].toLowerCase().slice(0,3)} – ${monEnd.getDate()} ${CAL_MES[monEnd.getMonth()].toLowerCase().slice(0,3)} ${monEnd.getFullYear()}`;
+  const hoja=calA4Cabe();
   const tplOpts=(STATE.calTpl||[]).map((t,i)=>`<span class="cal-tpl-chip"><button onclick="event.stopPropagation();calTplApply(${i})" title="Aplicar a esta semana">${t.name}</button><button class="cal-tpl-x" onclick="event.stopPropagation();calTplDel(${i})" title="Borrar">✕</button></span>`).join('');
   box.innerHTML=`
    <div class="cal-head">
@@ -25066,19 +25187,25 @@ function renderCalWeek(box){
           hizo con Cuadrantes; para recuperarla basta devolver su botón aquí.
           El que queda se queda con la palabra «Exportar», que es la que Daniel
           busca, porque era la del botón que desaparece. -->
-     <button class="btn" onclick="calSemanaA4Abrir()" title="Hoja A4 apaisada para imprimir: la semana, el microciclo y el objetivo de pulso de cada día">Exportar semana · A4</button>
+     <button class="btn" onclick="calSemanaA4PNG()" title="Descarga esta misma hoja en PNG, en A4 apaisado y con el microciclo">Exportar semana · A4</button>
+     <button class="btn ghost" onclick="calSemanaA4Imprimir()" title="Imprimir la hoja en A4 apaisado">Imprimir</button>
      <button class="btn ghost" onclick="calDupWeek()" title="Copiar las sesiones de esta semana a la siguiente">Duplicar a la semana siguiente</button>
      <button class="btn ghost" onclick="calTplSaveFromWeek()" title="Guardar esta semana como plantilla reutilizable">Guardar como plantilla</button>
      ${tplOpts?`<span class="cal-tpl-lab">Plantillas:</span>${tplOpts}`:'<span class="small muted">Aún no hay plantillas guardadas.</span>'}
    </div>
-   <div id="cal-week-card" class="cal-week-card">
+   ${hoja?'<div class="sa-fit" id="cal-wk-fit"><div id="cal-wk-a4"></div></div><div id="cal-sem-a4" style="display:none"></div>'
+   :`<div id="cal-week-card" class="cal-week-card">
      <div class="cw-cardhd"><div><b>Semana</b> · ${title}${mdRef?` · partido ${mdRef.split('-').reverse().slice(0,2).join('/')}`:''}</div><div class="cw-cardhd-sum">Plan <b>${wsum.planUA} UA</b> · Real <b>${wsum.nReal?wsum.realUA+' UA':'—'}</b>${wdev?` · <span style="color:${wdev.col}">${wdev.arrow}${wdev.pct>0?'+':''}${wdev.pct}%</span>`:''} · Monotonía <b style="color:${mt.c}">${isNaN(wsum.mono)?'—':fmt(wsum.mono,2)}</b> · Strain <b>${isNaN(wsum.strain)?'—':Math.round(wsum.strain)}</b></div></div>
      <div class="cw-grid">${cols}</div>
      <div class="cw-foot"><span class="cal-sc"><i style="background:#1ea863"></i>Baja</span><span class="cal-sc"><i style="background:#e6a700"></i>Media</span><span class="cal-sc"><i style="background:#e23b32"></i>Alta</span><span class="small muted">MD = día de partido · Z4/Z5 = % en zona (manual) · ⚕ bajas</span></div>
    </div>
+   <div id="cal-sem-a4" style="display:none"></div>`}
    <div class="panel" id="cal-micro-panel" style="margin-top:14px"></div>
-   <div id="cal-sem-a4" style="display:none"></div>
    <p class="small muted" style="margin-top:8px">Toca un día para planificar. La numeración MD se calcula desde el partido de la semana o el próximo. Exporta la semana para enviarla al cuerpo técnico.</p>`;
+  /* La hoja se pinta DESPUÉS del innerHTML, como el microciclo: antes su
+     contenedor todavía no existe. Y se escala al acabar, porque hasta que no
+     está en el DOM no se sabe cuánto mide. */
+  if(hoja){try{calSemanaA4({inline:true,host:'cal-wk-a4',id:'sa-page-wk'});calA4Fit();}catch(e){console.error('bmnava · hoja semanal',e);}}
   try{renderCalMicro();}catch(e){console.error('bmnava · microciclo',e);}
 }
 function calDayBody(dk){
@@ -32253,8 +32380,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.12*/
-const VER_ACTUAL='2026-10-20.12';
+/*BUILD:2026-10-20.14*/
+const VER_ACTUAL='2026-10-20.14';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
