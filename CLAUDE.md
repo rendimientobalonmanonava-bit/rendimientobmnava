@@ -234,7 +234,9 @@ Las dos están cacheadas desde v423, con la caché atada a la referencia y el ta
 
 **Cómo se comprobó que no cambia ningún número**: una huella de todo lo que devuelve `hrpDatos` para los 18 jugadores (día, nivel, RPE, contacto y UA de cada fila) antes y después. Mismo hash, `-73473890`, 716 filas. **Un cambio de rendimiento que no se verifica contra la salida anterior es un cambio funcional sin querer.**
 
-Queda pendiente: el segundo de render que sobra está casi todo en `lesCarga` y `weekly`. `contDailyTo` **no se cacheó a propósito**: devuelve objetos que algún consumidor podría modificar, y 250 ms no compensan ese riesgo.
+**v424 · primero se pinta, luego se calcula lo caro.** `renderCargaDecide` y `renderLesCarga` se ejecutaban ANTES del render normal, así que la pantalla esperaba a los dos. Ahora se aplazan a un `setTimeout(0)`: el render acaba, el navegador pinta y los bloques se rellenan después, con su propio «Calculando…» solo si están vacíos —al repintar ya hay contenido y cambiarlo sería un parpadeo gratuito—. **`setTimeout` y no `requestAnimationFrame` a propósito**: en una pestaña de fondo rAF no se dispara y los paneles no llegarían a rellenarse nunca. **956 ms → 362 ms de bloqueo**, y el contenido de los cuatro paneles da el mismo hash (`290334952`).
+
+Queda pendiente: lo que sobra está casi todo en `lesCarga` y `weekly`. `contDailyTo` **no se cacheó a propósito**: devuelve objetos que algún consumidor podría modificar, y 250 ms no compensan ese riesgo.
 
 ### 4.2 Fuentes de datos
 

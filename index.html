@@ -13162,9 +13162,36 @@ function renderCargaResumen(){
     ]},options:{...BASE,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'% de la plantilla'}}},scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,beginAtZero:true,max:100,ticks:{...AX.ticks,callback:v=>v+'%'}}}}});
   }
 }
+/* ═══ v424 · Primero se pinta, luego se calcula lo caro ═══════════════════════
+   `renderCargaDecide` y `renderLesCarga` son los dos bloques pesados de la
+   vista —el análisis de carga previa a las lesiones recorre todos los
+   días-jugador— y se ejecutaban ANTES de pintar nada, así que la pantalla se
+   quedaba en blanco hasta que terminaban.
+
+   Ahora se aplazan a un `setTimeout(0)`: el render normal acaba, el navegador
+   pinta, y los dos bloques se rellenan a continuación. **Los números son
+   exactamente los mismos**; lo único que cambia es que aparecen una décima
+   más tarde, con su propio aviso de que se están calculando.
+
+   `setTimeout` y no `requestAnimationFrame` a propósito: en una pestaña de
+   fondo rAF no se dispara y los paneles no llegarían a rellenarse nunca. */
+let CARGA_DIF=null;
+function cargaDiferir(){
+  ['cgaten-card','cgplan-card','cgmin-card','lescarga-card'].forEach(id=>{
+    const b=document.getElementById(id);
+    /* el aviso solo si está vacío: al repintar ya hay contenido anterior y
+       cambiarlo por «calculando» sería un parpadeo gratuito */
+    if(b&&!b.innerHTML.trim())b.innerHTML='<p class="hint">Calculando…</p>';
+  });
+  if(CARGA_DIF)clearTimeout(CARGA_DIF);
+  CARGA_DIF=setTimeout(()=>{
+    CARGA_DIF=null;
+    try{renderCargaDecide();}catch(e){console.error('bmnava · decidir',e);}
+    try{renderLesCarga();}catch(e){console.error('bmnava · carga vs lesiones',e);}
+  },0);
+}
 function renderCargaGrupal(){
-  try{renderCargaDecide();}catch(e){console.error('bmnava · decidir',e);}
-  try{renderLesCarga();}catch(e){console.error('bmnava · carga vs lesiones',e);}
+  cargaDiferir();
   const ps=Object.values(STATE.players);const win=FILTER.window;
   const end=REF();const lim=new Date(end);lim.setDate(lim.getDate()-win);
   const inWin=STATE.rpe.filter(x=>x.date>=lim&&x.date<=end);
@@ -31465,8 +31492,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.3*/
-const VER_ACTUAL='2026-10-20.3';
+/*BUILD:2026-10-20.4*/
+const VER_ACTUAL='2026-10-20.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
