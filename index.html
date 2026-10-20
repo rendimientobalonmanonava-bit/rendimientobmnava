@@ -9559,7 +9559,25 @@ function zIntra(value,history,sdMin){
   return{z:(value-m)/s,n:h.length,rel:h.length>=CONFIG.z.minRecords,sdReal:sReal,sdUsada:s,conSuelo:sReal<piso};
 }
 function penalty(z){if(isNaN(z))return 0;if(z<=CONFIG.z.yellow)return Math.max(0,z*0.15);if(z<=CONFIG.z.red)return 0.12+(z-CONFIG.z.yellow)*0.55;return 0.56+(z-CONFIG.z.red)*1.1;}
-function dailyAgg(name){const s=STATE.rpe.filter(x=>x.name===name);const m={};s.forEach(x=>{if(!m[x.dk])m[x.dk]={dk:x.dk,date:x.date,ua:0,cal:0,n:0};m[x.dk].ua+=x.ua;m[x.dk].cal+=(x.cal||x.ua);m[x.dk].n++;});return Object.values(m).sort((a,b)=>a.date-b.date);}
+/* v423 · `dailyAgg` recorría los 2.500 registros de RPE en CADA llamada, y
+   `contDailyTo` la llama una vez por jugador y día: 3.529 veces por render de
+   Cargas › RPE para solo 18 jugadores, casi nueve millones de comparaciones.
+   Es una función pura de `STATE.rpe`, así que se guarda el resultado por
+   jugador. La caché se tira sola cuando el array de RPE se sustituye (cambia
+   la referencia o el número de registros) y además desde `hreqInvalidar`.
+   Mismos números: lo único que cambia es cuántas veces se calculan. */
+var DAGG_CACHE=null, DAGG_REF=null, DAGG_N=-1;
+function dailyAggCacheOk(){
+  const a=STATE.rpe||[];
+  if(DAGG_CACHE&&DAGG_REF===a&&DAGG_N===a.length)return true;
+  DAGG_CACHE=Object.create(null);DAGG_REF=a;DAGG_N=a.length;return true;
+}
+function dailyAgg(name){
+  dailyAggCacheOk();
+  if(name in DAGG_CACHE)return DAGG_CACHE[name];
+  return (DAGG_CACHE[name]=dailyAggCalc(name));
+}
+function dailyAggCalc(name){const s=STATE.rpe.filter(x=>x.name===name);const m={};s.forEach(x=>{if(!m[x.dk])m[x.dk]={dk:x.dk,date:x.date,ua:0,cal:0,n:0};m[x.dk].ua+=x.ua;m[x.dk].cal+=(x.cal||x.ua);m[x.dk].n++;});return Object.values(m).sort((a,b)=>a.date-b.date);}
 function contDaily(name){const ag=dailyAgg(name);if(!ag.length)return[];const start=ag[0].date,end=ag[ag.length-1].date,map={};ag.forEach(a=>map[a.dk]=a);const out=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){const k=dkey(d);out.push({date:new Date(d),dk:k,ua:map[k]?map[k].ua:0,cal:map[k]?map[k].cal:0});}return out;}
 function acwrAt(cont,idx,field="ua"){const acute=[],chronic=[];for(let i=0;i<CONFIG.load.chronic;i++){const j=idx-i;if(j<0)break;const v=cont[j][field];if(i<CONFIG.load.acute)acute.push(v);chronic.push(v);}const a=mean(acute),c=mean(chronic);return{acute:a*CONFIG.load.acute,chronic:c*CONFIG.load.acute,ratio:c>0?a/c:NaN};}
 function acwrSeries(name,field="ua",ref){const cont=ref?contDailyTo(name,ref):contDaily(name);return cont.map((d,i)=>{const r=acwrAt(cont,i,field);let ea=0,ec=0;for(let k=0;k<=i;k++){ea=cont[k][field]*CONFIG.load.ewmaAcute+ea*(1-CONFIG.load.ewmaAcute);ec=cont[k][field]*CONFIG.load.ewmaChronic+ec*(1-CONFIG.load.ewmaChronic);}return{date:d.date,dk:d.dk,ua:d[field],ra:r.ratio,acute:r.acute,chronic:r.chronic,ewma:ec>0?ea/ec:NaN};});}
@@ -19041,6 +19059,40 @@ function hrpMover(d){
 }
 function hrpQ(arr,p){if(!arr.length)return null;const a=arr.slice().sort((x,y)=>x-y);const i=(a.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return lo===hi?a[lo]:a[lo]+(a[hi]-a[lo])*(i-lo);}
 function hrpMedia(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:null;}
+/* ═══ v423 · Rendimiento · lo que no depende del jugador se calcula UNA vez ═══
+   `hrpDatos` se llama una vez por jugador y, dentro, por CADA sesión suya
+   volvía a recorrer los 2.500 registros de RPE y los 726 de pulso, y a
+   reclasificar la sesión. Con 18 jugadores: 11.616 clasificaciones de unas 70
+   sesiones distintas y más de ocho millones de comparaciones. Resultado: 1,9 s
+   con el hilo bloqueado al abrir Cargas › RPE, que es lo que Daniel veía como
+   que la aplicación «petaba».
+
+   **El nivel de una sesión depende de la SESIÓN, no de quién la mire**, así que
+   se calcula una vez por clave. Son los mismos números con una sola pasada:
+   esto no cambia ningún resultado, solo deja de repetirlo.
+
+   El índice se rehace solo si cambia la cantidad de datos, y `hreqInvalidar`
+   lo tira al cargar pulsómetros nuevos. */
+var HRP_IDX=null, HRP_IDX_FIRMA=-1;   /* var, no let: `hreqInvalidar` está declarada más arriba y lo toca */
+function hrpIndice(){
+  const firma=(STATE.hr||[]).length*1000000+(STATE.rpe||[]).length;
+  if(HRP_IDX&&HRP_IDX_FIRMA===firma)return HRP_IDX;
+  const porKey={}, rpePorDia={};
+  (STATE.hr||[]).forEach(r=>{if(!r)return;const k=hrKey(r);(porKey[k]=porKey[k]||[]).push(r);});
+  (STATE.rpe||[]).forEach(x=>{if(!x||!x.name)return;const k=x.name+'\u0000'+x.dk;(rpePorDia[k]=rpePorDia[k]||[]).push(x);});
+  HRP_IDX={porKey,rpePorDia,nivel:Object.create(null)};
+  HRP_IDX_FIRMA=firma;
+  return HRP_IDX;
+}
+function hrpNivel(key,dk){
+  const ix=hrpIndice();
+  if(key in ix.nivel)return ix.nivel[key];
+  let n=null;
+  try{n=classifySession(ix.porKey[key]||[],key,dk).level;}catch(e){}
+  ix.nivel[key]=n;
+  return n;
+}
+window.hrpIndice=hrpIndice;
 /* Sesiones de un jugador, ya cruzadas con su RPE y contacto de ese día.
    Una sesión sin RPE se conserva: los datos de pulso valen igual, y lo que
    dependa de la RPE se limita solo, sin tirar la sesión entera. */
@@ -19050,12 +19102,11 @@ function hrpDatos(name,dias){
   if(dias>0){try{const d=dkToDate(dkey(REF()));d.setDate(d.getDate()-dias);corte=dkey(d);}catch(e){}}
   const out=hs.filter(r=>!corte||r.dk>=corte).map(r=>{
     const tot=(r.z||[]).reduce((a,b)=>a+b,0);
-    const rp=(STATE.rpe||[]).filter(x=>x&&x.name===name&&x.dk===r.dk);
+    const rp=hrpIndice().rpePorDia[name+'\u0000'+r.dk]||[];
     const rr=rp.filter(x=>x.rpe).map(x=>x.rpe);
     const cc=rp.filter(x=>x.contacto&&(!window.contactoDePista||contactoDePista(x))).map(x=>x.contacto);
     const key=hrKey(r);
-    let nivel=null;
-    try{const rows=(STATE.hr||[]).filter(q=>hrKey(q)===key);nivel=classifySession(rows,key,r.dk).level;}catch(e){}
+    const nivel=hrpNivel(key,r.dk);
     let te=null;try{te=trainingEffect(r);}catch(e){}
     return {key,dk:r.dk,lab:key.slice(key.indexOf('|')+1),z:r.z||[0,0,0,0,0],tot,
       min:tot/60,trimp:trimpOf(r),hrAvg:r.hrAvg,hrMax:r.hrMax,kcal:r.kcal,
@@ -19452,7 +19503,10 @@ function hreqMod(){
   try{HREQ_CACHE=hreqModelo(hreqDatos());}catch(e){HREQ_CACHE={ok:false,motivo:'degenerado',n:0};}
   return HREQ_CACHE;
 }
-function hreqInvalidar(){HREQ_CACHE=null;HRP_TEAM_CACHE=null;}
+function hreqInvalidar(){HREQ_CACHE=null;HRP_TEAM_CACHE=null;
+  /* v423 · los índices por sesión y por jugador también caducan al entrar datos */
+  try{HRP_IDX=null;}catch(e){}
+  try{DAGG_CACHE=null;}catch(e){}}
 window.hreqMod=hreqMod;window.hreqInvalidar=hreqInvalidar;
 function hrpModelo(d){
   const rows=d.filter(x=>x.z45!=null&&x.rpe!=null&&x.ct!=null&&isFinite(x.z45)&&isFinite(x.rpe)&&isFinite(x.ct));
@@ -31411,8 +31465,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.2*/
-const VER_ACTUAL='2026-10-20.2';
+/*BUILD:2026-10-20.3*/
+const VER_ACTUAL='2026-10-20.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){

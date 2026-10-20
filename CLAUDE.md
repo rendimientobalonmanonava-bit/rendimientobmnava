@@ -223,6 +223,19 @@ Medido el 20/10/2026 con los datos del club (726 sesiones de Polar, 2.500 RPE, 2
 
 **Antes de optimizar nada más, medir.** La primera sospecha —que lo nuevo de la sesión ralentizaba— era falsa: el archivo creció 119 KB (+4,6 %) y las operaciones siguen por debajo de 30 ms.
 
+### 4.1.2 Cargas › RPE se congelaba al abrirlo
+
+Daniel, 20/10/2026: *«no me deja entrar a cargas>RPE, le hago click y la aplicación peta»*. No petaba: **bloqueaba el hilo 2,1 s** y el navegador se quedaba sin responder. Dos funciones puras que se recalculaban en bucle:
+
+- **`dailyAgg(name)`** recorría los 2.500 registros de RPE **en cada llamada**, y `contDailyTo` la llama una vez por jugador y día: 3.529 veces por render para 18 jugadores, casi **nueve millones de comparaciones**.
+- **`hrpDatos`** reclasificaba la sesión y rastreaba `STATE.hr` y `STATE.rpe` enteros por cada fila: **11.616 clasificaciones** de unas 70 sesiones distintas. **El nivel de una sesión depende de la SESIÓN, no de quién la mire.**
+
+Las dos están cacheadas desde v423, con la caché atada a la referencia y el tamaño del array de RPE y tirada además desde `hreqInvalidar`. **2.138 ms → 956 ms** (mediana de 7 pasadas).
+
+**Cómo se comprobó que no cambia ningún número**: una huella de todo lo que devuelve `hrpDatos` para los 18 jugadores (día, nivel, RPE, contacto y UA de cada fila) antes y después. Mismo hash, `-73473890`, 716 filas. **Un cambio de rendimiento que no se verifica contra la salida anterior es un cambio funcional sin querer.**
+
+Queda pendiente: el segundo de render que sobra está casi todo en `lesCarga` y `weekly`. `contDailyTo` **no se cacheó a propósito**: devuelve objetos que algún consumidor podría modificar, y 250 ms no compensan ese riesgo.
+
 ### 4.2 Fuentes de datos
 
 **Lectura (Google Sheets publicados como CSV, `pub?output=csv`), vía `CONFIG.sources`:**
