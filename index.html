@@ -1874,7 +1874,7 @@ main{padding:20px 18px 80px}
    lo que de verdad varía entre días. */
 /* v419 · 16 px más: el recuadro gana la fila del veredicto («salió X%»). Los
    cede el microciclo, que tenía holgura. */
-.sa-week{flex:none;height:362px;display:grid;
+.sa-week{flex:none;height:338px;display:grid;
   grid-template-columns:repeat(7,minmax(0,1fr));
   grid-template-rows:auto auto auto minmax(0,1fr) auto auto;
   column-gap:7px;row-gap:6px}
@@ -1965,7 +1965,32 @@ main{padding:20px 18px 80px}
 .sa-ua-r b{font-weight:800}
 .sa-ua-ref{font-size:9.5px}
 .sa-ua-ref b{font-weight:700;color:var(--sa-ink2)}
+.sa-ua-real b{color:var(--sa-ink2)}
+.sa-ua-real em{font-style:normal;font-weight:800;color:var(--d,var(--sa-ink2))}
 .sa-bajas{font-size:9.5px;font-weight:700;color:#c0271f}
+
+/* ── v429 · qué efecto tuvo de verdad: cinco ejes, una línea cada uno ── */
+.sa-ef{flex:none;border:1px solid var(--sa-line);border-radius:11px;padding:7px 11px 8px;
+  display:flex;flex-direction:column;gap:5px}
+.sa-ef-h{display:flex;align-items:baseline;gap:9px}
+.sa-ef-h b{font-size:12.5px;font-weight:800;letter-spacing:-.015em}
+.sa-ef-h span{font-size:10px;font-weight:600;color:var(--sa-ink2)}
+.sa-ef-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+.sa-ef-c{border-left:2px solid var(--sa-line);padding:1px 0 1px 9px;
+  display:flex;flex-direction:column;gap:1px;min-width:0}
+.sa-ef-c em{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--sa-ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sa-ef-v{display:flex;align-items:baseline;gap:4px;white-space:nowrap}
+.sa-ef-v span{font-size:12.5px;font-weight:700;color:var(--sa-ink2)}
+.sa-ef-v i{font-style:normal;font-size:11px;font-weight:700;color:var(--sa-line);
+  /* la flecha no compite con las cifras: es el nexo, no el dato */
+  color:#aeb5c2}
+.sa-ef-v b{font-size:16px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.sa-ef-x{font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sa-ef-x s{text-decoration:none;margin-right:3px}
+.sa-ef-x b{font-weight:800}
+.sa-ef-x u{text-decoration:none;font-weight:700;color:#8e97a6;margin-left:5px}
+.sa-ef-no span{font-size:10.5px;font-weight:600;color:#8e97a6;padding-top:3px}
 
 /* ── microciclo: un plano alto y COMPARTIDO, no una cajita por día ── */
 .sa-micro{flex:1;min-height:0;border:1px solid var(--sa-line);border-radius:11px;
@@ -23908,6 +23933,96 @@ function calSemA4Obj(dk){
 }
 window.calSemA4Obj=calSemA4Obj;
 
+/* ============ v429 · Efectos reales de la semana ============
+   Daniel, 20/10/2026: «quiero que en el informe A4 me vayas poniendo de una
+   manera súper sencilla de interpretar cuáles han sido los efectos del
+   entrenamiento reales; es decir, si ha sido más carga total, más %Z4, %Z5,
+   RPE, contacto… de la que habíamos planificado».
+
+   Cinco ejes —los cinco que nombró— y una sola lectura por eje: lo que se
+   pidió, lo que salió, y si fue más, menos o lo previsto.
+
+   Las reglas son las que ya rigen en la lámina, no otras:
+   · **Un día sin dato no cuenta como cero.** Solo entran los días que tienen
+     las DOS cifras, y el pie dice sobre cuántos días va cada eje. Sumar el
+     plan de la semana entera contra un real a medias diría siempre «por
+     debajo» y la hoja se iría llenando de falsos incumplimientos.
+   · **La carga se suma —es aditiva— y todo lo demás se promedia ponderando
+     por duración**, que es la misma regla con la que `calSemA4Obj` agrega el
+     objetivo del día: a secas, media hora pesaría igual que hora y media.
+   · **El objetivo es un rango.** Donde el modelo da rango (%Z4+Z5 y %Z5, y de
+     ahí el %Z4) «dentro» es dentro del rango. Donde no lo hay, la tolerancia
+     es una que ya existe: ±15 % en la carga, la de `calDev`, y medio punto en
+     el RPE, la de `calCumplDia`. **Ninguna es nueva.**
+   · **La palabra dice la dirección y el color dice si está dentro de lo
+     pedido**, que son dos cosas distintas: es la misma separación ya escrita
+     para las flechas del Camino a Champions.
+   · **El contacto va en neutro, sin veredicto de color.** No tiene banda en la
+     app y no se inventa una, igual que la FC media del recuadro del día: se
+     enseñan las dos cifras y la diferencia, que es lo que se preguntó.
+   · **El %Z4 se deriva, no se modela**: el modelo predice %Z4+Z5 y %Z5, así
+     que el %Z4 pedido es la resta. El rango se ensancha a propósito
+     (lo45−hi5 … hi45−lo5), porque la resta de dos intervalos ajustados por
+     separado no puede salir más estrecha que ellos. Por eso cada celda enseña
+     SIEMPRE la diferencia además del veredicto: con un rango ancho «Dentro»
+     no respondería a la pregunta de Daniel, que es cuánto más o cuánto menos.
+   · Los días de partido se caen solos de los ejes de zona: `calSemA4Obj` no
+     da objetivo para ellos, que es la regla ya escrita de no juzgar un partido
+     con un modelo ajustado con entrenamientos. */
+function calSemA4Efectos(dks){
+  const realMap=calRealMap();
+  const A={ua:{p:0,r:0,n:0},z45:{lo:0,hi:0,r:0,w:0,n:0},z5:{lo:0,hi:0,r:0,w:0,n:0},
+           rpe:{p:0,r:0,w:0,n:0,card:false},ct:{p:0,r:0,w:0,n:0}};
+  dks.forEach(dk=>{
+    const evs=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&e.type!=='descanso'&&e.type!=='evento');
+    if(!evs.length)return;
+    const pl=calDayPlan(dk), rv=realMap[dk];
+    if(pl.n&&pl.planUA>0&&rv!=null&&isFinite(rv)){A.ua.p+=pl.planUA;A.ua.r+=rv;A.ua.n++;}
+    const obj=calSemA4Obj(dk), z=calZonasDia(dk);
+    if(obj&&z){
+      const w=obj.dur||1;
+      A.z45.lo+=obj.z45[0]*w;A.z45.hi+=obj.z45[1]*w;
+      A.z45.r+=((+z.z4||0)+(+z.z5||0))*w;A.z45.w+=w;A.z45.n++;
+      if(obj.z5){A.z5.lo+=obj.z5[0]*w;A.z5.hi+=obj.z5[1]*w;A.z5.r+=(+z.z5||0)*w;A.z5.w+=w;A.z5.n++;}
+    }
+    let meta=null;
+    try{const key=[...new Set((STATE.hr||[]).filter(r=>r&&r.dk===dk).map(hrKey))][0];meta=sessMeta(key,dk);}catch(e){}
+    if(!meta)return;
+    let pr=0,pc=0,wd=0,hayCard=false;
+    evs.forEach(e=>{
+      const d=evDur(e)||75, c=evCard(e)?calCardObj(e):null;
+      if(c&&c.rpe){pr+=((c.rpe.lo+c.rpe.hi)/2)*d;hayCard=true;}else{pr+=(evRpe(e)||0)*d;}
+      pc+=(evContacto(e)||0)*d;wd+=d;
+    });
+    if(!(wd>0))return;
+    if(meta.rpe!=null&&isFinite(meta.rpe)){A.rpe.p+=pr;A.rpe.r+=meta.rpe*wd;A.rpe.w+=wd;A.rpe.n++;if(hayCard)A.rpe.card=true;}
+    if(meta.contacto!=null&&isFinite(meta.contacto)){A.ct.p+=pc;A.ct.r+=meta.contacto*wd;A.ct.w+=wd;A.ct.n++;}
+  });
+  const est=(v,lo,hi)=>v>=lo&&v<=hi?'ok':(v<lo?'corto':'pasado');
+  const zOut=a=>a.w?{lo:a.lo/a.w,hi:a.hi/a.w,real:a.r/a.w,n:a.n}:null;
+  const out={};
+  if(A.ua.n){const pct=Math.round((A.ua.r-A.ua.p)/A.ua.p*100);
+    out.ua={plan:A.ua.p,real:A.ua.r,dif:pct,n:A.ua.n,
+            estado:Math.abs(pct)<=15?'ok':(pct>0?'pasado':'corto')};}
+  const z45=zOut(A.z45), z5=zOut(A.z5);
+  if(z45&&z5&&A.z45.n===A.z5.n){
+    const lo=Math.max(0,z45.lo-z5.hi), hi=Math.max(lo,z45.hi-z5.lo), real=Math.max(0,z45.real-z5.real);
+    out.z4={plan:(lo+hi)/2,real,dif:real-(lo+hi)/2,n:z45.n,estado:est(real,lo,hi)};
+  } else if(z45){
+    out.z45={plan:(z45.lo+z45.hi)/2,real:z45.real,dif:z45.real-(z45.lo+z45.hi)/2,n:z45.n,
+             estado:est(z45.real,z45.lo,z45.hi)};
+  }
+  if(z5)out.z5={plan:(z5.lo+z5.hi)/2,real:z5.real,dif:z5.real-(z5.lo+z5.hi)/2,n:z5.n,
+                estado:est(z5.real,z5.lo,z5.hi)};
+  if(A.rpe.n){const p=A.rpe.p/A.rpe.w, r=A.rpe.r/A.rpe.w;
+    out.rpe={plan:p,real:r,dif:r-p,n:A.rpe.n,card:A.rpe.card,
+             estado:Math.abs(r-p)<=0.5?'ok':(r>p?'pasado':'corto')};}
+  if(A.ct.n){const p=A.ct.p/A.ct.w, r=A.ct.r/A.ct.w;
+    out.ct={plan:p,real:r,dif:r-p,n:A.ct.n,estado:null};}
+  return out;
+}
+window.calSemA4Efectos=calSemA4Efectos;
+
 function calSemanaA4(){
   const host=document.getElementById('cal-sem-a4');if(!host)return;
   calLoad();
@@ -24063,14 +24178,59 @@ function calSemanaA4(){
       : '');
     cel(4,'',ses?'<div class="sa-sess">'+ses+'</div>':'');
     cel(5,'sa-r5',objBox);
+    /* v429 · El plan sin el real no responde a «¿qué efecto tuvo?». La media
+       del MD cede el sitio a la carga que salió de verdad y a su desviación,
+       que es la lectura que pidió Daniel; la referencia de temporada sigue
+       dibujada en el microciclo de abajo. Un día sin RPE no es un día de cero:
+       se dice «sin RPE» en vez de pintar un 0 UA. */
+    const realUAd=real[dk], devd=(pl.n&&pl.planUA>0&&realUAd!=null)?calDev(pl.planUA,realUAd):null;
     cel(6,'sa-r6',(soloDescanso?''
         :'<div class="sa-ua">'
           +'<div class="sa-ua-r"><span>Plan</span><b>'+(pl.n?mil(pl.planUA)+' UA':'—')+'</b></div>'
-          +(ref&&ref.n>=3?'<div class="sa-ua-r sa-ua-ref"><span>Media '+ref.md+'</span><b>'+mil(ref.media)+' UA</b></div>':'')
+          +'<div class="sa-ua-r sa-ua-real"'+(devd?' style="--d:'+tinta(devd.col)+'"':'')+'><span>Real</span><b>'
+            +(realUAd!=null?mil(realUAd)+' UA'+(devd?' <em>'+devd.arrow+(devd.pct>0?'+':'')+devd.pct+'%</em>':''):'sin RPE')+'</b></div>'
         +'</div>')
       +(bajas.length?'<div class="sa-bajas">⚕ '+bajas.length+' baja'+(bajas.length>1?'s':'')+'</div>':''));
   });
   const cols=bgs.join('')+cel2.join('');
+
+  /* ── v429 · efectos reales: lo que salió contra lo que se pidió ── */
+  let efectos='';
+  try{
+    const ef=calSemA4Efectos(dks);
+    /* La palabra dice la DIRECCIÓN y el color dice si cayó dentro de lo que se
+       pidió: son dos preguntas distintas y van codificadas por separado. */
+    const EF_COL={ok:'#1ea863',corto:'#e6a700',pasado:'#3056c4'};
+    const celda=(etq,o,fmt,uni,difTxt,neutro)=>{
+      if(!o)return '<div class="sa-ef-c sa-ef-no"><em>'+etq+'</em><span>Aún sin datos</span></div>';
+      const r=Math.abs(o.dif)<(neutro?0.05:(uni==='%'?0.05:0.05));
+      const dir=r?'Igual':(o.dif>0?'Más':'Menos');
+      const fl=r?'=':(o.dif>0?'▲':'▼');
+      const col=neutro?'#5b6575':tinta(EF_COL[o.estado]||'#5b6575');
+      return '<div class="sa-ef-c"><em>'+etq+'</em>'
+        +'<div class="sa-ef-v"><span>'+fmt(o.plan)+'</span><i>→</i><b>'+fmt(o.real)+uni+'</b></div>'
+        +'<div class="sa-ef-x" style="color:'+col+'"><s>'+fl+'</s>'+dir+' <b>'+difTxt(o.dif)+'</b>'
+          +'<u>sobre '+o.n+' día'+(o.n>1?'s':'')+'</u></div>'
+      +'</div>';
+    };
+    const sg=x=>(x>0?'+':x<0?'−':'');
+    const dPts=x=>sg(x)+r1(Math.abs(x))+' pts';
+    const dNum=x=>sg(x)+r1(Math.abs(x));
+    /* El rótulo por defecto es Z4, que es el caso normal: solo se habla de
+       Z4+Z5 cuando el modelo no predice Z5 y el %Z4 no se puede despejar. */
+    const zona=ef.z45?['% del tiempo en Z4+Z5',ef.z45]:['% del tiempo en Z4',ef.z4||null];
+    const cuerpo=celda('Carga total',ef.ua,mil,' UA',x=>sg(x)+Math.abs(x)+'%')
+      +celda(zona[0],zona[1],r1,'%',dPts)
+      +celda('% del tiempo en Z5',ef.z5,r1,'%',dPts)
+      +celda(ef.rpe&&ef.rpe.card?'RPE (esperado)':'RPE',ef.rpe,r1,'',dNum)
+      +celda('Contacto',ef.ct,r1,'',dNum,true);
+    const hay=!!(ef.ua||ef.z4||ef.z45||ef.z5||ef.rpe||ef.ct);
+    efectos='<section class="sa-ef">'
+      +'<div class="sa-ef-h"><b>Qué efecto tuvo de verdad</b>'
+        +'<span>lo que se pidió → lo que salió'+(hay?'':' · se va completando según entran RPE y pulsómetros')+'</span></div>'
+      +'<div class="sa-ef-row">'+cuerpo+'</div>'
+    +'</section>';
+  }catch(e){console.error('bmnava · efectos semana',e);}
 
   /* ── microciclo: partido → partido, NO la semana natural ── */
   let micro='';
@@ -24171,13 +24331,19 @@ function calSemanaA4(){
          +'<div class="sa-sub">'+partidoTxt+'</div>'
        +'</div>'
        +'<div class="sa-kpis">'
-         +'<div class="sa-kpi"><em>Plan</em><b>'+mil(ws.planUA)+'</b><span>UA</span></div>'
-         +'<div class="sa-kpi"><em>Real</em><b>'+(ws.nReal?mil(ws.realUA):'—')+'</b><span>UA</span></div>'
+         /* v429 · El «Real» de la cabecera se va: la tira de efectos compara el
+            plan con lo real sobre LOS MISMOS DÍAS, y la cabecera lo hacía sobre
+            la semana entera. Dos parejas Plan/Real con cifras distintas en la
+            misma hoja —3.685/4.880 arriba y 3.055→4.428 abajo— no es más
+            información, es una contradicción impresa. El plan de la semana
+            completa sí se queda: es una cifra que se sostiene sola. */
+         +'<div class="sa-kpi"><em>Plan de la semana</em><b>'+mil(ws.planUA)+'</b><span>UA</span></div>'
          +'<div class="sa-kpi"><em>Monotonía</em><b style="color:'+tinta(mt.c)+'">'+(isNaN(ws.mono)?'—':r1(ws.mono))+'</b><span>'+mt.lab+'</span></div>'
        +'</div>'
        +(logoHP?'<img class="sa-logo sa-logo-hp" src="'+logoHP+'" alt="Handball Performance">':'')
      +'</header>'
      +'<div class="sa-week">'+cols+'</div>'
+     +efectos
      +micro
      +'<footer class="sa-foot">'
        +'<span class="sa-sc"><i style="background:#1ea863"></i>Baja</span>'
@@ -31898,8 +32064,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.8*/
-const VER_ACTUAL='2026-10-20.8';
+/*BUILD:2026-10-20.9*/
+const VER_ACTUAL='2026-10-20.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
