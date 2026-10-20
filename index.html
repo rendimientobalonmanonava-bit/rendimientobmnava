@@ -1921,6 +1921,8 @@ main{padding:20px 18px 80px}
 .sa-br-leg{display:inline-block;position:relative;width:34px;height:11px;vertical-align:-2px;margin-right:5px}
 .sa-br-leg::before{content:'';position:absolute;left:0;right:0;top:5px;height:1px;background:#d7dce4}
 .sa-sc-br{display:inline-flex;align-items:center}
+.sa-sc-br b{font-weight:800}
+.sa-sc-t{font-weight:800;color:var(--sa-ink2);letter-spacing:.04em;text-transform:uppercase;font-size:8.5px}
 .sa-obj-k{display:flex;align-items:baseline;gap:5px;margin:1px 0 3px;white-space:nowrap;overflow:hidden}
 .sa-obj-k b{font-size:17px;font-weight:800;letter-spacing:-.03em;line-height:1}
 .sa-obj-k span{font-size:8.5px;font-weight:700;color:var(--sa-ink2);overflow:hidden;text-overflow:ellipsis}
@@ -2057,12 +2059,16 @@ main{padding:20px 18px 80px}
 .sa-micro-vacio span{font-size:11px;font-weight:600;color:var(--sa-ink2);max-width:460px}
 
 /* ── pie ── */
-.sa-foot{flex:none;height:22px;display:flex;align-items:center;gap:10px;
-  font-size:9.5px;font-weight:600;color:var(--sa-ink2)}
+.sa-foot{flex:none;height:22px;display:flex;align-items:center;gap:8px;
+  font-size:9px;font-weight:600;color:var(--sa-ink2)}
 .sa-sc{display:flex;align-items:center;gap:4px;font-weight:700}
-.sa-sc i{width:9px;height:9px;border-radius:3px}
+.sa-sc i{width:8px;height:8px;border-radius:2px;flex:none}
 .sa-fsep{width:1px;height:12px;background:var(--sa-line)}
-.sa-foot>span:nth-of-type(4){flex:1;min-width:0}
+/* El texto largo es el que absorbe el ancho sobrante, y se marca con su
+   propia clase: con `nth-of-type` cualquier span nuevo en el pie movía el
+   que se estiraba. */
+.sa-ftx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-foot>span{white-space:nowrap}
 .sa-fdate{margin-left:auto;white-space:nowrap;font-weight:700}
 
 @media(max-width:1200px){#cal-sem-a4 .sa-page{transform-origin:top left}
@@ -20526,6 +20532,13 @@ function calCumplDia(dk){
   let ev=null;
   try{ev=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&e.type!=='descanso'&&e.type!=='evento')[0]||null;}catch(e){}
   if(!ev)return {z45,n:z.n,fuente:z.fuente,motivo:'sinplan'};
+  /* v431 · En día de partido se enseña lo MEDIDO pero no se emite veredicto:
+     el modelo está ajustado con entrenamientos y juzgar un partido con él
+     sería extrapolar. La regla ya estaba escrita para la lámina A4, pero vivía
+     dentro de la lámina, así que la vista de semana sí juzgaba los partidos
+     —y con el color por gravedad ese desvío pasaba a salir en rojo—. Ahora la
+     regla vive en el único sitio que decide el cumplimiento. */
+  if(evEsPartido(ev))return {z45,n:z.n,fuente:z.fuente,motivo:'partido'};
   let rango=null, modo='';
   const card=evCard(ev)?calCardObj(ev):null;
   if(card){rango={lo:card.z45.lo,hi:card.z45.hi};modo='card';}
@@ -20555,7 +20568,45 @@ function calCumplDia(dk){
 }
 window.calCumplDia=calCumplDia;
 /* Símbolo + palabra + color, en ese orden de importancia. */
-const CUMPL_EST={ok:['✓','Dentro','var(--ok)'],corto:['↓','Corto','var(--warn)'],pasado:['↑','Pasado','var(--accent)']};
+const CUMPL_EST={ok:['✓','Dentro','var(--ok)'],corto:['↓','Corto','var(--warn)'],pasado:['↑','Pasado','var(--warn)']};
+/* ══ v431 · Cuánto nos hemos desviado, no hacia dónde ══
+   Daniel, 20/10/2026: «mete color verde cuando estemos en el rango pactado,
+   amarillo si nos desviamos por arriba o abajo un poco y rojo si nos pasamos
+   bastante de lo establecido».
+
+   Es un CAMBIO DE CRITERIO y hay que decirlo: hasta aquí el color decía la
+   DIRECCIÓN —ámbar si nos quedábamos cortos, color de acción si nos
+   pasábamos— y ahora dice la GRAVEDAD. La dirección no se pierde, se lee en
+   el dibujo: el punto cae a la izquierda o a la derecha de la franja, que es
+   más claro que acordarse de qué significaba cada color.
+
+   **«Un poco» y «bastante» no son dos números nuevos**: el listón lo pone el
+   propio rango pactado. Fuera de la franja pero a menos de MEDIA ANCHURA DE
+   FRANJA del borde, desvío leve; más allá, fuerte. Así una métrica que el
+   modelo predice con poca certeza —rango ancho— aguanta más desvío antes de
+   ponerse en rojo, y una que predice fino se pone antes, que es lo correcto.
+   Y en la carga, cuya franja es el ±15 % de `calDev`, la regla reproduce
+   EXACTAMENTE los tramos que `calDev` ya tenía: verde hasta ±15 %, ámbar
+   hasta ±30 %, rojo por encima. Que coincida no es casualidad: es la
+   comprobación de que el criterio no se ha sacado de la manga.
+
+   Con una franja de anchura cero no hay escala con la que graduar, así que se
+   dice «leve» y no se afirma «bastante»: no se grada lo que no se puede.
+
+   **El rojo aquí significa «muy lejos de lo que se pidió», no una alerta.**
+   Es la misma excepción ya escrita para el %Z4+Z5 de la casilla del mes y
+   para los colores de zona de la lámina, donde el rojo quiere decir «mucho».
+   Autorizado por Daniel en la conversación del 20/10/2026. */
+const DESV_COL={ok:'#1ea863',leve:'#e6a700',fuerte:'#e23b32'};
+function calDesvio(val,lo,hi){
+  if(val==null||!isFinite(val)||lo==null||hi==null||!isFinite(lo)||!isFinite(hi)||hi<lo)return null;
+  const dir=val<lo?-1:(val>hi?1:0);
+  if(!dir)return {est:'ok',dir:0,col:DESV_COL.ok,fuera:0};
+  const fuera=dir<0?(lo-val):(val-hi), media=(hi-lo)/2;
+  const est=(media>0&&fuera>media)?'fuerte':'leve';
+  return {est,dir,col:DESV_COL[est],fuera};
+}
+window.calDesvio=calDesvio;
 /* Sesiones planificadas de aquí en adelante, para poder cargarlas de un clic.
    v390 · «de aquí en adelante» es desde hoy, no desde el día que se esté
    mirando: si no, el desplegable ofrecía sesiones ya jugadas. */
@@ -24007,27 +24058,27 @@ function calSemA4Efectos(dks){
     if(meta.rpe!=null&&isFinite(meta.rpe)){A.rpe.p+=pr;A.rpe.r+=meta.rpe*wd;A.rpe.w+=wd;A.rpe.n++;if(hayCard)A.rpe.card=true;}
     if(meta.contacto!=null&&isFinite(meta.contacto)){A.ct.p+=pc;A.ct.r+=meta.contacto*wd;A.ct.w+=wd;A.ct.n++;}
   });
-  const est=(v,lo,hi)=>v>=lo&&v<=hi?'ok':(v<lo?'corto':'pasado');
+  /* El grado del desvío lo pone `calDesvio` contra el propio rango pactado:
+     ni aquí ni en la lámina hay un segundo criterio. En la carga la franja es
+     el ±15 % de `calDev`, así que los tramos salen 15/30 como siempre. */
   const zOut=a=>a.w?{lo:a.lo/a.w,hi:a.hi/a.w,real:a.r/a.w,n:a.n}:null;
+  const cen=o=>(o.lo+o.hi)/2;
   const out={};
-  if(A.ua.n){const pct=Math.round((A.ua.r-A.ua.p)/A.ua.p*100);
-    out.ua={plan:A.ua.p,real:A.ua.r,dif:pct,n:A.ua.n,
-            estado:Math.abs(pct)<=15?'ok':(pct>0?'pasado':'corto')};}
+  if(A.ua.n){const lo=A.ua.p*0.85, hi=A.ua.p*1.15;
+    out.ua={plan:A.ua.p,real:A.ua.r,dif:Math.round((A.ua.r-A.ua.p)/A.ua.p*100),
+            n:A.ua.n,d:calDesvio(A.ua.r,lo,hi)};}
   const z45=zOut(A.z45), z5=zOut(A.z5);
   if(z45&&z5&&A.z45.n===A.z5.n){
     const lo=Math.max(0,z45.lo-z5.hi), hi=Math.max(lo,z45.hi-z5.lo), real=Math.max(0,z45.real-z5.real);
-    out.z4={plan:(lo+hi)/2,real,dif:real-(lo+hi)/2,n:z45.n,estado:est(real,lo,hi)};
+    out.z4={plan:(lo+hi)/2,real,dif:real-(lo+hi)/2,n:z45.n,d:calDesvio(real,lo,hi)};
   } else if(z45){
-    out.z45={plan:(z45.lo+z45.hi)/2,real:z45.real,dif:z45.real-(z45.lo+z45.hi)/2,n:z45.n,
-             estado:est(z45.real,z45.lo,z45.hi)};
+    out.z45={plan:cen(z45),real:z45.real,dif:z45.real-cen(z45),n:z45.n,d:calDesvio(z45.real,z45.lo,z45.hi)};
   }
-  if(z5)out.z5={plan:(z5.lo+z5.hi)/2,real:z5.real,dif:z5.real-(z5.lo+z5.hi)/2,n:z5.n,
-                estado:est(z5.real,z5.lo,z5.hi)};
+  if(z5)out.z5={plan:cen(z5),real:z5.real,dif:z5.real-cen(z5),n:z5.n,d:calDesvio(z5.real,z5.lo,z5.hi)};
   if(A.rpe.n){const p=A.rpe.p/A.rpe.w, r=A.rpe.r/A.rpe.w;
-    out.rpe={plan:p,real:r,dif:r-p,n:A.rpe.n,card:A.rpe.card,
-             estado:Math.abs(r-p)<=0.5?'ok':(r>p?'pasado':'corto')};}
+    out.rpe={plan:p,real:r,dif:r-p,n:A.rpe.n,card:A.rpe.card,d:calDesvio(r,p-0.5,p+0.5)};}
   if(A.ct.n){const p=A.ct.p/A.ct.w, r=A.ct.r/A.ct.w;
-    out.ct={plan:p,real:r,dif:r-p,n:A.ct.n,estado:null};}
+    out.ct={plan:p,real:r,dif:r-p,n:A.ct.n,d:null};}
   return out;
 }
 window.calSemA4Efectos=calSemA4Efectos;
@@ -24089,22 +24140,23 @@ function calSemanaA4(){
        la app clasifica cualquier sesión y respeta la corrección manual: **no
        se inventa aquí una segunda forma de decidir si una sesión fue dura**.
      · **La del preparador**: una barra por métrica con la franja de lo que se
-       pidió y un punto en lo que salió. El punto dentro de la franja es verde;
-       corto, ámbar; pasado, el color de acción. Son los estados y los colores
-       de `CUMPL_EST`, los mismos del resto del documento.
+       pidió y un punto en lo que salió. El color lo decide `calDesvio`: verde
+       dentro del rango pactado, ámbar si nos desviamos un poco por arriba o
+       por abajo, rojo si nos pasamos bastante (decisión de Daniel el
+       20/10/2026). **El color dice cuánto y el dibujo dice hacia dónde**,
+       porque el punto cae a un lado o al otro de la franja.
 
      La barra se dibuja centrada en la franja y el encuadre se abre lo justo
      para que un valor muy fuera siga cayendo dentro del papel: sin eso, un día
      que se va al doble sacaría el punto del recuadro y no se vería nada. */
-  const BAR_COL={ok:'#1ea863',corto:'#e6a700',pasado:'#3056c4'};
   const barra=(etq,lo,hi,val,fmt,uni)=>{
     const hayP=(lo!=null&&hi!=null&&isFinite(lo)&&isFinite(hi)&&hi>=lo);
     const hayR=(val!=null&&isFinite(val));
     if(!hayP&&!hayR)return '';
     let bar='', col='#8e97a6';
     if(hayP&&hayR){
-      const est=(val>=lo&&val<=hi)?'ok':(val<lo?'corto':'pasado');
-      col=tinta(BAR_COL[est]);
+      const d=calDesvio(val,lo,hi);
+      col=tinta((d||{}).col||'#8e97a6');
       const c=(lo+hi)/2, half=Math.max((hi-lo)/2,Math.abs(val-c)*1.2,1e-6);
       const L=c-half*2.1, H=c+half*2.1, sp=(H-L)||1;
       const pc=x=>Math.max(0,Math.min(100,(x-L)/sp*100));
@@ -24167,10 +24219,16 @@ function calSemanaA4(){
        —«¿fue más duro de lo que queríamos?»— y no necesita ningún umbral nuevo:
        sale de restar dos niveles que la app ya calcula. */
     const lvReal=(pl.n&&!soloDescanso)?D.lv:null;
+    /* Mismo criterio que las barras: el color dice CUÁNTO y la palabra hacia
+       dónde. Un escalón de diferencia es un desvío leve; dos —de baja a alta o
+       al revés— es que el día salió otra cosa. */
     const vere=(pl.n&&!soloDescanso&&lvReal!=null)
-      ? (lvReal>pl.peak?{t:'Más duro',s:'▲',c:'#3056c4'}
-        :lvReal<pl.peak?{t:'Más suave',s:'▼',c:'#e6a700'}
-        :{t:'Como se pidió',s:'✓',c:'#1ea863'}) : null;
+      ? (function(){const d=Math.abs(lvReal-pl.peak);
+          const c=d===0?DESV_COL.ok:(d===1?DESV_COL.leve:DESV_COL.fuerte);
+          if(!d)return {t:'Como se pidió',s:'✓',c};
+          const mas=lvReal>pl.peak;
+          return {t:(d>1?(mas?'Mucho más duro':'Mucho más suave'):(mas?'Más duro':'Más suave')),
+                  s:mas?'▲':'▼',c};})() : null;
     const sem=(pl.n&&!soloDescanso)
       ? '<div class="sa-pr">'
           +'<div class="sa-pr-c"><em>Programado</em>'
@@ -24284,13 +24342,12 @@ function calSemanaA4(){
     const ef=calSemA4Efectos(dks);
     /* La palabra dice la DIRECCIÓN y el color dice si cayó dentro de lo que se
        pidió: son dos preguntas distintas y van codificadas por separado. */
-    const EF_COL={ok:'#1ea863',corto:'#e6a700',pasado:'#3056c4'};
     const celda=(etq,o,fmt,uni,difTxt,neutro)=>{
       if(!o)return '<div class="sa-ef-c sa-ef-no"><em>'+etq+'</em><span class="sa-ef-v">Aún sin datos</span></div>';
       const r=Math.abs(o.dif)<(neutro?0.05:(uni==='%'?0.05:0.05));
       const dir=r?'Igual':(o.dif>0?'Más':'Menos');
       const fl=r?'=':(o.dif>0?'▲':'▼');
-      const col=neutro?'#5b6575':tinta(EF_COL[o.estado]||'#5b6575');
+      const col=neutro?'#5b6575':tinta((o.d&&o.d.col)||'#5b6575');
       return '<div class="sa-ef-c"><em>'+etq+'</em>'
         +'<span class="sa-ef-v">'+fmt(o.plan)+'<i>→</i><b>'+fmt(o.real)+uni+'</b></span>'
         +'<span class="sa-ef-x" style="color:'+col+'"><s>'+fl+'</s>'+difTxt(o.dif)+'</span>'
@@ -24432,18 +24489,28 @@ function calSemanaA4(){
      +efectos
      +micro
      +'<footer class="sa-foot">'
+       +'<span class="sa-sc sa-sc-t">Intensidad</span>'
        +'<span class="sa-sc"><i style="background:#1ea863"></i>Baja</span>'
        +'<span class="sa-sc"><i style="background:#e6a700"></i>Media</span>'
        +'<span class="sa-sc"><i style="background:#e23b32"></i>Alta</span>'
        +'<span class="sa-fsep"></span>'
+       +'<span class="sa-fsep"></span>'
+       /* La leyenda del desvío va en el mismo formato que la de intensidad
+          —punto de color y palabra— porque son dos escalas distintas con los
+          mismos tres colores y el papel tiene que decir cuál es cuál. */
+       +'<span class="sa-sc sa-sc-t">Desvío</span>'
+       +'<span class="sa-sc"><i style="background:'+DESV_COL.ok+'"></i>Dentro</span>'
+       +'<span class="sa-sc"><i style="background:'+DESV_COL.leve+'"></i>Algo fuera</span>'
+       +'<span class="sa-sc"><i style="background:'+DESV_COL.fuerte+'"></i>Muy fuera</span>'
+       +'<span class="sa-fsep"></span>'
        +'<span class="sa-sc sa-sc-br"><i class="sa-br sa-br-leg">'
          +'<i class="sa-br-b" style="left:28%;width:44%"></i>'
-         +'<i class="sa-br-p" style="left:50%;background:#14764a"></i></i>'
-         +'la franja es lo que se pidió · el punto, lo que salió</span>'
+         +'<i class="sa-br-p" style="left:50%;background:'+DESV_COL.ok+'"></i></i>'
+         +'franja = lo pedido · punto = lo que salió</span>'
        +'<span class="sa-fsep"></span>'
-       +'<span>'+(modOk
-          ?'Los objetivos son <b>rangos</b> del modelo del club, no cifras exactas. «Salió» es el nivel con el que la app clasifica la sesión.'
-          :'<b>Sin objetivos de pulso:</b> '+modMotivo+'. Se recalculan solos al cargar más sesiones de Polar.')+'</span>'
+       +'<span class="sa-ftx">'+(modOk
+          ?'Los objetivos son <b>rangos</b> del modelo del club, no cifras exactas.'
+          :'<b>Sin objetivos de pulso:</b> '+modMotivo+'.')+'</span>'
        +'<span class="sa-fdate">BM Nava · generado '+new Date().toLocaleDateString('es-ES')+'</span>'
      +'</footer>'
    +'</div>';
@@ -24939,9 +25006,15 @@ function renderCalWeek(box){
       ${pl.n&&pl.contacto>0?`<div class="cw-ct"><span class="cw-ct-lab">Contacto</span>${calContactBar(pl.contacto)}<b>${pl.contacto}</b></div>`:''}
       <div class="cw-evs">${evList}</div>
       ${(function(){const c=calCumplDia(dk);if(!c||!c.estado)return '';
-          const E=CUMPL_EST[c.estado];
-          return `<div class="cw-cmp" style="--e:${E[2]}" title="Programado ${fmt(c.lo,1)}–${fmt(c.hi,1)}% en Z4+Z5 · salió ${fmt(c.z45,1)}% · ${c.n} pulsómetros">`
-            +`<span class="cw-cmp-s">${E[0]}</span><span>FC ${E[1].toLowerCase()}</span><b>${fmt(c.z45,1)}%</b></div>`;})()}
+          /* v431 · El color pasa a decir CUÁNTO, no hacia dónde: verde dentro,
+             ámbar desvío leve, rojo desvío fuerte. La dirección la sigue
+             diciendo la flecha y la palabra. Decisión de Daniel el 20/10/2026;
+             el criterio es `calDesvio`, el mismo de la lámina A4. */
+          const E=CUMPL_EST[c.estado], dv=calDesvio(c.z45,c.lo,c.hi);
+          const col=dv?dv.col:E[2];
+          const pal=(dv&&dv.est==='fuerte')?('muy '+E[1].toLowerCase()):E[1].toLowerCase();
+          return `<div class="cw-cmp" style="--e:${col}" title="Programado ${fmt(c.lo,1)}–${fmt(c.hi,1)}% en Z4+Z5 · salió ${fmt(c.z45,1)}% · ${c.n} pulsómetros">`
+            +`<span class="cw-cmp-s">${E[0]}</span><span>FC ${pal}</span><b>${fmt(c.z45,1)}%</b></div>`;})()}
       ${zoneStr}
       <div class="cw-load">
         <div class="cw-load-row"><span>Plan</span><b>${pl.n?pl.planUA+' UA':'—'}</b></div>
@@ -32155,8 +32228,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.10*/
-const VER_ACTUAL='2026-10-20.10';
+/*BUILD:2026-10-20.11*/
+const VER_ACTUAL='2026-10-20.11';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
