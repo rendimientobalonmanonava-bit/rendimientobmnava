@@ -1844,23 +1844,44 @@ main{padding:20px 18px 80px}
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .sa-page *{box-sizing:border-box;min-width:0}
 
-/* ── cabecera ── */
-.sa-top{flex:none;height:62px;display:flex;align-items:center;gap:16px}
-.sa-logo{height:46px;width:auto;object-fit:contain;flex:none}
-.sa-logo-hp{height:34px;opacity:.9}
-.sa-ttl{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.sa-eyebrow{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;
-  letter-spacing:.12em;text-transform:uppercase;color:var(--sa-accent)}
-.sa-eyebrow i{width:18px;height:3px;border-radius:2px;background:var(--sa-accent)}
-.sa-ttl h1{margin:0;font-size:26px;line-height:1.05;font-weight:800;letter-spacing:-.025em}
-.sa-sub{font-size:12px;font-weight:600;color:var(--sa-ink2)}
-.sa-kpis{flex:none;display:flex;gap:8px}
-.sa-kpi{min-width:84px;padding:7px 12px;border-radius:10px;background:var(--sa-soft);
-  border:1px solid var(--sa-line);display:flex;flex-direction:column;align-items:flex-start;gap:0}
+/* ── v434 · cabecera ──────────────────────────────────────────────────────
+   Daniel, 20/10/2026: «haz la parte de arriba mucho más grande y que se vea
+   mejor». Pasa de 62 a 104 px, y el alto NO sale de los días: el resumen de
+   la semana (`.sa-ef`) sube a debajo del título —que es donde dice algo, al
+   lado del plan de la semana— y lo que falta lo cede el microciclo, que era
+   lo único con holgura. **Los siete días no pierden un píxel**: la fila de
+   sesiones necesita 110 px con dos sesiones de tres objetivos y tiene 114. */
+.sa-top{flex:none;height:104px;display:flex;align-items:center;gap:16px;
+  padding-bottom:10px;border-bottom:1px solid var(--sa-line)}
+/* Los dos logos son ANCHOS, no altos: a 62 px de alto el del club ocupa 125
+   px y el de Handball Performance 216, o sea casi un tercio de la hoja entre
+   los dos, y el título se quedaba sin sitio y partía en dos líneas. El alto
+   se fija pensando en el ancho que se llevan. */
+.sa-logo{height:54px;width:auto;object-fit:contain;flex:none}
+.sa-logo-hp{height:30px;opacity:.9}
+.sa-ttl{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.sa-eyebrow{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:800;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--sa-accent)}
+.sa-eyebrow i{width:22px;height:3px;border-radius:2px;background:var(--sa-accent)}
+.sa-ttl h1{margin:0;font-size:34px;line-height:1;font-weight:800;letter-spacing:-.03em;
+  white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+/* El próximo partido deja de ser una línea gris y pasa a ser una pastilla: es
+   el ancla de todo el microciclo y en la hoja anterior se perdía. */
+.sa-sub{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;
+  color:var(--sa-ink2);max-width:100%;overflow:hidden;white-space:nowrap}
+.sa-sub--p{padding:4px 11px 4px 9px;border-radius:999px;
+  background:rgba(48,86,196,.07);border:1px solid rgba(48,86,196,.18);color:var(--sa-ink)}
+.sa-sub-i{width:7px;height:7px;border-radius:50%;background:var(--sa-accent);flex:none}
+.sa-sub b{font-weight:800;letter-spacing:-.01em}
+.sa-sub em{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--sa-accent)}
+.sa-kpis{flex:none;display:flex;gap:10px}
+.sa-kpi{min-width:102px;padding:9px 13px 8px;border-radius:12px;background:var(--sa-soft);
+  border:1px solid var(--sa-line);display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .sa-kpi em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--sa-ink2)}
-.sa-kpi b{font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
-.sa-kpi span{font-size:9.5px;font-weight:700;color:var(--sa-ink2)}
+  text-transform:uppercase;color:var(--sa-ink2);white-space:nowrap}
+.sa-kpi b{font-size:28px;font-weight:800;letter-spacing:-.035em;line-height:1.02}
+.sa-kpi span{font-size:9.5px;font-weight:700;color:var(--sa-ink2);white-space:nowrap}
 
 /* ── la semana: siete columnas iguales ── */
 /* v415 · Rejilla COMPARTIDA por los siete días: seis filas con nombre, y la
@@ -24148,10 +24169,19 @@ function calSemanaA4(opts){
     const ev=((STATE.calendar||{})[sig]||[]).find(evEsPartido);
     const riv=ev&&evRival(ev)?evRival(ev):'';
     const dd=dkToDate(sig), falta=Math.round((dd-dkToDate(hoyDk))/86400000);
-    partidoTxt='Próximo partido · '+WD[(dd.getDay()+6)%7].toLowerCase()+' '+dd.getDate()+'/'+(dd.getMonth()+1)
-      +(riv?' vs '+esc(riv):'')+' · '+(falta===0?'hoy':falta===1?'mañana':'en '+falta+' días');
+    partidoTxt='<i class="sa-sub-i"></i><span>Próximo partido · '+WD[(dd.getDay()+6)%7].toLowerCase()+' '+dd.getDate()+'/'+(dd.getMonth()+1)+'</span>'
+      +(riv?'<b>'+esc(riv)+'</b>':'')
+      +'<em>'+(falta===0?'hoy':falta===1?'mañana':'en '+falta+' días')+'</em>';
   }
   const ws=calWeekSummary(mon), mt=calMonoTier(ws.mono);
+  /* Dos cifras que siempre existen, para que la cabecera no dependa de que
+     haya llegado ningún dato: cuántas sesiones hay puestas y cuántos minutos
+     suman. La monotonía, al lado, se queda en «—» hasta que hay cuestionarios
+     y eso está bien: es una medida de lo ocurrido, no del plan. */
+  let nSes=0, minSem=0;
+  dks.forEach(dk=>{((STATE.calendar||{})[dk]||[]).forEach(e=>{
+    if(!e||evSP(e)||e.type==='descanso'||e.type==='evento')return;
+    nSes++;minSem+=evDur(e)||0;});});
   const monEnd=new Date(mon);monEnd.setDate(mon.getDate()+6);
   const rango=mon.getDate()+' '+CAL_MES[mon.getMonth()].toLowerCase().slice(0,3)
     +' – '+monEnd.getDate()+' '+CAL_MES[monEnd.getMonth()].toLowerCase().slice(0,3)+' '+monEnd.getFullYear();
@@ -24553,7 +24583,7 @@ function calSemanaA4(opts){
        +'<div class="sa-ttl">'
          +'<div class="sa-eyebrow"><i></i>Planificación semanal</div>'
          +'<h1>'+rango+'</h1>'
-         +'<div class="sa-sub">'+partidoTxt+'</div>'
+         +'<div class="sa-sub'+(sig?' sa-sub--p':'')+'">'+partidoTxt+'</div>'
        +'</div>'
        +'<div class="sa-kpis">'
          /* v429 · El «Real» de la cabecera se va: la tira de efectos compara el
@@ -24563,12 +24593,13 @@ function calSemanaA4(opts){
             información, es una contradicción impresa. El plan de la semana
             completa sí se queda: es una cifra que se sostiene sola. */
          +'<div class="sa-kpi"><em>Plan de la semana</em><b>'+mil(ws.planUA)+'</b><span>UA</span></div>'
+         +'<div class="sa-kpi"><em>Sesiones</em><b>'+nSes+'</b><span>'+(minSem?mil(minSem)+' min en total':'sin minutos')+'</span></div>'
          +'<div class="sa-kpi"><em>Monotonía</em><b style="color:'+tinta(mt.c)+'">'+(isNaN(ws.mono)?'—':r1(ws.mono))+'</b><span>'+mt.lab+'</span></div>'
        +'</div>'
        +(logoHP?'<img class="sa-logo sa-logo-hp" src="'+logoHP+'" alt="Handball Performance">':'')
      +'</header>'
-     +'<div class="sa-week">'+cols+'</div>'
      +efectos
+     +'<div class="sa-week">'+cols+'</div>'
      +micro
      +'<footer class="sa-foot">'
        +'<span class="sa-sc sa-sc-t">Intensidad</span>'
@@ -32380,8 +32411,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.14*/
-const VER_ACTUAL='2026-10-20.14';
+/*BUILD:2026-10-20.15*/
+const VER_ACTUAL='2026-10-20.15';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
