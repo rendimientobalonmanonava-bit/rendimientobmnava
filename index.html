@@ -5308,8 +5308,6 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 </div>
         <div class="panel" id="team-ultimas" style="cursor:pointer" onclick="go('hr')"><h2>Últimas sesiones <span class="r muted">nivel, zonas y contacto ›</span></h2><div id="eq-ultimas"></div></div>
         <div class="panel" id="team-next"></div>
-        <!-- v425 · «Plan contra real, por jugador», también desde Cargas › RPE -->
-        <div class="panel" id="cgplan-card"></div>
         <div class="panel"><h2>Intensidad de la sesión <span class="r muted">última</span></h2><div id="team-intensity"></div></div>
         <div class="panel" id="team-hr-panel" style="cursor:pointer" onclick="go('hr')">
         <h2>Resumen de pulso · zonas de FC <span class="r muted">interna + externa ›</span></h2>
@@ -5319,9 +5317,6 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div class="eq-col">
         <div class="eq-cab"><span class="eq-cab-p" style="background:var(--warn)"></span>A vigilar</div>
         <div class="panel" id="team-rings"></div>
-        <!-- v425 · «Quién necesita algo hoy» se muda aquí desde Cargas › RPE:
-             dice el motivo y qué hacer, y esta es la columna de esa pregunta. -->
-        <div class="panel" id="cgaten-card"></div>
         <div class="panel" id="team-fisio"></div>
         <div class="panel" id="team-reuniones"></div>
         <div class="panel"><h2>Estado de carga del equipo</h2><div id="team-meters"></div></div>
@@ -12345,10 +12340,6 @@ function teamFiltered(){
 function renderTeam(){
   /* v273 · si quedan bloques de carga puestos, se retiran antes de pintar. */
   try{if(Object.keys(STATE.players||{}).length)skelFuera();}catch(e){}
-  /* v425 · «Quién necesita algo hoy» y «Plan contra real» viven ahora aquí.
-     Se calculan DESPUÉS de pintar, por la misma razón que en Cargas: son los
-     dos bloques caros y el Resumen es la pantalla de entrada. */
-  try{cargaDiferir();}catch(e){}
   const all=Object.values(STATE.players);const withR=all.filter(p=>p.readiness!=null);
   const avg=mean(withR.map(p=>p.readiness));
   const reds=STATE.alerts.filter(a=>a.sev==="bad").length,warns=STATE.alerts.filter(a=>a.sev==="warn").length;
@@ -13245,7 +13236,17 @@ function renderCargaResumen(){
         <div class="small muted" style="margin-top:6px">${isNaN(cumpl)?'Sin cuestionarios en la última semana.':'Media de respuesta: <b>'+Math.round(cumpl)+'%</b> de la plantilla en los días con parte.'}</div>
       </div>
     </div>
-    ${panelSemana}`;
+    ${panelSemana}
+    <!-- v427 · «Quién necesita algo hoy» y «Plan contra real, por jugador».
+         Venían de Cargas › RPE y los puse por error en la portada; su sitio es
+         este Resumen, el de Cargas. Se rellenan justo después de pintar,
+         porque son los dos bloques caros.
+         OJO: este comentario vive DENTRO de una plantilla literal, así que no
+         puede llevar acentos graves: cierran la cadena. -->
+    <div class="panel" id="cgaten-card"></div>
+    <div class="panel" id="cgplan-card"></div>`;
+  /* después del innerHTML: antes los contenedores todavía no existen */
+  try{cargaDiferir();}catch(e){}
 
   // ---- gráficos (todos sobre dato real) ----
   const mc=cssVar('--muted')||'#8a93a0';
@@ -31777,8 +31778,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.6*/
-const VER_ACTUAL='2026-10-20.6';
+/*BUILD:2026-10-20.7*/
+const VER_ACTUAL='2026-10-20.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
