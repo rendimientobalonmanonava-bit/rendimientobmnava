@@ -2518,6 +2518,30 @@ main{padding:20px 18px 80px}
 /* Las dos listas de decisión traen su propio <h2> desde `renderCargaDecide`,
    que se pinta después. Se igualan al título de las demás secciones para que
    las tres cabeceras de la vista pesen lo mismo. */
+/* ── v441 · importar del formulario ── */
+.nut-url{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.nut-url input{flex:1;min-width:240px;height:38px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--txt);padding:0 11px;font-size:12.5px;font-family:inherit}
+.nut-aviso{margin:10px 0 4px;padding:9px 12px;border-radius:10px;font-size:12.5px;font-weight:600;
+  color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent)}
+.nut-imp{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.nut-i{padding:10px 0;border-bottom:.5px solid var(--hair)}
+.nut-i:last-child{border-bottom:0}
+.nut-i--sin{opacity:.72}
+.nut-i-h{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.3fr) 88px;align-items:center;gap:12px}
+.nut-i-n{display:flex;flex-direction:column;gap:1px;min-width:0}
+.nut-i-n em{font-style:normal;font-size:10.5px;color:var(--muted2);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.nut-i-h select{height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);
+  color:var(--txt);padding:0 9px;font-size:12.5px;font-family:inherit;min-width:0}
+.nut-i--sin .nut-i-h select{border-color:var(--warn)}
+.nut-i-h b{text-align:right;font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.nut-i-l{display:flex;flex-direction:column;gap:2px;margin-top:7px;padding-left:2px}
+.nut-i-l span{display:flex;justify-content:space-between;gap:12px;font-size:11.5px;color:var(--muted)}
+.nut-i-l em{font-style:normal;font-variant-numeric:tabular-nums;flex:none}
+@media(max-width:780px){.nut-i-h{grid-template-columns:minmax(0,1fr);gap:7px}
+  .nut-i-h b{text-align:left}}
+
 /* ── v440 · Nutrición · FullGas ── */
 .nut-add{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,2fr) 78px 98px auto;gap:8px;align-items:center}
 .nut-add select,.nut-add input{height:38px;border-radius:10px;border:1px solid var(--line);
@@ -13576,6 +13600,125 @@ window.nutRondaNueva=nutRondaNueva;window.nutRondaACobros=nutRondaACobros;
 window.nutTogglePago=nutTogglePago;window.nutToggleCuota=nutToggleCuota;
 window.nutGenerarCuota=nutGenerarCuota;window.nutSetCuotaImporte=nutSetCuotaImporte;
 
+
+/* ══ v441 · Importar el Google Forms de pedidos ═══════════════════════════
+   La hoja de respuestas (Daniel, 21/10/2026) viene en **formato ancho**:
+   `Marca temporal · Correo · Nombre y apellidos` y después diez pares
+   `Producto N` / `Cantidad N` separados por una columna de «¿Quieres añadir
+   otro producto?» que no se usa.
+
+   **El precio viaja dentro del texto del producto**, que es la opción del
+   formulario copiada del catálogo de FullGas:
+
+     CREATINAS · Creapure® (...) - Neutro - 500g · 19,95 € (PVP 39,90 €) [FG096]
+     └categoría┘ └──────── nombre ──────────────┘ └precio┘  └ PVP ┘  └código┘
+
+   Por eso no hace falta una hoja de catálogo aparte y **la comprobación del
+   precio ocurre donde debe**: al montar el formulario. Medido sobre los 30
+   productos de la hoja: los 30 parsean y el descuento del club es
+   exactamente el 50 % del PVP (0,500–0,502).
+
+   **Los nombres NO se asignan solos.** `canonicalName` acierta doce de trece
+   —incluidos «ESPARON Clément», «Audiffred Baptiste» y «Francisco Ahumada»
+   por Pancho—, pero falla uno y falla caro: **«AGUSTIN CAMPILLO GARCIA» cae
+   en «Pablo Herranz García»** porque comparten un token de más de cinco
+   letras. En un módulo de dinero eso es cobrarle a Pablo el pedido de otro.
+   Así que la sugerencia se enseña y **hay que confirmarla**; lo confirmado se
+   recuerda en `alias` y no se vuelve a preguntar. */
+const NUT_PROD_RX=/^(?<cat>[^·]+?)\s*·\s*(?<nom>.+?)\s*·\s*(?<pre>[\d.,]+)\s*€(?:\s*\(PVP\s*(?<pvp>[\d.,]+)\s*€\))?(?:\s*\[(?<cod>[^\]]+)\])?\s*$/;
+function nutNum(t){const v=parseFloat(String(t||'').replace(/\./g,'').replace(',','.'));return isFinite(v)?v:NaN;}
+function nutParseProducto(txt){
+  const raw=String(txt||'').trim();if(!raw)return null;
+  const m=NUT_PROD_RX.exec(raw);
+  if(!m)return {raw,cat:'',nombre:raw,precio:NaN,pvp:NaN,codigo:''};
+  const g=m.groups;
+  return {raw,cat:(g.cat||'').trim(),nombre:(g.nom||'').trim(),
+          precio:nutNum(g.pre),pvp:nutNum(g.pvp),codigo:(g.cod||'').trim()};
+}
+/* La URL de compartir vale: Google sirve el CSV con CORS abierto en /export. */
+function nutUrlCsv(u){
+  u=String(u||'').trim();if(!u)return '';
+  const m=/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/.exec(u);
+  if(m&&!/output=csv|format=csv/.test(u))return 'https://docs.google.com/spreadsheets/d/'+m[1]+'/export?format=csv';
+  return u;
+}
+let NUT_IMP=null;   // lo leído, a la espera de confirmación
+async function nutLeerHoja(){
+  const N=nutLoad();
+  const url=nutUrlCsv((document.getElementById('nut-url')||{}).value||N.hoja||'');
+  if(!url){alert('Pega el enlace de la hoja de respuestas del formulario.');return;}
+  const msg=document.getElementById('nut-imp-msg');
+  if(msg)msg.textContent='Leyendo la hoja…';
+  try{
+    const filas=await fetchCSV(url);
+    N.hoja=url;nutPersist();
+    const cab=Object.keys(filas[0]||{});
+    const colNom=cab.find(c=>/nombre/i.test(c))||cab[2];
+    const colFec=cab.find(c=>/marca temporal|timestamp|fecha/i.test(c))||cab[0];
+    const colMail=cab.find(c=>/correo|mail/i.test(c))||'';
+    /* Pares Producto N / Cantidad N, emparejados por su número. */
+    const pares=[];
+    cab.forEach(c=>{const m=/^producto\s*(\d+)/i.exec(c.trim());
+      if(m){const n=m[1];const cc=cab.find(x=>new RegExp('^cantidad\\s*'+n+'$','i').test(x.trim()));if(cc)pares.push([c,cc]);}});
+    const out=[];
+    filas.forEach(f=>{
+      const nom=String(f[colNom]||'').trim();if(!nom)return;
+      const lineas=[];
+      pares.forEach(([cp,cc])=>{
+        const p=nutParseProducto(f[cp]);if(!p)return;
+        const cant=Math.max(0,parseInt(String(f[cc]||'').replace(/\D/g,''),10)||0);
+        if(cant>0)lineas.push({producto:p.nombre||p.raw,cat:p.cat,codigo:p.codigo,
+                               precio:isFinite(p.precio)?p.precio:0,pvp:p.pvp,cant,raw:p.raw});
+      });
+      if(!lineas.length)return;
+      const correo=colMail?String(f[colMail]||'').trim():'';
+      const src=String(f[colFec]||'').trim()+'|'+correo;
+      let sug=N.alias&&(nom in N.alias)?N.alias[nom]:null;
+      if(sug===null||sug===undefined){try{sug=canonicalName(nom);}catch(e){sug=null;}}
+      out.push({nombreHoja:nom,correo,fecha:String(f[colFec]||'').trim(),src,sug:sug||'',lineas,
+                recordado:!!(N.alias&&(nom in N.alias))});
+    });
+    NUT_IMP={url,filas:out};
+    if(msg)msg.textContent='';
+    renderNutri();
+  }catch(e){
+    if(msg)msg.textContent='No se pudo leer: '+(e&&e.message||e)+'. Comprueba que la hoja esté compartida con «cualquiera con el enlace».';
+  }
+}
+function nutImpAsignar(i,valor){
+  if(!NUT_IMP||!NUT_IMP.filas[i])return;
+  NUT_IMP.filas[i].sug=valor;
+  const N=nutLoad();N.alias=N.alias||{};N.alias[NUT_IMP.filas[i].nombreHoja]=valor;nutPersist();
+  renderNutri();
+}
+/* Confirmar: las líneas entran en la ronda abierta. Reimportar NO duplica —se
+   borran antes las líneas con el mismo origen— y los pedidos sin jugador
+   asignado se quedan fuera, que es lo honesto. */
+function nutImpConfirmar(){
+  if(!NUT_IMP)return;
+  const N=nutLoad();
+  let r=nutRondaAbierta();
+  if(!r){nutRondaNueva();r=nutRondaAbierta();if(!r)return;}
+  const listas=NUT_IMP.filas.filter(f=>f.sug);
+  if(!listas.length){alert('Ninguna fila tiene jugador asignado.');return;}
+  const srcs=new Set(listas.map(f=>f.src));
+  r.lineas=(r.lineas||[]).filter(l=>!l.src||!srcs.has(l.src));
+  let n=0;
+  listas.forEach(f=>f.lineas.forEach(l=>{
+    r.lineas.push({id:nutId(),jugador:f.sug,producto:l.producto,cant:l.cant,precio:l.precio,
+                   cat:l.cat,codigo:l.codigo,src:f.src});n++;}));
+  nutPersist();
+  const fuera=NUT_IMP.filas.length-listas.length;
+  NUT_IMP=null;
+  alert('Importadas '+n+' líneas de '+listas.length+' jugador'+(listas.length>1?'es':'')+
+        (fuera?('. '+fuera+' fila'+(fuera>1?'s':'')+' sin jugador asignado se ha'+(fuera>1?'n':'')+' quedado fuera.'):'.'));
+  renderNutri();
+}
+function nutImpCancelar(){NUT_IMP=null;renderNutri();}
+window.nutLeerHoja=nutLeerHoja;window.nutImpAsignar=nutImpAsignar;
+window.nutImpConfirmar=nutImpConfirmar;window.nutImpCancelar=nutImpCancelar;
+window.nutParseProducto=nutParseProducto;
+
 /* ── la pantalla ─────────────────────────────────────────────────────────
    Tres bloques en el orden en que se usa esto: el pedido que está abierto,
    los cobros del mes —que es lo que Carlos mira el día 6— y el historial. */
@@ -13589,6 +13732,46 @@ function renderNutri(){
   const jugadores=(typeof sortedPlayerNames==='function')?sortedPlayerNames():Object.keys(STATE.players||{}).sort();
   const mesAct=NUT_MES||nutMes(new Date());
   const meses=[...new Set(nutMesesConCobros().concat([mesAct]))].sort();
+
+  /* ⓪ importar del formulario · se confirma jugador por jugador */
+  let importar;
+  if(NUT_IMP){
+    const sinAsig=NUT_IMP.filas.filter(f=>!f.sug).length;
+    importar=`<section class="cgr-card" style="border:1px solid var(--accent)">
+      <div class="cgr-card-h"><h3>Confirma a quién es cada pedido</h3><span>${NUT_IMP.filas.length} respuesta${NUT_IMP.filas.length===1?'':'s'} en la hoja</span></div>
+      <p class="hint" style="margin-top:0"><b>La app no asigna los nombres sola, y es a propósito.</b> La hoja los trae escritos a mano y la regla de nombres de la app confunde apellidos comunes: «AGUSTIN CAMPILLO GARCIA» caía en «Pablo Herranz García». Aquí se cobra dinero, así que lo que propone se confirma. Lo que corrijas se recuerda y no se vuelve a preguntar.</p>
+      ${sinAsig?`<div class="nut-aviso">${sinAsig} respuesta${sinAsig>1?'s':''} sin jugador asignado: se quedará${sinAsig>1?'n':''} fuera si no la${sinAsig>1?'s':''} asignas.</div>`:''}
+      <div class="nut-imp">
+        ${NUT_IMP.filas.map((f,i)=>{
+          const tot=f.lineas.reduce((s2,l)=>s2+l.cant*l.precio,0);
+          return `<div class="nut-i${f.sug?'':' nut-i--sin'}">
+            <div class="nut-i-h">
+              <span class="nut-i-n">${esc(f.nombreHoja)}<em>${esc(f.fecha)}${f.correo?' · '+esc(f.correo):''}</em></span>
+              <select onchange="nutImpAsignar(${i},this.value)">
+                <option value=""${f.sug?'':' selected'}>— sin asignar —</option>
+                ${jugadores.map(j=>`<option${j===f.sug?' selected':''}>${esc(j)}</option>`).join('')}
+              </select>
+              <b>${nutEur(tot)}</b>
+            </div>
+            <div class="nut-i-l">${f.lineas.map(l=>`<span>${l.cant}× ${esc(l.producto)}<em>${nutEur(l.cant*l.precio)}</em></span>`).join('')}</div>
+          </div>`;}).join('')}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn" onclick="nutImpConfirmar()">Importar a la ronda</button>
+        <button class="btn ghost" onclick="nutImpCancelar()">Cancelar</button>
+      </div>
+    </section>`;
+  } else {
+    importar=`<section class="cgr-card">
+      <div class="cgr-card-h"><h3>Traer los pedidos del formulario</h3><span>hoja de respuestas de Google</span></div>
+      <div class="nut-url">
+        <input id="nut-url" type="text" placeholder="Enlace de la hoja de respuestas" value="${esc(N.hoja||'')}">
+        <button class="btn" onclick="nutLeerHoja()">Leer la hoja</button>
+      </div>
+      <div class="hint" id="nut-imp-msg" style="margin-top:8px"></div>
+      <p class="hint">Vale el enlace de compartir tal cual: la app lo convierte a CSV. El <b>precio sale del propio texto del producto</b> —así viene de FullGas en las opciones del formulario—, de modo que la tarifa se comprueba al montar el formulario y no hay un catálogo aparte que mantener. Volver a leer la hoja no duplica: reemplaza las líneas de las mismas respuestas.</p>
+    </section>`;
+  }
 
   /* ① pedido abierto */
   const r=nutRondaAbierta();
@@ -13695,7 +13878,7 @@ function renderNutri(){
         </div>
       </div>
     </section>
-    ${pedido}${cobros}${historial}
+    ${importar}${pedido}${cobros}${historial}
     <p class="hint" style="margin-top:14px"><b>Los correos no salen de aquí.</b> Esta pantalla es la fuente de la verdad de importes y pagos; el envío lo hace el Apps Script pegado a la hoja de pedidos, desde la cuenta de Héctor.</p>`;
 }
 window.renderNutri=renderNutri;
@@ -33084,8 +33267,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-21.5*/
-const VER_ACTUAL='2026-10-21.5';
+/*BUILD:2026-10-21.6*/
+const VER_ACTUAL='2026-10-21.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
