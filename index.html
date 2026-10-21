@@ -2611,6 +2611,19 @@ main{padding:20px 18px 80px}
 .nut-cuota input{width:92px;height:34px;border-radius:9px;border:1px solid var(--line);
   background:var(--panel2);color:var(--txt);padding:0 10px;font-size:13px;font-family:inherit;
   font-variant-numeric:tabular-nums;text-align:right}
+.nut-ext{font-style:normal;font-size:10.5px;font-weight:600;color:var(--muted2);
+  margin-left:7px;padding:1px 7px;border-radius:999px;background:var(--panel2)}
+.nut-ext-l{display:flex;flex-direction:column;gap:2px;margin-top:14px}
+.nut-e{display:grid;grid-template-columns:minmax(0,1fr) 110px 24px;align-items:center;gap:10px;
+  padding:8px 0;border-bottom:.5px solid var(--hair)}
+.nut-e:last-child{border-bottom:0}
+.nut-e span{display:flex;align-items:baseline;gap:8px;min-width:0}
+.nut-e b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nut-e em{font-style:normal;font-size:10.5px;font-weight:600;color:var(--muted2);
+  padding:1px 7px;border-radius:999px;background:var(--panel2);flex:none}
+.nut-e u{text-decoration:none;text-align:right;font-size:12.5px;font-weight:600;
+  color:var(--muted2);font-variant-numeric:tabular-nums}
+.nut-cuota b{color:var(--txt)}
 .nut-h{display:grid;grid-template-columns:minmax(0,2fr) 1fr 1fr 110px;align-items:baseline;gap:12px;
   padding:9px 0;border-bottom:.5px solid var(--hair);font-size:12.5px;color:var(--muted)}
 .nut-h:last-of-type{border-bottom:0}
@@ -13465,7 +13478,12 @@ function nutLoad(){
     const d=lsLeer(NUT_LS,null)||{};
     STATE.nutri={rondas:Array.isArray(d.rondas)?d.rondas:[],
                  cobros:Array.isArray(d.cobros)?d.cobros:[],
-                 cuota:(d.cuota&&typeof d.cuota==='object')?d.cuota:{importe:0,jugadores:{}}};
+                 externos:Array.isArray(d.externos)?d.externos:[],
+                 alias:(d.alias&&typeof d.alias==='object')?d.alias:{},
+                 hoja:d.hoja||'',
+                 /* 35 € al mes por decisión del club (Daniel, 21/10/2026). Es
+                    un valor de partida: se edita en la propia pantalla. */
+                 cuota:(d.cuota&&typeof d.cuota==='object')?d.cuota:{importe:35,jugadores:{}}};
     if(!STATE.nutri.cuota.jugadores)STATE.nutri.cuota.jugadores={};
   }
   return STATE.nutri;
@@ -13601,6 +13619,53 @@ window.nutTogglePago=nutTogglePago;window.nutToggleCuota=nutToggleCuota;
 window.nutGenerarCuota=nutGenerarCuota;window.nutSetCuotaImporte=nutSetCuotaImporte;
 
 
+/* ══ v442 · Gente de fuera de la plantilla ════════════════════════════════
+   Daniel, 21/10/2026: «el descuento es para todas las personas del club,
+   incluidos staff, directiva o incluso conocidos o amigos».
+
+   Son personas que **solo existen en este módulo**: no entran en la plantilla,
+   ni en el readiness, ni en las cargas, ni en ninguna otra pantalla. Viven en
+   `STATE.nutri.externos` y nada más las lee. Por eso tampoco pasan por
+   `canonicalName` ni por `filterToSquad`: no son jugadores, son gente que
+   compra con el descuento del club.
+
+   `nutPersonas()` es el único punto desde el que se recorre «todo el mundo»
+   en esta pantalla: plantilla primero, gente de fuera después. */
+function nutExternos(){const N=nutLoad();if(!Array.isArray(N.externos))N.externos=[];return N.externos;}
+function nutPersonas(){
+  const jug=(typeof sortedPlayerNames==='function')?sortedPlayerNames():Object.keys(STATE.players||{}).sort();
+  const ext=nutExternos().slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
+  return jug.map(n=>({nombre:n,externo:false,rol:''}))
+    .concat(ext.map(e=>({nombre:e.nombre,externo:true,rol:e.rol||'',id:e.id})));
+}
+function nutNombres(){return nutPersonas().map(p=>p.nombre);}
+function nutAddExterno(){
+  const i=document.getElementById('nut-ext-nom'),s=document.getElementById('nut-ext-rol');
+  const nom=((i||{}).value||'').trim();
+  if(!nom){alert('Escribe el nombre.');return;}
+  if(nutNombres().some(n=>n.toLowerCase()===nom.toLowerCase())){alert('Ya existe alguien con ese nombre.');return;}
+  nutExternos().push({id:nutId(),nombre:nom,rol:((s||{}).value||'').trim()});
+  nutPersist();
+  if(i)i.value='';
+  renderNutri();
+}
+/* Borrar a alguien de fuera no puede llevarse por delante lo que ya debe: si
+   tiene cobros o líneas, se dice y no se borra. */
+function nutDelExterno(id){
+  const N=nutLoad();
+  const e=nutExternos().find(x=>x.id===id);if(!e)return;
+  const tieneCobros=N.cobros.some(c=>c.jugador===e.nombre);
+  const tieneLineas=N.rondas.some(r=>(r.lineas||[]).some(l=>l.jugador===e.nombre));
+  if(tieneCobros||tieneLineas){
+    alert('No se puede quitar a '+e.nombre+': tiene pedidos o cobros registrados. Bórralos antes si de verdad quieres quitarlo.');
+    return;}
+  N.externos=nutExternos().filter(x=>x.id!==id);
+  delete N.cuota.jugadores[e.nombre];
+  nutPersist();renderNutri();
+}
+window.nutAddExterno=nutAddExterno;window.nutDelExterno=nutDelExterno;
+window.nutPersonas=nutPersonas;window.nutNombres=nutNombres;
+
 /* ══ v441 · Importar el Google Forms de pedidos ═══════════════════════════
    La hoja de respuestas (Daniel, 21/10/2026) viene en **formato ancho**:
    `Marca temporal · Correo · Nombre y apellidos` y después diez pares
@@ -13729,7 +13794,11 @@ function renderNutri(){
   const box=document.getElementById('v-nutri');if(!box)return;
   const N=nutLoad();
   const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const jugadores=(typeof sortedPlayerNames==='function')?sortedPlayerNames():Object.keys(STATE.players||{}).sort();
+  /* Un solo punto desde el que se recorre «todo el mundo»: plantilla y gente
+     de fuera del club con descuento. */
+  const personas=nutPersonas();
+  const jugadores=personas.map(p=>p.nombre);
+  const rolDe={};personas.forEach(p=>{rolDe[p.nombre]=p.externo?(p.rol||'de fuera'):'';});
   const mesAct=NUT_MES||nutMes(new Date());
   const meses=[...new Set(nutMesesConCobros().concat([mesAct]))].sort();
 
@@ -13826,7 +13895,7 @@ function renderNutri(){
     const pend=nutPendiente(j);
     if(!cs.some(Boolean)&&!N.cuota.jugadores[j]&&pend<=0)return '';
     return `<div class="nut-r">
-      <span class="nut-r-n">${esc(j)}</span>
+      <span class="nut-r-n">${esc(j)}${rolDe[j]?`<em class="nut-ext">${esc(rolDe[j])}</em>`:''}</span>
       ${NUT_CONCEPTOS.map(([k,lab],i)=>{const c=cs[i];
         if(!c)return `<span class="nut-c nut-c--no">—</span>`;
         return `<span class="nut-c${c.pagado?' nut-c--ok':''}" onclick="nutTogglePago('${esc(j).replace(/'/g,"\\'")}','${mesAct}','${k}')" title="${esc(lab)} · pulsa para marcar">
@@ -13834,6 +13903,11 @@ function renderNutri(){
       <span class="nut-r-p${pend>0?' nut-r-p--deb':''}">${pend>0?nutEur(pend):'al día'}</span>
       <span class="nut-r-q"><label><input type="checkbox" ${N.cuota.jugadores[j]?'checked':''} onchange="nutToggleCuota('${esc(j).replace(/'/g,"\\'")}')"> cuota</label></span>
     </div>`;}).filter(Boolean).join('');
+  /* Quién tiene contratado el servicio, y a quién le falta el apunte del mes:
+     el cobro de la cuota existe por el hecho de tener el servicio, así que si
+     falta es un olvido y hay que decirlo en vez de dejar el hueco callado. */
+  const conServicio=jugadores.filter(j=>N.cuota.jugadores[j]);
+  const faltan=conServicio.filter(j=>!nutCobro(j,mesAct,'cuota'));
   const totMes=NUT_CONCEPTOS.reduce((s,[k])=>s+jugadores.reduce((t,j)=>{const c=nutCobro(j,mesAct,k);return t+(c?+c.importe||0:0);},0),0);
   const cobMes=NUT_CONCEPTOS.reduce((s,[k])=>s+jugadores.reduce((t,j)=>{const c=nutCobro(j,mesAct,k);return t+((c&&c.pagado)?+c.importe||0:0);},0),0);
   const cobros=`<section class="cgr-card" style="margin-top:20px">
@@ -13847,10 +13921,11 @@ function renderNutri(){
       <div class="nut-head"><span class="nut-r-n">Jugador</span>${NUT_CONCEPTOS.map(c=>`<span class="nut-c">${esc(c[1])}</span>`).join('')}<span class="nut-r-p">Debe en total</span><span class="nut-r-q">Lleva</span></div>
       ${filas||'<p class="hint">Nadie tiene cobros este mes todavía. Cierra una ronda de pedido o genera la cuota mensual.</p>'}
       <div class="nut-cuota">
-        <span>Cuota mensual de nutrición</span>
-        <input type="text" value="${(N.cuota.importe||0).toFixed(2).replace('.',',')}" onchange="nutSetCuotaImporte(this.value)" title="Importe por jugador y mes">
-        <button class="btn ghost" onclick="nutGenerarCuota('${mesAct}')">Generar la de ${esc(nutMesLab(mesAct))}</button>
+        <span><b>Servicio de nutrición</b> · ${conServicio.length} persona${conServicio.length===1?'':'s'} · importe mensual</span>
+        <input type="text" value="${(N.cuota.importe||0).toFixed(2).replace('.',',')}" onchange="nutSetCuotaImporte(this.value)" title="Importe por persona y mes">
+        <button class="btn${faltan.length?'':' ghost'}" onclick="nutGenerarCuota('${mesAct}')">Generar la de ${esc(nutMesLab(mesAct))}</button>
       </div>
+      ${faltan.length?`<div class="nut-aviso" style="margin-top:10px">${faltan.length} persona${faltan.length>1?'s':''} con servicio de nutrición sin generar en ${esc(nutMesLab(mesAct))}: ${esc(faltan.slice(0,4).join(', '))}${faltan.length>4?' y '+(faltan.length-4)+' más':''}.</div>`:''}
     </section>`;
 
   /* ③ historial */
@@ -13862,6 +13937,23 @@ function renderNutri(){
         return `<div class="nut-h"><span><b>${esc(x.nombre||'Pedido')}</b><em>${esc((x.fecha||'').split('-').reverse().join('/'))}</em></span>
           <span>${nj} jugador${nj===1?'':'es'}</span><span>${(x.lineas||[]).length} líneas</span><b>${nutEur(nutTotalRonda(x))}</b></div>`;}).join('')
         :'<p class="hint">Aquí quedarán las rondas cerradas, con lo que pidió cada jugador y lo que costó.</p>'}
+    </section>`;
+
+  /* ④ gente de fuera de la plantilla */
+  const ext=nutExternos();
+  const externos=`<section class="cgr-card" style="margin-top:20px">
+      <div class="cgr-card-h"><h3>Gente de fuera de la plantilla</h3><span>staff, directiva o conocidos que compran con el descuento del club</span></div>
+      <div class="nut-url">
+        <input id="nut-ext-nom" type="text" placeholder="Nombre y apellidos">
+        <input id="nut-ext-rol" type="text" placeholder="Staff, directiva, amigo…" style="max-width:220px">
+        <button class="btn" onclick="nutAddExterno()">Añadir</button>
+      </div>
+      ${ext.length?`<div class="nut-ext-l">${ext.slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(e=>`<div class="nut-e">
+          <span><b>${esc(e.nombre)}</b>${e.rol?`<em>${esc(e.rol)}</em>`:''}</span>
+          <u>${nutPendiente(e.nombre)>0?nutEur(nutPendiente(e.nombre)):'al día'}</u>
+          <button class="nut-x" onclick="nutDelExterno('${e.id}')" title="Quitar">✕</button>
+        </div>`).join('')}</div>`:''}
+      <p class="hint">Estas personas <b>solo existen aquí</b>: no entran en la plantilla ni aparecen en ninguna otra pantalla de la app. Salen en el desplegable al importar el formulario y en la tabla de cobros, como todos los demás. No se puede quitar a alguien que tenga pedidos o cobros registrados.</p>
     </section>`;
 
   const totalDeuda=jugadores.reduce((s,j)=>s+nutPendiente(j),0);
@@ -13878,7 +13970,7 @@ function renderNutri(){
         </div>
       </div>
     </section>
-    ${importar}${pedido}${cobros}${historial}
+    ${importar}${pedido}${cobros}${historial}${externos}
     <p class="hint" style="margin-top:14px"><b>Los correos no salen de aquí.</b> Esta pantalla es la fuente de la verdad de importes y pagos; el envío lo hace el Apps Script pegado a la hoja de pedidos, desde la cuenta de Héctor.</p>`;
 }
 window.renderNutri=renderNutri;
@@ -33267,8 +33359,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-21.6*/
-const VER_ACTUAL='2026-10-21.6';
+/*BUILD:2026-10-21.7*/
+const VER_ACTUAL='2026-10-21.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
