@@ -2571,6 +2571,17 @@ main{padding:20px 18px 80px}
 .nut-a i{font-style:normal;color:var(--warn);cursor:help}
 .nut-a-tot{margin-top:4px;padding-top:8px;border-top:1px solid var(--line);font-weight:800}
 .nut-a-tot u{color:var(--txt);font-weight:800}
+/* v443 · Lo encargado y sin stock. Ámbar, no rojo: es una espera, no una
+   alerta, y el rojo en esta app es solo de alertas. El importe va entre
+   paréntesis para que no se confunda con lo que hay que cobrar hoy. */
+.nut-l--pend u{color:var(--warn)}
+.nut-l--pend span{opacity:.75}
+.nut-sin{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--warn);border:.5px solid var(--warn);border-radius:5px;padding:0 4px;margin-right:6px;
+  vertical-align:1px}
+.nut-pw{font-style:normal;font-size:11px;font-weight:700;color:var(--warn);margin-left:8px}
+.nut-agg--pend{border-style:dashed}
+.nut-agg--pend .nut-a u{color:var(--warn)}
 
 .nut-kpis{display:flex;gap:28px;flex-wrap:wrap;margin-bottom:16px}
 .nut-kpis em{display:block;font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.05em;
@@ -13473,6 +13484,169 @@ function renderLoad(){
    aquí. */
 const NUT_LS='bmnava_nutri';
 const NUT_CONCEPTOS=[['supl','Suplementación'],['cuota','Cuota de nutrición']];
+
+/* ══ v443 · Pedido de octubre de 2026 · primera tanda real ═══════════════
+   Daniel, 21/10/2026: «lo quiero en la web ya y que podamos verlo». Hasta
+   ahora la pantalla estaba vacía porque el módulo guarda en el
+   `localStorage` de cada navegador: nada de lo que se cargue en una
+   máquina llega a otra. Esta tanda va **en el código**, así que la ve
+   todo el que abra la app, igual que `HIST_HR` con las sesiones de Polar.
+
+   Transcrito del PDF que monta Héctor Cano (HCT Nutrition). Lo verificado
+   contra el documento, cifra a cifra: 16 personas, 167 uds que llegan ahora
+   por 1.437,89 € y 16 uds sin stock por 92,02 €. Los 16 totales por persona
+   y los 10 pendientes cuadran exactos.
+
+   Tres decisiones, y las tres importan:
+
+   • **Los nombres se mapean A MANO, no con `canonicalName`.** La hoja los
+     trae escritos como cada uno quiso y la regla de tokens confunde
+     apellidos comunes: «AGUSTIN CAMPILLO GARCIA» caía en «Pablo Herranz
+     García». Aquí se cobra dinero, así que cada fila lleva el nombre del
+     PDF al lado del de la app para que la asignación se pueda auditar sin
+     volver al documento. Los nombres de plantilla son los literales de la
+     hoja de plantilla, comprobados contra ella.
+
+   • **La ronda queda ABIERTA**, no cerrada: el propio pedido dice que lo
+     que no tiene stock «se pide y se cobra a quien lo encargó cuando
+     vuelva», así que la tanda no ha terminado. Los cobros de octubre sí se
+     crean, que es lo que Carlos tiene que ir cobrando.
+
+   • **Se siembra UNA vez.** La marca `bmnava_nutri_seed_fg2026_10` queda
+     puesta aunque luego se borre la ronda: si no, borrarla la haría volver
+     en la siguiente recarga. Misma regla que la purga de tumbas de Polar.
+
+   «Club (Aporte Equipo)», Agustín Campillo, Daniel y Héctor **no son
+   plantilla**: entran como gente de fuera, que es para lo que se hizo esa
+   lista, y no aparecen en ninguna otra pantalla de la app. */
+const NUT_SEED_ID='fg-2026-10';
+const NUT_SEED_FLAG='bmnava_nutri_seed_fg2026_10';
+/* [nombre en la app, nombre en el PDF, de fuera, rol, [[producto,uds,precio,cod?,sinStock?]]] */
+const NUT_SEED_FG=[
+  ["Club (Aporte Equipo)","Club (Aporte Equipo)",1,"Club",[
+   ["Cafeína Anhidra (200mg) - 60 cápsulas",3,4.455],
+   ["Caja 20x Gummy (Barrita de gominola) - Con cafeína - Multifrutas",1,15.3],
+   ["Carbolider Xtreme (Bebida Isotónica) - Tropical - 800g",1,10.755],
+   ["Cúrcuma con Pimienta Negra (BioPerine®) - Cápsulas - 60 tomas",1,7.155],
+   ["Energy hydro gel - sin Cafeína - Ratio 1:0,8 - Fresa - 50g",30,0.895],
+   ["Gummy (Barrita de gominola) - Sin cafeína - Cola",10,0.855],
+   ["Hydro Gel FAST (con Cafeína) - Caja 12 u. - Piña - 50g",1,9.45],
+   ["Premium Monster (Mass Gainer/Ganador de Peso) - Chocolate Smoothie - 3kg",3,20.655],
+   ["Premium Omega 3 (sello IFOS) - 90 perlas",1,11.96],
+   ["True Dream (melatonina Melotime) - Cápsulas - 60 tomas",1,6.64]]],
+  ["Agustín Campillo García","Agustin Campillo Garcia",1,"",[
+   ["Creatina Alcalina en polvo - Neutro - 500g",4,14.805]]],
+  ["Alfredo Otero","Alfredo Otero Quintana",0,"",[
+   ["100% Isolate Whey (Aislado) - Cookies & Cream - 1,8kg",1,47.655],
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",3,17.955]]],
+  ["Baptiste Audiffred","Audiffred Baptiste",0,"",[
+   ["Carbolider Xtreme (Bebida Isotónica) - Tropical - 800g",1,10.755],
+   ["Crema de Arroz (Pregelatinizada) - Dubai chocolate - 1kg",1,4.905],
+   ["Extracto de Té Verde (55% EGCG) - 60 cápsulas",2,6.705],
+   ["Full Recovery (Recuperador) - Chocolate smoothie - 800g",1,11.205],
+   ["Omega 3-6-9 - 90 perlas",1,6.705],
+   ["True Dream (melatonina Melotime) - Cápsulas - 60 tomas",1,6.64],
+   ["Total Electrolitos (Fórmula de electrolitos) - 60 cápsulas",1,4.46,"FG016",1]]],
+  ["Daniel Gutiérrez","Daniel Gutierrez",1,"Preparador físico",[
+   ["100% Whey Protein (Concentrado) - Yogur Frutas del Bosque - 900g",1,21.555],
+   ["Isolate Casein (Caseína Micelar) - Dubai Chocolate - 900g",1,17.055],
+   ["True Dream (melatonina Melotime) - Cápsulas - 60 tomas",1,6.64]]],
+  ["David Fernández","David Fernández Ál",0,"",[
+   ["Aislado Suero + Proteína Clara Huevo - Vanilla Smoothie - 1,8 kg",1,40.455],
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",4,17.955],
+   ["Vitamina D3-K2 - Cápsulas - 60 tomas",1,5.805,"FG052",1]]],
+  ["David Roca","David Roca",0,"",[
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",2,17.955],
+   ["Maltodextrina en polvo - PureRAW (Sin sabor) - 800g",2,4.455],
+   ["Native Isolate (Whey Nativa) - Sin Edulcorante - Chocolate negro - 454g",1,15.75],
+   ["Native Isolate (Whey Nativa) - Sin Edulcorante - Natural - 1,8kg",1,58.5],
+   ["Vitamina D3-K2 - Cápsulas - 60 tomas",1,5.805,"FG052",1]]],
+  ["Clement Esparon","ESPARON Clément",0,"",[
+   ["100% Isolate Whey (Aislado) - Dubai Chocolate - 900g",1,26.955],
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",1,17.955],
+   ["Crema de Avellana ecológica - 100% Pura - 250g",1,4.455],
+   ["Shaker (mezclador) FullGas - Verde - 500ml",2,1.33],
+   ["Toalla deportiva reversible by FullGas - Verde/Negro - 100% algodón",1,2.655],
+   ["True Dream (melatonina Melotime) - Cápsulas - 60 tomas",1,6.64],
+   ["Vitamina D3-K2 - Cápsulas - 60 tomas",1,5.805,"FG052",1]]],
+  ["Pancho Ahumada Collado","Francisco Ahumada",0,"",[
+   ["100% Isolate Whey (Aislado) - Dubai Chocolate - 900g",1,26.955],
+   ["Creapure® (Creatina Monohidrato en polvo) - Limón - 250g",1,11.205],
+   ["Vitamina D3-K2 - Cápsulas - 60 tomas",1,5.805,"FG052",1]]],
+  ["Héctor Cano","Héctor Cano",1,"Nutricionista",[
+   ["100% Isolate Whey (Aislado) - Croissant Chocolate - 1,8kg",1,47.655],
+   ["Cafeína Anhidra (200mg) - 60 cápsulas",1,4.455],
+   ["Café de Especialidad - Grano - Colombia - 250g",2,5.83],
+   ["Caja 20x Gummy (Barrita de gominola) - Sin cafeína - Cola",1,15.3],
+   ["Creapure® (Creatina Monohidrato en polvo) - Bubblegum - 250g",1,11.205],
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",3,17.955],
+   ["Energy hydro gel - sin Cafeína - Ratio 1:0,8 - Fresa - 50g",37,0.895],
+   ["Magnesio Bisglicinato - 90 cápsulas",1,4.455],
+   ["True Dream (melatonina Melotime) - Cápsulas - 60 tomas",1,6.64],
+   ["Ajuste de redondeo del pedido",1,-0.02,"",0,1],
+   ["Vitamina D3-K2 - Cápsulas - 60 tomas",2,5.805,"FG052",1]]],
+  ["Josu Arzoz Azofra","Josu Arzoz Azofra",0,"",[
+   ["Maltodextrina en polvo - PureRAW (Sin sabor) - 800g",2,4.455],
+   ["Vitamina D3-K2 - Cápsulas - 60 tomas",5,5.805,"FG052",1]]],
+  ["Maiko Vázquez","Maiko Vázquez",0,"",[
+   ["100% Isolate Whey (Aislado) - Cappuccino Mocha - 1,8kg",1,47.655],
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",2,17.955],
+   ["Vitamina D3-K2 - Cápsulas - 60 tomas",2,5.805,"FG052",1]]],
+  ["Marcos Da Silva","Marcos Antonio da Silva",0,"",[
+   ["100% Isolate Whey (Aislado) - Chocolate smoothie - 1,8kg",1,47.655],
+   ["Pre Workout (Fórmula preentreno en polvo) - Mandarina - 170g",1,8.055]]],
+  ["Mateus M. Buda","Mateus Cristian Nascimento Martins",0,"",[
+   ["Avena Molida (Harina de avena) - Natural - 1,5kg",1,3.105],
+   ["BetaCrea Fusion (Beta-Alanina + Creatina Monohidrato) - Polvo - 300g",1,6.705],
+   ["Cafeína Anhidra (200mg) - 60 cápsulas",2,4.455],
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",2,17.955],
+   ["Vitamina D3 + Magnesio Bisglicinato - 120 cápsulas",1,6.26,"FG495",1]]],
+  ["Pablo Herranz García","Pablo Herranz García",0,"",[
+   ["100% Isolate Whey (Aislado) - Arroz con leche - 900g",1,26.955],
+   ["100% Isolate Whey (Aislado) - Chocolate smoothie - 900g",2,26.955],
+   ["Creapure® (Creatina Monohidrato en polvo) - Limón - 250g",1,11.205],
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",1,17.955],
+   ["Premium Omega 3 (sello IFOS) - 90 perlas",5,11.96],
+   ["Super Vitamin D con Magnesio + Zinc + K2 - Cápsulas - 30 tomas",3,10.305],
+   ["Vitamina D3-K2 - Cápsulas - 60 tomas",1,5.805,"FG052",1]]],
+  ["Paulo Moreno","Paulo Jorge Ramos Moreno",0,"",[
+   ["100% Isolate Whey (Aislado) - Cappuccino Mocha - 1,8kg",1,47.655],
+   ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",2,17.955]]]];
+function nutSembrar(){
+  const N=STATE.nutri; if(!N)return false;
+  try{ if(lsLeer(NUT_SEED_FLAG,null))return false; }catch(e){}
+  if((N.rondas||[]).some(r=>r.id===NUT_SEED_ID)){try{lsGuardar(NUT_SEED_FLAG,1);}catch(e){}return false;}
+  const ronda={id:NUT_SEED_ID,
+    /* El PDF no trae el día exacto, solo «tanda de octubre de 2026». */
+    fecha:'2026-10-01',mes:'2026-10',
+    nombre:'Pedido Full Gas · octubre 2026',cerrada:false,lineas:[]};
+  let i=0;
+  NUT_SEED_FG.forEach(f=>{
+    const nom=f[0], pdf=f[1], ext=!!f[2], rol=f[3]||'', lin=f[4]||[];
+    /* El filtro central de bajas no pasa por aquí, porque esto no sale del
+       `localStorage`: se comprueba a mano para que un jugador dado de baja
+       no reaparezca por la puerta de atrás. */
+    if(typeof esBaja==='function'&&esBaja(nom))return;
+    if(ext&&!(N.externos||[]).some(e=>e.nombre===nom))
+      N.externos.push({id:'nx-fg-'+(++i),nombre:nom,rol:rol});
+    lin.forEach(l=>{
+      ronda.lineas.push({id:NUT_SEED_ID+'-l'+(ronda.lineas.length+1),
+        jugador:nom,producto:l[0],cant:+l[1]||0,precio:+l[2]||0,
+        codigo:l[3]||'',pend:!!l[4],ajuste:!!l[5],src:'pdf',pdfNombre:pdf});
+    });
+  });
+  N.rondas.push(ronda);
+  /* Lo que cada uno paga ahora pasa a sus cobros de octubre. Lo pendiente
+     NO: se cobra cuando llegue, y añadirlo aquí sería reclamar un dinero
+     por algo que todavía no se ha entregado. */
+  [...new Set(ronda.lineas.map(l=>l.jugador))].forEach(j=>{
+    const t=nutTotalJug(ronda,j);
+    if(t>0&&!nutCobro(j,'2026-10','supl'))nutCobroSet(j,'2026-10','supl',t);
+  });
+  try{lsGuardar(NUT_SEED_FLAG,1);}catch(e){}
+  try{lsGuardar(NUT_LS,N);}catch(e){}
+  return true;
+}
 function nutLoad(){
   if(!STATE.nutri){
     const d=lsLeer(NUT_LS,null)||{};
@@ -13485,12 +13659,25 @@ function nutLoad(){
                     un valor de partida: se edita en la propia pantalla. */
                  cuota:(d.cuota&&typeof d.cuota==='object')?d.cuota:{importe:35,jugadores:{}}};
     if(!STATE.nutri.cuota.jugadores)STATE.nutri.cuota.jugadores={};
+    try{nutSembrar();}catch(e){console.warn('bmnava · pedido de octubre no sembrado:',e&&e.message);}
   }
   return STATE.nutri;
 }
 function nutPersist(){try{return lsGuardar(NUT_LS,nutLoad());}catch(e){return false;}}
 function nutId(){return 'n'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-const nutEur=v=>(v==null||!isFinite(v))?'—':(Math.round(v*100)/100).toFixed(2).replace('.',',')+' €';
+/* v443 · Redondeo a céntimo, media arriba y a prueba de coma flotante.
+   Los precios de FullGas llegan con el 50 % del cupón ya aplicado, así que
+   caen en medio céntimo (17,955 · 0,895 · 5,805) y el total de una persona
+   acaba a menudo en x,xx5. `Math.round(112.275*100)` da 11227, porque
+   112,275 no es representable en binario, y a David Fernández, Maiko y
+   Paulo se les mostraba un céntimo menos del que pone el pedido. El
+   épsilon es relativo al importe para que no se coma una cifra grande. */
+function nutRedondea(v){
+  if(v==null||!isFinite(v))return 0;
+  const sg=v<0?-1:1, a=Math.abs(v);
+  return sg*Math.round(a*100+Math.max(1e-6,a*1e-9))/100;
+}
+const nutEur=v=>(v==null||!isFinite(v))?'—':nutRedondea(v).toFixed(2).replace('.',',')+' €';
 const nutMes=d=>{d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');};
 function nutMesLab(m){
   if(!m)return '—';
@@ -13510,18 +13697,45 @@ function nutRondaNueva(){
                  cerrada:false,lineas:[]});
   nutPersist();renderNutri();
 }
-/* Total de un jugador en una ronda. */
+/* v443 · Una línea con `pend` es un encargo que la marca no tiene en stock:
+   cuenta como pedido de esa persona pero **no se cobra ahora**, se cobrará
+   cuando llegue. Es lo que dice el propio pedido, y meterlas en el total
+   habría cobrado 1.529,91 € en vez de los 1.437,89 € que se pagaron. */
+const nutEsPend=l=>!!(l&&l.pend);
+/* Total de un jugador en una ronda: lo que paga ahora. */
 function nutTotalJug(ronda,nombre){
-  return (ronda.lineas||[]).filter(l=>l.jugador===nombre)
-    .reduce((s,l)=>s+(+l.cant||0)*(+l.precio||0),0);
+  return nutRedondea((ronda.lineas||[]).filter(l=>l.jugador===nombre&&!nutEsPend(l))
+    .reduce((s,l)=>s+(+l.cant||0)*(+l.precio||0),0));
 }
+/* Lo que tiene encargado y sin stock, a precio de hoy. Orientativo: cuando
+   llegue se cobra al precio que tenga entonces, que es la regla del módulo. */
+function nutPendJug(ronda,nombre){
+  return nutRedondea((ronda.lineas||[]).filter(l=>l.jugador===nombre&&nutEsPend(l))
+    .reduce((s,l)=>s+(+l.cant||0)*(+l.precio||0),0));
+}
+/* El total de la ronda es la suma de lo que paga CADA UNO, no la de las
+   líneas en bruto: lo que se cobra es el total redondeado de cada persona,
+   y sumar las líneas deja la ronda tres céntimos por debajo de lo que se
+   paga a la marca. */
 function nutTotalRonda(ronda){
-  return (ronda.lineas||[]).reduce((s,l)=>s+(+l.cant||0)*(+l.precio||0),0);
+  return [...new Set((ronda.lineas||[]).map(l=>l.jugador))]
+    .reduce((s,j)=>s+nutTotalJug(ronda,j),0);
 }
-/* Agregado por producto: lo que se le pasa a la marca de una vez. */
-function nutPorProducto(ronda){
+function nutPendRonda(ronda){
+  return [...new Set((ronda.lineas||[]).map(l=>l.jugador))]
+    .reduce((s,j)=>s+nutPendJug(ronda,j),0);
+}
+/* Agregado por producto: lo que se le pasa a la marca de una vez. Con
+   `pend` a true devuelve en cambio lo que está esperando stock. */
+function nutPorProducto(ronda,pend){
   const m={};
   (ronda.lineas||[]).forEach(l=>{
+    if(nutEsPend(l)!==!!pend)return;
+    /* El ajuste de redondeo de la tanda cuenta en lo que paga su persona,
+       pero no es un producto: pedirle a la marca «1× ajuste de redondeo»
+       no significa nada, y además dejaba el recuento en 168 uds cuando el
+       pedido son 167. */
+    if(l.ajuste)return;
     const k=(l.producto||'').trim()||'—';
     const o=m[k]||(m[k]={producto:k,cant:0,importe:0,precios:{}});
     o.cant+=(+l.cant||0);o.importe+=(+l.cant||0)*(+l.precio||0);
@@ -13797,8 +14011,15 @@ function renderNutri(){
   /* Un solo punto desde el que se recorre «todo el mundo»: plantilla y gente
      de fuera del club con descuento. */
   const personas=nutPersonas();
-  const jugadores=personas.map(p=>p.nombre);
+  /* v443 · Quien tiene un cobro aparece aunque no esté en la plantilla ni en
+     la lista de gente de fuera. Si no, un nombre que la hoja de plantilla
+     escriba distinto se queda con dinero pendiente y sin fila donde verlo:
+     el apunte existiría y nadie lo cobraría. */
+  const nomP=personas.map(p=>p.nombre);
+  const sueltos=[...new Set(N.cobros.map(c=>c.jugador))].filter(j=>j&&nomP.indexOf(j)<0).sort();
+  const jugadores=nomP.concat(sueltos);
   const rolDe={};personas.forEach(p=>{rolDe[p.nombre]=p.externo?(p.rol||'de fuera'):'';});
+  sueltos.forEach(j=>{rolDe[j]='sin ficha';});
   const mesAct=NUT_MES||nutMes(new Date());
   const meses=[...new Set(nutMesesConCobros().concat([mesAct]))].sort();
 
@@ -13855,9 +14076,11 @@ function renderNutri(){
     const porJug={};(r.lineas||[]).forEach(l=>{(porJug[l.jugador]=porJug[l.jugador]||[]).push(l);});
     const nombres=Object.keys(porJug).sort();
     const prods=nutPorProducto(r);
+    const pendP=nutPorProducto(r,true);
     const totR=nutTotalRonda(r);
+    const pendR=nutPendRonda(r);
     pedido=`<section class="cgr-card">
-      <div class="cgr-card-h"><h3>${esc(r.nombre||'Pedido')}</h3><span>abierto el ${esc((r.fecha||'').split('-').reverse().join('/'))} · ${(r.lineas||[]).length} línea${(r.lineas||[]).length===1?'':'s'}</span></div>
+      <div class="cgr-card-h"><h3>${esc(r.nombre||'Pedido')}</h3><span>${esc(nutMesLab(r.mes))} · ${(r.lineas||[]).length} línea${(r.lineas||[]).length===1?'':'s'} · <b>${nutEur(totR)}</b> a cobrar${pendR>0?' · '+nutEur(pendR)+' esperando stock':''}</span></div>
       <div class="nut-add">
         <select id="nut-jug">${jugadores.map(j=>`<option>${esc(j)}</option>`).join('')}</select>
         <input id="nut-prod" type="text" placeholder="Producto" list="nut-prods">
@@ -13871,8 +14094,8 @@ function renderNutri(){
         <div>
           <div class="nut-sub">Por jugador</div>
           ${nombres.map(j=>`<div class="nut-j">
-            <div class="nut-j-h"><b>${esc(j)}</b><span>${nutEur(nutTotalJug(r,j))}</span></div>
-            ${porJug[j].map(l=>`<div class="nut-l"><span>${esc(l.producto)}</span><em>×${l.cant}</em><u>${nutEur(l.cant*l.precio)}</u><button class="nut-x" onclick="nutDelLinea('${l.id}')" title="Quitar">✕</button></div>`).join('')}
+            <div class="nut-j-h"><b>${esc(j)}</b><span>${nutEur(nutTotalJug(r,j))}${nutPendJug(r,j)>0?`<i class="nut-pw" title="Encargado y sin stock: no se cobra ahora">+${nutEur(nutPendJug(r,j))} pend.</i>`:''}</span></div>
+            ${porJug[j].map(l=>`<div class="nut-l${nutEsPend(l)?' nut-l--pend':''}"${nutEsPend(l)?' title="Sin stock: encargado, pero no se cobra hasta que llegue"':''}><span>${nutEsPend(l)?'<i class="nut-sin">sin stock</i>':''}${esc(l.producto)}</span><em>×${l.cant}</em><u>${nutEsPend(l)?'('+nutEur(l.cant*l.precio)+')':nutEur(l.cant*l.precio)}</u><button class="nut-x" onclick="nutDelLinea('${l.id}')" title="Quitar">✕</button></div>`).join('')}
           </div>`).join('')}
         </div>
         <div>
@@ -13881,6 +14104,11 @@ function renderNutri(){
             ${prods.map(p=>`<div class="nut-a"><b>${p.cant}×</b><span>${esc(p.producto)}</span><u>${nutEur(p.importe)}</u>${Object.keys(p.precios).length>1?'<i title="Esta ronda tiene este producto a más de un precio">⚠</i>':''}</div>`).join('')}
             <div class="nut-a nut-a-tot"><b></b><span>Total de la ronda</span><u>${nutEur(totR)}</u></div>
           </div>
+          ${pendP.length?`<div class="nut-sub" style="margin-top:14px">Esperando stock · no se cobra ahora</div>
+          <div class="nut-agg nut-agg--pend">
+            ${pendP.map(p=>`<div class="nut-a"><b>${p.cant}×</b><span>${esc(p.producto)}</span><u>${nutEur(p.importe)}</u></div>`).join('')}
+          </div>
+          <p class="hint">La marca los tiene agotados. Cuando vuelvan se piden y se cobran a quien los encargó, <b>al precio que tengan entonces</b>: el importe de aquí es con el de hoy. Lo de cada uno está en su ficha de la izquierda; en total, <b>${nutEur(pendR)}</b>.</p>`:''}
           <button class="btn ghost" style="margin-top:10px" onclick="nutCopiarPedido()">Copiar para Héctor</button>
           <button class="btn" style="margin-top:10px" onclick="nutRondaACobros('${r.id}')">Cerrar ronda y pasar a cobros</button>
           <p class="hint">Al cerrarla, el total de cada jugador se convierte en su cobro de suplementación de ${esc(nutMesLab(r.mes))}. El tick de pagado nunca se pisa.</p>
@@ -33359,8 +33587,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-21.7*/
-const VER_ACTUAL='2026-10-21.7';
+/*BUILD:2026-10-21.8*/
+const VER_ACTUAL='2026-10-21.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
