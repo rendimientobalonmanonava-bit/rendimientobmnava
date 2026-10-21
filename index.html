@@ -24682,9 +24682,22 @@ function calA4Fit(){
   const p=f.querySelector('.sa-page');
   if(!p){f.style.height='';return;}
   const w=f.clientWidth||0;
-  const k=w>0?Math.min(1,w/1123):1;
+  /* v435 · La escala va en los DOS sentidos. Antes estaba capada en 1, así
+     que en una pantalla ancha la hoja se quedaba en sus 1123 px mientras el
+     panel del microciclo ocupaba todo el ancho: al lado se veía más pequeña y
+     con la letra más chica, que es lo que Daniel vio —«la parte de la
+     planificación semanal es más pequeña que la de abajo, hazla más ancha y
+     que ocupen lo mismo»—. Ahora los dos bloques terminan en el mismo borde.
+     El tope de CAL_A4_MAX existe solo para una pantalla desproporcionada: a
+     partir de ahí la hoja dejaría de parecer una hoja. */
+  /* El ancho natural se lee del nodo, no se escribe a mano: `offsetWidth` no
+     lo toca el `transform`, e incluye el borde que la hoja lleva en pantalla.
+     Con el 1123 a pelo sobraban 4 px y el borde derecho no cuadraba con el
+     del panel del microciclo, que es justo lo que había que alinear. */
+  const nat=p.offsetWidth||1123;
+  const k=(w>0&&nat>0)?Math.min(CAL_A4_MAX,w/nat):1;
   p.style.transformOrigin='top left';
-  p.style.transform=k<1?('scale('+k.toFixed(4)+')'):'';
+  p.style.transform=(Math.abs(k-1)>0.002)?('scale('+k.toFixed(4)+')'):'';
   f.style.height=Math.round(p.offsetHeight*k)+'px';
 }
 window.calA4Fit=calA4Fit;
@@ -25156,6 +25169,7 @@ function calToday(){const t=new Date();CALVIEW={y:t.getFullYear(),m:t.getMonth()
    clase**: Carlos consulta desde el teléfono y una hoja apaisada de 1123 px
    encogida a un tercio no es una vista, es una foto. */
 const CAL_A4_MIN=820;
+const CAL_A4_MAX=1.6;   // tope de ampliación, solo para pantallas enormes
 function calA4Cabe(winW){
   const b=document.getElementById('cal-body');
   const w=(b&&b.clientWidth)||((winW||window.innerWidth)-280);
@@ -32411,8 +32425,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.15*/
-const VER_ACTUAL='2026-10-20.15';
+/*BUILD:2026-10-20.16*/
+const VER_ACTUAL='2026-10-20.16';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
