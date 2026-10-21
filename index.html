@@ -13686,6 +13686,49 @@ const NUT_SEED_FG=[
   ["Paulo Moreno","Paulo Jorge Ramos Moreno",0,"",[
    ["100% Isolate Whey (Aislado) - Cappuccino Mocha - 1,8kg",1,47.655],
    ["Creapure® (Creatina Monohidrato en polvo) - Neutro - 500g",2,17.955]]]];
+/* ══ v445 · Quién lleva el servicio de nutrición, y desde cuándo ════════
+   Daniel, 21/10/2026, preguntado expresamente por agosto y septiembre:
+   *«Clement, David Fernández, David Roca, Josu, Maiko (solo desde octubre),
+   Buda, Pablo y Pancho»*. Héctor ya trabajaba con ellos antes del primer
+   pedido, así que esos meses existen aunque no haya pedido detrás.
+
+   `desde` es el primer mes que se le cobra a cada uno. Maiko entra en
+   octubre, de modo que **no se le crean agosto ni septiembre**: cobrarle un
+   mes en el que no tenía el servicio sería inventarse una deuda.
+
+   **Todos nacen SIN pagar**, y es a propósito: no sé cuáles están cobrados
+   y lo seguro es que se vea la deuda y Carlos vaya marcando. Al revés
+   —darlos por pagados— escondería dinero que sí se debe. */
+const NUT_SEED_CUOTA_FLAG='bmnava_nutri_seed_cuota_2026';
+const NUT_SEED_CUOTA=[
+  ['Clement Esparon','2026-08'],
+  ['David Fern\u00e1ndez','2026-08'],
+  ['David Roca','2026-08'],
+  ['Josu Arzoz Azofra','2026-08'],
+  ['Maiko V\u00e1zquez','2026-10'],
+  ['Mateus M. Buda','2026-08'],
+  ['Pablo Herranz Garc\u00eda','2026-08'],
+  ['Pancho Ahumada Collado','2026-08']];
+function nutSembrarCuota(){
+  const N=STATE.nutri; if(!N)return false;
+  try{ if(lsLeer(NUT_SEED_CUOTA_FLAG,null))return false; }catch(e){}
+  const hasta=nutMes(new Date());
+  const imp=+N.cuota.importe||35;
+  NUT_SEED_CUOTA.forEach(f=>{
+    const nom=f[0], desde=f[1];
+    if(typeof esBaja==='function'&&esBaja(nom))return;
+    /* El tick dice quién lo lleva AHORA: lo llevan los ocho. */
+    N.cuota.jugadores[nom]=true;
+    for(let m=desde,g=0; m<=hasta&&g<60; m=nutMesSuma(m,1),g++){
+      /* Nunca se pisa un apunte que ya exista: el tick de pagado es lo
+         único que no se puede perder. */
+      if(!nutCobro(nom,m,'cuota'))nutCobroSet(nom,m,'cuota',imp);
+    }
+  });
+  try{lsGuardar(NUT_SEED_CUOTA_FLAG,1);}catch(e){}
+  try{lsGuardar(NUT_LS,N);}catch(e){}
+  return true;
+}
 function nutSembrar(){
   const N=STATE.nutri; if(!N)return false;
   try{ if(lsLeer(NUT_SEED_FLAG,null))return false; }catch(e){}
@@ -13734,6 +13777,7 @@ function nutLoad(){
                  cuota:(d.cuota&&typeof d.cuota==='object')?d.cuota:{importe:35,jugadores:{}}};
     if(!STATE.nutri.cuota.jugadores)STATE.nutri.cuota.jugadores={};
     try{nutSembrar();}catch(e){console.warn('bmnava · pedido de octubre no sembrado:',e&&e.message);}
+    try{nutSembrarCuota();}catch(e){console.warn('bmnava · cuotas no sembradas:',e&&e.message);}
   }
   return STATE.nutri;
 }
@@ -33875,8 +33919,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-21.9*/
-const VER_ACTUAL='2026-10-21.9';
+/*BUILD:2026-10-21.10*/
+const VER_ACTUAL='2026-10-21.10';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
