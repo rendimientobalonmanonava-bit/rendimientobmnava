@@ -2498,7 +2498,8 @@ main{padding:20px 18px 80px}
 .cgr-stat b{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1;
   font-variant-numeric:tabular-nums}
 .cgr-stat b small{font-size:14px;font-weight:600;color:var(--muted2)}
-.cgr-stat u{text-decoration:none;font-size:11.5px;font-weight:500;color:var(--muted2)}
+.cgr-stat u{text-decoration:none;font-size:11.5px;font-weight:500;color:var(--muted2);
+  max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* El reparto por puesto cabe en una línea: la pregunta existe, el panel no. */
 .cgr-pos{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px;padding-top:14px;
   border-top:.5px solid var(--hair)}
@@ -2517,6 +2518,33 @@ main{padding:20px 18px 80px}
 /* Las dos listas de decisión traen su propio <h2> desde `renderCargaDecide`,
    que se pinta después. Se igualan al título de las demás secciones para que
    las tres cabeceras de la vista pesen lo mismo. */
+/* ── v438 · acumulado por jugador ── */
+.tmp-head,.tmp-r{display:grid;
+  grid-template-columns:minmax(0,1.7fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,2.2fr) minmax(0,.8fr);
+  align-items:center;gap:12px}
+.tmp-head{padding:0 0 9px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--muted2)}
+.tmp-r{padding:9px 0;border-bottom:.5px solid var(--hair);cursor:pointer;
+  transition:background-color var(--ease)}
+.tmp-r:last-of-type{border-bottom:0}
+.tmp-r:hover{background:var(--panel2)}
+.tmp-n{font-size:13.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tmp-n em{font-style:normal;font-weight:500;font-size:11.5px;color:var(--muted2);margin-left:7px}
+.tmp-ses{display:flex;flex-direction:column;gap:1px}
+.tmp-ses b{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.tmp-ses em{font-style:normal;font-size:10.5px;font-weight:500;color:var(--muted2)}
+.tmp-min{text-align:right;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tmp-min em{font-style:normal;font-size:10px;margin-left:3px;color:var(--muted2)}
+.tmp-head .tmp-min,.tmp-head .tmp-med{text-align:right}
+.tmp-ua{position:relative;display:flex;align-items:center;gap:9px}
+.tmp-ua i{position:relative;display:block;height:7px;border-radius:4px;background:var(--accent);
+  opacity:.75;min-width:3px}
+.tmp-ua b{font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tmp-med{text-align:right;font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+@media(max-width:780px){
+  .tmp-head,.tmp-r{grid-template-columns:minmax(0,1.6fr) minmax(0,.9fr) minmax(0,1.6fr)}
+  .tmp-head .tmp-min,.tmp-r .tmp-min,.tmp-head .tmp-med,.tmp-r .tmp-med{display:none}
+}
 .cgr-card>h2{margin:0 0 14px;font-size:17px;font-weight:600;letter-spacing:-.01em;border:0;padding:0}
 .cgr-card>h2 .r{font-size:12px;font-weight:500}
 .cgr-card .hint{margin-top:14px}
@@ -13243,6 +13271,13 @@ function loadWellnessPts(){const out=[];for(const nm in STATE.players){const p=S
 function drawLWScatter(id,xf,xlabel,infoId){const pts=loadWellnessPts().filter(o=>!isNaN(xf(o))&&o.readiness!=null).map(o=>({x:xf(o),y:o.readiness,n:o.name}));const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));const info=document.getElementById(infoId);if(info)info.innerHTML=`r = <b style="color:var(--${Math.abs(r)>=0.5?'accent':'ink'})">${fmt(r,2)}</b> · r² = <b>${fmt(r*r,2)}</b> <span class="small muted">(${isNaN(r)?'—':rDesc(r)}; n=${pts.length})</span>`;killCharts([id]);const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,{type:'scatter',data:{datasets:[{data:pts,backgroundColor:rgba(PAL.data,.55),borderColor:PAL.data,pointRadius:5,pointHoverRadius:7}]},options:{...BASE,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.n+' ('+fmt(c.raw.x,2)+', '+fmt(c.raw.y,0)+')'}}},scales:{x:{...AX,title:{display:true,text:xlabel,color:'#8a93a0',font:{size:10}}},y:{...AX,min:0,max:100,title:{display:true,text:'Readiness',color:'#8a93a0',font:{size:10}}}}}});}
 function renderLoadWellness(){drawLWScatter('ch-lw-acwr',o=>o.acwr,'ACWR','lw-acwr-info');drawLWScatter('ch-lw-ua',o=>o.ua,'Carga semanal (UA)','lw-ua-info');}
 function renderCargaActive(){const t=FILTER.cargaTab||'resumen';
+  /* v438 · El selector de ventana (14 d / 28 d / 8 sem / Temporada) es de toda
+     la pestaña, pero «La temporada» va siempre desde el 1 de julio y no
+     depende de él: dejarlo ahí es poner un control que no hace nada, y eso se
+     lee como que la vista está rota. Se oculta en esa pestaña y vuelve en las
+     demás. */
+  try{const cr=document.querySelector('#v-carga .ctrlrow');
+    if(cr)cr.style.display=(t==='resumen')?'none':'';}catch(e){}
   if(t==='resumen')renderCargaResumen();else if(t==='cuadrantes'){if(window.qdRenderFull)qdRenderFull();}else if(t==='posicion')renderCargaPos();else if(t==='individual')renderLoadDetail();else renderCargaGrupal();}
 
 function renderLoad(){
@@ -13254,228 +13289,176 @@ function renderLoad(){
   if(psel){const poss=[...new Set(ps.map(p=>p.pos))].filter(Boolean).sort();if(!psel.options.length||psel.dataset.n!=poss.length){psel.innerHTML=poss.map(p=>`<option>${p}</option>`).join('');psel.dataset.n=poss.length;if(!FILTER.cargaPos)FILTER.cargaPos=poss[0]||null;}}
   renderCargaActive();
 }
+/* ═══════════════ v438 · Cargas · La temporada ═══════════════
+   Daniel, 21/10/2026, después de que la vista rehecha siguiera sin servirle:
+   «convertirla en la vista de temporada». Y tenía razón en lo de antes: en
+   esta sección ya se habían retirado Cuadrantes y RPE, y el diagnóstico que
+   quedó escrito de aquella fue **«Calendario y Pulsómetros le dicen qué hacer
+   hoy; esto describía lo que ya pasó»**. El error era insistir en el día a
+   día aquí, porque el día a día ya está contestado en otras tres pantallas.
+
+   Lo longitudinal, en cambio, **no está en ninguna parte**: cómo ha
+   evolucionado la carga semana a semana desde el 1 de julio y cuánto lleva
+   acumulado cada jugador. Eso es lo que sirve a la misión 2 —disponibilidad y
+   ayuda a la selección—: quién ha podido entrenar y quién no.
+
+   Cuatro reglas:
+   · **Todo desde `TEMP_INICIO`**, el mismo corte que ya usan las valoraciones
+     físicas. Lo de la temporada pasada no describe a este equipo.
+   · **UA por jugador, nunca totales de equipo**: un total depende de cuántos
+     rellenaron el cuestionario ese día, no de cuánto se entrenó. Es la misma
+     regla ya escrita para comparar puestos.
+   · **Las semanas sin datos se dibujan vacías, no se saltan**: un parón de
+     agosto tiene que verse como un parón, no como continuidad.
+   · **Sesiones, minutos y UA son tres cosas distintas y van las tres**: así
+     se separa «entrena poco» de «entrena flojo», que con la UA sola no se
+     distingue. Y el % de sesiones del equipo es la disponibilidad de verdad. */
 function renderCargaResumen(){
   const box=document.getElementById('carga-resumen');if(!box)return;
   const ps=Object.values(STATE.players);
-  if(!ps.length){box.innerHTML='<div class="panel"><p class="muted">Sin datos de carga todavía.</p></div>';return;}
-  /* v230 · Se retira seedSeason(): STATE.season no tenía ninguna fuente real,
-     su único escritor era el generador, así que los paneles de TRIMP, zonas de
-     FC, gasto y "carga integrada" nunca podían mostrar un dato de nadie. En su
-     sitio entran paneles construidos sobre lo que sí existe: sRPE, ACWR,
-     wellness, posiciones y disponibilidad. */
-  const okc='var(--ok)',wc='var(--warn)',bc='var(--bad)';
-  const win=FILTER.window;const end=REF();
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+  const DESDE=(typeof TEMP_INICIO!=='undefined')?TEMP_INICIO:'2026-07-01';
+  const refk=dkey(REF());
+  const mil=x=>(x==null||!isFinite(x))?'—':Math.round(x).toLocaleString('es-ES');
 
-  // ---- métricas de equipo (real) ----
-  const wkLast={};ps.forEach(p=>{const wk=weekly(p.name,'ua',REF());wkLast[p.name]=wk.length?wk[wk.length-1]:null;});
-  // ---- carga por posición, ventana activa (real) ----
-  const lim=new Date(end);lim.setDate(lim.getDate()-win);
-  const porPos={};
-  STATE.rpe.filter(x=>x.date>=lim&&x.date<=end).forEach(x=>{
-    const p=STATE.players[x.name];if(!p)return;
-    const g=posGroup(p.pos)||'—';
-    const o=porPos[g]=porPos[g]||{ua:0,set:new Set()};
-    o.ua+=(x.ua||0);o.set.add(x.name);});
-  const posRows=Object.keys(porPos).map(g=>({g,media:porPos[g].set.size?porPos[g].ua/porPos[g].set.size:0,n:porPos[g].set.size}))
-    .sort((a,b)=>b.media-a.media);
+  /* ── acumulado por jugador ──
+     `dailyAgg` ya reúne los cuestionarios de un día en una sola carga, que es
+     la única forma de no multiplicar la carga por el número de cuestionarios
+     —el error histórico de los 2.730 UA de Brais—. Los minutos salen de
+     `lbDur`, que es el punto canónico por bloque. */
+  /* Los minutos salen de `lbDur`, que es el punto canónico por bloque. Pero
+     `lbDur` lee el almacén de duraciones de sesión, y un día que no esté ahí
+     devuelve null: sin respaldo, la columna de minutos saldría vacía justo en
+     los días en los que la carga sí está. El respaldo es lo que declaró el
+     propio cuestionario, sumado igual que `dailyAgg` suma la UA, así que las
+     dos columnas cuentan lo mismo. */
+  const durDia={};
+  try{STATE.rpe.forEach(x=>{if(!x||x.dk<DESDE||x.dk>refk)return;
+    const k=x.name+'|'+x.dk;durDia[k]=(durDia[k]||0)+(+x.durTotal||+x.dur||0);});}catch(e){}
+  const BL=(typeof LB_BLOQUES!=='undefined')?LB_BLOQUES:['pista','gym'];
+  const porJug=ps.map(p=>{
+    let ag=[];try{ag=dailyAgg(p.name);}catch(e){}
+    const dias=ag.filter(a=>a.dk>=DESDE&&a.dk<=refk&&a.ua>0);
+    let min=0;
+    dias.forEach(a=>{let d=0;
+      try{BL.forEach(b=>{d+=lbDur(a.dk,p.name,b)||0;});}catch(e){}
+      min+=d||durDia[p.name+'|'+a.dk]||0;});
+    return {p,ua:sum(dias.map(a=>a.ua)),min,ses:dias.length,dias};
+  }).filter(o=>o.ses>0);
 
-  /* ══════════════ v437 · Cargas › Resumen, de cero ══════════════
-     Daniel, 21/10/2026: «no me sirve, me parece muy poco útil, estructúrala
-     de 0». Medido antes de rehacer, lo que había eran **medias de equipo y
-     tres listas que contestaban lo mismo**:
+  if(!porJug.length){
+    box.innerHTML='<section class="cgr-hero"><div class="cgr-eyebrow">La temporada</div>'
+      +'<div class="cgr-big"><b>—</b><span>sin carga registrada desde el 1 de julio</span></div>'
+      +'<div class="cgr-sub">En cuanto entren cuestionarios de RPE con minutos, aquí verás la evolución semana a semana y lo que lleva acumulado cada jugador.</div></section>';
+    return;
+  }
 
-     · «Carga de un vistazo» eran cuatro arcos con la media de ACWR, de
-       monotonía y de readiness. Una media sobre dieciocho jugadores esconde
-       exactamente lo que se busca —ya está escrito aquí mismo para la
-       monotonía: «una media no dice quién lleva tres semanas entrenando
-       siempre igual»—.
-     · «Reparto de carga sugerido» (quién puede más / quién debe bajar) y
-       «Quién necesita algo hoy» ordenaban a los mismos jugadores por riesgo
-       con dos puntuaciones distintas. La segunda **no inventa ningún umbral**
-       y está documentada; la primera se hizo su propia regla. Sobra una.
-     · La tira de titulares eran tres números más, dos de ellos medias.
-     · El cumplimiento del parte es un dato de calidad del dato, no de carga:
-       cabe en una línea, no en un gráfico.
+  /* Sesión del equipo = día en el que ALGUIEN registró carga. */
+  const diasEquipo={};porJug.forEach(o=>o.dias.forEach(a=>{diasEquipo[a.dk]=1;}));
+  const nSes=Object.keys(diasEquipo).length;
 
-     Lo que queda contesta tres preguntas en orden, que es como se mira esto
-     cada mañana: **cómo va la semana**, **quién está fuera de sitio** y
-     **cómo va cada uno**. Composición según la guía: lo más importante
-     arriba y a la izquierda, agrupado con aire en vez de con marcos, y un
-     solo gráfico, el que de verdad destaca algo. */
+  /* ── la temporada semana a semana, en UA por jugador ── */
+  const sem={};
+  porJug.forEach(o=>o.dias.forEach(a=>{
+    const k=weekKey(a.date);
+    const w=sem[k]||(sem[k]={ua:0,jug:{},dias:{}});
+    w.ua+=a.ua;w.jug[o.p.name]=1;w.dias[a.dk]=1;}));
+  const claves=Object.keys(sem).sort();
+  /* Se recorre el calendario semana a semana desde la primera con datos hasta
+     la de hoy: las que no tienen nada quedan como hueco, no se saltan. */
+  const serie=[];
+  if(claves.length){
+    const d=new Date(claves[0]+'T00:00:00'), fin=new Date(weekKey(REF())+'T00:00:00');
+    while(d<=fin){
+      const k=dkey(d), w=sem[k];
+      const nJ=w?Object.keys(w.jug).length:0;
+      serie.push({k,media:nJ?w.ua/nJ:null,jug:nJ,dias:w?Object.keys(w.dias).length:0,
+                  curso:k===weekKey(REF())});
+      d.setDate(d.getDate()+7);
+    }
+  }
+  /* Media móvil de 4 semanas sobre las que tienen dato: la tendencia, que es
+     lo que se mira en una temporada, sin que un parón la hunda. */
+  const movil=serie.map((_,i)=>{
+    const prev=serie.slice(Math.max(0,i-3),i+1).map(x=>x.media).filter(v=>v!=null);
+    return prev.length>=2?mean(prev):null;});
 
-  // ── 1 · cómo va la semana: ritmo, no total, porque la semana está a medias ──
-  const semAct=ps.map(p=>wkLast[p.name]).filter(Boolean);
-  const uaSem=mean(semAct.map(w=>w.ua).filter(v=>!isNaN(v)));
-  const ritmo=mean(semAct.map(w=>w.meanD).filter(v=>!isNaN(v)));
-  const diasSem=Math.max.apply(null,semAct.map(w=>w.dias||0).concat([0]));
-  const parcialSem=semAct.some(w=>w.parcial);
-  /* Cero no es lo mismo que «todavía no hay nada»: sin un solo registro la
-     cifra es «—» y se dice, en vez de afirmar que la plantilla ha hecho 0 UA. */
-  const haySem=semAct.some(w=>w.ua>0);
-  /* La referencia son las CUATRO ÚLTIMAS SEMANAS CERRADAS del propio club, y
-     se compara ritmo contra ritmo (UA por día): comparar el total de una
-     semana a medias con semanas enteras es el error que ya costó un ACWR
-     equivocado en las tarjetas de jugador. */
-  let ritmoRef=NaN;
-  try{
-    const porJug=ps.map(p=>{const wk=weekly(p.name,'ua',REF()).filter(w=>!w.parcial).slice(-4);
-      return wk.length?mean(wk.map(w=>w.meanD)):NaN;}).filter(v=>!isNaN(v));
-    ritmoRef=porJug.length?mean(porJug):NaN;
-  }catch(e){}
-  const dRitmo=(!isNaN(ritmo)&&!isNaN(ritmoRef)&&ritmoRef>0)?Math.round((ritmo-ritmoRef)/ritmoRef*100):null;
-  const dCol=dRitmo==null?'var(--muted2)':(Math.abs(dRitmo)<=15?'var(--ok)':(Math.abs(dRitmo)<=30?'var(--warn)':'var(--bad)'));
-  const dFle=dRitmo==null?'':(dRitmo>2?'▲':dRitmo<-2?'▼':'≈');
-  // respuestas al parte de hoy: calidad del dato, en una línea
-  let respHoy=0;try{respHoy=new Set(STATE.wellness.filter(w=>w.dk===dkey(end)).map(w=>w.name)).size;}catch(e){}
+  const uasT=porJug.map(o=>o.ua);
+  const medUA=hrpQ(uasT,0.5);
+  const maxUA=Math.max.apply(null,uasT.concat([1]));
+  const semConDato=serie.filter(x=>x.media!=null).length;
 
-  // ── 2 · el ACWR de toda la plantilla en un solo gráfico ──
-  /* Un punto por jugador sobre el mismo eje 0,5–2,0 que usa la tabla de abajo
-     (`acPos`), con la banda 0,8–1,3 sombreada. Sustituye a la media, a la
-     barra de reparto y a media lista de avisos: de un vistazo se ve cuántos
-     hay fuera y por qué lado. **La posición ya dice el estado**; el color solo
-     lo refuerza, que es la regla de no fiarlo todo al color. */
-  const SW_MIN=0.5, SW_MAX=2.0;
-  const swPos=v=>Math.max(0,Math.min(100,(v-SW_MIN)/(SW_MAX-SW_MIN)*100));
-  const puntos=ps.map(p=>{
-    const v=(p.acwr&&p.acwr.rel&&p.acwr.ratio!=null&&!isNaN(p.acwr.ratio))?p.acwr.ratio:null;
-    return v==null?null:{name:p.name,pos:p.pos||'',v,x:swPos(v)};
-  }).filter(Boolean).sort((a,b)=>a.x-b.x);
-  /* Enjambre: cuando dos puntos se pisan, el segundo sube una fila. */
-  const SW_SEP=2.6;
-  const ocupadas=[];
-  puntos.forEach(pt=>{let f=0;
-    while(ocupadas[f]!=null&&pt.x-ocupadas[f]<SW_SEP)f++;
-    ocupadas[f]=pt.x;pt.fila=f;});
-  const swFilas=Math.max(1,ocupadas.length);
-  const swAlto=18+swFilas*13;
-  const swCol=v=>v>=1.5?'var(--bad)':(v>1.3?'var(--warn)':(v<0.8?'var(--warn)':'var(--ok)'));
-  const nBajo=puntos.filter(o=>o.v<0.8).length, nOpt=puntos.filter(o=>o.v>=0.8&&o.v<=1.3).length,
-        nSob=puntos.filter(o=>o.v>1.3&&o.v<1.5).length, nRie=puntos.filter(o=>o.v>=1.5).length;
-  const swarm=`<div class="cgr-sw">
-      <div class="cgr-sw-plot" style="height:${swAlto}px">
-        <i class="cgr-sw-band" style="left:${swPos(0.8).toFixed(1)}%;width:${(swPos(1.3)-swPos(0.8)).toFixed(1)}%"></i>
-        <i class="cgr-sw-ref" style="left:${swPos(1).toFixed(1)}%"></i>
-        ${puntos.map(o=>`<i class="cgr-sw-d" style="left:${o.x.toFixed(2)}%;bottom:${12+o.fila*13}px;background:${swCol(o.v)}" title="${esc(o.name)} · ${esc(o.pos)} · ACWR ${o.v.toFixed(2)}" onclick="openPlayer('${o.name.replace(/'/g,"\\'")}')"></i>`).join('')}
-      </div>
-      <div class="cgr-sw-ax">${[[0.5,'0,5'],[0.8,'0,8'],[1,'1,0'],[1.3,'1,3'],[1.5,'1,5'],[2,'2,0']]
-        .map(t=>`<span style="left:${swPos(t[0]).toFixed(1)}%">${t[1]}</span>`).join('')}</div>
-      <div class="cgr-sw-leg">
-        ${[['Por debajo',nBajo,'var(--warn)'],['En banda',nOpt,'var(--ok)'],['Sobrecarga',nSob,'var(--warn)'],['Riesgo',nRie,'var(--bad)']]
-          .map(l=>`<span><i style="background:${l[2]}"></i>${l[0]} <b>${l[1]}</b></span>`).join('')}
-      </div>
-    </div>`;
-
-  // ── reparto por puesto, en una línea: la pregunta existe, el panel no ──
-  /* El selector de ventana de arriba es de toda la pestaña, así que la única
-     cifra del Resumen que depende de él lleva escrito a cuántos días se
-     refiere: un control que parece gobernar la vista y solo cambia una línea
-     sin decirlo se lee como un error. */
-  const lineaPos=posRows.length
-    ? `<div class="cgr-pos"><span class="cgr-pos-h">Por puesto · ${win} días · UA por jugador</span>`
-      +posRows.map(r=>`<span><em>${esc(r.g)}</em><b>${Math.round(r.media).toLocaleString('es-ES')}</b><u>${r.n} jug.</u></span>`).join('')
-      +`</div>`
-    : '';
-
+  /* ── cabecera ── */
+  const desdeTxt=(function(){const a=DESDE.split('-');return (+a[2])+' de '+CAL_MES[+a[1]-1].toLowerCase();})();
   const hero=`<section class="cgr-hero">
       <div class="cgr-hero-top">
         <div class="cgr-hero-l">
-          <div class="cgr-eyebrow">Carga de la semana</div>
-          <div class="cgr-big"><b>${haySem?Math.round(uaSem).toLocaleString('es-ES'):'—'}</b><span>UA por jugador</span></div>
-          <div class="cgr-sub">${haySem
-              ? `${parcialSem?`${diasSem} de 7 días`:'semana completa'}${isNaN(ritmo)?'':` · ritmo <b>${Math.round(ritmo)}</b> UA/día`}`
-              : 'Sin carga registrada esta semana todavía'}</div>
+          <div class="cgr-eyebrow">La temporada · desde el ${desdeTxt}</div>
+          <div class="cgr-big"><b>${mil(medUA)}</b><span>UA acumuladas · jugador mediano</span></div>
+          <div class="cgr-sub"><b>${semConDato}</b> semanas con carga · <b>${nSes}</b> sesiones del equipo · <b>${porJug.length}</b> jugadores</div>
         </div>
         <div class="cgr-hero-r">
-          <div class="cgr-stat"><em>Vs. lo normal</em><b style="color:${dCol}">${dRitmo==null?'—':dFle+' '+(dRitmo>0?'+':'')+dRitmo+'%'}</b><u>${isNaN(ritmoRef)?'sin 4 semanas cerradas':'ritmo de vuestras 4 últimas'}</u></div>
-          <div class="cgr-stat"><em>Parte de hoy</em><b>${respHoy}<small>/${ps.length}</small></b><u>han respondido</u></div>
+          <div class="cgr-stat"><em>El que más</em><b>${mil(Math.max.apply(null,uasT))}</b><u>${esc((porJug.slice().sort((a,b)=>b.ua-a.ua)[0]||{p:{}}).p.name||'')}</u></div>
+          <div class="cgr-stat"><em>El que menos</em><b>${mil(Math.min.apply(null,uasT))}</b><u>${esc((porJug.slice().sort((a,b)=>a.ua-b.ua)[0]||{p:{}}).p.name||'')}</u></div>
         </div>
       </div>
-      ${lineaPos}
-    </section>
-    <section class="cgr-card">
-      <div class="cgr-card-h"><h3>Dónde está cada uno</h3><span>ACWR de la plantilla · banda 0,8–1,3 · pulsa un punto</span></div>
-      ${puntos.length?swarm:'<p class="hint">Todavía no hay jugadores con volumen suficiente para calcular el ACWR.</p>'}
     </section>`;
 
-  /* ═══ v426 · Cada jugador, esta semana ═══════════════════════════════════
-     Lo que Daniel echaba en falta y no estaba en ninguna pantalla: la
-     monotonía y el strain POR JUGADOR. Hasta ahora solo existía la media del
-     equipo, y una media de monotonía no dice quién lleva tres semanas
-     entrenando siempre igual, que es justo lo que importa.
+  /* ── evolución semanal ── */
+  const grafico=`<section class="cgr-card">
+      <div class="cgr-card-h"><h3>Cómo ha ido la temporada</h3><span>UA por jugador y semana · línea = media de 4 semanas</span></div>
+      <div style="height:230px"><canvas id="ch-tmp-sem"></canvas></div>
+      <p class="hint">Se mide en UA <b>por jugador</b>, no en total del equipo: un total sube o baja según cuántos rellenaron el cuestionario ese día. Las semanas sin carga se dejan vacías, no se saltan.</p>
+    </section>`;
 
-     Sustituye además al gráfico de 14 días del equipo: el gráfico era del
-     equipo y el problema es individual.
+  /* ── acumulado por jugador ── */
+  const orden=porJug.slice().sort((a,b)=>b.ua-a.ua);
+  const filas=orden.map(o=>{
+    const pct=nSes?Math.round(o.ses/nSes*100):0;
+    const porSes=o.ses?o.ua/o.ses:NaN;
+    /* El % de sesiones es disponibilidad, no rendimiento: va en neutro salvo
+       cuando se ha perdido más de la mitad, que sí es una lectura. */
+    const pcol=pct>=85?'var(--ok)':(pct>=60?'var(--txt)':(pct>=40?'var(--warn)':'var(--bad)'));
+    return `<div class="tmp-r" onclick="openPlayer('${o.p.name.replace(/'/g,"\\'")}')">
+      <span class="tmp-n">${esc(o.p.name.split(' ').slice(0,2).join(' '))}<em>${esc(o.p.pos||'')}</em></span>
+      <span class="tmp-ses"><b style="color:${pcol}">${o.ses}</b><em>${pct}% de ${nSes}</em></span>
+      <span class="tmp-min">${o.min?mil(o.min):'—'}<em>min</em></span>
+      <span class="tmp-ua"><i style="width:${Math.round(o.ua/maxUA*100)}%"></i><b>${mil(o.ua)}</b></span>
+      <span class="tmp-med">${isNaN(porSes)?'—':mil(porSes)}</span>
+    </div>`;}).join('');
+  const tabla=`<section class="cgr-card" style="margin-top:20px">
+      <div class="cgr-card-h"><h3>Lo que lleva cada uno</h3><span>desde el ${desdeTxt} · pulsa para abrir la ficha</span></div>
+      <div class="tmp-head">
+        <span class="tmp-n">Jugador</span><span class="tmp-ses">Sesiones</span>
+        <span class="tmp-min">Minutos</span><span class="tmp-ua">UA acumuladas</span>
+        <span class="tmp-med">UA / sesión</span>
+      </div>
+      ${filas}
+      <p class="hint"><b>Sesiones, minutos y UA son tres cosas distintas</b> y por eso van las tres: quien tiene pocas sesiones ha faltado, quien tiene muchas sesiones y poca UA por sesión ha entrenado más suave. El % es sobre las sesiones en las que el equipo registró carga, así que es la disponibilidad real.</p>
+    </section>`;
 
-     Ni un umbral inventado: la banda del ACWR es la que ya usa el reparto de
-     arriba (0,8–1,3 óptimo · 1,3–1,5 sobrecarga · ≥1,5 riesgo) y la monotonía
-     va por `calMonoTier`, el mismo criterio del calendario. */
-  const AC_MIN=0.5, AC_MAX=2.0;
-  const acPos=v=>Math.max(0,Math.min(100,(v-AC_MIN)/(AC_MAX-AC_MIN)*100));
-  const semana=ps.map(p=>{
-    const w=wkLast[p.name]||null;
-    const ac=(p.acwr&&!isNaN(p.acwr.ratio))?p.acwr.ratio:NaN;
-    return {p,ua:w?w.ua:NaN,mono:w?w.mono:NaN,strain:w?w.strain:NaN,
-            parcial:w?w.parcial:true,ac};
-  }).filter(r=>!isNaN(r.ua)||!isNaN(r.ac));
-  /* Orden por lo que hay que mirar antes: fuera de banda primero, luego
-     monotonía alta, luego el resto. */
-  const sev=r=>{
-    if(!isNaN(r.ac)&&(r.ac>=1.5||r.ac<0.8))return 0;
-    if(!isNaN(r.ac)&&r.ac>1.3)return 1;
-    if(!isNaN(r.mono)&&r.mono>2)return 2;
-    return 3;
-  };
-  semana.sort((a,b)=>(sev(a)-sev(b))||((b.strain||0)-(a.strain||0)));
-  const uaMaxS=Math.max(1,...semana.map(r=>r.ua||0));
-  const filaSem=r=>{
-    const mt=calMonoTier(r.mono);
-    const acCol=isNaN(r.ac)?'var(--muted2)':(r.ac>=1.5||r.ac<0.8?'var(--bad)':(r.ac>1.3?'var(--warn)':'var(--ok)'));
-    return `<div class="sem-r" onclick="openPlayer('${r.p.name.replace(/'/g,"\\'")}')">
-      <span class="sem-n">${esc(r.p.name.split(' ').slice(0,2).join(' '))}<em>${esc(r.p.pos||'')}</em></span>
-      <span class="sem-ua"><i style="width:${Math.round((r.ua||0)/uaMaxS*100)}%"></i><b>${isNaN(r.ua)?'—':Math.round(r.ua)}</b></span>
-      <span class="sem-ac">
-        <span class="sem-track"><i class="sem-band"></i>${isNaN(r.ac)?'':`<i class="sem-dot" style="left:${acPos(r.ac).toFixed(1)}%;background:${acCol}"></i>`}</span>
-        <b style="color:${acCol}">${isNaN(r.ac)?'—':r.ac.toFixed(2)}</b>
-      </span>
-      <span class="sem-mo" style="color:${mt.c}">${isNaN(r.mono)?'—':r.mono.toFixed(2)}<em>${mt.lab}</em></span>
-      <span class="sem-st">${isNaN(r.strain)?'—':Math.round(r.strain)}</span>
-    </div>`;
-  };
-  const panelSemana=`<div class="cgr-card" style="margin-top:20px">
-      <h2>Cada jugador, esta semana <span class="r muted">carga, ACWR, monotonía y strain · pulsa para abrir la ficha</span></h2>
-      ${semana.length?`<div class="sem-head">
-          <span class="sem-n">Jugador</span><span class="sem-ua">UA de la semana</span>
-          <span class="sem-ac">ACWR <em>banda 0,8–1,3</em></span>
-          <span class="sem-mo">Monotonía</span><span class="sem-st">Strain</span>
-        </div>
-        <div class="sem-rows">${semana.map(filaSem).join('')}</div>
-        <p class="small muted" style="margin:10px 0 0;line-height:1.45">
-          La <b>monotonía</b> es cuánto se parecen entre sí los días de la semana: alta significa entrenar siempre igual, que cansa sin preparar.
-          El <b>strain</b> la multiplica por la carga de la semana, así que sube cuando se acumula mucho Y monótono.
-          ${semana.some(r=>r.parcial)?'Las semanas a medias no se comparan con la anterior.':''}
-        </p>`
-      :'<p class="small muted" style="padding:10px 0">Sin sRPE suficiente esta semana.</p>'}
-    </div>`;
+  box.innerHTML=hero+grafico+tabla;
 
-  /* Tres secciones y nada más, en el orden en que se mira esto: cómo va la
-     semana, quién está fuera de sitio y cómo va cada uno. Las dos listas de
-     decisión van una al lado de otra porque contestan a la misma hora del
-     día; la tabla completa va debajo, que es el detalle al que se baja. */
-  box.innerHTML=hero+`
-    <div class="cgr-duo">
-      <div class="cgr-card" id="cgaten-card"></div>
-      <div class="cgr-card" id="cgplan-card"></div>
-    </div>
-    ${panelSemana}`;
-  /* después del innerHTML: antes los contenedores todavía no existen */
-  try{cargaDiferir();}catch(e){}
-
-  /* v437 · Aquí vivían el gráfico de 14 días del equipo y el del cumplimiento
-     del parte. El primero ya se había retirado en la v426; el segundo se va
-     ahora, porque el cumplimiento es calidad del dato y no carga, y cabe en
-     la línea «Parte de hoy» de la cabecera. Sus dos lienzos ya no están en el
-     marcado, así que el dibujo no tenía dónde pintar. */
+  /* ── el gráfico, después del innerHTML ── */
+  try{
+    killCharts(['ch-tmp-sem']);
+    const el=document.getElementById('ch-tmp-sem');
+    if(el&&serie.length){
+      const mc=cssVar('--muted')||'#8a93a0';
+      const etq=serie.map(x=>{const a=x.k.split('-');return (+a[2])+'/'+(+a[1]);});
+      charts['ch-tmp-sem']=new Chart(el,{data:{labels:etq,datasets:[
+        {type:'bar',label:'UA por jugador',data:serie.map(x=>x.media==null?null:Math.round(x.media)),
+         backgroundColor:serie.map(x=>x.curso?rgba(PAL.accent,.35):rgba(PAL.accent,.75)),borderRadius:5,maxBarThickness:34},
+        {type:'line',label:'Media de 4 semanas',data:movil.map(v=>v==null?null:Math.round(v)),
+         borderColor:PAL.warn,borderWidth:2,pointRadius:0,tension:.35,spanGaps:true}
+      ]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10}},
+        tooltip:{callbacks:{label:c=>{const x=serie[c.dataIndex];
+          return c.datasetIndex===0
+            ?(x.media==null?'Sin carga esa semana':Math.round(x.media)+' UA/jugador · '+x.jug+' jugadores · '+x.dias+' días'+(x.curso?' · semana en curso':''))
+            :'Media de 4 semanas: '+c.parsed.y;}}}},
+        scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,beginAtZero:true}}}});
+    }
+  }catch(e){console.error('bmnava · temporada',e);}
 }
 /* ═══ v424 · Primero se pinta, luego se calcula lo caro ═══════════════════════
    `renderCargaDecide` y `renderLesCarga` son los dos bloques pesados de la
@@ -26345,7 +26328,10 @@ window.ptEstRender=function(){
    Pulsómetros—. El resto del módulo se queda intacto en el código, igual que
    Cuadrantes: para volver a activarlo, devolver 'rpe' aquí y a CARGA_PANES.
    No se ha borrado nada. */
-const CARGAS_TABS=[['resumen','Resumen'],['pulso','Pulso · Polar'],['partidos','Perfil de partido']];
+/* v438 · La clave sigue siendo 'resumen' —cambiarla invalidaría la pestaña
+   guardada en `bmnava_cargatab` de todo el mundo—; lo que cambia es lo que
+   pone, porque ya no es un resumen del día sino la temporada. */
+const CARGAS_TABS=[['resumen','Temporada'],['pulso','Pulso · Polar'],['partidos','Perfil de partido']];
 const RPE_SUBS=[['grupal','Grupal'],['individual','Individual'],['posicion','Por posición']];
 const RPE_KEYS=RPE_SUBS.map(s=>s[0]);
 const CARGA_PANES=['resumen','grupal','individual','posicion','partidos'];
@@ -32524,8 +32510,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-21.2*/
-const VER_ACTUAL='2026-10-21.2';
+/*BUILD:2026-10-21.3*/
+const VER_ACTUAL='2026-10-21.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
