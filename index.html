@@ -9924,9 +9924,14 @@ function buildPlayers(){
 }
 function buildAlerts(){const A=[];for(const name in STATE.players){const p=STATE.players[name];if(p.last&&!p.stale){for(const key in p.z){const z=p.z[key];if(!z.alertSev)continue;A.push({name,pos:p.pos,type:z.cfg.label+(p.loadCtx&&p.loadCtx.applied?(p.loadCtx.mod<1?' · esperado por carga':' · sin carga previa'):''),sev:z.alertSev,val:fmt(z.val,0),z:z.z,rel:z.rel,mdx:p.mdx,date:p.last.dk,mod:"Wellness"});}if(p.last.dolor)A.push({name,pos:p.pos,type:(p.last.golpe?"Dolor por golpe":"Dolor muscular")+(p.last.zona?" ("+p.last.zona+")":""),sev:p.last.golpe?"bad":"warn",val:"—",z:NaN,rel:true,mdx:p.mdx,date:p.last.dk,mod:"Wellness"});}if(p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio)){if(p.acwr.ratio>=CONFIG.load.acwrRedHi)A.push({name,pos:p.pos,type:"ACWR muy alto",sev:"bad",val:fmt(p.acwr.ratio,2),z:NaN,rel:true,mdx:p.mdx,date:p.last?p.last.dk:"",mod:"Carga"});else if(p.acwr.ratio>=CONFIG.load.acwrYellowHi)A.push({name,pos:p.pos,type:"ACWR elevado",sev:"warn",val:fmt(p.acwr.ratio,2),z:NaN,rel:true,mdx:p.mdx,date:p.last?p.last.dk:"",mod:"Carga"});}}
 for(const nm in STATE.players){const pp=STATE.players[nm];let cr=null;try{cr=loadCorridorRow(pp);}catch(e){}
-  if(cr&&cr.sev!=='na'){if(cr.lab==='Pico')A.push({name:nm,pos:pp.pos,type:'Pico de carga (ACWR '+fmt(cr.acwr,2)+')',sev:'bad',val:fmt(cr.acute,0),z:NaN,rel:true,mdx:pp.mdx,date:'',mod:'Carga'});
-    else if(cr.lab==='Sobre techo')A.push({name:nm,pos:pp.pos,type:'Carga sobre techo (ACWR '+fmt(cr.acwr,2)+')',sev:'warn',val:fmt(cr.acute,0),z:NaN,rel:true,mdx:pp.mdx,date:'',mod:'Carga'});
-    else if(cr.lab==='Bajo suelo')A.push({name:nm,pos:pp.pos,type:'Carga bajo suelo · poco preparado',sev:'warn',val:fmt(cr.acute,0),z:NaN,rel:true,mdx:pp.mdx,date:'',mod:'Carga'});}
+  /* v436 · Estas tres salen del CORREDOR semanal, no del ACWR: decían «ACWR
+     1,62» con un número que no es el ACWR de la app y que en la ficha salía
+     distinto. Se nombran por lo que son —carga de la semana contra su propio
+     techo— y el número que se enseña son las UA, que es la unidad del
+     corredor. Las alertas de ACWR de verdad están arriba, con `p.acwr`. */
+  if(cr&&cr.sev!=='na'){if(cr.lab==='Pico')A.push({name:nm,pos:pp.pos,type:'Pico de carga semanal ('+fmt(cr.rel,2)+'× su media)',sev:'bad',val:fmt(cr.acute,0),z:NaN,rel:true,mdx:pp.mdx,date:'',mod:'Carga'});
+    else if(cr.lab==='Sobre techo')A.push({name:nm,pos:pp.pos,type:'Carga semanal sobre techo ('+fmt(cr.rel,2)+'× su media)',sev:'warn',val:fmt(cr.acute,0),z:NaN,rel:true,mdx:pp.mdx,date:'',mod:'Carga'});
+    else if(cr.lab==='Bajo suelo')A.push({name:nm,pos:pp.pos,type:'Carga semanal bajo suelo · poco preparado',sev:'warn',val:fmt(cr.acute,0),z:NaN,rel:true,mdx:pp.mdx,date:'',mod:'Carga'});}
   let mono=NaN;try{const wk=weekly(nm,'ua',REF());mono=wk.length?wk[wk.length-1].mono:NaN;}catch(e){}
   if(!isNaN(mono)&&mono>2)A.push({name:nm,pos:pp.pos,type:'Monotonía alta',sev:mono>2.5?'bad':'warn',val:fmt(mono,2),z:NaN,rel:true,mdx:pp.mdx,date:'',mod:'Carga'});}
 try{buildTests();const rows=tsaRows();const n=rows.length;rows.forEach(r=>{if(tsaTier(r.rank,n)==='bad')A.push({name:r.name,pos:r.pos,type:'Perfil físico en tercio bajo',sev:'warn',val:r.t100==null?'—':String(r.t100),z:NaN,rel:true,mdx:'',date:'',mod:'Físico'});});}catch(e){}
@@ -13053,18 +13058,37 @@ function renderMatchXInto(boxId,filterFn){const box=document.getElementById(boxI
   const bars=present.map((o,i)=>{const v=means[i];const isM=o==='MD';return `<div style="flex:1;text-align:center"><div style="height:120px;display:flex;align-items:flex-end"><div style="width:100%;height:${Math.max(3,v/max*100).toFixed(0)}%;background:${isM?'var(--bad)':'var(--accent)'};border-radius:6px 6px 0 0"></div></div><div class="small mono" style="margin-top:5px">${fmt(v,0)}</div><div class="small muted">${o}</div></div>`;}).join('');
   box.innerHTML=`<h2>Referencias Match ± <span class="r muted">UA media por día relativo al partido</span></h2><div style="display:flex;gap:8px;align-items:flex-end">${bars}</div><p class="small muted" style="margin-top:10px;line-height:1.6">Carga media según la distancia a la competición (MD). Compara cada sesión con su patrón habitual de microciclo.</p>`;}
 /* ===== P1 · Corredor de carga: techos, suelos y picos (Wing 2018) ===== */
+/* ══ v436 · Esto NO es el ACWR de la app ══
+   Es el CORREDOR de carga semanal: cuánta carga lleva el jugador esta semana
+   contra lo que suele hacer, y cuánta le cabe aún hasta el techo. El ACWR de
+   la app es otro —EWMA 7:21, `p.acwr.ratio`— y el campo de aquí se llama
+   `rel` precisamente para que no se confunda con él.
+
+   **La semana en curso NO tiene siete días**, así que su total es siempre más
+   bajo que el de una semana cerrada: un miércoles, un jugador que entrena
+   exactamente igual todos los días da 0,50 aquí y 1,00 en el ACWR de verdad
+   —medido con una serie constante de 120 días—. Por eso:
+   · se marca `parcial` y se dice cuántos días lleva;
+   · **«Bajo suelo» no se emite con la semana a medias**: ir por debajo del
+     suelo semanal un miércoles es lo normal, no un aviso. «Sobre techo» y
+     «Pico» sí se mantienen: si ya te has pasado a mitad de semana, eso sí es
+     noticia, y el día que falte solo puede empeorarlo.
+   Es la misma regla que `weekly()` aplica a su `delta`, que tampoco se calcula
+   sobre semanas incompletas. */
 function loadCorridorRow(p){
   const wk=weekly(p.name,'ua',REF());if(!wk.length)return null;
-  const acute=wk[wk.length-1].ua;
+  const ult=wk[wk.length-1];
+  const acute=ult.ua, parcial=!!ult.parcial, dias=ult.dias||0;
   const chronic=mean(wk.slice(-4).map(w=>w.ua));
-  const acwr=chronic>0?acute/chronic:NaN;
+  const rel=chronic>0?acute/chronic:NaN;
   const floor=0.8*chronic, ceiling=1.3*chronic, spike=1.5*chronic;
   let sev='ok',lab='En zona';
-  if(isNaN(acwr)||!chronic){sev='na';lab='—';}
+  if(isNaN(rel)||!chronic){sev='na';lab='—';}
   else if(acute>spike){sev='bad';lab='Pico';}
   else if(acute>ceiling){sev='warn';lab='Sobre techo';}
-  else if(acute<floor){sev='warn';lab='Bajo suelo';}
-  return {name:p.name,pos:p.pos,acute,chronic,acwr,floor,ceiling,spike,margin:ceiling-acute,sev,lab};
+  else if(acute<floor){ if(parcial){sev='na';lab='Semana en curso';} else {sev='warn';lab='Bajo suelo';} }
+  return {name:p.name,pos:p.pos,acute,chronic,rel,acwr:rel,floor,ceiling,spike,
+          margin:ceiling-acute,sev,lab,parcial,dias};
 }
 function corridorRows(){return Object.values(STATE.players).map(loadCorridorRow).filter(Boolean);}
 function pctlIn(arr,v){if(!arr.length)return NaN;return Math.round(arr.filter(a=>a<=v).length/arr.length*100);}
@@ -13116,8 +13140,8 @@ function renderCorridor(){
   rows.forEach(r=>r.pct=pctlIn(acutes,r.acute));
   rows.sort((a,b)=>(isNaN(b.acwr)?-1:b.acwr)-(isNaN(a.acwr)?-1:a.acwr));
   const body=rows.map(r=>`<tr><td>${r.name}</td><td class="small muted">${r.pos||''}</td><td class="mono">${fmt(r.acute,0)}</td><td class="mono">${fmt(r.chronic,0)}</td><td class="mono" style="color:var(--${acwrClass(r.acwr)})">${fmt(r.acwr,2)}</td><td class="mono">${fmt(r.floor,0)}–${fmt(r.ceiling,0)}</td><td class="mono" style="color:var(--${r.margin<0?'bad':'muted'})">${fmt(r.margin,0)}</td><td><span class="zpill" style="color:${sevColor(r.sev)};background:color-mix(in srgb,${sevColor(r.sev)} 15%,transparent)">${r.lab}</span></td></tr>`).join('');
-  box.innerHTML=`<div class="wrap-x"><table class="tbl sortable"><thead><tr><th>Jugador</th><th>Pos</th><th>Aguda</th><th>Crónica</th><th>ACWR</th><th>Suelo–Techo</th><th>Margen</th><th>Estado</th></tr></thead><tbody>${body}</tbody></table></div>
-  <p class="small muted" style="margin-top:10px;line-height:1.55">Corredor recomendado de carga semanal = <b>0.8×crónica</b> (suelo) a <b>1.3×crónica</b> (techo); <b>pico</b> a partir de 1.5×crónica (Wing 2018). "Margen" = UA que aún caben hasta el techo esta semana. Tanto por debajo del suelo como por encima del techo aumenta el riesgo.</p>`;
+  box.innerHTML=`<div class="wrap-x"><table class="tbl sortable"><thead><tr><th>Jugador</th><th>Pos</th><th>Aguda</th><th>Crónica</th><th>× su media</th><th>Suelo–Techo</th><th>Margen</th><th>Estado</th></tr></thead><tbody>${body}</tbody></table></div>
+  <p class="small muted" style="margin-top:10px;line-height:1.55">Corredor recomendado de carga <b>semanal</b> = <b>0.8×crónica</b> (suelo) a <b>1.3×crónica</b> (techo); <b>pico</b> a partir de 1.5×crónica (Wing 2018). "Margen" = UA que aún caben hasta el techo esta semana. <b>No es el ACWR</b>: aquel es el EWMA 7:21 de la ficha y va día a día; esto compara la semana en curso con la media de las cuatro últimas, así que a mitad de semana va naturalmente por debajo del suelo y por eso no se avisa hasta que la semana cierra.</p>`;
 }
 function corridorCard(p){
   const r=loadCorridorRow(p);if(!r)return '<p class="hint">Sin datos de carga suficientes para este jugador.</p>';
@@ -13133,7 +13157,7 @@ function corridorCard(p){
     <div class="corr-metrics">
       <div><div class="cm-lab">Aguda (sem)</div><div class="cm-val">${fmt(r.acute,0)}</div></div>
       <div><div class="cm-lab">Crónica</div><div class="cm-val">${fmt(r.chronic,0)}</div></div>
-      <div><div class="cm-lab">ACWR</div><div class="cm-val" style="color:var(--${acwrClass(r.acwr)})">${fmt(r.acwr,2)}</div></div>
+      <div><div class="cm-lab">× su media</div><div class="cm-val" style="color:var(--${acwrClass(r.rel)})">${fmt(r.rel,2)}</div></div>
       <div><div class="cm-lab">Estado</div><div class="cm-val" style="color:var(--${r.sev});font-size:15px">${r.lab}</div></div>
       <div><div class="cm-lab">Percentil plantilla</div><div class="cm-val">${isNaN(pct)?'—':pct}</div></div>
     </div></div>`;
@@ -15482,6 +15506,19 @@ function renderPlayersGrid(){const box=document.getElementById('players-grid');i
     if(!flags.length)flags.push(`<span class="flag ok">Disponible</span>`);
     const ph=(p.avatar||window.__AVATAR__);
     const dnum=(typeof dorsal==='function'?dorsal(name):'')||'';
+    /* v436 · El ACWR de la tarjeta es el de la app —EWMA 7:21, el mismo que
+       la ficha—, no el del corredor semanal. Daniel: «creo que no pones bien
+       el ACWR, aquí me pones que lo tienen bajísimo y luego entro en el perfil
+       y no es así». Eran dos cálculos distintos bajo la misma etiqueta, y el
+       del corredor compara una semana a medias con semanas cerradas. El aviso
+       ya estaba escrito en la ficha desde que pasó allí lo mismo; aquí se
+       quedó sin aplicar. Si no hay volumen suficiente no se enseña cifra. */
+    const acCard=(p.acwr&&p.acwr.ratio!=null&&!isNaN(p.acwr.ratio))?p.acwr.ratio:null;
+    /* La ficha enseña la cifra aunque todavía no haya volumen suficiente —y la
+       atenúa con «x/21 días»—, así que la tarjeta hace lo mismo: ocultarla aquí
+       y enseñarla allí sería cambiar una discrepancia por otra. Sin fiabilidad
+       va en gris: el número es ese, pero aún no se sostiene. */
+    const acFiable=!!(p.acwr&&p.acwr.rel);
     const forma=r.rank?(tier==='ok'?'Alto':tier==='warn'?'Medio':'Bajo'):'—';
     const ini=name.split(' ').slice(0,2).map(s=>s[0]||'').join('');
     let pst='disp';try{const ev=effectiveStatus(name,dkEstado());if(ev&&ev.status)pst=ev.status;}catch(e){}
@@ -15512,7 +15549,7 @@ function renderPlayersGrid(){const box=document.getElementById('players-grid');i
         <div class="pcp-ring">${recoveryRing(p.readiness!=null?Math.round(p.readiness):null,p.sev||'muted',64)}<div class="pcp-ring-lab">Readiness</div></div>
         <div class="pcp-kpis">
           <div class="pcp-kpi"><span class="k">TSA</span><span class="v" style="color:var(--${tier})">${r.t100==null?'—':r.t100}</span></div>
-          <div class="pcp-kpi"><span class="k">ACWR</span><span class="v" style="color:var(--${cr?acwrClass(cr.acwr):'muted'})">${cr?fmt(cr.acwr,2):'—'}</span></div>
+          <div class="pcp-kpi"><span class="k">ACWR</span><span class="v" style="color:var(--${acCard==null?'muted':(acFiable?acwrClass(acCard):'muted2')})" title="${acCard==null?'Sin carga acumulada todavía':(acFiable?'ACWR EWMA 7:21':'Aún sin volumen: '+((p.acwr&&p.acwr.dias)||0)+' de '+((p.acwr&&p.acwr.minDias)||21)+' días')}">${acCard==null?'—':fmt(acCard,2)}</span></div>
           <div class="pcp-kpi"><span class="k">Forma</span><span class="v" style="color:var(--${tier})">${forma}</span></div>
         </div>
       </div>
@@ -32425,8 +32462,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-20.16*/
-const VER_ACTUAL='2026-10-20.16';
+/*BUILD:2026-10-21.1*/
+const VER_ACTUAL='2026-10-21.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
