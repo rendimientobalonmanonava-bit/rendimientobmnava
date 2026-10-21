@@ -460,7 +460,15 @@ Cuatro decisiones:
 - **Se siembra UNA vez.** `bmnava_nutri_seed_fg2026_10` queda puesta aunque luego se borre la ronda: si no, borrarla la haría volver en la siguiente recarga. Misma regla que la purga de tumbas de Polar.
 - **«Club (Aporte Equipo)», Agustín Campillo, Daniel y Héctor entran como gente de fuera.** No son plantilla y no aparecen en ninguna otra pantalla.
 
-**Pendiente de confirmar con Daniel**: «Mateus Cristian Nascimento Martins» se ha mapeado a **Mateus M. Buda** por ser el único Mateus de la plantilla; el apellido del PDF no coincide con el del roster.
+**«Mateus Cristian Nascimento Martins» = Mateus M. Buda.** Se mapeó por ser el único Mateus de la plantilla, aunque el apellido del PDF no coincide con el del roster, y **Daniel lo confirmó el 21/10/2026**.
+
+**Cada pedido nuevo entra por su PDF.** Acuerdo con Daniel el 21/10/2026: *«cuando quiera meter un pedido te pasaré un pdf como el anterior»*. **El PDF, y no la hoja de respuestas, es la fuente**: la hoja trae lo que cada uno pidió, pero el PDF trae lo que de verdad se paga —precio final con el cupón, líneas sin stock y el ajuste de redondeo—, que es lo que Carlos cobra. Procedimiento, y conviene seguirlo entero:
+
+1. **Extraer el texto.** Es ReportLab: **ASCII85 + Flate**, no solo Flate, y `stream` casa dentro de `endstream`, así que hay que recorrer los objetos (`N 0 obj` … `endobj`) y no buscar `stream` a secas. Sin eso solo salen tablas de fuentes.
+2. **Mapear los nombres A MANO** contra la **hoja de plantilla**, nunca contra la lista de la §5 de este archivo ni con `canonicalName`, y guardar el nombre del PDF en `pdfNombre` para poder auditarlo.
+3. **Verificar antes de sembrar**, con redondeo **media arriba** y sumando por persona: los totales de cada uno, los pendientes de cada uno, el total del pedido, el pendiente total y las dos cifras de unidades. El PDF los trae todos; si alguno no cuadra, el fallo está en la transcripción, no en el PDF. *En el de octubre, dos descuadres destaparon que la Vitamina D3-K2 va a 5,805 € y no a 5,81.*
+4. **Sembrar con id y marca nuevos** (`fg-AAAA-MM`), para que la tanda anterior no se toque.
+5. **Comprobar en el DOM**, no solo el cálculo: es la regla de siempre en este proyecto.
 
 ### 6.4 Polar / pulsómetros
 
