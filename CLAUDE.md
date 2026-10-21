@@ -297,7 +297,8 @@ Desde el 11/09/2026, por decisión de Daniel, **Cuadrantes no aparece** ni en la
 ```
 EQUIPO              Resumen · Calendario
 CARGA               Cargas · Pulsómetros
-ESTADO DEL EQUIPO   Disponibilidad · Médico · Parte wellness
+ESTADO DEL EQUIPO   Disponibilidad · Médico · Parte wellness · Fisioterapia
+NUTRICIÓN           (entrada de primer nivel, v440)
 RENDIMIENTO         Perfil físico · Jugadores
 SISTEMA             Conexión
 ```
@@ -407,6 +408,28 @@ Fuente histórica: `BM_Nava_valoraciones_fisicas.xlsx` — 1.315 mediciones, 13 
 - Estados de disponibilidad personalizados
 
 Pendiente: resumen en la ficha del jugador, edición de objetivos por bloque de fase, exportar episodio a PDF/PNG.
+
+### 6.5 Nutrición · FullGas (v440)
+
+Colaboración del club con **FullGas**. **Héctor Cano** (nutricionista) gestiona el pedido con la marca, **el club paga el total** y después **cada jugador le paga lo suyo a Carlos**, el entrenador. El flujo actual es un Google Forms que se pasa al grupo cada pocos meses y un Excel que sale de él.
+
+**Qué hace el módulo**: guardar qué pidió cada jugador y a qué precio, sacar el **agregado por producto** para pasárselo a la marca de una vez, y llevar el registro de quién ha pagado cada mes con **dos conceptos por jugador** —suplementación y cuota de nutrición—. Vive en `bmnava_nutri` (`STATE.nutri = {rondas, cobros, cuota}`).
+
+**Lo que NO hace, y es deliberado:**
+
+- **No manda correos.** La app es un HTML estático en GitHub Pages: no hay servidor que ejecute nada el día 5. El envío lo resuelve el **Apps Script pegado a la hoja de pedidos**, que usa `MailApp` desde la cuenta de Héctor (`hct.nutrition`), con borradores por jugador y un menú «🛒 Pedido Full Gas». Decisión de Daniel el 21/10/2026. **Esta pantalla es la fuente de la verdad de importes y pagos; el script es quien envía.** No duplicar.
+
+**Reglas del módulo:**
+
+| Elemento | Regla |
+|---|---|
+| El precio vive en la LÍNEA, no en un catálogo | *«Debemos comprobar antes de cada pedido el precio, ya que puede variar o tener % de descuento»* (Daniel, 21/10/2026). Por eso cada línea guarda su precio: una ronda de marzo con otra tarifa **no reescribe lo que se cobró en enero**. Cuando se conecte la hoja de FullGas, el catálogo solo servirá para *proponer* el precio al crear la línea |
+| Una sola ronda abierta | Las líneas entran en la ronda abierta; no puede haber dos. Al cerrarla, el total de cada jugador se convierte en su cobro de **suplementación** del mes de la ronda |
+| Los cobros se identifican por jugador + mes + concepto | Volver a generar el mismo mes **actualiza el importe y respeta el tick de pagado**, que es lo único que no se puede perder |
+| La cuota mensual es opt-in por jugador | No la llevan todos. `cuota.jugadores[nombre]` marca quién, y `cuota.importe` el importe vigente. Generar la cuota de un mes crea el apunte solo para los marcados |
+| El nombre va como cadena en la raíz | `jugador` es un string en cada línea y en cada cobro, que es lo que exige `bajaLimpiar`. **Comprobado**: metiendo a Hugo Lima, al releer desaparece de los cobros, de las líneas y del mapa de cuotas |
+
+**Pendiente**: conectar la hoja de respuestas del Forms (pedidos) y la de FullGas (precios) como fuentes CSV, igual que wellness, RPE, plantilla y valoraciones. Falta saber las columnas de ambas. Mientras tanto, las líneas se meten a mano en la propia pantalla.
 
 ### 6.4 Polar / pulsómetros
 
