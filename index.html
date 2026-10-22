@@ -4590,9 +4590,26 @@ body.modal-open #sidebar{overflow:hidden}
 .estado-dot{width:10px;height:10px;border-radius:50%;flex:none}
 .estado-name{cursor:pointer;min-width:120px}
 .estado-name:hover{color:var(--accent)}
-.estado-meta{flex:1}
+.estado-meta{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* v446 · Sin `min-width:0` el texto de la zona no se deja encoger y empuja los
+   botones FUERA de la fila. En el móvil eso dejaba «✎ Corregir» y «✕» fuera
+   de pantalla, o sea el arreglo sin poder usarse justo donde Virginia mira.
+   En pantalla estrecha la descripción baja a su propia línea y los botones
+   quedan siempre alcanzables. */
+@media (max-width:620px){
+  .estado-row{flex-wrap:wrap;gap:6px 9px}
+  .estado-name{min-width:0}
+  .estado-meta{flex:1 0 100%;order:8;font-size:12px;white-space:normal}
+  .estado-alta,.estado-fix,.estado-del{order:9}
+}
 .estado-alta{background:var(--ok);color:#fff;border:none;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;flex:none}
 .estado-alta:hover{filter:brightness(1.08)}
+.estado-fix{background:transparent;color:var(--muted);border:.5px solid var(--line);border-radius:7px;
+  padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;flex:none}
+.estado-fix:hover{color:var(--accent);border-color:var(--accent)}
+.estado-del{background:transparent;color:var(--muted2);border:0;border-radius:7px;padding:4px 7px;
+  font-size:11px;font-weight:700;cursor:pointer;flex:none}
+.estado-del:hover{color:var(--bad);background:var(--panel2)}
 .attn-band{display:flex;gap:10px;flex-wrap:wrap}
 .attn-card{width:86px;text-align:center;cursor:pointer;transition:transform .12s}
 .attn-card:hover{transform:translateY(-3px)}
@@ -17878,7 +17895,14 @@ function renderAvail(){
     <button class="btn" onclick="availMark()">Marcar</button>
     <button class="btn ghost" style="font-size:12px" onclick="estadoTab('medico');openMedInjury()">＋ Lesión (Médico)</button>
     <div class="small muted" style="flex-basis:100%;margin-top:2px" id="est-hint">Para lesiones usa el módulo Médico (fases y criterios). Aquí, estados puntuales no médicos.</div></div>`;
-  const estItems=roster.slice().sort((a,b)=>physioSev(stOf(b))-physioSev(stOf(a))||a.localeCompare(b,'es')).map(n=>{const ev=cur[n].ev;const st=stOf(n);const sM=PHYSTAT[st]||{lab:'Disponible',c:'var(--ok)'};const zone=ev&&ev.zone?ev.zone+(ev.side?' '+ev.side:''):'';const since=ev&&ev.date?ev.date.toLocaleDateString('es',{day:'2-digit',month:'short'}):'';const days=ev&&ev.date?Math.max(0,Math.round((today-ev.date)/864e5)):0;const rtpI=medRTPinfo(n);const openEp=(ev&&ev.ep&&!ev.to)?ev:null;const isMed=openEp&&String(openEp._id||'').indexOf('med_')===0;const injId=isMed?String(openEp._id).slice(4):'';const act=isMed?`<button class="estado-alta" style="border-color:var(--line);color:var(--muted)" onclick="event.stopPropagation();estadoGoMedico('${injId}')" title="Estado gestionado desde la ficha médica">Ver en Médico ↗</button>`:(openEp?`<button class="estado-alta" onclick="event.stopPropagation();availClose('${esc(n)}','${openEp._id}')">✓ Alta</button>`:'');return {n,st,sev:physioSev(st),html:`<div class="estado-row"><span class="estado-dot" style="background:${sM.c}"></span>${dispWellDots(n,refk)}<b class="estado-name" onclick="openPlayer('${esc(n)}')">${n}</b><span class="tag" style="border-color:${sM.c};color:${sM.c}">${sM.lab}</span>${isMed?'<span class="estado-lock">🔒 desde Médico</span>':''}<span class="estado-meta small muted">${[zone,since?'desde '+since+(days?' ('+days+'d)':''):'',rtpI?('alta ~'+(rtpI.days<0?('+'+(-rtpI.days)+'d'):(rtpI.days+'d'))):''].filter(Boolean).join(' · ')}</span>${act}</div>`};});
+  const estItems=roster.slice().sort((a,b)=>physioSev(stOf(b))-physioSev(stOf(a))||a.localeCompare(b,'es')).map(n=>{const ev=cur[n].ev;const st=stOf(n);const sM=PHYSTAT[st]||{lab:'Disponible',c:'var(--ok)'};const zone=ev&&ev.zone?ev.zone+(ev.side?' '+ev.side:''):'';const since=ev&&ev.date?ev.date.toLocaleDateString('es',{day:'2-digit',month:'short'}):'';const days=ev&&ev.date?Math.max(0,Math.round((today-ev.date)/864e5)):0;const rtpI=medRTPinfo(n);const openEp=(ev&&ev.ep&&!ev.to)?ev:null;const isMed=openEp&&String(openEp._id||'').indexOf('med_')===0;const injId=isMed?String(openEp._id).slice(4):'';/* v446 · Un PARTE DEL DÍA también fija el estado del jugador —`effectiveStatus`
+       se queda con el parte del día cuando no hay episodio— pero la fila no ofrecía
+       NADA para tocarlo: «✓ Alta» solo sale cuando `ev.ep && !ev.to`. Virginia marcó
+       con dolor al jugador equivocado y desde aquí no había forma de quitarlo; la
+       única era un ✕ de diez píxeles enterrado en la ficha, dentro de «Registros sin
+       asociar a un problema». **El estado se deshace donde se ve.** */
+    const esParte=!!(ev&&!ev.ep&&ev.user&&ev._id&&st!=='disp');
+    const act=isMed?`<button class="estado-alta" style="border-color:var(--line);color:var(--muted)" onclick="event.stopPropagation();estadoGoMedico('${injId}')" title="Estado gestionado desde la ficha médica">Ver en Médico ↗</button>`:(openEp?`<button class="estado-alta" onclick="event.stopPropagation();availClose('${esc(n)}','${openEp._id}')">✓ Alta</button>`:(esParte?`<button class="estado-fix" onclick="event.stopPropagation();physioEdit('${esc(n)}','${esc(String(ev._id))}')" title="Corregir el parte del día: estado, zona o alta prevista">✎ Corregir</button><button class="estado-del" onclick="event.stopPropagation();availQuitarParte('${esc(n)}','${esc(String(ev._id))}')" title="Borrar el parte · se apuntó por error">✕</button>`:''));return {n,st,sev:physioSev(st),html:`<div class="estado-row"><span class="estado-dot" style="background:${sM.c}"></span>${dispWellDots(n,refk)}<b class="estado-name" onclick="openPlayer('${esc(n)}')">${n}</b><span class="tag" style="border-color:${sM.c};color:${sM.c}">${sM.lab}</span>${isMed?'<span class="estado-lock">🔒 desde Médico</span>':''}<span class="estado-meta small muted">${[zone,since?'desde '+since+(days?' ('+days+'d)':''):'',rtpI?('alta ~'+(rtpI.days<0?('+'+(-rtpI.days)+'d'):(rtpI.days+'d'))):''].filter(Boolean).join(' · ')}</span>${act}</div>`};});
   /* v207 · Los 19 jugadores en una lista plana obligaban a leerla entera para
      saber quién está fuera. Se agrupan por estado, con el grupo problemático
      primero y el de disponibles plegado: lo que hay que mirar queda arriba y lo
@@ -18055,6 +18079,25 @@ function availStatusChanged(){
 }
 window.availStatusChanged=availStatusChanged;
 function availClose(n,id){physioCloseEpisode(n,id);renderAvail();}
+/* v446 · Borrar el parte del día que fija el estado, desde la propia fila.
+   No se reutiliza `physioDel` porque ese llama a `renderPhysio`, que repinta
+   el panel de Fisioterapia — aquí lo que hay delante es Disponibilidad.
+   `parteRefresh` repinta las cinco pantallas que leen esto. */
+function availQuitarParte(n,id){
+  physioEnsure();
+  const arr=(STATE.physioUser||{})[n]||[];
+  const i=arr.findIndex(e=>e&&e._id===id);
+  if(i<0){if(window.toast)toast('Ese registro es de ejemplo y no se puede borrar');return;}
+  const e=arr[i];
+  const qu=(PHYSTAT[e.status]||{}).lab||e.status;
+  if(!confirm('¿Borrar este parte del día?\n\n'+n+' · '+qu+(e.zone?' · '+e.zone:'')+'\n'+(e.dk||'').split('-').reverse().join('/')+'\n\nNo se puede deshacer.'))return;
+  arr.splice(i,1);
+  physioPersist();
+  STATE.physioEx=null;try{buildPhysio();}catch(err){}
+  try{parteRefresh(n);}catch(err){try{renderAvail();}catch(e2){}}
+  if(window.toast)toast('Parte borrado · '+n);
+}
+window.availQuitarParte=availQuitarParte;
 function availMatrix(roster){
   const today=new Date();const W=16;const monday=new Date(today);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));const weeks=[];for(let i=W-1;i>=0;i--){const ws=new Date(monday);ws.setDate(ws.getDate()-i*7);weeks.push(ws);}
   const wkStatus=(n,ws)=>{const we=new Date(ws);we.setDate(we.getDate()+7);let best=null;
@@ -27241,7 +27284,31 @@ function addDataQuickPhysioSave(){const g=id=>(document.getElementById(id)||{}).
   try{buildPhysio();buildPlayers();}catch(e){}
   try{const v=STATE.view||'avail';const R={equipo:'renderTeam',avail:'renderAvail',parte:'renderParte',alertas:'renderAlerts'};const fn=window[R[v]];if(typeof fn==='function')fn();else go(v);}catch(e){}
 }
-function focusSearch(){go('equipo');const s=document.getElementById('team-search');if(s){s.focus();s.select();}}
+/* v446 · El botón 🔍 Buscar no buscaba, y el motivo no estaba en la búsqueda:
+   el campo vive dentro del `<details>` «Plantilla · estado del día», que nace
+   PLEGADO. `focus()` sobre un elemento que el navegador no está desplegando no
+   hace nada —comprobado: `activeElement` se queda en `body` y el campo mide 25
+   px—, así que se pulsaba y no pasaba absolutamente nada. Hay que abrirlo
+   primero y llevarlo a la vista: está a 13.000 px del principio de la página,
+   o sea que aunque tomara el foco no se vería. */
+function focusSearch(){
+  go('equipo');
+  const d=document.getElementById('eq-plantilla');
+  if(d&&!d.open)d.open=true;
+  /* Al abrirse, el `<details>` añade alto, así que la posición del campo cambia
+     DESPUÉS de abrirlo: midiendo en el mismo tick se calcula el destino con el
+     alto viejo y el desplazamiento queda a 600 px del sitio —medido—. Se cede un
+     tick para que el navegador rehaga el layout. Y el salto va **directo, sin
+     animar**: con `smooth` la animación corre contra ese mismo recolocado y el
+     destino vuelve a quedar mal. */
+  setTimeout(function(){
+    const s=document.getElementById('team-search');
+    if(!s)return;
+    try{s.scrollIntoView({block:'center'});}catch(e){try{s.scrollIntoView();}catch(e2){}}
+    try{s.focus({preventScroll:true});}catch(e){s.focus();}
+    s.select();
+  },0);
+}
 
 /* --- Exportar gráfico a PNG --- */
 function exportChartPNG(id){const ch=charts[id];if(!ch){toast('Este gráfico aún no está dibujado');return;}const src=ch.canvas;const tmp=document.createElement('canvas');tmp.width=src.width;tmp.height=src.height;const cx=tmp.getContext('2d');cx.fillStyle=(getComputedStyle(document.documentElement).getPropertyValue('--panel')||'#fff').trim();cx.fillRect(0,0,tmp.width,tmp.height);cx.drawImage(src,0,0);const a=document.createElement('a');a.download='bmnava_'+id+'.png';a.href=tmp.toDataURL('image/png');a.click();toast('Imagen exportada');}
@@ -33919,8 +33986,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-21.10*/
-const VER_ACTUAL='2026-10-21.10';
+/*BUILD:2026-10-22.1*/
+const VER_ACTUAL='2026-10-22.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
