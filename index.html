@@ -2651,6 +2651,21 @@ main{padding:20px 18px 80px}
    por zona y la casilla lo bastante grande para acertarla con el dedo sin
    mirar. El nombre se queda pegado a la izquierda al desplazar en horizontal,
    que es lo que pasa en un teléfono con seis zonas. */
+/* v448 · Selector de día del propio panel. Va en la cabecera de la tarjeta,
+   que es donde se mira al preguntarse «¿de qué día es esto?». */
+.vd-dia{display:flex;align-items:center;gap:4px;margin-left:auto;flex:none}
+.vd-fl{width:28px;height:28px;border:.5px solid var(--line);background:transparent;border-radius:8px;
+  cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:0}
+.vd-fl:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}
+.vd-fl:disabled{opacity:.3;cursor:default}
+.vd-fecha{position:relative;display:inline-flex;align-items:center;cursor:pointer}
+.vd-fecha input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.vd-fecha span{font-size:12.5px;font-weight:700;color:var(--txt);padding:5px 10px;border-radius:8px;
+  background:var(--panel2);white-space:nowrap;text-transform:capitalize}
+.vd-fecha:hover span{color:var(--accent)}
+.vd-hoy{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted2);padding-left:4px}
+.vd-hoyb{font-size:11px;padding:4px 10px}
 .vd-top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:14px}
 .vd-kpi b{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
 .vd-kpi em{display:block;font-style:normal;font-size:11px;font-weight:700;letter-spacing:.04em;
@@ -19819,7 +19834,7 @@ function fisBarraTabs(){
     +(n?'<i>'+n+'</i>':'')+'</button>';
   return '<div class="seg estado-seg fis-tabs">'
     +b('hoy','Hoy',cand)+b('cal','Calendario',citas)
-    +b('vend','Vendajes',(typeof vendTotalDia==='function')?vendTotalDia(dkey(REF())):0)
+    +b('vend','Vendajes',(typeof vendTotalDia==='function')?vendTotalDia(vendDkey()):0)
     +b('datos','Análisis',0)+'</div>';
 }
 function renderFisio(){
@@ -19862,6 +19877,27 @@ const VEND_CICLO=['','amb','izq','der'];
 const VEND_N={amb:2,izq:1,der:1};
 const VEND_SIG={amb:'2',izq:'I',der:'D'};
 const VEND_LADO={amb:'los dos',izq:'izquierdo',der:'derecho'};
+/* v448 · El panel lleva SU PROPIO día, no el del selector de la barra.
+   Daniel, 23/10/2026: «para poner los vendajes de otro día solo nos da la
+   opción de hacerlo lo de hoy». Eran dos cosas: `setRefDate` repinta la ficha,
+   Cargas y Pulsómetros pero **no la vista de Estado**, así que mover la fecha
+   de arriba no repintaba esto y la rejilla se quedaba clavada; y aunque lo
+   hubiera repintado, el control estaba a tres paneles de distancia de donde se
+   trabaja. Esto es un parte de trabajo que se rellena, no un análisis que
+   describe el día elegido: su día se elige aquí, con las flechas.
+   **No se guarda**: al volver a entrar arranca en hoy, que es lo que se
+   rellena el 99 % de las veces. */
+let VEND_DK=null;
+function vendDkey(){return VEND_DK||dkey(new Date());}
+function vendSetDia(dk){
+  const hoy=dkey(new Date());
+  if(!dk)return;
+  /* No se vendan tobillos en el futuro: es un registro de lo hecho. */
+  VEND_DK=(dk>hoy)?hoy:dk;
+  renderFisio();
+}
+function vendDiaMover(n){vendSetDia(fisDkSuma(vendDkey(),n));}
+window.vendSetDia=vendSetDia;window.vendDiaMover=vendDiaMover;
 function vendLoad(){
   if(!STATE.vend){
     const d=lsLeer(VEND_LS,null)||{};
@@ -19967,7 +20003,7 @@ window.vendCopiarUltimo=vendCopiarUltimo;window.vendBorrarDia=vendBorrarDia;
 function vendPanel(){
   const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const V=vendLoad();
-  const dk=dkey(REF());
+  const dk=vendDkey();
   const hoyReal=dkey(new Date());
   const jug=(typeof sortedPlayerNames==='function')?sortedPlayerNames():Object.keys(STATE.players||{}).sort();
   const dia=vendDia(dk);
@@ -20031,17 +20067,24 @@ function vendPanel(){
   const topJ=Object.keys(porJug).sort((a,b)=>porJug[b]-porJug[a]).slice(0,8);
 
   const esHoy=dk===hoyReal;
+  const fd=dkToDate(dk);
+  const nav='<div class="vd-dia">'
+    +'<button class="vd-fl" onclick="vendDiaMover(-1)" title="Día anterior">\u2039</button>'
+    +'<label class="vd-fecha"><input type="date" value="'+dk+'" max="'+hoyReal+'" onchange="vendSetDia(this.value)">'
+    +'<span>'+esc(fd.toLocaleDateString("es",{weekday:"short",day:"numeric",month:"short"}))+'</span></label>'
+    +'<button class="vd-fl"'+(esHoy?' disabled':'')+' onclick="vendDiaMover(1)" title="Día siguiente">\u203a</button>'
+    +(esHoy?'<span class="vd-hoy">hoy</span>':'<button class="btn ghost vd-hoyb" onclick="vendSetDia(\''+hoyReal+'\')">Hoy</button>')
+    +'</div>';
   return '<section class="cgr-card vd-card">'
     +'<div class="cgr-card-h"><h3>Vendajes funcionales</h3>'
-    +'<span>'+(esHoy?'hoy':esc(REF().toLocaleDateString("es",{weekday:"long",day:"numeric",month:"long"})))
-    +' · pulsa una casilla para marcar</span></div>'
+    +'<span>pulsa una casilla para marcar</span>'+nav+'</div>'
     +'<div class="vd-top"><div class="vd-kpi"><b>'+tot+'</b><em>vendaje'+(tot===1?'':'s')+' este día</em></div>'
     +'<div class="vd-chips">'+VEND_ZONAS.filter(z=>porZ[z[0]]>0).map(([z,lab])=>'<span class="vd-chip">'+esc(lab)+' <b>'+porZ[z]+'</b></span>').join('')
     +(tot?'':'<span class="hint" style="margin:0">Todavía no has marcado ninguno.</span>')+'</div>'
     +'<div class="vd-acc"><button class="btn ghost" onclick="vendCopiarUltimo(\''+dk+'\')">Copiar el último día</button>'
     +(tot?'<button class="estado-del" onclick="vendBorrarDia(\''+dk+'\')" title="Borrar todos los de este día">✕</button>':'')
     +'</div></div>'
-    +(esHoy?'':'<div class="nut-aviso">Estás viendo el '+esc(dk.split('-').reverse().join('/'))+', no hoy. Lo que marques se guarda en ese día — usa «Hoy» en la barra de arriba para volver.</div>')
+    +(esHoy?'':'<div class="nut-aviso">Estás rellenando el <b>'+esc(dk.split('-').reverse().join('/'))+'</b>, no hoy.</div>')
     +'<div class="vd-grid">'+cab+filas+'</div>'
     +'<p class="hint"><b>2</b> = los dos lados · <b>I</b> = izquierdo · <b>D</b> = derecho. Cada toque pasa al siguiente y el cuarto lo quita. Lo que no sea una de estas seis zonas se sigue apuntando como tratamiento en Médico.</p>'
     +'<details class="vd-det"><summary>Tape y stock</summary>'
@@ -34277,8 +34320,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-23.1*/
-const VER_ACTUAL='2026-10-23.1';
+/*BUILD:2026-10-23.2*/
+const VER_ACTUAL='2026-10-23.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
