@@ -9002,7 +9002,7 @@ const LS_VISTO={};
    copia antigua perdona las tumbas de lo que restaura: eso sí es resucitar a
    propósito. */
 const LS_TUMBAS='bmnava_tumbas';
-const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes)$/;
+const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri)$/;
 /* v371 · Las sesiones de Polar se quedaban fuera del sistema de tumbas, así que
    borrar una no dejaba rastro: la fusión la conservaba desde la copia del
    servidor y volvía en cada actualización, una y otra vez. Sus registros no
@@ -9267,7 +9267,7 @@ const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava
   bmnava_testlog:'Valoraciones físicas',bmnava_expl:'Jugadores históricos',
   bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos',bmnava_reuniones:'Reuniones',
   bmnava_fisiotpl:'Plantillas de fisioterapia',bmnava_fisiovisto:'Revisados del día',
-  bmnava_vendajes:'Vendajes funcionales'};
+  bmnava_vendajes:'Vendajes funcionales',bmnava_nutri:'Nutrición · pedidos y cobros'};
 /* v321 · Estas no son datos del equipo: son las copias y apuntes que lleva la
    propia app. Salen en el desglose de Conexión, así que necesitan un nombre que
    se entienda. */
@@ -9283,7 +9283,7 @@ function lsNombre(k){return LS_NOMBRES[k]||LS_NOMBRES_INT[k]||k;}
    Esto es lo que permite volver atrás. */
 const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
-  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto','bmnava_vendajes','bmnava_tumbas'];
+  'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto','bmnava_vendajes','bmnava_nutri','bmnava_tumbas'];
 /* ═══ v315 · Copia automática diaria ═══
    La copia de seguridad de v255 es buena, pero hay que acordarse de pulsarla.
    Nadie se acuerda de hacer una copia el día antes de perder los datos. Esta se
@@ -9419,6 +9419,7 @@ function invRender(){
     {k:'bmnava_meddb',    lab:'Médico · problemas y tratamientos', porMes:false},
     {k:'bmnava_physio',   lab:'Fisioterapia · partes del día',     porMes:true},
     {k:'bmnava_vendajes', lab:'Vendajes funcionales',                porMes:true},
+    {k:'bmnava_nutri',    lab:'Nutrición · pedidos y cobros',       porMes:false},
     {k:'bmnava_medlog',   lab:'Agenda médica · citas y pruebas',   porMes:true},
     {k:'bmnava_reuniones',lab:'Reuniones',                         porMes:true},
     {k:'bmnava_hr',       lab:'Sesiones de Polar',                 porMes:false},
@@ -13794,14 +13795,36 @@ const NUT_SEED_FG=[
    —darlos por pagados— escondería dinero que sí se debe. */
 const NUT_SEED_CUOTA_FLAG='bmnava_nutri_seed_cuota_2026';
 const NUT_SEED_CUOTA=[
-  ['Clement Esparon','2026-08'],
-  ['David Fern\u00e1ndez','2026-08'],
-  ['David Roca','2026-08'],
-  ['Josu Arzoz Azofra','2026-08'],
+  ['Clement Esparon','2026-09'],
+  ['David Fern\u00e1ndez','2026-09'],
+  ['David Roca','2026-09'],
+  ['Josu Arzoz Azofra','2026-09'],
   ['Maiko V\u00e1zquez','2026-10'],
-  ['Mateus M. Buda','2026-08'],
-  ['Pablo Herranz Garc\u00eda','2026-08'],
-  ['Pancho Ahumada Collado','2026-08']];
+  ['Mateus M. Buda','2026-09'],
+  ['Pablo Herranz Garc\u00eda','2026-09'],
+  ['Pancho Ahumada Collado','2026-09']];
+/* v449 · Agosto fuera. Daniel, 23/10/2026: *«quita agosto, solo septiembre y
+   octubre»*. No basta con cambiar el `desde` de la siembra: la marca ya está
+   puesta en cada equipo, así que lo sembrado en agosto sigue ahí. Se retira
+   una vez, **con tumba**, porque si no vuelve del servidor en la siguiente
+   bajada. Lo que esté marcado como pagado NO se toca: se avisa y se deja, que
+   borrar un pago cobrado es peor que dejar un mes de más. */
+const NUT_PURGA_AGO='bmnava_nutri_purga_ago';
+function nutPurgaAgosto(){
+  const N=STATE.nutri; if(!N)return false;
+  try{ if(lsLeer(NUT_PURGA_AGO,null))return false; }catch(e){}
+  const ago=(N.cobros||[]).filter(c=>c&&c.mes==='2026-08');
+  const pagados=ago.filter(c=>c.pagado);
+  const fuera=ago.filter(c=>!c.pagado);
+  if(fuera.length){
+    try{lsTumbarIds(NUT_LS,fuera.map(c=>String(c.id)));}catch(e){}
+    N.cobros=N.cobros.filter(c=>fuera.indexOf(c)<0);
+  }
+  if(pagados.length)console.warn('bmnava · agosto: se conservan '+pagados.length+' apuntes ya cobrados');
+  try{lsGuardar(NUT_PURGA_AGO,1);}catch(e){}
+  try{lsGuardar(NUT_LS,N);}catch(e){}
+  return true;
+}
 function nutSembrarCuota(){
   const N=STATE.nutri; if(!N)return false;
   try{ if(lsLeer(NUT_SEED_CUOTA_FLAG,null))return false; }catch(e){}
@@ -13869,6 +13892,19 @@ function nutLoad(){
                     un valor de partida: se edita en la propia pantalla. */
                  cuota:(d.cuota&&typeof d.cuota==='object')?d.cuota:{importe:35,jugadores:{}}};
     if(!STATE.nutri.cuota.jugadores)STATE.nutri.cuota.jugadores={};
+    /* v449 · Primero se juntan los duplicados y se les pone el id bueno, y
+       solo después siembran: así el sembrado encuentra lo que ya hay y no
+       crea otra copia. Los ids viejos se entierran para que el servidor no
+       los devuelva en la siguiente bajada. */
+    try{
+      const r=nutNormalizarCobros(STATE.nutri);
+      if(r.tocado){
+        if(r.viejos.length){try{lsTumbarIds(NUT_LS,r.viejos);}catch(e){}}
+        try{lsGuardar(NUT_LS,STATE.nutri);}catch(e){}
+        console.warn('bmnava · cobros de nutrición normalizados ('+r.viejos.length+' ids antiguos)');
+      }
+    }catch(e){console.warn('bmnava · no se pudieron normalizar los cobros:',e&&e.message);}
+    try{nutPurgaAgosto();}catch(e){console.warn('bmnava · agosto no purgado:',e&&e.message);}
     try{nutSembrar();}catch(e){console.warn('bmnava · pedido de octubre no sembrado:',e&&e.message);}
     try{nutSembrarCuota();}catch(e){console.warn('bmnava · cuotas no sembradas:',e&&e.message);}
   }
@@ -13960,6 +13996,52 @@ function nutPorProducto(ronda,pend){
    generar dos veces el mismo mes no duplica: actualiza el importe y respeta
    el tick de pagado, que es lo único que no se puede perder. */
 function nutCobroClave(j,mes,con){return j+'|'+mes+'|'+con;}
+/* ══ v449 · El id de un cobro ES su identidad, no un número al azar ══════
+   Daniel, 23/10/2026: *«hay pagos en los que hemos hecho el check y no
+   aparece, no se ha guardado, es muy grave»*. Y no era el guardado.
+
+   Los cobros se creaban con `nutId()`, **aleatorio**, pero los siembra el
+   código en CADA navegador por separado. Así que el mismo cobro —la cuota
+   de Pablo de septiembre— nacía con un id distinto en cada equipo, y la
+   fusión de Supabase une por `id`: no veía un registro editado en dos
+   sitios, veía dos registros. **Medido: 38 cobros + 38 cobros = 76, y la
+   deuda pasaba de 2.172,89 € a 4.380,78 €.** El de Pablo quedaba duplicado,
+   uno pagado y otro no, y `nutCobro` devuelve el PRIMERO que encuentra: por
+   eso el tic desaparecía al sincronizar.
+
+   La identidad de un cobro es **jugador + mes + concepto** —ya estaba escrito
+   en las reglas del módulo—, así que eso es lo que tiene que ser el id.
+   Mismo cobro, mismo id en todos los equipos, y la fusión lo reconoce.
+
+   Y **cada escritura deja sello `upd`**: con sello, la fusión se queda entera
+   con la versión más reciente. Sin él, dos copias que difieren se mezclan
+   campo a campo y el `pagado:false` viejo podía ganarle al `true` nuevo. */
+function nutCobroId(j,mes,con){return 'c|'+j+'|'+mes+'|'+con;}
+function nutTocado(c){if(c)c.upd=Date.now();return c;}
+/* Junta los duplicados que ya existan y les pone el id bueno. Se ejecuta en
+   CADA carga, no una sola vez: mientras quede un equipo sin actualizar, el
+   servidor seguirá devolviendo copias con el id viejo, y esto las recoge.
+   **Si cualquiera de las copias está pagada, la que queda está pagada**: es
+   el único campo que no se puede recuperar mirando los datos. */
+function nutNormalizarCobros(N){
+  const por=Object.create(null), orden=[], viejos=[];
+  let tocado=false;
+  (Array.isArray(N.cobros)?N.cobros:[]).forEach(c=>{
+    if(!c||!c.jugador||!c.mes||!c.concepto)return;
+    const k=nutCobroId(c.jugador,c.mes,c.concepto);
+    if(c.id!=null&&String(c.id)!==k){viejos.push(String(c.id));tocado=true;}
+    if(!por[k]){por[k]=Object.assign({},c,{id:k});orden.push(k);return;}
+    tocado=true;
+    const p=por[k];
+    if(c.pagado&&!p.pagado){p.pagado=true;p.fechaPago=c.fechaPago||p.fechaPago;}
+    if((+c.upd||0)>(+p.upd||0)){
+      p.importe=c.importe;p.nota=c.nota||p.nota;p.upd=c.upd;
+      if(c.pagado)p.fechaPago=c.fechaPago||p.fechaPago;
+    }
+  });
+  N.cobros=orden.map(k=>por[k]);
+  return {tocado,viejos};
+}
 function nutCobro(j,mes,con){
   const N=nutLoad();
   return N.cobros.find(c=>c.jugador===j&&c.mes===mes&&c.concepto===con)||null;
@@ -13967,9 +14049,9 @@ function nutCobro(j,mes,con){
 function nutCobroSet(j,mes,con,importe){
   const N=nutLoad();
   let c=nutCobro(j,mes,con);
-  if(!c){c={id:nutId(),jugador:j,mes,concepto:con,importe:0,pagado:false,fechaPago:'',nota:''};N.cobros.push(c);}
+  if(!c){c={id:nutCobroId(j,mes,con),jugador:j,mes,concepto:con,importe:0,pagado:false,fechaPago:'',nota:''};N.cobros.push(c);}
   c.importe=+importe||0;
-  return c;
+  return nutTocado(c);
 }
 /* Pasar una ronda a cobros: el total de cada jugador se convierte en el apunte
    de suplementación del mes de la ronda. Se puede repetir sin miedo. */
@@ -13999,6 +14081,7 @@ function nutTogglePago(j,mes,con){
   const c=nutCobro(j,mes,con);if(!c)return;
   c.pagado=!c.pagado;
   c.fechaPago=c.pagado?dkey(new Date()):'';
+  nutTocado(c);
   nutPersist();renderNutri();
 }
 function nutToggleCuota(j){
@@ -14025,7 +14108,7 @@ function nutMesesConCobros(){
    sea que a agosto y septiembre no se podía llegar — y **un mes vacío es
    justo al que hay que poder ir**, porque es donde falta meter la cuota.
    Desde `NUT_MES_DESDE` hasta hoy, sin huecos. */
-const NUT_MES_DESDE='2026-08';
+const NUT_MES_DESDE='2026-09';
 function nutMesSuma(m,n){
   const a=String(m||'').split('-');
   let y=+a[0]||0, i=(+a[1]||1)-1+n;
@@ -14071,6 +14154,7 @@ function nutDelApunte(j,mes,con){
   const c=nutCobro(j,mes,con);if(!c)return;
   if(!confirm('¿Quitar '+(((NUT_CONCEPTOS.find(x=>x[0]===con)||[])[1])||con).toLowerCase()+' de '+nutMesLab(mes)+' de '+j+' ('+nutEur(c.importe)+')?'))return;
   N.cobros=N.cobros.filter(x=>x!==c);
+  try{lsTumbarIds(NUT_LS,[String(c.id)]);}catch(e){}
   nutPersist();renderNutri();
 }
 /* Marcar o desmarcar TODO lo del mes de una persona de una vez: es lo que
@@ -14085,10 +14169,10 @@ function nutPagarMes(j,mes){
   if(sin.length){
     const t=nutRedondea(sin.reduce((a,c)=>a+(+c.importe||0),0));
     if(!confirm('¿Marcar como pagado?\n\n'+j+' · '+nutMesLab(mes)+'\n'+nutEur(t)))return;
-    sin.forEach(c=>{c.pagado=true;c.fechaPago=hoy;});
+    sin.forEach(c=>{c.pagado=true;c.fechaPago=hoy;nutTocado(c);});
   } else {
     if(!confirm('¿Deshacer el pago de '+j+' en '+nutMesLab(mes)+'?'))return;
-    cs.forEach(c=>{c.pagado=false;c.fechaPago='';});
+    cs.forEach(c=>{c.pagado=false;c.fechaPago='';nutTocado(c);});
   }
   nutPersist();renderNutri();
 }
@@ -34320,8 +34404,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-23.2*/
-const VER_ACTUAL='2026-10-23.2';
+/*BUILD:2026-10-23.3*/
+const VER_ACTUAL='2026-10-23.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
