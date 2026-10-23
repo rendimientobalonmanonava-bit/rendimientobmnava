@@ -477,6 +477,28 @@ Cuatro decisiones:
 4. **Sembrar con id y marca nuevos** (`fg-AAAA-MM`), para que la tanda anterior no se toque.
 5. **Comprobar en el DOM**, no solo el cálculo: es la regla de siempre en este proyecto.
 
+### 6.6 Vendajes funcionales (v447)
+
+Virginia, 23/10/2026: *«todos los días vendo nueve tobillos, y no me apetece meterme a poner como tratamiento que he hecho un vendaje funcional, gasto mucho tiempo. Que me saques una lista donde yo pinche qué les vendo y cuánto… y así poder calcular el tape que gasto para tener un stock fiable»*.
+
+**El requisito es la VELOCIDAD, no el detalle.** Un tratamiento del módulo médico son seis campos y un formulario; aquí un vendaje es **un toque**. Por eso no se guarda como tratamiento ni abre ningún diálogo: es su propio bloque, plano y pequeño. Vive en `bmnava_vendajes` = `{reg:[{id,dk,jugador,zona,lado,n,upd}], cfg:{cm:{},rollo,stock}}`, pestaña **Vendajes** dentro de Fisioterapia.
+
+| Elemento | Regla |
+|---|---|
+| La casilla cicla | vacía → **2** (los dos) → **I** → **D** → vacía. **«Los dos» va primero** porque es lo que más hace —de los seis casos que contó, cuatro eran los dos lados—, así que lo normal se resuelve en un toque. `n` vale 2 o 1 y es lo que se suma |
+| Volver a vacío BORRA el registro | No se guarda un cero: un cero diría «ese día le miré y no le vendé nada», y eso no es lo que ha pasado. El borrado anota tumba, así que no vuelve desde el servidor |
+| Seis zonas fijas | Tobillo · Rodilla · Muñeca · Mano · Dedo · Hombro, que cubren todo lo que enumeró. **La rejilla es el camino rápido y no se ensucia**: lo que no sea una de las seis se sigue apuntando como tratamiento en Médico, y la pantalla lo dice |
+| **El gasto de tape NO se inventa** | La app no sabe cuántos centímetros lleva un tobillo, y poner una cifra de catálogo haría que el stock mintiera con aspecto de dato. Los cm por zona, los metros por rollo y los rollos en el almacén los escribe ella (`cfg`); hasta entonces se cuentan vendajes y **se dice que falta eso**. Si configura unas zonas y otras no, las que faltan **se nombran** y no entran en el consumo. Misma regla que las referencias isocinéticas |
+| El stock no se descuenta solo | Es lo que ella ponga. Un stock que se descuenta solo deja de cuadrar con el armario a la segunda semana y entonces ya no se mira |
+| El día es `REF()`, no el reloj | Describe el día que se está viendo, así que se puede rellenar un día de atrás con el selector de la barra — y si no es hoy, **se avisa en la propia tarjeta**, porque marcar en el día equivocado es justo el error caro aquí |
+| «Copiar el último día» | Busca el último día **que tuvo vendajes**, no «ayer»: con un fin de semana en medio, ayer está vacío y el botón no serviría. **Solo rellena lo que está vacío**, nunca pisa lo ya puesto, y dice cuántos copió y cuántos ya estaban |
+| Orden de las filas | Primero quien lleva algo ese día, luego el resto alfabético: lo que hay que mirar queda arriba y la lista no se recoloca mientras marca, porque el orden se calcula al pintar |
+| La columna del nombre es fija | `position:sticky` con **z-index y a la altura de la fila entera**: en el móvil la rejilla se desplaza en horizontal y sin eso el nombre se pierde —o peor, la casilla azul asoma por encima y por debajo del nombre, que es lo que pasaba al principio |
+
+**Registrado donde toca**: `LS_TUMBAS_OK` (los registros llevan `id`), `BKP_CLAVES`, `LS_NOMBRES` y el inventario de Conexión. Se sincroniza solo, porque cualquier clave `bmnava_` entra salvo las de `SY_LOCAL_ONLY`. **Comprobado el filtro de bajas**: un registro de Hugo Lima escrito a mano desaparece al releer.
+
+*Pendiente de Virginia: los centímetros reales por zona y los metros del rollo que usa. Hasta que los ponga, la pestaña cuenta vendajes pero no metros.*
+
 ### 6.4 Polar / pulsómetros
 
 **Polar no exporta directamente.** El flujo es: Daniel comparte capturas del iPad → transcripción manual (dorsal, nombre, FC media %, FC máx %, kcal, Z1–Z5 en hh:mm:ss) → canonicalización de nombres → verificación de que las zonas suman la duración de sesión → salida como bloque de texto delimitado por punto y coma para subir.
@@ -580,6 +602,7 @@ No los repitas.
 | Calcular un desplazamiento en el mismo tick en que se abre un `<details>` | Al abrirlo cambia el alto del documento, así que `scrollIntoView` llamado a continuación apunta con la medida vieja: el campo acabó a 600 px por encima de la pantalla. Se cede un tick con `setTimeout(...,0)` y se salta **sin animar** —con `smooth` la animación corre contra el mismo recolocado y vuelve a fallar |
 | `innerText` sobre contenido dentro de un `<details>` cerrado | Comprobando que el jugador volvía a «Disponible», las 18 filas existían en el DOM pero `innerText` devolvía cadena vacía en todas, y pareció que la fila había desaparecido. `innerText` solo ve lo renderizado; `textContent` sí lo lee. **Es el mismo error que medir el ancho de una vista oculta, con otra cara** |
 | Un `flex:1` sin `min-width:0` empuja fuera lo que va después | `.estado-meta{flex:1}` no se dejaba encoger, así que en el móvil sacaba de la pantalla los botones recién añadidos: el arreglo quedaba inalcanzable justo donde Virginia mira. **Un arreglo que no cabe en el teléfono no está hecho** |
+| Una columna `sticky` con el fondo a la altura del texto | En la rejilla de vendajes el nombre se queda fijo al desplazar en horizontal, pero su fondo blanco medía lo que el texto (~18 px) dentro de una fila de 36: la casilla azul, de 30, **asomaba por arriba y por abajo del nombre**. Y antes de eso faltaba el `z-index`: `position:sticky` sin él no crea contexto de apilado, y como el nombre es el primer hijo de la fila, todo lo que va después se pinta encima. **Una columna fija necesita las dos cosas: apilarse por encima y ocupar la fila entera** |
 | Redondear dinero con `Math.round(v*100)/100` | Los precios de FullGas caen en **medio céntimo** porque llevan el 50 % del cupón aplicado, así que los totales acaban en x,xx5. 112,275 no es representable en binario: `112.275*100` da 11227,499999999998 y el redondeo baja. A tres personas se les mostraba **un céntimo menos** del que ponía el pedido que tenían en la mano. En un módulo donde alguien cobra en efectivo, eso es la cifra equivocada |
 | Sumar las líneas para dar el total de un pedido | Lo que se cobra es el total **redondeado de cada persona**, no la suma en bruto de las líneas: la ronda salía tres céntimos por debajo de lo que se paga a la marca |
 | Meter un ajuste de redondeo en el agregado para la marca | Salía «1× Ajuste de redondeo −0,02 €» en la lista de lo que hay que pedirle a FullGas, y el recuento se iba a 168 uds cuando el pedido son 167 |
