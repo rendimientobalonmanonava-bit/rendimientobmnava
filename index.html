@@ -23393,7 +23393,7 @@ function cgPorPuesto(dias){
       ct:cs.length?hrpMedia(cs):null,
       rpe:rs.length?hrpMedia(rs):null,
       z45:z.length?hrpMedia(z):null,
-      acwr:(p.acwr&&isFinite(p.acwr.ewma)&&p.acwr.rel&&p.acwr.acute>0)?p.acwr.ewma:null};
+      acwr:(p.acwr&&isFinite(p.acwr.ratio)&&p.acwr.rel&&p.acwr.acute>0)?p.acwr.ratio:null};
   });
   const todos=Object.values(porJug);
   if(!todos.length)return {n:0,desde,hasta,grupos:[]};
@@ -23482,9 +23482,23 @@ function cgAtencion(){
         acc:grave?'No entra en la carga del grupo':'Entrena tocado: vigilar'});
     }
     /* 2 · ACWR fuera de banda */
-    const a=p.acwr&&isFinite(p.acwr.ewma)?p.acwr:null;
+/* v452 · UN SOLO ACWR. `acwrDeSerie` devuelve dos números: `ratio` (media
+   móvil 7:21) y `ewma` (exponencial). La ficha, las tarjetas, el ranking, las
+   alertas y el dashboard de cargas enseñan `ratio`; estos cuatro paneles
+   calculaban con `ewma` y lo rotulaban «ACWR». Eran dos números distintos
+   bajo el mismo nombre. Daniel eligió `ratio` —«el que ya se ve en todas las
+   pantallas»— y el 25/10/2026 pidió unificarlo.
+   **Medido sobre series de 120 días**: con carga constante coinciden (1,00),
+   pero la EWMA alisa y SUBESTIMA los picos, que es justo lo que estos paneles
+   existen para cazar: en una semana de pico ratio 1,64 frente a ewma 1,32, y
+   **al volver de diez días parado, 1,94 frente a 1,28**. El panel que avisa
+   era el que menos avisaba.
+   La `ewma` se sigue calculando y se sigue viendo en la ficha, pero ahí está
+   ROTULADA como «EWMA ACWR»: eso es una segunda lectura declarada, no el
+   mismo número con dos valores. */
+    const a=p.acwr&&isFinite(p.acwr.ratio)?p.acwr:null;
     if(a&&a.rel&&a.acute>0){
-      const v=Math.round(a.ewma*100)/100;
+      const v=Math.round(a.ratio*100)/100;
       if(v>R)señales.push({sev:3,k:'acwr',txt:'ACWR '+v.toFixed(2),acc:'Bajar carga esta semana'});
       else if(v>Y)señales.push({sev:2,k:'acwr',txt:'ACWR '+v.toFixed(2),acc:'No subir más: sostener o bajar'});
       else if(v<LO)señales.push({sev:1,k:'acwr',txt:'ACWR '+v.toFixed(2),acc:'Por debajo de su banda: subir poco a poco'});
@@ -23855,7 +23869,7 @@ function lesCarga(){
     let d;try{d=dkToDate(dk);}catch(e){return null;}
     d.setDate(d.getDate()-1);                       // la víspera
     let a=null;try{a=acwrToDate(name,d,'ua');}catch(e){}
-    if(!a||!isFinite(a.ewma)||!a.rel)return null;
+    if(!a||!isFinite(a.ratio)||!a.rel)return null;
     /* v408b · Un jugador sin carga calculable da una EWMA de prácticamente
        cero, y eso NO es «ACWR bajo»: es «no sabemos». Contándolo, cada día sin
        minutos entraba en la estadística como si fuese un día tranquilo y
@@ -23870,7 +23884,7 @@ function lesCarga(){
         if(prev>50){const r=(cont[i]-prev)/prev;if(r>mx)mx=r;}}
       salto=mx*100;
     }catch(e){}
-    return {acwr:a.ewma,mono:isFinite(mono)?mono:null,salto:isFinite(salto)?salto:null};
+    return {acwr:a.ratio,mono:isFinite(mono)?mono:null,salto:isFinite(salto)?salto:null};
   };
   const casos=[];
   eps.forEach(e=>{const m=marc(e.name,e.dk);if(m)casos.push(Object.assign({},e,m));});
@@ -26790,8 +26804,12 @@ function calProyeccionACWR(dk){
       fin=acwrDeSerie(ext,'ua');
     }
     out.push({name,pos:(STATE.players[name]||{}).pos||'',
-      ahora:ahora.ewma,fin:fin.ewma,rel:fin.rel,dias:fin.dias,
-      delta:(isFinite(ahora.ewma)&&isFinite(fin.ewma))?fin.ewma-ahora.ewma:NaN});
+      /* v452 · Se proyecta el MISMO ACWR que se enseña. `acwrAt` corre sobre
+         cualquier serie, así que la media móvil es igual de proyectable que la
+         exponencial: lo que no vale es proyectar un número que el jugador no
+         ve en su ficha. */
+      ahora:ahora.ratio,fin:fin.ratio,rel:fin.rel,dias:fin.dias,
+      delta:(isFinite(ahora.ratio)&&isFinite(fin.ratio))?fin.ratio-ahora.ratio:NaN});
   });
   return {ciclo,futuros,diasPlan,jug:out.filter(x=>isFinite(x.fin))
     .sort((a,b)=>b.fin-a.fin)};
