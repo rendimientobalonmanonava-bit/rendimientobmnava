@@ -2666,6 +2666,35 @@ main{padding:20px 18px 80px}
 .vd-hoy{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   color:var(--muted2);padding-left:4px}
 .vd-hoyb{font-size:11px;padding:4px 10px}
+/* v451 · Qué ha dejado cada fase */
+.vhf-cols{display:grid;grid-template-columns:1.35fr 1fr;gap:22px}
+.vhf-sub{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted2);margin-bottom:9px}
+.vhf-r{display:grid;grid-template-columns:minmax(0,1fr) 92px 72px 62px;align-items:center;gap:10px;
+  padding:6px 0;border-bottom:.5px solid var(--hair);font-size:13px}
+.vhf-r:last-child{border-bottom:0}
+.vhf-r--flojo{opacity:.55}
+.vhf-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.vhf-t em{display:block;font-style:normal;font-size:10px;font-weight:600;letter-spacing:.03em;
+  text-transform:uppercase;color:var(--muted2)}
+.vhf-d{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.vhf-b{display:flex;height:7px;border-radius:999px;background:var(--panel2);overflow:hidden}
+.vhf-b i{display:block;height:100%}
+.vhf-up{background:var(--ok)}
+.vhf-dn{background:var(--bad)}
+.vhf-n{text-align:right;font-size:11.5px;color:var(--muted2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.vhf-j{display:grid;grid-template-columns:minmax(0,1fr) 34px;grid-template-areas:'n v' 'd v';
+  gap:0 10px;padding:6px 0;border-bottom:.5px solid var(--hair);cursor:pointer;font-size:13px}
+.vhf-j:last-child{border-bottom:0}
+.vhf-j:hover span{color:var(--accent)}
+.vhf-j span{grid-area:n;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vhf-j b{grid-area:v;align-self:center;text-align:right;font-size:15px;font-variant-numeric:tabular-nums}
+.vhf-j u{grid-area:d;text-decoration:none;font-size:11px;color:var(--muted2)}
+@media (max-width:860px){.vhf-cols{grid-template-columns:1fr;gap:16px}}
+@media (max-width:620px){
+  .vhf-r{grid-template-columns:minmax(0,1fr) 84px 56px;gap:8px}
+  .vhf-r .vhf-b{display:none}
+}
 .vd-top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:14px}
 .vd-kpi b{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
 .vd-kpi em{display:block;font-style:normal;font-size:11px;font-weight:700;letter-spacing:.04em;
@@ -6423,6 +6452,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     <div class="sec-tit">Estado de forma del equipo <span>todos los jugadores con valoraciones</span></div>
     <div class="panel" id="tsa-baremo"></div>
     <div class="panel" id="tsa-team-sum"></div>
+    <div class="panel" id="vh-fases"></div>
     <div class="grid g2">
       <div class="panel"><h2>Ranking TSA del equipo <span class="r muted">tercios: verde/ámbar/rojo</span></h2><div style="height:420px"><canvas id="ch-tsa-rank"></canvas></div></div>
       <div class="panel"><h2>Ranking por puesto <span class="r muted">cada uno contra los suyos</span></h2><div id="tsa-rank-pos"></div></div>
@@ -15982,6 +16012,7 @@ function renderTests(){
     const body=rows.map(r=>{const cs=CATS.map(c=>catScore(r.z,c));return `<tr><td class="mono">${r.rank}</td><td>${r.name}</td><td class="small muted">${r.pos||''}</td>${cs.map(z=>`<td class="mono" style="color:var(--${isNaN(z)?'muted':z>=0?'ok':'bad'})">${isNaN(z)?'—':(z>=0?'+':'')+fmt(z,2)}</td>`).join('')}<td class="mono" style="font-weight:700">${isNaN(r.tsa)?'—':(r.tsa>=0?'+':'')+fmt(r.tsa,2)}</td><td class="mono">${r.t100==null?'—':r.t100}</td><td><span class="dot ${tsaTier(r.rank,n)}"></span>${tsaTier(r.rank,n)==='ok'?'Alto':tsaTier(r.rank,n)==='warn'?'Medio':'Bajo'}</td></tr>`;}).join('');
     box.innerHTML=`<div class="wrap-x"><table class="tbl sortable"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;}
   try{renderTestsTeam();}catch(e){console.error('tsa-team',e);}
+  try{renderVhFases();}catch(e){console.error('vh-fases',e);}
   renderTestsExtra();
   buildManualGrid();
   renderTestsProfile();
@@ -33190,6 +33221,161 @@ function vhParseAndIngest(text,set){
     }});
   });
 }
+/* ══════════ v451 · Qué ha dejado cada fase ══════════════════════════════
+   Daniel, 25/10/2026, eligiendo de las propuestas. **Medido antes**: la hoja
+   de valoraciones trae una columna `fase` desde julio —487 mediciones de
+   Pre-Temporada y 278 de 1ª Vuelta, 13 tests medidos en las DOS y los 19
+   jugadores en ambas— y `grep` sobre todo el archivo daba **cero
+   consumidores**. Es dato que el club ya paga por recoger y del que no
+   obtiene nada.
+
+   Lo que contesta es una pregunta de equipo que no está en ninguna pantalla:
+   *¿qué ha dejado la pretemporada?*. Lo que ya existe —«Camino a Champions»
+   y el progreso del TSA— es por JUGADOR y contra la primera medición de la
+   temporada; esto es por EQUIPO y contra la fase anterior, que es como se
+   planifica un bloque.
+
+   Cinco reglas, ninguna inventada:
+   · **Las fases salen de la hoja**, no de una lista fija ni de una fecha de
+     corte: se ordenan por su primera medición, así que cuando escribáis
+     «2ª Vuelta» aparecerá sola.
+   · **Solo esta temporada** (`TEMP_INICIO`), el mismo corte que el baremo.
+   · **Se compara el último valor de cada fase**: estado al cerrar un bloque
+     contra estado al cerrar el siguiente, que es comparar lo mismo con lo
+     mismo. Un jugador sin medición en las dos fases **no se compara**.
+   · **Nada de porcentajes.** Ya está escrito para el progreso del TSA: el %
+     se dispara con bases pequeñas. El cambio va en la unidad del test.
+   · **La flecha dice la dirección del dato y el color si es a mejor o a
+     peor**, que son dos cosas distintas — misma regla que Camino a
+     Champions. La dirección de cada test sale de su `lowerBetter`. */
+const VHF_LS='bmnava_vhfases';
+/* Sin direccion buena: la app ya los trata asi en las metricas de la ficha. */
+const VHF_NEUTRAL=['peso','talla'];
+function vhFasesLoad(){if(!STATE.vhFases)STATE.vhFases=lsLeer(VHF_LS,{})||{};return STATE.vhFases;}
+function vhFasesPersist(){try{return lsGuardar(VHF_LS,vhFasesLoad());}catch(e){return false;}}
+function vhFaseSet(dk,fase){const M=vhFasesLoad();if(dk&&fase)M[dk]=fase;}
+function vhFaseDe(dk){return vhFasesLoad()[dk]||'';}
+/* Las fases que hay, de la más antigua a la más nueva, solo de esta temporada. */
+function vhFasesLista(){
+  const M=vhFasesLoad(),por={};
+  Object.keys(M).forEach(dk=>{
+    if(dk<TEMP_INICIO)return;
+    const f=M[dk];if(!f)return;
+    const o=por[f]||(por[f]={fase:f,desde:dk,hasta:dk,dks:[]});
+    if(dk<o.desde)o.desde=dk; if(dk>o.hasta)o.hasta=dk;
+    o.dks.push(dk);
+  });
+  return Object.values(por).sort((a,b)=>a.desde<b.desde?-1:1);
+}
+/* Último valor de un test para un jugador DENTRO de una fase. */
+function vhValEnFase(name,k,fase){
+  const h=(STATE.testHist||{})[name]||[];
+  let v=null,dk='';
+  h.forEach(r=>{
+    const rd=r&&(r.date||r.dk);
+    if(!rd||rd<TEMP_INICIO)return;
+    if(vhFaseDe(rd)!==fase.fase)return;
+    const x=r.vals&&r.vals[k];
+    if(x==null||isNaN(x))return;
+    if(!dk||rd>=dk){v=+x;dk=rd;}
+  });
+  return v==null?null:{v,dk};
+}
+/* Compara las dos últimas fases con datos. Devuelve null si no hay dos. */
+function vhComparaFases(){
+  const fs=vhFasesLista();
+  if(fs.length<2)return null;
+  const B=fs[fs.length-1], A=fs[fs.length-2];
+  const names=Object.keys(STATE.players||{});
+  const tests=[];
+  (typeof TESTS!=='undefined'?TESTS:[]).forEach(t=>{
+    const pares=[];
+    names.forEach(n=>{
+      const a=vhValEnFase(n,t.k,A), b=vhValEnFase(n,t.k,B);
+      if(a&&b)pares.push({name:n,a:a.v,b:b.v,d:b.v-a.v});
+    });
+    if(!pares.length)return;
+    /* v451 · Talla y peso NO tienen dirección buena, y la app ya lo dice en
+       otro sitio (`neutral:true` en las métricas de la ficha). Sin esto, el
+       panel pintaba en ROJO a quien había adelgazado. Van en neutro y sin
+       veredicto, la misma regla que el contacto y la FC media de la lámina:
+       no tienen banda, y no se inventa una. */
+    const neutro=VHF_NEUTRAL.indexOf(t.k)>=0;
+    const mejor=d=>neutro?false:(t.lowerBetter?d<0:d>0);
+    const ds=pares.map(x=>x.d).sort((x,y)=>x-y);
+    const med=ds.length%2?ds[(ds.length-1)/2]:(ds[ds.length/2-1]+ds[ds.length/2])/2;
+    tests.push({t,neutro,n:pares.length,med,
+      suben:pares.filter(x=>mejor(x.d)).length,
+      bajan:pares.filter(x=>x.d!==0&&!mejor(x.d)).length,
+      pares});
+  });
+  tests.sort((x,y)=>y.n-x.n||x.t.name.localeCompare(y.t.name,'es'));
+  /* Por jugador: cuántas pruebas a mejor y cuántas a peor. No se compone una
+     nota única: sumar cambios de pruebas con unidades distintas no significa
+     nada, y una nota compuesta ya la da el TSA. */
+  const porJug={};
+  tests.forEach(o=>{
+    if(o.neutro)return;          /* un neutro no suma ni resta en el recuento */
+    const mejor=d=>o.t.lowerBetter?d<0:d>0;
+    o.pares.forEach(x=>{
+      const e=porJug[x.name]||(porJug[x.name]={name:x.name,mejor:0,peor:0,igual:0});
+      if(x.d===0)e.igual++; else if(mejor(x.d))e.mejor++; else e.peor++;
+    });
+  });
+  const jug=Object.values(porJug).sort((a,b)=>(b.mejor-b.peor)-(a.mejor-a.peor)||a.name.localeCompare(b.name,'es'));
+  return {A,B,tests,jug};
+}
+function renderVhFases(){
+  const box=document.getElementById('vh-fases');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const C=vhComparaFases();
+  if(!C){
+    const fs=vhFasesLista();
+    box.innerHTML='<h2>Qué ha dejado cada fase</h2>'
+      +'<p class="hint">'+(fs.length===1
+        ? 'Solo hay una fase con mediciones (<b>'+esc(fs[0].fase)+'</b>). En cuanto haya una segunda se podrá comparar.'
+        : 'La hoja de valoraciones tiene una columna <b>fase</b> (Pre-Temporada, 1ª Vuelta…). En cuanto esté rellena en dos bloques, aquí sale qué ha cambiado de uno a otro.')
+      +'</p>';
+    return;
+  }
+  const fmtv=(v,u)=>(Math.round(v*100)/100).toString().replace('.',',')+(u?' '+u:'');
+  const fmtd=(d,u)=>(d>0?'+':'')+fmtv(d,u);
+  const filas=C.tests.map(o=>{
+    const t=o.t, mejor=t.lowerBetter?o.med<0:o.med>0;
+    const nulo=Math.abs(o.med)<1e-9;
+    /* flecha = hacia dónde se ha movido el dato · color = si eso es a mejor */
+    const fl=nulo?'▬':(o.med>0?'▲':'▼');
+    const col=(nulo||o.neutro)?'var(--muted2)':(mejor?'var(--ok)':'var(--bad)');
+    const flojo=o.n<3;   /* misma regla que calRefMD: con menos de 3 se atenúa y se dice */
+    return '<div class="vhf-r'+(flojo?' vhf-r--flojo':'')+'">'
+      +'<span class="vhf-t">'+esc(t.name)+'<em>'+esc(t.cat||'')+'</em></span>'
+      +'<span class="vhf-d" style="color:'+col+'">'+fl+' '+esc(fmtd(o.med,t.unit))+'</span>'
+      +'<span class="vhf-b">'+(o.neutro?'':'<i class="vhf-up" style="width:'+Math.round(o.suben/o.n*100)+'%"></i>'
+        +'<i class="vhf-dn" style="width:'+Math.round(o.bajan/o.n*100)+'%"></i>')+'</span>'
+      +'<span class="vhf-n">'+(o.neutro?('n='+o.n):(o.suben+'/'+o.n))+(flojo?' ·pocos':'')+'</span>'
+      +'</div>';
+  }).join('');
+  const jug=C.jug.map(j=>{
+    const net=j.mejor-j.peor;
+    const col=net>0?'var(--ok)':net<0?'var(--bad)':'var(--muted2)';
+    return '<div class="vhf-j" onclick="openPlayer(\''+esc(j.name).replace(/'/g,"\\'")+'\')">'
+      +'<span>'+esc(j.name)+'</span>'
+      +'<b style="color:'+col+'">'+(net>0?'+':'')+net+'</b>'
+      +'<u>'+j.mejor+' a mejor · '+j.peor+' a peor</u></div>';
+  }).join('');
+  const fecha=d=>d.split('-').reverse().slice(0,2).join('/');
+  box.innerHTML='<h2>Qué ha dejado la fase '
+    +'<span class="r muted">'+esc(C.A.fase)+' → '+esc(C.B.fase)+'</span></h2>'
+    +'<p class="hint" style="margin:-2px 0 14px">Se compara el <b>último valor de cada fase</b> de quien tiene medición en las dos. '
+    +esc(C.A.fase)+' cerró el '+fecha(C.A.hasta)+' y '+esc(C.B.fase)+' el '+fecha(C.B.hasta)+'. '
+    +'La flecha dice hacia dónde se ha movido el dato; el color, si eso es a mejor o a peor.</p>'
+    +'<div class="vhf-cols"><div>'
+      +'<div class="vhf-sub">Por prueba · mediana del cambio</div>'+(filas||'<p class="hint">Ninguna prueba se midió en las dos fases.</p>')
+    +'</div><div>'
+      +'<div class="vhf-sub">Por jugador · pruebas a mejor menos a peor</div>'+(jug||'')
+    +'</div></div>';
+}
+window.renderVhFases=renderVhFases;
 function vhIngestLong(rows){
   const res={rows:0,ok:0,players:0,tests:0,unknownTests:{},unknownPlayers:{},noDate:0,noPlayer:0,noValue:0,zeros:0,errs:0,dates:[]};
   if(!rows||!rows.length)return res;
@@ -33200,6 +33386,12 @@ function vhIngestLong(rows){
   const cV=vhFindCol(first,['valor','value','resultado','dato','medida']);
   const cS=vhFindCol(first,['lado','side','pierna','miembro']);
   const cO=vhFindCol(first,['observaciones','obs','nota','comentario']);
+  /* v451 · La hoja trae una columna `fase` —Pre-Temporada, 1ª Vuelta…— que
+     hasta ahora no leía nadie. **No entra en `vhCommit`**: la fase no es de la
+     medición, es del DÍA, y comprobado sobre la hoja real ninguna fecha tiene
+     dos fases distintas. Va en un mapa aparte, fecha → fase, y la estructura
+     de `STATE.testHist` no se toca. */
+  const cFase=vhFindCol(first,['fase','periodo','período','bloque','etapa']);
   if(!cF||!cP||!cT||!cV){
     res.error='Faltan columnas obligatorias. Necesito: fecha, jugador, test, valor.'+
       ' Detectadas: '+[cF&&'fecha',cP&&'jugador',cT&&'test',cV&&'valor'].filter(Boolean).join(', ');
@@ -33240,6 +33432,7 @@ function vhIngestLong(rows){
     const cell=acc[nm][dk][def.k]=acc[nm][dk][def.k]||{};
     if(side==='L')cell.L=v; else if(side==='R')cell.R=v; else cell.single=v;
     if(cO&&row[cO])cell.obs=String(row[cO]).trim();
+    if(cFase){const fa=String(row[cFase]||'').trim();if(fa)vhFaseSet(dk,fa);}
     res.ok++;
   });
   /* Volcado unificado: el mismo vhCommit que usa el formato ancho, para que las
@@ -33247,6 +33440,7 @@ function vhIngestLong(rows){
      copia con distinta regla de asimetría, y una hoja exportada y reimportada
      salía con valores ligeramente distintos a los de origen. */
   vhCommit(acc,res);
+  try{vhFasesPersist();}catch(e){}
   return res;
 }
 
@@ -34417,8 +34611,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-23.4*/
-const VER_ACTUAL='2026-10-23.4';
+/*BUILD:2026-10-25.1*/
+const VER_ACTUAL='2026-10-25.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
