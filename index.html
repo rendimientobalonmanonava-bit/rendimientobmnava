@@ -3305,6 +3305,18 @@ html[data-theme="dark"] .hq-ct button.on{border-color:#4bb8cf;background:rgba(75
 /* ══ v303 · a quién mirar hoy ══ */
 /* v309 · rejilla de tarjetas cuadradas */
 .fh-cand{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:10px}
+.fh-avs{display:flex;flex-direction:column;margin:0 0 4px}
+/* Fila de aviso: el nombre no se encoge y el mensaje sí, con min-width:0 para
+   que no empuje nada fuera en el móvil. */
+.fh-av1{display:flex;align-items:center;gap:9px;width:100%;text-align:left;font:inherit;
+  color:var(--txt);background:none;border:0;border-bottom:.5px solid var(--hair);
+  padding:8px 2px;cursor:pointer}
+.fh-av1:last-child{border-bottom:0}
+.fh-av1 i{width:7px;height:7px;border-radius:50%;background:var(--uc);flex:0 0 auto}
+.fh-av1 b{font-size:13px;font-weight:650;flex:0 0 auto}
+.fh-av1 span{font-size:12.5px;color:var(--muted);flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 .fh-c{display:flex;flex-direction:column;gap:7px;padding:13px;border:1px solid var(--hair);
   border-top:3px solid var(--uc,var(--hair));border-radius:12px;background:var(--panel);
   min-width:0}
@@ -19057,6 +19069,39 @@ function fisHoyPanel(){
         +'</span>':'')
     +'</div>';
   };
+  /* ═══ v459 · Los avisos de SUS tratamientos, donde ella trabaja ═══
+     `medPhysioAlerts()` ya calculaba cuatro —lesión abierta sin tratar 3+ días,
+     jugador visto 6+ veces en la semana, respuesta «empeora» y dolor que sube
+     tras el tratamiento— pero se pintaban SOLO en `med-physio-today`, que vive
+     en la pestaña **Médico**. Virginia trabaja en Fisioterapia, así que no los
+     había visto nunca: preguntada el 26/10/2026 marcó «no lo conocía» justo en
+     el del dolor que sube.
+     **No se calcula nada nuevo ni se inventa ningún umbral**: es la misma
+     función con un consumidor más, que es como está hecho el resto de la app.
+     El día que cambien los umbrales, cambian en los dos sitios a la vez.
+     Aquí el rojo SÍ es rojo de alerta —son alertas— y por eso `riesgo` va en
+     `--bad`; lo demás baja a ámbar y a neutro. */
+  const AV_COL={riesgo:'var(--bad)',vigilancia:'var(--warn)',info:'var(--muted)'};
+  const AV_ORD={riesgo:0,vigilancia:1,info:2};
+  let avisos='';
+  try{
+    const al=(typeof medPhysioAlerts==='function'?medPhysioAlerts():[])
+      .slice().sort((a,b)=>(AV_ORD[a.level]==null?3:AV_ORD[a.level])
+                          -(AV_ORD[b.level]==null?3:AV_ORD[b.level]));
+    if(al.length){
+      /* Se cortan en ocho y se dice cuántos quedan, como el microciclo: una
+         lista larga de avisos deja de leerse y empuja lo de abajo. */
+      const top=al.slice(0,8);
+      avisos='<div class="fh-sec">Sobre tus tratamientos · '+al.length+'</div>'
+        +'<div class="fh-avs">'+top.map(a=>
+            '<button type="button" class="fh-av1" style="--uc:'+(AV_COL[a.level]||'var(--muted)')+'" '
+            +'onclick="openPlayer(\''+q(a.name)+'\')">'
+            +'<i></i><b>'+esc(a.name)+'</b><span>'+esc(a.msg)+'</span></button>').join('')
+          +(al.length>top.length
+            ? '<div class="small muted" style="padding:6px 2px">y '+(al.length-top.length)+' más</div>':'')
+        +'</div>';
+    }
+  }catch(e){}
   /* v303 · a quién mirar hoy: problemas abiertos, pero también quién declara
      dolor y dónde, quién viene con agujetas y quién está fundido. */
   const cand=fisCandidatos();
@@ -19109,7 +19154,7 @@ function fisHoyPanel(){
     +'<div class="fb-wrap"><input class="fb-in" placeholder="Buscar jugador, lesión o tratamiento…" '
       +'oninput="fisBuscar(this.value)" onfocus="fisBuscar(this.value)">'
       +'<div class="fb-res" id="fis-bres" style="display:none"></div></div>'
-    +cuerpo+pend
+    +avisos+cuerpo+pend
   +'</div>';
 }
 /* ═══ v301 · Series de sesiones ═══
@@ -20064,10 +20109,13 @@ function vendSetDia(dk){
 function vendDiaMover(n){vendSetDia(fisDkSuma(vendDkey(),n));}
 window.vendSetDia=vendSetDia;window.vendDiaMover=vendDiaMover;
 /* v456 · Las respuestas de Virginia (26/10/2026), sembradas desde el código.
-   `bmnava_vendajes` vive en el `localStorage` de CADA navegador y el alta de
-   Supabase sigue sin confirmar, así que lo que escriba en su equipo no llega
-   al de nadie más: misma razón por la que el pedido de FullGas va en el
-   código y no en una importación.
+   Contestó por escrito, no en la app, así que había que meterlas por alguien.
+   *Corrección del 26/10/2026: la primera versión de este comentario decía que
+   Supabase no estaba dado de alta y que por eso un dato escrito en un equipo
+   no llegaba a otro. **Era falso** —Daniel: «sí que tengo Supabase y sí que
+   nos llega todo lo que ella hace»— y venía de una línea caducada de
+   CLAUDE.md. La siembra sigue valiendo por el motivo de verdad: nadie las
+   había escrito todavía y esto no pisa nada.*
 
    **Se siembra una vez y no pisa nada**: si un campo ya tiene valor puesto a
    mano, se respeta — quien está delante del armario sabe más que esta tabla.
@@ -34908,8 +34956,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.7*/
-const VER_ACTUAL='2026-10-26.7';
+/*BUILD:2026-10-26.8*/
+const VER_ACTUAL='2026-10-26.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
