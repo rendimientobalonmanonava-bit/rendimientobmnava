@@ -19950,7 +19950,7 @@ function fisKpiFila(){
       try{
         const st=vendStock(hoy);
         if(st.quedan==null||st.quedan>VEND_STOCK_AVISO)return '';
-        return kpi(st.quedan,'Tape · te queda para',
+        return kpi(st.quedan,'Tape ancho · te queda para',
           String(Math.round(st.rollosSem*10)/10).replace('.',',')+' rollos por semana',
           st.quedan<=2?'var(--bad)':'var(--warn)');
       }catch(e){return '';}
@@ -20302,10 +20302,29 @@ function vendPorZona(desde,hasta){
 }
 /* Centímetros de tape de un tramo. Devuelve null mientras no haya ni una zona
    configurada: sin eso no hay consumo que dar, y dar uno sería inventarlo. */
-function vendCm(desde,hasta){
+/* v462 · El stock es de UN material, no de la suma de todos.
+   Daniel, 26/10/2026: «los 900 son de tape solo» y «a Virginia solo le interesa
+   el tape gordo». Hasta aquí `vendCm` sumaba los centímetros de TODAS las zonas
+   y dividía el total entre un rollo de 10 m —o sea que metía en el mismo
+   recuento el tape de 3,75, el de 2 cm de los dedos y el Tensoplast de las
+   rodillas, que son rollos distintos—. Un stock que mezcla materiales no
+   cuadra con el armario.
+
+   El reparto sale **de lo que escribió ella**, no de un criterio mío: «tape de
+   3,75 cm para los tobillos y las muñecas; para dedos uno más estrecho, de 2
+   cm; para las manos uso ambos; Tensoplast para rodillas o codos».
+   **La mano cuenta entera y eso sobreestima un poco**, porque ahí usa los dos
+   anchos y no dijo en qué proporción: repartirlo a ojo sería inventar el dato,
+   así que se cuenta completo y la pantalla lo dice. */
+const VEND_TAPE_GORDO=['tobillo','muneca','mano'];
+function vendCm(desde,hasta,soloGordo){
   const cfg=vendLoad().cfg, z=vendPorZona(desde,hasta);
   let cm=0, hay=false, faltan=[];
   Object.keys(z).forEach(k=>{
+    /* Las zonas de otro material no entran, y tampoco se reclaman sus
+       centímetros: pedir los de una rodilla para el stock del tape gordo
+       sería pedir un dato que no se va a usar. */
+    if(soloGordo&&VEND_TAPE_GORDO.indexOf(k)<0)return;
     const c=+cfg.cm[k]||0;
     if(c>0){hay=true;cm+=c*z[k];}
     else if(z[k]>0)faltan.push(VEND_LAB[k]||k);
@@ -20324,7 +20343,7 @@ const VEND_STOCK_AVISO=5;   /* una semana de trabajo, la unidad que ya usa el pa
 function vendStock(hastaDk){
   const hasta=hastaDk||dkey(new Date());
   const desde=fisDkSuma(hasta,-13);
-  const cm14=vendCm(desde,hasta);
+  const cm14=vendCm(desde,hasta,true);   /* v462 · solo el tape gordo */
   const V=vendLoad();
   const rollo=+V.cfg.rollo||0, stock=+V.cfg.stock||0;
   const dias=[...new Set(V.reg.map(r=>r&&r.dk).filter(d=>d&&d>=desde&&d<=hasta))].length;
@@ -20496,7 +20515,7 @@ function vendPanel(){
   const c14desde=fisDkSuma(hoyReal,-13);
   const ST=vendStock(hoyReal);           /* v460 · un solo sitio */
   const cm14=ST.cm14;
-  const cmDia=vendCm(dk,dk);
+  const cmDia=vendCm(dk,dk,true);
   const rollo=ST.rollo, stock=ST.stock;
   const dias=ST.dias;
   let consumo;
@@ -20572,11 +20591,12 @@ function vendPanel(){
     +'<div class="vd-grid">'+cab+filas+'</div>'
     +'<p class="hint">El punto ámbar junto al nombre es <b>dolor que ha declarado él</b> en el cuestionario de ese día, y la casilla con borde ámbar es la zona. Es información, no una indicación: vendas tú. <b>✕</b> en vez de punto significa que dijo que fue por un golpe.</p>'
     +'<p class="hint"><b>2</b> = los dos lados · <b>I</b> = izquierdo · <b>D</b> = derecho. Cada toque pasa al siguiente y el cuarto lo quita. Lo que no sea una de estas seis zonas se sigue apuntando como tratamiento en Médico.</p>'
-    +'<details class="vd-det"'+(abrirTape?' open':'')+'><summary>Tape y stock'
+    +'<details class="vd-det"'+(abrirTape?' open':'')+'><summary>Tape ancho y stock'
       +(abrirTape?'<span class="vd-falta">faltan datos</span>':'')+'</summary>'
     +(pideTape?'<div class="nut-aviso">'+pideTape+'</div>':'')
     +consumo
     +'<div class="vd-sub">Centímetros de tape por vendaje</div>'
+    +'<p class="hint" style="margin:0 0 8px">El consumo y el stock de arriba cuentan <b>solo el tape ancho</b> (3,75 cm): tobillo, muñeca y mano. Dedos (tape de 2 cm) y rodilla u hombro (Tensoplast) se apuntan igual, pero van en otro rollo y no entran en la cuenta. La mano cuenta entera, así que sobra un poco: ahí usas los dos anchos.</p>'
     +'<div class="vd-form">'+cfgCampos+'</div>'
     /* La nota del material va PEGADA a los números: ella usa cuatro cosas
        distintas —tape de 3,75, de 2, pretape y Tensoplast— y una sola cifra
@@ -35087,8 +35107,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.10*/
-const VER_ACTUAL='2026-10-26.10';
+/*BUILD:2026-10-26.11*/
+const VER_ACTUAL='2026-10-26.11';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
