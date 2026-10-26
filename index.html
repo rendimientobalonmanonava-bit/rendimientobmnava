@@ -2736,6 +2736,9 @@ main{padding:20px 18px 80px}
 .vd-r--on .vd-t{color:var(--txt)}
 .vd-det{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
 .vd-det summary{cursor:pointer;font-size:13px;font-weight:700}
+.vd-falta{display:inline-block;margin-left:8px;font-size:11px;font-weight:700;
+  color:var(--warn);background:var(--warn-soft,rgba(230,167,0,.14));
+  border-radius:999px;padding:2px 8px;vertical-align:1px}
 .vd-sub{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   color:var(--muted2);margin:14px 0 8px}
 .vd-form{display:flex;gap:10px;flex-wrap:wrap}
@@ -20294,6 +20297,29 @@ function vendPanel(){
       +'</div>'
       +(cm14.faltan.length?'<div class="nut-aviso">Sin centímetros puestos en: '+esc(cm14.faltan.join(', '))+'. Esos vendajes no cuentan en el consumo.</div>':'');
   }
+  /* v455 · El bloque de tape llevaba plegado desde que existe, y por eso los
+     centímetros seguían vacíos: la pregunta que desbloquea el cálculo estaba
+     escondida detrás de un pliegue, en un panel recién estrenado. Se abre solo
+     mientras falte lo que IMPIDE calcular —los centímetros de una zona que de
+     verdad se venda, o los metros del rollo— y dice exactamente qué falta.
+     **El stock no lo abre**: sin él el consumo sale igual, solo deja de decir
+     para cuántos días queda; abrirlo por eso sería avisar de algo opcional.
+     Y no se abre si todavía no se ha vendado nada: sin vendajes no hay nada
+     que calcular y el aviso sobraría. */
+  const faltaCm=!cm14||cm14.faltan.length;
+  const faltaRollo=!(rollo>0);
+  const abrirTape=dias>0&&(faltaCm||faltaRollo);
+  const pideTape=(function(){
+    if(!abrirTape)return '';
+    const p=[];
+    if(!cm14)p.push('los <b>centímetros de tape</b> que gastas en cada zona');
+    else if(cm14.faltan.length)p.push('los <b>centímetros</b> de: '+esc(cm14.faltan.join(', ')));
+    if(faltaRollo)p.push('los <b>metros que trae un rollo</b>');
+    /* «falta por poner» y no «falta»: la lista puede ser singular o plural
+       según lo que quede, y «falta los centímetros» no concuerda. */
+    return 'Para calcular el tape que gastas falta por poner '+p.join(' y ')
+      +'. A ojo vale, y se pone una sola vez.';
+  })();
   const cfgCampos=VEND_ZONAS.map(([z,lab])=>
     '<label class="vd-f"><span>'+esc(lab)+'</span><input type="text" inputmode="decimal" value="'+(V.cfg.cm[z]!=null?String(V.cfg.cm[z]).replace('.',','):'')+'" placeholder="cm" onchange="vendSetCm(\''+z+'\',this.value)"></label>').join('');
 
@@ -20331,7 +20357,9 @@ function vendPanel(){
     +'<div class="vd-grid">'+cab+filas+'</div>'
     +'<p class="hint">El punto ámbar junto al nombre es <b>dolor que ha declarado él</b> en el cuestionario de ese día, y la casilla con borde ámbar es la zona. Es información, no una indicación: vendas tú. <b>✕</b> en vez de punto significa que dijo que fue por un golpe.</p>'
     +'<p class="hint"><b>2</b> = los dos lados · <b>I</b> = izquierdo · <b>D</b> = derecho. Cada toque pasa al siguiente y el cuarto lo quita. Lo que no sea una de estas seis zonas se sigue apuntando como tratamiento en Médico.</p>'
-    +'<details class="vd-det"><summary>Tape y stock</summary>'
+    +'<details class="vd-det"'+(abrirTape?' open':'')+'><summary>Tape y stock'
+      +(abrirTape?'<span class="vd-falta">faltan datos</span>':'')+'</summary>'
+    +(pideTape?'<div class="nut-aviso">'+pideTape+'</div>':'')
     +consumo
     +'<div class="vd-sub">Centímetros de tape por vendaje</div>'
     +'<div class="vd-form">'+cfgCampos+'</div>'
@@ -34775,8 +34803,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.2*/
-const VER_ACTUAL='2026-10-26.2';
+/*BUILD:2026-10-26.3*/
+const VER_ACTUAL='2026-10-26.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
