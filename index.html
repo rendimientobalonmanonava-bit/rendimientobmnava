@@ -13339,7 +13339,7 @@ function renderPlSesiones(name){
     const nivc=r.nivel===2?'var(--bad)':r.nivel===1?'var(--warn)':'var(--ok)';
     return '<div class="pls-r">'
       +'<div class="pls-h">'
-        +'<span class="pls-d">'+esc(r.dk.slice(8)+'/'+r.dk.slice(5,7))+'</span>'
+        +'<span class="pls-d">'+esc(r.dk.slice(8)+'/'+r.dk.slice(5,7)+(r.dk<TEMP_INICIO?'/'+r.dk.slice(2,4):''))+'</span>'
         +'<span class="pls-l" title="'+esc(r.lab)+'">'+esc(r.lab)+'</span>'
         +(r.partido?'<span class="pls-tag" style="color:var(--ok)">Partido</span>':'')
         +(niv?'<span class="pls-tag" style="color:'+nivc+'">'+niv+'</span>':'')
@@ -13355,8 +13355,19 @@ function renderPlSesiones(name){
       +'</div>'
     +'</div>';
   }).join('');
+  /* v466 \u00b7 La fecha iba como DD/MM, sin a\u00f1o, y esta lista coge las \u00faltimas
+     seis sesiones **sin mirar la temporada**: un \u00ab30/05\u00bb pod\u00eda ser de la 25/26 o
+     de la 26/27 y no hab\u00eda forma de saberlo. Ahora las anteriores a
+     `TEMP_INICIO` llevan el a\u00f1o, y si la m\u00e1s reciente es de otra temporada se
+     dice en la cabecera: ense\u00f1ar sesiones viejas sin avisar hace pensar que el
+     jugador entren\u00f3 la semana pasada. */
+  const viejas=d.length&&d[0].dk<TEMP_INICIO;
   box.innerHTML='<div class="panel"><h2>Sus \u00faltimas sesiones '
-    +'<span class="r muted" style="font-weight:400;font-size:12.5px">puls\u00f3metro \u00b7 '+d.length+'</span></h2>'
+    +'<span class="r muted" style="font-weight:400;font-size:12.5px">'
+      +(viejas?'temporada anterior':'puls\u00f3metro \u00b7 '+d.length)+'</span></h2>'
+    +(viejas?'<p class="hint" style="margin:2px 0 10px">La captura m\u00e1s reciente de este jugador es '
+      +'<b>anterior al 1 de julio</b>, o sea de la temporada pasada. No hay sesiones suyas con '
+      +'puls\u00f3metro en la 26/27.</p>':'')
     +'<div class="pls-leg">'+['Z1','Z2','Z3','Z4','Z5'].map((z,i)=>
       '<span><i style="background:'+ZC[i]+'"></i>'+z+'</span>').join('')+'</div>'
     +filas
@@ -35631,8 +35642,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.14*/
-const VER_ACTUAL='2026-10-26.14';
+/*BUILD:2026-10-26.15*/
+const VER_ACTUAL='2026-10-26.15';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
