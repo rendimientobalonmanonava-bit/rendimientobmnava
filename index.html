@@ -3305,6 +3305,12 @@ html[data-theme="dark"] .hq-ct button.on{border-color:#4bb8cf;background:rgba(75
 /* ══ v303 · a quién mirar hoy ══ */
 /* v309 · rejilla de tarjetas cuadradas */
 .fh-cand{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:10px}
+.fn-par{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.fn-c{background:var(--panel2);border-radius:11px;padding:10px 12px;min-width:0}
+.fn-c em{display:block;font-style:normal;font-size:10.5px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.fn-c b{display:block;font-size:23px;font-weight:700;line-height:1.15;margin-top:2px}
+.fn-c u{display:block;text-decoration:none;font-size:11.5px;color:var(--muted);margin-top:1px}
 .fh-avs{display:flex;flex-direction:column;margin:0 0 4px}
 /* Fila de aviso: el nombre no se encoge y el mensaje sí, con min-width:0 para
    que no empuje nada fuera en el móvil. */
@@ -18873,6 +18879,76 @@ function fisEfecto(dias){
    La pregunta que nadie podía contestar: ¿el pico de carga del martes se paga
    el jueves? Dos series sobre los mismos días: las UA del equipo y cuánta gente
    declara dolor a la mañana siguiente. */
+/* ═══ v461 · ¿Sirvió el tratamiento? Medido con lo que declara ÉL ═══
+   `fisEfecto` ya contesta esto, pero **solo con `painPre`/`painPost`, que hay
+   que teclear a mano**. Virginia, 26/10/2026: conoce «Qué está funcionando» y
+   no lo usa —y se entiende, el dolor dos minutos después de la camilla dice
+   poco—. Mientras tanto los jugadores declaran dónde les duele cada mañana:
+   **601 declaraciones con zona entre febrero y octubre de 2026**, y 492 de 600
+   siguen al día siguiente, o sea que es una señal persistente y no ruido. Esto
+   no cuesta escribir nada a nadie.
+
+   Cuatro reglas, **ninguna nueva en este proyecto**:
+   · Se compara por **región**, no por texto libre: `fisZonas` + `zoneRegion`,
+     los mismos que el mapa corporal y la rejilla de vendajes.
+   · **Tenía que haber algo que tratar**: solo entran los tratamientos con dolor
+     declarado en esa región el mismo día o el anterior.
+   · **Y siempre contra una población de control** —dolores de la misma región
+     que NO se trataron—: si el 70 % se pasa solo, que el 70 % se pase tras
+     tratarlo no dice nada. Es la regla ya escrita para `lesCarga`.
+   · Por debajo de `FUN_MIN` casos se enseña el recuento y **se calla la
+     conclusión**.
+   **No demuestra causa y el texto lo dice**: se trata lo que más duele, así que
+   los tratados parten de peor sitio que los no tratados. */
+const FUN_MIN=8;        /* mismo orden que LES_MIN=6 y HRE_MIN=6 */
+const FUN_ESPERA=2;     /* se le dan dos días antes de mirar */
+const FUN_VENTANA=4;    /* y se mira hasta el cuarto */
+function fisFunciono(dias){
+  const hasta=dkey(REF());
+  const desde=fisDkSuma(hasta,-(dias||89));
+  /* jugador|fecha -> regiones con dolor declarado */
+  const dol={};
+  (STATE.wellness||[]).forEach(w=>{
+    if(!w||!w.dk||!w.dolor||w.dk<fisDkSuma(desde,-3)||w.dk>hasta)return;
+    const S=dol[w.name+'|'+w.dk]||(dol[w.name+'|'+w.dk]=new Set());
+    fisZonas(w.zona).forEach(z=>{const r=zoneRegion(z);if(r)S.add(r);});
+  });
+  const tiene=(n,d,r)=>{const S=dol[n+'|'+d];return !!(S&&S.has(r));};
+  const sigue=(n,d,r)=>{
+    for(let i=FUN_ESPERA;i<=FUN_VENTANA;i++)if(tiene(n,fisDkSuma(d,i),r))return true;
+    return false;
+  };
+  /* El tope de arriba descuenta la ventana: un caso de anteayer todavía no se
+     puede juzgar, y contarlo como «resuelto» sería inventarse el desenlace. */
+  const tope=fisDkSuma(hasta,-FUN_VENTANA);
+  const tratado=new Set(), casos=[];
+  ((STATE.med||{}).treat||[]).forEach(t=>{
+    if(!t||!t.dk||t.dk<desde||t.dk>tope)return;
+    const r=zoneRegion(t.bodyZone||'');
+    if(!r)return;
+    /* se apunta SIEMPRE, aunque no haya dolor declarado: sirve para sacarlo
+       del grupo de control, que es lo que hace honesta la comparación */
+    tratado.add(t.name+'|'+t.dk+'|'+r);
+    if(!tiene(t.name,t.dk,r)&&!tiene(t.name,fisDkSuma(t.dk,-1),r))return;
+    casos.push({name:t.name,dk:t.dk,r,tipo:(t.tipo||'Sin tipo'),sigue:sigue(t.name,t.dk,r)});
+  });
+  const ctrl=[];
+  Object.keys(dol).forEach(k=>{
+    const i=k.lastIndexOf('|'), n=k.slice(0,i), d=k.slice(i+1);
+    if(d<desde||d>tope)return;
+    dol[k].forEach(r=>{
+      if(tratado.has(n+'|'+d+'|'+r)||tratado.has(n+'|'+fisDkSuma(d,1)+'|'+r))return;
+      ctrl.push({sigue:sigue(n,d,r)});
+    });
+  });
+  const pct=a=>a.length?Math.round(a.filter(x=>!x.sigue).length/a.length*100):null;
+  const porTipo={};
+  casos.forEach(c=>{(porTipo[c.tipo]=porTipo[c.tipo]||[]).push(c);});
+  return {n:casos.length,nCtrl:ctrl.length,min:FUN_MIN,
+    mejora:pct(casos),mejoraCtrl:pct(ctrl),
+    tipos:Object.keys(porTipo).map(k=>({tipo:k,n:porTipo[k].length,pct:pct(porTipo[k])}))
+      .filter(x=>x.n>=3).sort((a,b)=>b.pct-a.pct)};
+}
 function fisCargaDolor(dias){
   dias=dias||21;
   const hasta=dkey(REF());
@@ -20033,7 +20109,29 @@ function fisPanelGraficos(){
         : '<b style="color:var(--warn)">Sin carga en estos 21 días.</b> La carga es RPE × minutos: si falta la duración de las sesiones, no hay barras que pintar. Se comprueba en Conexión.')
       +'</p>'
   +'</div>';
-  return '<div class="fis-gs">'+mapa+rachas+efecto+cd+'</div>';
+  /* v461 · La pareja de «Qué está funcionando»: la misma pregunta contestada
+     con el dolor que declara el jugador, sin que ella teclee nada. Va al lado
+     a propósito, para que se lean como dos lecturas de lo mismo. */
+  const F=fisFunciono(90);
+  const funciono='<div class="panel fis-g"><div class="eyebrow">90 d\u00edas</div>'
+    +'<div class="pro-title sm">\u00bfSe le pas\u00f3? <span class="muted" style="font-weight:400;font-size:12px">\u00b7 seg\u00fan lo que declara \u00e9l</span></div>'
+    +(F.n>=F.min
+      ? '<div class="fn-par">'
+          +'<div class="fn-c"><em>Tratado</em><b style="color:var(--ok)">'+F.mejora+'%</b>'
+            +'<u>se le pas\u00f3 \u00b7 '+F.n+' caso'+(F.n===1?'':'s')+'</u></div>'
+          +'<div class="fn-c"><em>Sin tratar</em><b>'+(F.mejoraCtrl==null?'\u2014':F.mejoraCtrl+'%')+'</b>'
+            +'<u>'+F.nCtrl+(F.nCtrl===1?' comparaci\u00f3n':' comparaciones')+'</u></div>'
+        +'</div>'
+        +(F.tipos.length
+          ? '<div class="fis-zl" style="margin-top:10px">'+F.tipos.map(t=>
+              '<div class="fis-zr"><div class="fis-zt"><span>'+esc(t.tipo)+'</span><b>'+t.pct+'%</b></div>'
+              +'<div class="fis-bar"><i style="width:'+t.pct+'%;background:var(--ok)"></i></div>'
+              +'<div class="fis-zq">'+t.n+' caso'+(t.n===1?'':'s')+'</div></div>').join('')+'</div>'
+          : '')
+        +'<p class="hint" style="margin:10px 0 0">De los tratamientos con dolor declarado ese d\u00eda o el anterior, en cu\u00e1ntos el jugador ya no lo declaraba entre el segundo y el cuarto d\u00eda. <b>Describe lo que ha pasado, no demuestra que el tratamiento sea la causa</b>: se trata lo que m\u00e1s duele, as\u00ed que los tratados parten de peor sitio.</p>'
+      : '<p class="hint" style="margin:8px 0 0">Van <b>'+F.n+'</b> tratamiento'+(F.n===1?'':'s')+' con dolor declarado y zona apuntada; hacen falta '+F.min+' para decir nada. <b>Se cuenta solo</b>: sale de la zona del tratamiento y del cuestionario, sin escribir nada m\u00e1s.</p>')
+  +'</div>';
+  return '<div class="fis-gs">'+mapa+rachas+efecto+funciono+cd+'</div>';
 }
 /* ═══ v308 · Tres pestañas ═══
    La página había crecido a cinco bloques apilados y obligaba a bajar mucho
@@ -34989,8 +35087,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.9*/
-const VER_ACTUAL='2026-10-26.9';
+/*BUILD:2026-10-26.10*/
+const VER_ACTUAL='2026-10-26.10';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
