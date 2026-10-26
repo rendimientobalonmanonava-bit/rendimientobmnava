@@ -19864,6 +19864,21 @@ function fisKpiFila(){
     +kpi(citas,'Citas en 7 días',citas?'médico y mutua':'nada por delante',citas?'var(--warn)':'var(--muted)')
     +kpi(abiertos.length,'Problemas abiertos',abiertos.length?'en seguimiento':'plantilla limpia',
       abiertos.length?'var(--warn)':'var(--ok)',spark(serie7(dolorDia),'var(--bad)'))
+    /* v460 · El tape que queda vivía dentro del bloque «Tape y stock», plegado y
+       en otra pestaña: con las cifras de Virginia da 5 días, o sea una compra, y
+       nadie lo iba a ver. **Solo aparece cuando queda poco**: una tarjeta fija
+       diciendo «te queda de sobra» es ruido en una cabecera de cuatro.
+       El listón no es un número nuevo: `VEND_STOCK_AVISO`=5 es la semana de
+       trabajo que el propio panel ya usa («5 días de trabajo»). */
+    +(function(){
+      try{
+        const st=vendStock(hoy);
+        if(st.quedan==null||st.quedan>VEND_STOCK_AVISO)return '';
+        return kpi(st.quedan,'Tape · te queda para',
+          String(Math.round(st.rollosSem*10)/10).replace('.',',')+' rollos por semana',
+          st.quedan<=2?'var(--bad)':'var(--warn)');
+      }catch(e){return '';}
+    })()
   +'</div>';
 }
 /* Quién está en tratamiento, con su foto y el estado de su problema. */
@@ -20199,6 +20214,28 @@ function vendCm(desde,hasta){
   });
   return hay?{cm,faltan}:null;
 }
+/* v460 · El consumo y lo que queda de stock se calculaban SUELTOS dentro de
+   `vendPanel`. Al sacar el aviso a la cabecera hacían falta en dos sitios, y
+   dos copias del mismo cociente acaban discrepando al primer ajuste: una
+   función, un criterio. Devuelve null cuando no hay con qué calcular —sin
+   centímetros no hay metros— en vez de un cero, que se leería como «no gasta».
+   La ventana son los últimos 14 días y se promedia **solo sobre los días que
+   tuvieron vendajes**: un fin de semana sin vendar no es un día de 0 m, es un
+   día del que no se vendan tobillos —misma regla que `calRefMD`—. */
+const VEND_STOCK_AVISO=5;   /* una semana de trabajo, la unidad que ya usa el panel */
+function vendStock(hastaDk){
+  const hasta=hastaDk||dkey(new Date());
+  const desde=fisDkSuma(hasta,-13);
+  const cm14=vendCm(desde,hasta);
+  const V=vendLoad();
+  const rollo=+V.cfg.rollo||0, stock=+V.cfg.stock||0;
+  const dias=[...new Set(V.reg.map(r=>r&&r.dk).filter(d=>d&&d>=desde&&d<=hasta))].length;
+  if(!cm14||!dias)return {cm14:cm14,dias:dias,mDia:0,rollosSem:0,quedan:null,rollo,stock};
+  const mDia=cm14.cm/100/dias;
+  const rollosSem=rollo>0?(mDia*5/rollo):0;
+  const quedan=(rollo>0&&stock>0&&mDia>0)?Math.floor(stock*rollo/mDia):null;
+  return {cm14,dias,mDia,rollosSem,quedan,rollo,stock};
+}
 function vendSetCm(z,v){
   const V=vendLoad();
   const n=+String(v).replace(',','.');
@@ -20359,20 +20396,16 @@ function vendPanel(){
 
   /* ── consumo de tape ── */
   const c14desde=fisDkSuma(hoyReal,-13);
-  const cm14=vendCm(c14desde,hoyReal);
+  const ST=vendStock(hoyReal);           /* v460 · un solo sitio */
+  const cm14=ST.cm14;
   const cmDia=vendCm(dk,dk);
-  const rollo=+V.cfg.rollo||0, stock=+V.cfg.stock||0;
-  const dias=(function(){
-    const ds=[...new Set(vendLoad().reg.map(r=>r&&r.dk).filter(d=>d&&d>=c14desde&&d<=hoyReal))];
-    return ds.length;
-  })();
+  const rollo=ST.rollo, stock=ST.stock;
+  const dias=ST.dias;
   let consumo;
   if(!cm14){
     consumo='<p class="hint">Pon abajo cuántos centímetros de tape gastas en cada zona y aquí aparecerá el consumo y lo que te queda de stock. <b>No se pone un valor de ejemplo a propósito</b>: un gasto inventado haría que el stock pareciera un dato cuando no lo es.</p>';
   } else {
-    const mDia=dias?(cm14.cm/100/dias):0;
-    const rollosSem=(rollo>0&&dias)?(mDia*5/ (rollo)):0;
-    const quedan=(rollo>0&&stock>0&&mDia>0)?Math.floor(stock*rollo/mDia):null;
+    const mDia=ST.mDia, rollosSem=ST.rollosSem, quedan=ST.quedan;
     consumo='<div class="nut-kpis">'
       +'<div><em>Este día</em><b>'+(cmDia?(cmDia.cm/100).toFixed(1).replace('.',',')+' m':'—')+'</b></div>'
       +'<div><em>Media por día</em><b>'+(mDia?mDia.toFixed(1).replace('.',',')+' m':'—')+'</b><u>'+dias+' día'+(dias===1?'':'s')+' con vendajes</u></div>'
@@ -34956,8 +34989,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.8*/
-const VER_ACTUAL='2026-10-26.8';
+/*BUILD:2026-10-26.9*/
+const VER_ACTUAL='2026-10-26.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
