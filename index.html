@@ -2730,6 +2730,7 @@ main{padding:20px 18px 80px}
 .vd-dol{font-style:normal;font-size:9px;line-height:1;color:var(--warn);margin-right:5px;flex:none}
 .vd-dol--g{color:var(--bad);font-size:10px;font-weight:800}
 .vd-chip--dol{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.vd-f-z .vd-b{grid-template-columns:minmax(0,1fr) 1.1fr 32px}
 .vd-t{text-align:center;font-size:12.5px;font-weight:800;color:var(--muted2);
   font-variant-numeric:tabular-nums}
 .vd-r--on .vd-t{color:var(--txt)}
@@ -5974,6 +5975,9 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
              este. -->
         <div class="pl-cab"><span class="pl-cab-p" style="background:var(--warn)"></span>Estado médico</div>
         <div id="pl-problemas" class="panel"></div>
+        <!-- v454 · Vendajes del jugador. Vacío si no se le ha vendado nunca:
+             no deja un panel de «sin datos» en dieciocho fichas. -->
+        <div id="pl-vend"></div>
         <div id="pl-fisio" class="panel" style="display:none"></div>
         <div id="player-physio" class="panel" style="display:none"></div>
         <div id="player-medical" class="panel" style="display:none"></div>
@@ -10754,6 +10758,27 @@ function pbCronologia(inj){
   });
   ev.push({dk:inj.dk,tipo:'inicio',txt:'Se abre el problema'+(inj.title?': '+inj.title:''),
     meta:[inj.tipo,inj.clasif,inj.accion].filter(Boolean).join(' · ')});
+  /* v454 · vendajes de ESTA zona dentro del episodio */
+  try{
+    if(typeof vendDeEpisodio==='function'){
+      const vs=vendDeEpisodio(inj);
+      /* Un día, una línea: si se venda todos los días, la cronología se
+         convierte en una lista de vendajes y tapa lo demás. Se agrupan por
+         semana cuando pasan de seis. */
+      if(vs.length&&vs.length<=6){
+        vs.forEach(v=>ev.push({dk:v.dk,tipo:'vendaje',
+          txt:'Vendaje funcional',
+          meta:[(VEND_LAB[v.zona]||v.zona),VEND_LADO[v.lado]||''].filter(Boolean).join(' · ')}));
+      } else if(vs.length){
+        const sem={};
+        vs.forEach(v=>{const d=dkToDate(v.dk);const l=new Date(d);l.setDate(l.getDate()-((d.getDay()+6)%7));
+          const k=dkey(l);(sem[k]=sem[k]||{n:0,dias:{}});sem[k].n+=(+v.n||0);sem[k].dias[v.dk]=1;});
+        Object.keys(sem).sort().forEach(k=>ev.push({dk:k,tipo:'vendaje',
+          txt:'Vendaje funcional · '+Object.keys(sem[k].dias).length+' día'+(Object.keys(sem[k].dias).length===1?'':'s'),
+          meta:(VEND_LAB[vs[0].zona]||vs[0].zona)+' · semana del '+k.split('-').reverse().slice(0,2).join('/')}));
+      }
+    }
+  }catch(e){}
   /* partes del día asociados */
   try{
     physioEnsure();
@@ -10811,7 +10836,7 @@ function pbDias(desde,hasta){
   try{const a=new Date(desde+'T00:00:00'),b=hasta?new Date(hasta+'T00:00:00'):new Date();
     return Math.max(0,Math.round((b-a)/864e5));}catch(e){return 0;}
 }
-const PB_ICONO={inicio:'●',parte:'◆',trat:'✚',cita:'🩺',nota:'✎',alta:'✓',cierre:'□',episodio:'■'};
+const PB_ICONO={inicio:'●',parte:'◆',trat:'✚',cita:'🩺',nota:'✎',alta:'✓',cierre:'□',episodio:'■',vendaje:'➰'};
 /* v292 · Cada línea de la cronología lleva sus acciones.
    Virginia decía que no puede editar algunas partes, y tenía razón: los
    editores existían, pero vivían en los cuatro paneles de la ficha que se
@@ -13136,6 +13161,8 @@ function renderPlayer(name){
      y entonces el hueco no existe en vez de quedar un panel en blanco. */
   try{ G('pl-nutri', (typeof nutFichaHTML==='function')?nutFichaHTML(name):''); }
   catch(e){ console.warn('bmnava · nutrición de la ficha:', e&&e.message); }
+  try{ G('pl-vend', (typeof vendFichaHTML==='function')?vendFichaHTML(name):''); }
+  catch(e){ console.warn('bmnava · vendajes de la ficha:', e&&e.message); }
   G('pl-zrow',`<h2>Z-score por variable · último registro</h2><div class="zrow">${zc||'<p class="muted">Sin wellness.</p>'}</div>`);
   G('pl-recov',`${recoveryStrip(playerRecSeries(p,21),'Recuperación · últimas 3 semanas')||'<span class="muted">Sin histórico de recuperación.</span>'}`);
   G('pl-kpisem',`
@@ -20173,6 +20200,40 @@ function vendDolorDia(dk){
   });
   return out;
 }
+/* ══ v454 · Los vendajes dejan de ser una isla ═══════════════════════════
+   La auditoría del 26/10/2026 encontró un solo hueco real en todo el área de
+   fisioterapia, y era mío: `bmnava_vendajes` no lo referenciaba nada fuera de
+   su propia pestaña. Ni la ficha del jugador, ni la cronología del episodio.
+   Se venda a diario y no quedaba rastro en la historia del problema.
+
+   Dos enganches, los dos de solo lectura: **el vendaje se edita en su rejilla
+   y en ningún otro sitio**, que es lo que evita tener dos sitios donde tocar
+   lo mismo. */
+/* Lo vendado por un jugador en un tramo, agrupado por zona. */
+function vendDeJugador(name,desde,hasta){
+  const por={},dias={};let tot=0;
+  vendLoad().reg.forEach(r=>{
+    if(!r||r.jugador!==name||!r.dk)return;
+    if(desde&&r.dk<desde)return;
+    if(hasta&&r.dk>hasta)return;
+    const k=r.zona;por[k]=(por[k]||0)+(+r.n||0);tot+=(+r.n||0);dias[r.dk]=1;
+  });
+  return {por,tot,dias:Object.keys(dias).length,
+          ult:Object.keys(dias).sort().pop()||''};
+}
+/* Los vendajes que caen DENTRO de un episodio y en SU región del cuerpo: un
+   tobillo vendado no pinta nada en la historia de un hombro. */
+function vendDeEpisodio(inj){
+  if(!inj||!inj.name)return [];
+  let reg=null;
+  try{reg=(typeof zoneRegion==='function')?zoneRegion(inj.zona||''):null;}catch(e){}
+  const col=reg?VEND_REG[reg]:null;
+  if(!col)return [];
+  const ini=inj.dk||'', fin=inj.closeDk||'';
+  return vendLoad().reg.filter(r=>r&&r.jugador===inj.name&&r.zona===col
+      &&(!ini||r.dk>=ini)&&(!fin||r.dk<=fin))
+    .sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+}
 function vendPanel(){
   const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const V=vendLoad();
@@ -20285,6 +20346,36 @@ function vendPanel(){
     +'</section>';
 }
 window.vendPanel=vendPanel;
+/* v454 · Bloque de la ficha del jugador. Devuelve cadena vacía si a ese
+   jugador no se le ha vendado nunca: misma regla que el de nutrición, un
+   panel de «sin datos» repetido dieciocho veces es ruido. */
+function vendFichaHTML(name){
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const hoy=dkey(new Date());
+  const d30=fisDkSuma(hoy,-29);
+  const t=vendDeJugador(name,null,null);
+  if(!t.tot)return '';
+  const u=vendDeJugador(name,d30,hoy);
+  const zonas=VEND_ZONAS.filter(z=>t.por[z[0]]>0)
+    .sort((a,b)=>t.por[b[0]]-t.por[a[0]]);
+  const max=Math.max(1,...zonas.map(z=>t.por[z[0]]));
+  const fecha=dk=>dk?dk.split('-').reverse().slice(0,2).join('/'):'—';
+  return '<div class="pl-cab" style="margin-top:18px"><span class="pl-cab-p" style="background:var(--accent)"></span>Vendaje funcional</div>'
+    +'<div class="panel">'
+    +'<h2>Lo que se le venda <span class="r"><a onclick="go(\'estado\');setTimeout(function(){var b=[].slice.call(document.querySelectorAll(\'#v-estado button\')).filter(function(x){return x.textContent.trim()===\'Fisioterapia\';})[0];if(b)b.click();setTimeout(function(){var v=[].slice.call(document.querySelectorAll(\'#fisio-body .fis-tabs button\')).filter(function(x){return x.textContent.indexOf(\'Vendaje\')>=0;})[0];if(v)v.click();},120);},120)" style="cursor:pointer;color:var(--accent);font-weight:600">ir a la rejilla</a></span></h2>'
+    +'<div class="nut-f-k">'
+      +'<div><em>Últimos 30 días</em><b>'+u.tot+'</b><u>'+u.dias+' día'+(u.dias===1?'':'s')+'</u></div>'
+      +'<div><em>En total</em><b>'+t.tot+'</b><u>desde que se registra</u></div>'
+      +'<div><em>Último</em><b style="font-size:15px">'+fecha(t.ult)+'</b></div>'
+    +'</div>'
+    +'<div class="vd-f-z">'+zonas.map(([z,lab])=>'<div class="vd-b">'
+        +'<span>'+esc(lab)+'</span>'
+        +'<div class="vd-bt"><div class="vd-bf" style="width:'+Math.round(t.por[z]/max*100)+'%"></div></div>'
+        +'<u>'+t.por[z]+'</u></div>').join('')+'</div>'
+    +'<p class="hint">Se registra y se corrige en Fisioterapia › Vendajes. Aquí solo se consulta.</p>'
+    +'</div>';
+}
+window.vendFichaHTML=vendFichaHTML;
 /* ===================== WELLNESS · PARTE DIARIO ===================== */
 function ringSVG(pct,col,size,stroke){const r=(size-stroke)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,pct||0))/100);return `<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" style="--arc-c:${c.toFixed(1)}" class="arc-in" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;}
 function parteNote(p){if(!p)return'Sin datos del día.';const f=(p.factors||[])[0];if(!f)return'Buenos valores de bienestar.';const l=f.label.toLowerCase();if(l.includes('sueñ')||l.includes('hora'))return'Ha dormido poco / mal.';if(l.includes('fatiga'))return'Signos de fatiga general.';if(l.includes('doms'))return'Agujetas / molestia muscular.';if(l.includes('estrés')||l.includes('estres'))return'Estrés elevado.';if(l.includes('ánimo')||l.includes('animo'))return'Ánimo bajo.';if(l.includes('dolor'))return f.label+'.';if(l.includes('acwr')||l.includes('carga'))return'Carga acumulada a vigilar.';return f.label+'.';}
@@ -34684,8 +34775,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.1*/
-const VER_ACTUAL='2026-10-26.1';
+/*BUILD:2026-10-26.2*/
+const VER_ACTUAL='2026-10-26.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
