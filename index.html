@@ -4460,12 +4460,14 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 .adv-wrap[open] .adv-sum{border-radius:var(--radius) var(--radius) 0 0;margin-bottom:0;border-bottom:none}
 .adv-wrap[open] .adv-sum::before{content:"▾"}
 .adv-sum::-webkit-details-marker{display:none}
-#players-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
-@media(max-width:1300px){#players-grid{grid-template-columns:repeat(5,1fr)}}
-@media(max-width:1080px){#players-grid{grid-template-columns:repeat(4,1fr)}}
-@media(max-width:880px){#players-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:660px){#players-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:460px){#players-grid{grid-template-columns:minmax(0,1fr)}}
+/* v463 · La rejilla se reparte por ANCHO DISPONIBLE, no por ancho de ventana.
+   Con `repeat(N,1fr)` y puntos de corte sobre la ventana, el sidebar se come
+   ~230 px que nadie descontaba: a 800 px de panel tocaban tres columnas de
+   190 px y se recortaban el nombre y hasta «Forma · Medio». Con `auto-fill` y
+   un suelo, la tarjeta nunca baja de donde su contenido cabe y el número de
+   columnas sale solo —también al plegar el menú, que antes no se enteraba—. */
+#players-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:14px}
+@media(max-width:560px){#players-grid{grid-template-columns:minmax(0,1fr);gap:10px}}
 .pcard{background:var(--panel);border:1px solid var(--hair);border-radius:14px;padding:14px;cursor:pointer;transition:transform .12s,box-shadow .12s}
 .pcard:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.12);border-color:var(--line2)}
 .pcard-top{display:flex;align-items:center;gap:10px}
@@ -4476,27 +4478,73 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 .pcard-stats{display:flex;justify-content:space-between;gap:8px;margin:12px 0 10px}
 .pcard-v{font-family:var(--mono,monospace);font-weight:700;font-size:16px}
 .pcard-flags{display:flex;gap:6px;flex-wrap:wrap}
-.pcard-pro{position:relative;background:var(--panel);border:1px solid var(--hair);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);padding:0;cursor:pointer;transition:transform .14s ease,box-shadow .14s ease}
-.pcard-pro:hover{transform:translateY(-3px);box-shadow:0 16px 34px rgba(11,13,18,.18)}
-.pcp-head{position:relative;display:flex;align-items:center;gap:11px;padding:13px 15px;background:linear-gradient(135deg,#141d2e 0%,#1e2a42 55%,#33415d 100%),var(--tex-azul);background-size:cover,cover;background-blend-mode:normal,overlay;color:#fff;overflow:hidden}
-.pcp-accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sv)}
-.pcp-dorsal{position:absolute;right:10px;top:2px;font-size:46px;font-weight:900;letter-spacing:-.05em;line-height:1;color:rgba(255,255,255,.10);pointer-events:none}
-.pcp-photo{width:52px;height:52px;border-radius:13px;object-fit:cover;flex:0 0 auto;background:var(--panel2);border:2px solid var(--sv);box-shadow:0 2px 8px rgba(0,0,0,.35)}
-.pcp-ini{display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:18px}
-.pcp-id{min-width:0;flex:1;position:relative;z-index:1}
-.pcp-name{font-weight:800;font-size:14.5px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
-.pcp-pos{font-size:11px;color:rgba(255,255,255,.66);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
-.pcp-body{display:flex;align-items:center;gap:12px;padding:13px 13px 8px}
-@media(max-width:1300px){.pcp-body{flex-direction:column;align-items:stretch;gap:10px}.pcp-kpis{width:100%}}
-@media(max-width:880px){.pcp-body{flex-direction:row;align-items:center}}
-.pcp-ring{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px}
-.pcp-ring-lab{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
-.pcp-kpis{flex:1;display:flex;flex-direction:column;gap:7px;min-width:0}
-.pcp-kpi{display:flex;align-items:baseline;justify-content:space-between;gap:8px;border-bottom:1px solid var(--hair);padding-bottom:6px}
-.pcp-kpi:last-child{border-bottom:0;padding-bottom:0}
-.pcp-kpi .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
-.pcp-kpi .v{font-family:var(--mono,monospace);font-weight:800;font-size:16px;letter-spacing:-.01em}
-.pcard-pro .pcard-flags{padding:0 15px 14px}
+/* ═══ v463 · Tarjeta de jugador, estética Apple ═══
+   Lo que había: cabecera con degradado azul saturado y textura, texto blanco
+   encima, dorsal fantasma de 46 px, filete de acento de 4 px, foto cuadrada y
+   pesos 800/900 con versalitas por todas partes. Eso es una tarjeta de
+   videojuego, no del sistema.
+   HIG · Layout > Visual hierarchy: «place items to convey their relative
+   importance» y «make essential information easy to find by giving it
+   sufficient space». Aquí lo esencial es **quién es y cómo está**, y lo
+   demás era decoración compitiendo con ello.
+   Cambia: superficie plana y opaca · foto REDONDA con el aro del readiness
+   alrededor (un solo objeto en vez de dos) · nombre en 17/600 en vez de
+   14,5/800 · posición en frase, no en versalitas · dorsal como chip discreto
+   · separadores de medio punto que no llegan al borde · curva de Apple. */
+.pcard-pro{position:relative;background:var(--panel);border:0;border-radius:18px;
+  overflow:hidden;box-shadow:var(--shadow);padding:0;cursor:pointer;
+  transition:transform .4s cubic-bezier(.32,.72,0,1),box-shadow .4s cubic-bezier(.32,.72,0,1)}
+.pcard-pro:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(11,13,18,.13)}
+.pcard-pro:active{transform:scale(.985)}
+/* Cabecera: sin degradado, sin texto blanco, sin barra de acento. */
+.pcp-head{display:flex;align-items:center;gap:13px;padding:16px 16px 12px}
+.pcp-accent{display:none}
+.pcp-ph{position:relative;flex:0 0 auto;width:54px;height:54px}
+/* El aro ES el readiness: un objeto en vez de foto + anillo separados. */
+.pcp-photo{width:54px;height:54px;border-radius:50%;object-fit:cover;display:block;
+  background:var(--panel2);box-shadow:0 0 0 2.5px var(--sv),0 0 0 4px var(--panel)}
+.pcp-ini{display:flex;align-items:center;justify-content:center;font-weight:600;
+  font-size:19px;color:var(--muted);letter-spacing:-.01em}
+.pcp-dorsal{position:absolute;right:-3px;bottom:-3px;min-width:21px;height:21px;
+  display:flex;align-items:center;justify-content:center;padding:0 5px;
+  font-size:11.5px;font-weight:650;line-height:1;color:var(--txt);
+  background:var(--panel);border-radius:999px;box-shadow:0 0 0 2px var(--panel),0 1px 3px rgba(0,0,0,.14)}
+.pcp-id{min-width:0;flex:1}
+/* El nombre es EL dato de la tarjeta, así que se le dejan dos líneas antes
+   de recortar: a una sola, 7 de los 18 salían con puntos suspensivos. Las
+   tarjetas de una misma fila siguen midiendo igual porque la rejilla estira. */
+.pcp-name{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--txt);
+  line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;overflow-wrap:anywhere}
+/* En frase y no en versalitas: el HIG pide sentence case para texto de UI. */
+.pcp-pos{font-size:13px;color:var(--muted);margin-top:2px;letter-spacing:0;
+  text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* El estado deja de ser una pegatina flotante sobre el degradado. */
+.pcp-badge{position:static;flex:0 0 auto;font-size:11px;font-weight:600;
+  letter-spacing:0;text-transform:none;color:#fff;padding:3px 9px;border-radius:999px;
+  white-space:nowrap}
+.pcp-body{display:flex;align-items:center;gap:14px;padding:4px 16px 12px}
+.pcp-ring{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px}
+.pcp-ring-lab{font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:500}
+.pcp-kpis{flex:1;display:flex;flex-direction:column;gap:0;min-width:0}
+/* Filete de medio punto que NO llega al borde de la tarjeta. */
+.pcp-kpi{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:7px 0;border-bottom:.5px solid var(--hair)}
+.pcp-kpi:last-child{border-bottom:0}
+.pcp-kpi .k{font-size:13px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400}
+.pcp-kpi .v{font-size:16px;font-weight:600;letter-spacing:-.01em;
+  font-variant-numeric:tabular-nums;font-family:inherit}
+.pcard-pro .pcard-flags{padding:0 16px 14px}
+/* Móvil: una columna y la tarjeta se lee como una fila de lista del sistema
+   —foto, nombre, y las cifras a la derecha— en vez de un cuadrado apretado.
+   Es de primera clase, no una adaptación: Carlos entra desde el teléfono. */
+@media(max-width:560px){
+  .pcp-body{padding:0 16px 12px;gap:12px}
+  .pcp-kpis{flex-direction:row;gap:14px}
+  .pcp-kpi{flex-direction:column;align-items:flex-start;gap:1px;padding:0;border-bottom:0;flex:1;min-width:0}
+  .pcp-kpi .k{font-size:11.5px}
+  .pcp-kpi .v{font-size:17px}
+}
 .jug-sort{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);font-weight:600;white-space:nowrap}
 .jug-sort select{font-size:13px;padding:6px 10px;border-radius:9px}
 .flag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px}
@@ -6043,8 +6091,11 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
         <div id="ph-grid"></div>
       </div>
     </details>
-    <div class="ctrlrow" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
-      <div><h2 style="margin:0">Jugadores</h2><div class="small muted">Estado actual · pulsa una ficha para el perfil completo</div></div>
+    <!-- v463 · El título «Jugadores» estaba dos veces: en la cabecera de la vista
+         y otra vez aquí dentro con un subtítulo diciendo lo mismo. Se queda el de
+         arriba; aquí solo el control, alineado a la derecha y sin el hueco vacío
+         que dejaba el título al quitarlo —en móvil era una tarjeta medio vacía-. -->
+    <div class="ctrlrow" style="justify-content:flex-end;flex-wrap:wrap;gap:10px">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <label class="jug-sort"><span>Ordenar</span><select id="jug-sort" onchange="jugSort(this.value)"><option value="nombre">Nombre (A–Z)</option><option value="pos">Posición</option><option value="forma_best">Mejor estado</option><option value="forma_worst">Peor estado</option></select></label>
       </div>
@@ -17268,11 +17319,14 @@ function renderPlayersGrid(){const box=document.getElementById('players-grid');i
       return [lab,col];
     })();
     return `<div class="pcard pcard-pro" style="--sv:var(--${p.sev||'ok'})" onclick="openPlayer('${name.replace(/'/g,"\\'")}')">
-      ${pb?`<span class="pcp-badge" style="background:${pb[1]}">${pb[0]}</span>`:''}
       <div class="pcp-head">
-        <span class="pcp-accent"></span>
-        ${dnum!==''?`<span class="pcp-dorsal">${dnum}</span>`:''}
-        ${ph?`<img class="pcp-photo" src="${ph}" alt="">`:`<div class="pcp-photo pcp-ini">${ini}</div>`}
+        ${/* v463 · la foto y el dorsal van juntos: el dorsal es del jugador,
+             no de la tarjeta, así que se pega a su foto en vez de flotar de
+             fondo a 46 px. El aro de color lo pone el CSS con --sv. */''}
+        <div class="pcp-ph">
+          ${ph?`<img class="pcp-photo" src="${ph}" alt="">`:`<div class="pcp-photo pcp-ini">${ini}</div>`}
+          ${dnum!==''?`<span class="pcp-dorsal">${dnum}</span>`:''}
+        </div>
         <div class="pcp-id"><div class="pcp-name">${name}</div><div class="pcp-pos">${p.pos||'—'}${p.mdx?' · '+p.mdx:''}</div></div>
       </div>
       <div class="pcp-body">
@@ -17283,7 +17337,11 @@ function renderPlayersGrid(){const box=document.getElementById('players-grid');i
           <div class="pcp-kpi"><span class="k">Forma</span><span class="v" style="color:var(--${tier})">${forma}</span></div>
         </div>
       </div>
-      <div class="pcard-flags">${flags.join('')}</div>
+      ${/* v463 · El estado vivía arriba como pegatina y los avisos abajo como
+           pastillas, diciendo a veces lo mismo —«Con dolor» en los dos sitios— y
+           apretándole el sitio al nombre. Una sola fila: el estado primero, que
+           es lo que manda, y detrás el resto. */''}
+      <div class="pcard-flags">${pb?`<span class="pcp-badge" style="background:${pb[1]}">${pb[0]}</span>`:''}${flags.join('')}</div>
     </div>`;}).join('');
 }
 /* v227 · ingestNotes/loadNotesURL/addNote/exportNotesCSV eliminadas: eran el
@@ -35107,8 +35165,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.11*/
-const VER_ACTUAL='2026-10-26.11';
+/*BUILD:2026-10-26.12*/
+const VER_ACTUAL='2026-10-26.12';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){

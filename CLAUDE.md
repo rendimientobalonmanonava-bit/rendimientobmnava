@@ -517,6 +517,18 @@ Virginia, 23/10/2026: *«todos los días vendo nueve tobillos, y no me apetece m
 
 *Contestado el 26/10/2026 y sembrado en la v456. Confirmado el 26/10/2026 que **los 900 cm son de tape solo**, sin pretape. Rodilla y hombro siguen sin medir y **ya no hace falta**: van con Tensoplast y desde la v462 no entran en el stock del tape ancho, que es el único que a ella le interesa.*
 
+
+### 6.7 Ficha del jugador · rediseño Apple (v463–)
+
+Daniel, 26/10/2026: *«quiero cambiarlo casi totalmente… estética Apple… coloca todos los módulos bien ordenados y redistribúyelos para que sean más prácticos»*. **Preguntado antes de tocar nada**, porque en esta app cuatro rediseños salieron de mi criterio y los cuatro fallaron: us a la ficha para las cuatro cosas (cómo está hoy, físico, médico y carga), quiere **pestañas dentro de la ficha**, y los dos gráficos que sobran se sustituyen por **«él contra su propio normal»**.
+
+| Elemento | Regla |
+|---|---|
+| La tarjeta de la rejilla (v463) | Lo que había era una tarjeta de videojuego: cabecera con degradado azul y textura, texto blanco encima, dorsal fantasma de 46 px, filete de acento de 4 px, foto cuadrada y pesos 800/900 con versalitas. **HIG · Layout > Visual hierarchy**: lo esencial aquí es quién es y cómo está, y lo demás competía con ello. Ahora: superficie plana y opaca, **foto redonda con el aro del readiness alrededor** (un objeto en vez de dos), nombre 17/600 **a dos líneas** —a una sola se recortaban 7 de los 18—, posición en frase y no en versalitas, dorsal como chip pegado a la foto, filetes de medio punto y la curva de Apple |
+| Una sola fila de estado | El estado (`effectiveStatus`) iba de pegatina arriba y los avisos de pastillas abajo, **diciendo a veces lo mismo** —«Con dolor» en los dos sitios— y además apretándole el sitio al nombre. Todo a una fila: el estado primero, que es el que manda, y detrás el resto |
+| La rejilla se reparte por ANCHO DISPONIBLE | `repeat(N,1fr)` con puntos de corte sobre el ancho de **ventana** no descontaba los ~230 px del sidebar: a 1.024 px de ventana tocaban cuatro columnas de 182 px y se recortaba hasta «Forma · Medio». Con `auto-fill` y `minmax(236px,1fr)` la tarjeta nunca baja de donde cabe su contenido y las columnas salen solas, también al plegar el menú |
+| El título estaba dos veces | «Jugadores» en la cabecera de la vista y otra vez dentro del panel con un subtítulo que decía lo mismo. Se queda el de arriba |
+
 ### 6.4 Polar / pulsómetros
 
 **Polar no exporta directamente.** El flujo es: Daniel comparte capturas del iPad → transcripción manual (dorsal, nombre, FC media %, FC máx %, kcal, Z1–Z5 en hh:mm:ss) → canonicalización de nombres → verificación de que las zonas suman la duración de sesión → salida como bloque de texto delimitado por punto y coma para subir.
