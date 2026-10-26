@@ -4499,10 +4499,16 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 /* Cabecera: sin degradado, sin texto blanco, sin barra de acento. */
 .pcp-head{display:flex;align-items:center;gap:13px;padding:16px 16px 12px}
 .pcp-accent{display:none}
-.pcp-ph{position:relative;flex:0 0 auto;width:54px;height:54px}
-/* El aro ES el readiness: un objeto en vez de foto + anillo separados. */
-.pcp-photo{width:54px;height:54px;border-radius:50%;object-fit:cover;display:block;
-  background:var(--panel2);box-shadow:0 0 0 2.5px var(--sv),0 0 0 4px var(--panel)}
+/* v465 · El aro ES el arco del readiness, no un filo de color: el ángulo
+   dice el valor igual que los anillos del Resumen. `--arc` lo pone el
+   marcado con el valor final ya dentro, que es la regla escrita para los
+   anillos: un anillo no puede quedarse vacío esperando a que alguien lo
+   anime. El resto del círculo va en `--hair`, no en gris fuerte, para que
+   el arco se lea sin competir con la foto. */
+.pcp-ph{position:relative;flex:0 0 auto;width:62px;height:62px;border-radius:50%;
+  box-sizing:border-box;padding:3px;background:conic-gradient(var(--sv) var(--arc,0deg),var(--hair) 0)}
+.pcp-photo{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;
+  box-sizing:border-box;background:var(--panel2);border:2px solid var(--panel)}
 .pcp-ini{display:flex;align-items:center;justify-content:center;font-weight:600;
   font-size:19px;color:var(--muted);letter-spacing:-.01em}
 .pcp-dorsal{position:absolute;right:-3px;bottom:-3px;min-width:21px;height:21px;
@@ -6031,8 +6037,17 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 
     <!-- HOY · cómo llega hoy y de dónde sale ese número -->
     <div class="plt-pane on" id="plt-hoy">
-      <div id="pl-strip"></div>
+      <!-- v465 · `pl-strip` sale de la vista: de sus cinco azulejos, TRES
+           —readiness, ACWR y carga 7d— están ya en la cabecera desde que se le
+           metieron los datos al hueco en blanco, y en esta app una cifra que se
+           ve dos veces no añade nada. El contenedor se conserva oculto porque
+           `renderPlayerStrip` sigue escribiendo en él. -->
+      <div id="pl-strip" style="display:none"></div>
       <div id="pl-advice"></div>
+      <!-- Lo que Daniel echó en falta: Polar e intensidad con sus números, y un
+           poco de médico y de físico con el detalle en su pestaña. -->
+      <div id="pl-ses"></div>
+      <div id="pl-resumen"></div>
       <div class="pl-g2">
         <div id="player-readiness" class="panel"></div>
         <div id="pl-charts"></div>
@@ -6041,7 +6056,9 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
         <div id="pl-zrow" class="panel"></div>
         <div id="pl-recov" class="panel"></div>
       </div>
-      <div class="panel"><h2>Wellness · evolución</h2><div class="pl-ch"><canvas id="ch-well"></canvas></div></div>
+      <!-- v465 · «Wellness · evolución» retirado por decisión de Daniel
+           (26/10/2026: «no me dice nada, muy poco práctica»). Su sitio lo ocupa
+           «Sus últimas sesiones». El canvas desaparece con él. -->
     </div>
 
     <!-- CARGA · «Carga diaria y media 7d» y «ACWR · evolución» fuera por decisión
@@ -13264,12 +13281,136 @@ function renderPlayer(name){
      dijera ya el estado del problema. */
   /* v464 · los dos bloques nuevos de la ficha por pestañas */
   try{renderPlNormal(name);}catch(e){console.error('carga normal',e);}
+  try{renderPlSesiones(name);}catch(e){console.error('sesiones',e);}
+  try{renderPlResumen(name);}catch(e){console.error('resumen ficha',e);}
   try{renderPlFisico(name);}catch(e){console.error('perfil fisico',e);}
   try{renderProblemas(name);}catch(e){console.error('problemas',e);}
   try{renderReuniones(name);}catch(e){console.error('reuniones',e);}
   /* El marcado nace con «Hoy» puesto; esto lo deja en la pestaña que estuviera
      abierta al cambiar de jugador, para poder comparar a dos en la misma. */
   try{plTab(PL_TAB);}catch(e){}
+}
+/* ═══ v465 · Las últimas sesiones del jugador, con sus números ═══
+   Sustituye a «Wellness · evolución», que Daniel retiró el 26/10/2026 («no me
+   dice nada, me parece muy poco práctica») pidiendo en su lugar **datos del
+   Polar y de la intensidad del entrenamiento, y más precisos: no simplemente
+   una barra y ya**.
+   Todo sale de `hrpDatos(name)`, que ya devuelve por sesión la fecha, la
+   etiqueta, los cinco tiempos por zona, los minutos, la FC media, el RPE, el
+   contacto, las UA y el nivel: **no se calcula nada nuevo ni se inventa ningún
+   umbral**. El nivel es el de `hrpNivel`, el mismo con el que la app clasifica
+   cualquier sesión, y el color del %Z4+Z5 sale de `calZonaNivel`, o sea de las
+   bandas calibradas de `SESEF()`: la ficha no puede decir que un 12 % es media
+   si el calendario lo pinta alta.
+   La barra apilada ES el reparto —las cinco zonas suman el tiempo de sesión—,
+   que es la regla ya escrita para el tiempo en zonas de la semana. */
+const PLS_N=6;
+function renderPlSesiones(name){
+  const box=document.getElementById('pl-ses');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let d=[];
+  try{if(typeof hrEnsure==='function')hrEnsure();d=(typeof hrpDatos==='function')?hrpDatos(name,0):[];}catch(e){}
+  d=d.slice(-PLS_N).reverse();
+  if(!d.length){
+    box.innerHTML='<div class="panel"><h2>Sus \u00faltimas sesiones</h2>'
+      +'<p class="hint" style="margin:8px 0 0">Sin capturas de pulsómetro de este jugador. '
+      +'Las sesiones aparecen aqu\u00ed seg\u00fan se van subiendo desde Puls\u00f3metros.</p></div>';
+    return;
+  }
+  const ZC=['var(--muted2)','#7c9cbf','var(--ok)','var(--warn)','var(--bad)'];
+  const n1=v=>v==null||isNaN(v)?'\u2014':(Math.round(v*10)/10).toString().replace('.',',');
+  const n0=v=>v==null||isNaN(v)?'\u2014':Math.round(v).toLocaleString('es-ES');
+  const NIVL=['BAJA','MEDIA','ALTA'];
+  const filas=d.map(r=>{
+    const tot=r.tot||0;
+    const barras=(r.z||[]).map((sg,i)=>{
+      const pc=tot?(sg/tot*100):0;
+      if(pc<=0)return '';
+      return '<i style="width:'+pc.toFixed(2)+'%;background:'+ZC[i]+'" title="Z'+(i+1)+' \u00b7 '
+        +n1(sg/60)+' min ('+Math.round(pc)+'%)"></i>';
+    }).join('');
+    /* El color del %Z4+Z5 sale de la banda calibrada del club, no de aqu\u00ed. */
+    let zc='var(--muted)';
+    try{if(typeof calZonaNivel==='function'&&r.z45!=null){
+      const nv=calZonaNivel(Math.round(r.z45),'z54');
+      zc=nv===2?'var(--bad)':nv===1?'var(--warn)':'var(--ok)';
+    }}catch(e){}
+    const niv=(r.nivel!=null&&NIVL[r.nivel])?NIVL[r.nivel]:null;
+    const nivc=r.nivel===2?'var(--bad)':r.nivel===1?'var(--warn)':'var(--ok)';
+    return '<div class="pls-r">'
+      +'<div class="pls-h">'
+        +'<span class="pls-d">'+esc(r.dk.slice(8)+'/'+r.dk.slice(5,7))+'</span>'
+        +'<span class="pls-l" title="'+esc(r.lab)+'">'+esc(r.lab)+'</span>'
+        +(r.partido?'<span class="pls-tag" style="color:var(--ok)">Partido</span>':'')
+        +(niv?'<span class="pls-tag" style="color:'+nivc+'">'+niv+'</span>':'')
+      +'</div>'
+      +'<div class="pls-bar">'+barras+'</div>'
+      +'<div class="pls-n">'
+        +'<span><em>min</em><b>'+n0(r.min)+'</b></span>'
+        +'<span><em>Z4+Z5</em><b style="color:'+zc+'">'+(r.z45==null?'\u2014':Math.round(r.z45)+'%')+'</b></span>'
+        +'<span><em>FC med</em><b>'+(r.hrAvg==null?'\u2014':Math.round(r.hrAvg)+'%')+'</b></span>'
+        +'<span><em>RPE</em><b>'+n1(r.rpe)+'</b></span>'
+        +'<span><em>Contacto</em><b>'+n1(r.ct)+'</b></span>'
+        +'<span><em>UA</em><b>'+n0(r.ua)+'</b></span>'
+      +'</div>'
+    +'</div>';
+  }).join('');
+  box.innerHTML='<div class="panel"><h2>Sus \u00faltimas sesiones '
+    +'<span class="r muted" style="font-weight:400;font-size:12.5px">puls\u00f3metro \u00b7 '+d.length+'</span></h2>'
+    +'<div class="pls-leg">'+['Z1','Z2','Z3','Z4','Z5'].map((z,i)=>
+      '<span><i style="background:'+ZC[i]+'"></i>'+z+'</span>').join('')+'</div>'
+    +filas
+  +'</div>';
+}
+/* ═══ v465 · Un poco de médico y un poco de físico, dentro de Hoy ═══
+   Daniel: «tener un poquito de cada uno de esos apartados en el hoy», con el
+   detalle en su pestaña. **No se recalcula nada**: episodios abiertos de
+   `STATE.med.inj`, último tratamiento de `medUltimoTrat`, vendajes de
+   `vendDeJugador`, molestias del cuestionario y la nota del TSA de `tsaRows`. */
+function renderPlResumen(name){
+  const box=document.getElementById('pl-resumen');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
+  const hoy=dkey(new Date());
+  const hace=n=>{const x=dkToDate(hoy);x.setDate(x.getDate()+n);return dkey(x);};
+  const li=(k,v,c)=>'<div class="plr-i"><span>'+k+'</span><b'+(c?' style="color:'+c+'"':'')+'>'+v+'</b></div>';
+
+  /* — médico — */
+  let abiertos=[],ultTrat=null,vd=null,molest=0;
+  try{medDbLoad();abiertos=((STATE.med||{}).inj||[]).filter(e=>e&&e.name===name&&e.open&&!e.mergedInto);}catch(e){}
+  try{ultTrat=(typeof medUltimoTrat==='function')?medUltimoTrat(name):null;}catch(e){}
+  try{vd=(typeof vendDeJugador==='function')?vendDeJugador(name,hace(-29),hoy):null;}catch(e){}
+  try{molest=(STATE.wellness||[]).filter(w=>w&&w.name===name&&w.dolor&&w.dk>=hace(-6)).length;}catch(e){}
+  const med='<div class="panel plr"><h2>M\u00e9dico <span class="r"><button class="btn ghost plr-b" onclick="plTab(\'medico\')">Ver todo</button></span></h2>'
+    +li('Problemas abiertos',abiertos.length,abiertos.length?'var(--warn)':'var(--ok)')
+    +(abiertos.length?'<div class="plr-s">'+abiertos.slice(0,2).map(e=>esc(e.title||e.zona||'\u2014')).join(' \u00b7 ')
+      +(abiertos.length>2?' +'+(abiertos.length-2):'')+'</div>':'')
+    +li('D\u00edas con dolor (7d)',molest,molest?'var(--warn)':'var(--ok)')
+    +li('\u00daltimo tratamiento',ultTrat?esc(ultTrat.dk.slice(8)+'/'+ultTrat.dk.slice(5,7)):'\u2014',null)
+    +(ultTrat?'<div class="plr-s">'+esc(ultTrat.tipo||'')+(ultTrat.dur?' \u00b7 '+ultTrat.dur+"'":'')+'</div>':'')
+    +li('Vendajes (30d)',vd&&vd.tot?vd.tot:'\u2014',null)
+  +'</div>';
+
+  /* — físico — */
+  let t100=null,rank=null,ntot=null,puesto=null;
+  try{
+    if(typeof buildTests==='function')buildTests();
+    const rows=(typeof tsaRows==='function')?tsaRows():[];
+    ntot=rows.length;
+    const r=rows.find(x=>x.name===name);
+    if(r){t100=r.t100;rank=r.rank;puesto=r.pos;}
+  }catch(e){}
+  const tier=(rank&&ntot&&typeof tsaTier==='function')?tsaTier(rank,ntot):'muted';
+  const fis='<div class="panel plr"><h2>F\u00edsico <span class="r"><button class="btn ghost plr-b" onclick="plTab(\'perfil\')">Ver todo</button></span></h2>'
+    +li('Nota TSA',t100==null?'\u2014':t100,'var(--'+tier+')')
+    +li('Puesto en la plantilla',rank&&ntot?(rank+' de '+ntot):'\u2014',null)
+    +li('Posici\u00f3n',puesto?esc(puesto):'\u2014',null)
+    +'<div class="plr-s" style="margin-top:8px">'
+      +(t100==null?'Sin valoraciones vigentes de esta temporada.'
+        :'Nota sobre 100 a partir de sus pruebas vigentes. El detalle por capacidad, en F\u00edsico.')
+    +'</div>'
+  +'</div>';
+  box.innerHTML='<div class="pl-g2">'+med+fis+'</div>';
 }
 /* ═══ v464 · Pestañas de la ficha ═══ */
 let PL_TAB='hoy';
@@ -13411,13 +13552,12 @@ function renderPlFisico(name){
     +'</div></div>';
 }
 function drawPlayerCharts(p){
-  killCharts(['ch-well']);
-  const w=p.w,labels=w.map(x=>x.dk.slice(5));
-  charts['ch-well']=new Chart(document.getElementById('ch-well'),{type:'line',data:{labels,datasets:[
-    {label:'Fatiga',data:w.map(x=>x.fatiga),borderColor:PAL.bad,tension:.35,pointRadius:0},
-    {label:'DOMS',data:w.map(x=>x.doms),borderColor:PAL.warn,tension:.35,pointRadius:0},
-    {label:'Sueño',data:w.map(x=>x.sueno),borderColor:PAL.data,tension:.35,pointRadius:0}]},
-    options:{...BASE,scales:{x:AX,y:{...AX,min:1,max:5}}}});
+  /* v465 · El único gráfico de Chart.js que quedaba en la ficha era
+     «Wellness · evolución», retirado por Daniel. La función se conserva —la
+     llama `renderPlayer`— y mata los lienzos que pudieran quedar vivos de una
+     versión anterior, que es lo que hacía falta para no dejar huérfanos. */
+  killCharts(['ch-well','ch-load','ch-pacwr']);
+
   /* v464 · «Carga diaria y media 7d» y «ACWR · evolución» se retiran por
      decisión de Daniel (26/10/2026: «no me sirven de nada»). Los sustituye
      `renderPlNormal`, que compara al jugador con SU propio normal en vez de
@@ -17465,15 +17605,20 @@ function renderPlayersGrid(){const box=document.getElementById('players-grid');i
         ${/* v463 · la foto y el dorsal van juntos: el dorsal es del jugador,
              no de la tarjeta, así que se pega a su foto en vez de flotar de
              fondo a 46 px. El aro de color lo pone el CSS con --sv. */''}
-        <div class="pcp-ph">
+        <div class="pcp-ph" style="--arc:${p.readiness!=null?Math.round(p.readiness*3.6):0}deg">
           ${ph?`<img class="pcp-photo" src="${ph}" alt="">`:`<div class="pcp-photo pcp-ini">${ini}</div>`}
           ${dnum!==''?`<span class="pcp-dorsal">${dnum}</span>`:''}
         </div>
         <div class="pcp-id"><div class="pcp-name">${name}</div><div class="pcp-pos">${p.pos||'—'}${p.mdx?' · '+p.mdx:''}</div></div>
       </div>
       <div class="pcp-body">
-        <div class="pcp-ring">${recoveryRing(p.readiness!=null?Math.round(p.readiness):null,p.sev||'muted',64)}<div class="pcp-ring-lab">Readiness</div></div>
+        ${/* v465 · La tarjeta tenía DOS círculos diciendo lo mismo: la foto con un
+             aro de color según el readiness y, debajo, el anillo del readiness con
+             su cifra. Ahora el aro de la foto **es** el arco del readiness —un
+             objeto— y la cifra baja a la primera fila de datos. Se gana la columna
+             entera que ocupaba el anillo. */''}
         <div class="pcp-kpis">
+          <div class="pcp-kpi"><span class="k">Readiness</span><span class="v" style="color:var(--${p.sev||'muted'})">${p.readiness!=null?Math.round(p.readiness):'—'}</span></div>
           <div class="pcp-kpi"><span class="k">TSA</span><span class="v" style="color:var(--${tier})">${r.t100==null?'—':r.t100}</span></div>
           <div class="pcp-kpi"><span class="k">ACWR</span><span class="v" style="color:var(--${acCard==null?'muted':(acFiable?acwrClass(acCard):'muted2')})" title="${acCard==null?'Sin carga acumulada todavía':(acFiable?'ACWR EWMA 7:21':'Aún sin volumen: '+((p.acwr&&p.acwr.dias)||0)+' de '+((p.acwr&&p.acwr.minDias)||21)+' días')}">${acCard==null?'—':fmt(acCard,2)}</span></div>
           <div class="pcp-kpi"><span class="k">Forma</span><span class="v" style="color:var(--${tier})">${forma}</span></div>
@@ -29070,14 +29215,24 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
    dos —ya pasó con la capa Apple—.
    El segmento activo lleva fondo y color de texto JUNTOS: cambiar solo el
    fondo fue lo que dejó blanco sobre blanco la última vez. */
-.plt-bar{display:flex;gap:4px;background:var(--panel2);padding:4px;border-radius:13px;
-  margin:16px 0 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+/* v465 · Daniel pidió que «se resalten un poquito más». Tres cosas: la barra
+   se queda PEGADA arriba al bajar —así se ve siempre que hay más pestañas, que
+   es lo que no se notaba—, sube de tamaño, y el segmento activo pasa a llevar
+   el color de acción. El fondo de la barra se opaca para que al quedarse
+   pegada no se transparente el contenido por debajo. */
+.plt-bar{display:flex;gap:5px;background:var(--panel2);padding:5px;border-radius:15px;
+  margin:18px 0 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  position:sticky;top:6px;z-index:30;box-shadow:0 1px 0 var(--hair),0 8px 20px rgba(11,13,18,.07)}
 .plt-bar::-webkit-scrollbar{display:none}
-.plt-b{flex:1;min-width:0;white-space:nowrap;font:inherit;font-size:14px;font-weight:500;
-  color:var(--muted);background:none;border:0;border-radius:10px;padding:10px 14px;
-  min-height:42px;cursor:pointer;
+.plt-b{flex:1;min-width:0;white-space:nowrap;font:inherit;font-size:15px;font-weight:500;
+  color:var(--muted);background:none;border:0;border-radius:11px;padding:11px 16px;
+  min-height:46px;cursor:pointer;letter-spacing:-.01em;
   transition:background .4s cubic-bezier(.32,.72,0,1),color .4s cubic-bezier(.32,.72,0,1)}
-.plt-b.on{background:var(--panel);color:var(--txt);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.plt-b:hover:not(.on){color:var(--txt)}
+/* Fondo y color de texto SIEMPRE juntos: cambiar solo el fondo fue lo que
+   dejó blanco sobre blanco en la capa Apple. */
+.plt-b.on{background:var(--panel);color:var(--accent);font-weight:650;
+  box-shadow:0 1px 4px rgba(11,13,18,.12)}
 .plt-b:active{transform:scale(.97)}
 .plt-pane{display:none}
 .plt-pane.on{display:block;animation:pltIn .35s cubic-bezier(.32,.72,0,1)}
@@ -29085,6 +29240,42 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 @media(prefers-reduced-motion:reduce){.plt-pane.on{animation:none}}
 /* Dos columnas que se parten solas; `minmax` con suelo para que un panel no
    quede de 180 px cuando el menú está desplegado. */
+/* v465 · Sesiones del jugador: una fila por sesión, con la barra apilada de
+   zonas y sus cifras debajo. La barra ES el reparto del tiempo, no una barra
+   contra un máximo: las cinco zonas suman el 100 %. */
+.pls-leg{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 12px}
+.pls-leg span{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted)}
+.pls-leg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.pls-r{padding:12px 0;border-bottom:.5px solid var(--hair)}
+.pls-r:last-child{border-bottom:0;padding-bottom:2px}
+.pls-h{display:flex;align-items:baseline;gap:9px;min-width:0}
+.pls-d{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.pls-l{font-size:13px;color:var(--muted);flex:1;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.pls-tag{font-size:10.5px;font-weight:700;letter-spacing:.04em;flex:0 0 auto}
+.pls-bar{display:flex;height:9px;border-radius:5px;overflow:hidden;margin:8px 0 9px;
+  background:var(--panel2)}
+.pls-bar i{display:block;height:100%}
+.pls-n{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.pls-n span{min-width:0}
+.pls-n em{display:block;font-style:normal;font-size:10.5px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pls-n b{display:block;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em;margin-top:1px}
+/* Resumen de médico y físico: lista de filas con filete, no tarjetas. */
+.plr h2{display:flex;align-items:center;gap:10px}
+.plr-b{font-size:12.5px;padding:5px 11px;min-height:0}
+.plr-i{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:9px 0;border-bottom:.5px solid var(--hair)}
+.plr-i:last-of-type{border-bottom:0}
+.plr-i span{font-size:13.5px;color:var(--muted)}
+.plr-i b{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.plr-s{font-size:12.5px;color:var(--muted);margin:-4px 0 4px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:560px){
+  .pls-n{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 8px}
+  .pls-n b{font-size:14px}
+}
 .pln-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0 4px}
 .pln-c{background:var(--panel2);border-radius:12px;padding:11px 13px;min-width:0}
 .pln-c em{display:block;font-style:normal;font-size:12px;color:var(--muted);font-weight:500}
@@ -29097,8 +29288,12 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 .pl-g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;margin-bottom:16px}
 .pl-g2>.panel{margin:0}
 @media(max-width:560px){
-  .plt-bar{margin:12px 0 16px}
-  .plt-b{flex:0 0 auto;min-height:44px}
+  .plt-bar{margin:12px 0 16px;gap:3px;padding:4px}
+  /* v465 · Con `flex:0 0 auto` la quinta pestaña se salía y había que
+     descubrir que la barra se desplaza. Si se pidió que se VEAN, las cinco
+     tienen que caber: se reparten el ancho y se aprieta el relleno. */
+  .plt-b{flex:1 1 0;min-width:0;min-height:44px;padding:11px 4px;font-size:13px;
+    overflow:hidden;text-overflow:ellipsis}
   .pl-g2{grid-template-columns:minmax(0,1fr);gap:12px}
 }
 .pl-evo{margin-top:14px}
@@ -29383,36 +29578,57 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
    pantalla hacia abajo —HIG · Layout > Mobile: «avoid full-width buttons»—.
    Ahora: foto redonda, nombre en Title (28/600), el readiness a la derecha y
    las acciones en una fila de botones planos que envuelve. */
-.phero{display:flex;align-items:center;gap:18px;flex-wrap:wrap;
-  background:var(--panel);border:0;border-radius:18px;padding:20px 22px;box-shadow:var(--shadow)}
-.phero-id{display:flex;gap:16px;align-items:center;min-width:0;flex:1}
-.phero-photo{width:68px;height:68px;border-radius:50%;object-fit:cover;
-  background:var(--panel2);border:0;flex:0 0 auto;box-shadow:0 0 0 1px var(--hair)}
-.phero-name{font-size:28px;font-weight:600;letter-spacing:-.022em;line-height:1.1}
-.phero-sub{font-size:15px;color:var(--muted);margin-top:3px}
-.phero-tags{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
-.phero-tag{font-size:12.5px;font-weight:500;padding:3px 10px;border-radius:999px;
+/* ═══ v465 · Cabecera de la ficha ═══
+   Daniel: «la foto más grande … hay mucho espacio en blanco … meter alguno de
+   los datos en ese espacio». La tarjeta pasa a tres zonas en una fila: foto
+   grande con su arco, quién es, y una rejilla de cifras que ocupa el hueco que
+   antes era aire. Las acciones cierran abajo, separadas por un filete. */
+.phero{display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+  background:var(--panel);border:0;border-radius:18px;padding:22px 24px;box-shadow:var(--shadow)}
+.phero-id{display:flex;gap:18px;align-items:center;min-width:0;flex:1 1 300px}
+/* La foto **sin fondo** se luce en grande: 108 px y el arco del readiness
+   alrededor, el mismo objeto que en la tarjeta de la rejilla. */
+.phe-ph{position:relative;flex:0 0 auto;width:108px;height:108px;border-radius:50%;
+  box-sizing:border-box;padding:4px;background:conic-gradient(var(--sv) var(--arc,0deg),var(--hair) 0)}
+.phero-photo{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;
+  box-sizing:border-box;background:var(--panel2);border:3px solid var(--panel)}
+.phe-ini{display:flex;align-items:center;justify-content:center;font-size:32px;
+  font-weight:600;color:var(--muted)}
+/* El dorsal, debajo de la foto: es lo que ya estaba escrito como pendiente. */
+.phe-dorsal{position:absolute;left:50%;transform:translateX(-50%);bottom:-7px;
+  min-width:30px;height:24px;display:flex;align-items:center;justify-content:center;padding:0 8px;
+  font-size:13px;font-weight:650;line-height:1;color:var(--txt);background:var(--panel);
+  border-radius:999px;box-shadow:0 0 0 2px var(--panel),0 1px 4px rgba(0,0,0,.16)}
+.phe-who{min-width:0}
+.phero-name{font-size:30px;font-weight:600;letter-spacing:-.022em;line-height:1.08}
+.phero-sub{font-size:15px;color:var(--muted);margin-top:4px}
+.phero-tags{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.phero-tag{font-size:12.5px;font-weight:600;padding:4px 11px;border-radius:999px;
   background:var(--panel2);border:0;color:var(--muted)}
-.phero-rd{display:flex;flex-direction:column;align-items:center;gap:1px;flex:0 0 auto}
-.phero-ring{position:relative;width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-.phero-ring::before{content:'';position:absolute;width:66px;height:66px;border-radius:50%;background:var(--panel)}
-.phero-rdn{position:relative;font-size:25px;font-weight:600;font-variant-numeric:tabular-nums}
-.phero-rdl{font-size:11px;letter-spacing:0;color:var(--muted);font-weight:500;margin-top:3px;text-transform:none}
-.phero-rds{font-size:13.5px;font-weight:600}
-/* Acciones: fila que envuelve, en el nivel plano del sistema. Dejan de ser
-   cuatro bloques rellenos compitiendo con el nombre. */
+/* La rejilla de cifras es la que se come el blanco que sobraba. */
+.phe-tiles{display:grid;grid-template-columns:repeat(4,minmax(78px,1fr));gap:10px;flex:1 1 340px}
+.phe-t{background:var(--panel2);border-radius:12px;padding:10px 12px;min-width:0}
+.phe-t em{display:block;font-style:normal;font-size:11.5px;color:var(--muted);font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phe-t b{display:block;font-size:22px;font-weight:600;letter-spacing:-.015em;line-height:1.2;
+  margin-top:2px;font-variant-numeric:tabular-nums}
+.phe-t u{display:block;text-decoration:none;font-size:11.5px;color:var(--muted);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .phero-btns{display:flex;flex-direction:row;gap:8px;flex-wrap:wrap;width:100%;
-  padding-top:16px;margin-top:2px;border-top:.5px solid var(--hair)}
+  padding-top:18px;margin-top:2px;border-top:.5px solid var(--hair)}
 .phero-add{white-space:nowrap;font-size:13.5px;font-weight:500;
   background:var(--panel2);color:var(--accent);border:0;min-height:38px;padding:8px 14px}
 .phero-add:hover{background:var(--hair)}
+@media(max-width:760px){
+  .phe-tiles{grid-template-columns:repeat(4,minmax(0,1fr));flex-basis:100%}
+}
 @media(max-width:560px){
-  .phero{padding:16px;gap:14px}
-  .phero-photo{width:56px;height:56px}
-  .phero-name{font-size:24px}
-  .phero-ring{width:72px;height:72px}
-  .phero-ring::before{width:56px;height:56px}
-  .phero-rdn{font-size:22px}
+  .phero{padding:18px 16px;gap:16px}
+  .phe-ph{width:88px;height:88px;padding:3.5px}
+  .phero-name{font-size:25px}
+  .phero-sub{font-size:14px}
+  .phe-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .phe-t b{font-size:20px}
   .phero-btns{gap:6px;padding-top:14px}
   .phero-add{flex:1 1 calc(50% - 3px);min-width:0;padding:8px 10px;font-size:13px}
 }
@@ -29433,20 +29649,66 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 (function(){
  const q=n=>n.replace(/'/g,"\\'");
  window.renderPlayerHero=function(name){const box=document.getElementById('player-hero');if(!box)return;const p=(STATE.players||{})[name];if(!p)return;
-   const foto=p.avatar||window.__AVATAR__||'';const rd=p.readiness!=null?p.readiness:'—';const sev=p.sev||'na';
+   /* ═══ v465 · Cabecera: foto grande y el hueco en blanco relleno de dato ═══
+      Daniel, 26/10/2026: «la foto más grande, que se vea bien, que es sin fondo …
+      hay mucho espacio en blanco … meter alguno de los datos en ese espacio».
+      La foto pasa de 68 a 108 px y **lleva el arco del readiness alrededor**,
+      igual que la tarjeta de la rejilla: un solo objeto, misma lectura en los
+      dos sitios. El dorsal baja debajo de la foto, que es lo que ya estaba
+      escrito como pendiente en CLAUDE.md. El anillo suelto de readiness
+      desaparece: su cifra entra en la rejilla de datos de la derecha, que es
+      justo lo que llenaba de blanco la mitad de la tarjeta. */
+   const foto=p.avatar||window.__AVATAR__||'';
+   const rd=p.readiness!=null?Math.round(p.readiness):null;
+   const sev=p.sev||'na';
    const col=sev==='ok'?'var(--ok)':sev==='warn'?'var(--warn)':sev==='bad'?'var(--bad)':'var(--muted)';
    const estado=sev==='ok'?'Óptimo':sev==='warn'?'Precaución':sev==='bad'?'En riesgo':'Sin datos';
-   const acwr=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio.toFixed(2):'—';
+   const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null;
+   const acCol=(typeof acwrClass==='function'&&ac!=null)?'var(--'+acwrClass(ac)+')':'var(--muted)';
    const c7=p.acwr&&p.acwr.acute?Math.round(p.acwr.acute):null;
-   const ring=rd!=='—'?'conic-gradient('+col+' '+(rd*3.6)+'deg, var(--line) 0)':'var(--line)';
-   box.innerHTML='<div class="phero"><div class="phero-id">'+(foto?'<img class="phero-photo" src="'+foto+'">':'<div class="phero-photo"></div>')+
-     '<div><div class="phero-name">'+name+'</div><div class="phero-sub">'+(p.pos||'—')+'</div>'+
-     '<div class="phero-tags"><span class="phero-tag" style="color:'+col+';border-color:'+col+'">ACWR '+acwr+'</span>'+(c7!=null?'<span class="phero-tag">Carga 7d '+c7+' UA</span>':'')+'</div></div></div>'+
-     '<div class="phero-rd"><div class="phero-ring" style="background:'+ring+'"><div class="phero-rdn">'+rd+'</div></div><div class="phero-rdl">READINESS</div><div class="phero-rds" style="color:'+col+'">'+estado+'</div></div>'+
-     /* v216 · «Dato médico» y «Parte del día» eran dos botones distintos que
-        guardaban en almacenes distintos y no estaba claro cuál tocaba. Ahora
-        hay uno solo que pregunta qué se quiere registrar. */
-     '<div class="phero-btns"><button class="btn phero-add" onclick="openFisioReg(\''+q(name)+'\')">+ Fisio / médico</button><button class="btn phero-add" onclick="openHeroForm(\'incidencia\',\''+q(name)+'\')">+ Parte del día</button><button class="btn phero-add" onclick="openQuickTest(\''+q(name)+'\')">+ Valoración</button><button class="btn phero-add" onclick="openReunion(\''+q(name)+'\')">+ Reunión</button></div></div>';
+   const c14=p.load14!=null&&!isNaN(p.load14)?Math.round(p.load14):null;
+   const dnum=(typeof dorsal==='function'?dorsal(name):'')||'';
+   const ini2=String(name).split(' ').slice(0,2).map(x=>x[0]||'').join('');
+   /* El estado de disponibilidad sale de `effectiveStatus`, que es quien manda:
+      la ficha no decide estados, los refleja (regla anti-solape §2.4). */
+   let dispLab='Disponible', dispCol='var(--ok)';
+   try{const ev=effectiveStatus(name,dkEstado());
+     if(ev&&ev.status&&ev.status!=='disp'){
+       dispLab=((typeof PHYSTAT!=='undefined'&&PHYSTAT[ev.status])||{}).lab||ev.status;
+       dispCol=(typeof NOAV_FIS_ST!=='undefined'&&NOAV_FIS_ST.indexOf(ev.status)>=0)?'var(--bad)':'var(--warn)';
+     }}catch(e){}
+   const q2=v=>String(v==null?'':v).replace(/'/g,"\\'");
+   const esc2=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+   const tile=(et,val,sub,c)=>'<div class="phe-t"><em>'+et+'</em><b'+(c?' style="color:'+c+'"':'')+'>'+val+'</b>'
+     +(sub?'<u>'+sub+'</u>':'')+'</div>';
+   box.innerHTML='<div class="phero">'
+     +'<div class="phero-id">'
+       +'<div class="phe-ph" style="--arc:'+(rd!=null?Math.round(rd*3.6):0)+'deg;--sv:'+col+'">'
+         +(foto?'<img class="phero-photo" src="'+esc2(foto)+'" alt="">':'<div class="phero-photo phe-ini">'+esc2(ini2)+'</div>')
+         +(dnum!==''?'<span class="phe-dorsal">'+esc2(dnum)+'</span>':'')
+       +'</div>'
+       +'<div class="phe-who">'
+         +'<div class="phero-name">'+esc2(name)+'</div>'
+         +'<div class="phero-sub">'+esc2(p.pos||'—')+(p.mdx?' · '+esc2(p.mdx):'')+'</div>'
+         +'<div class="phero-tags">'
+           +'<span class="phero-tag" style="color:'+dispCol+'">'+esc2(dispLab)+'</span>'
+           +'<span class="phero-tag">'+estado+'</span>'
+         +'</div>'
+       +'</div>'
+     +'</div>'
+     +'<div class="phe-tiles">'
+       +tile('Readiness',rd!=null?rd:'—',estado,col)
+       +tile('ACWR',ac!=null?ac.toFixed(2).replace('.',','):'—','7:21',acCol)
+       +tile('Carga 7d',c7!=null?c7.toLocaleString('es-ES'):'—','UA')
+       +tile('Carga 14d',c14!=null?c14.toLocaleString('es-ES'):'—','UA acumulada')
+     +'</div>'
+     +'<div class="phero-btns">'
+       +'<button class="btn phero-add" onclick="openFisioReg(\''+q2(name)+'\')">+ Fisio / médico</button>'
+       +'<button class="btn phero-add" onclick="openHeroForm(\'incidencia\',\''+q2(name)+'\')">+ Parte del día</button>'
+       +'<button class="btn phero-add" onclick="openQuickTest(\''+q2(name)+'\')">+ Valoración</button>'
+       +'<button class="btn phero-add" onclick="openReunion(\''+q2(name)+'\')">+ Reunión</button>'
+     +'</div>'
+   +'</div>';
  };
  const today=()=>dkey(new Date());
  window.openHeroForm=function(type,name){let h='';
@@ -35369,8 +35631,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.13*/
-const VER_ACTUAL='2026-10-26.13';
+/*BUILD:2026-10-26.14*/
+const VER_ACTUAL='2026-10-26.14';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
