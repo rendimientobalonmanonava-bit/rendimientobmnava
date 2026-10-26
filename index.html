@@ -29030,7 +29030,11 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
      h='<h2 style="margin-top:0">Parte del día / incidencia'+(name?' · '+String(name).replace(/</g,'&lt;'):'')+' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'+
      '<p class="small muted" style="margin:-6px 0 12px">Lo que pasa en el día a día. Con «Con dolor» o «En tratamiento» sigue entrenando con normalidad.</p>'+
      '<div class="ph-f">'+parteFormHTML('mh-i',{player:!name,name:name})+
-     '<div style="margin-top:10px"><button class="btn" onclick="heroSaveIncidencia(\''+q(name)+'\')">Guardar</button></div></div>';
+     '<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
+       '<button class="btn" onclick="heroSaveIncidencia(\''+q(name)+'\')">Guardar</button>'+
+       '<button class="btn ghost" onclick="heroEscalarLesion(\''+q(name)+'\')">Esto es una lesión →</button>'+
+     '</div>'+
+     '<p class="hint" style="margin:8px 0 0">«Esto es una lesión» se lleva lo que has escrito al episodio con su plan de fases. <b>No deja además un parte suelto</b>: es el mismo hecho, no dos.</p></div>';
    }
    /* v227 · el tipo 'coment' (comentario libre) se retiró: no persistía nunca
       (STATE.notes sin guardado en localStorage). Su único punto de entrada
@@ -29116,6 +29120,54 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
     copias de la misma lógica que puedan separarse con el tiempo. */
  window.heroSaveIncidencia=function(name){
   if(parteSave('mh-i',name))closeHeroForm();
+ };
+ /* ═══ v457 · Escalar un parte del día a lesión ═══
+    Virginia, 26/10/2026: la lesión se podía crear desde cuatro sitios y uno de
+    ellos era el apartado de citas. La salida que eligió Daniel es que se abra
+    DESDE el parte del día, que es donde ella está en el momento en que se da
+    cuenta de que la molestia es otra cosa.
+
+    **Convierte, no duplica.** No guarda el parte Y ADEMÁS el episodio: se
+    lleva lo escrito al formulario de lesión y ya está. Dos registros del mismo
+    hecho el mismo día saldrían dos veces en la ficha, y además `effectiveStatus`
+    da prioridad al episodio sobre el parte, así que el parte no gobernaría
+    nada — sería un registro que se ve y no decide, que es lo peor de los dos
+    mundos.
+
+    **La fecha que viaja es la del PARTE, no hoy.** Si apunta el lunes una
+    molestia y el miércoles ve que es una lesión, el episodio tiene que empezar
+    el lunes: con la fecha de hoy, la cronología y los días de baja mienten
+    desde el primer día. Es la misma regla de siempre en este proyecto —lo que
+    describe un día va por ese día—, solo que aquí el día lo trae el formulario.
+
+    **El título NO se rellena solo.** Es lo único que nombra la lesión y lo
+    tiene que escribir ella; lo que se hace es llevar el foco ahí y sugerir la
+    zona en el marcador de posición. */
+ window.heroEscalarLesion=function(name){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const n=name||g('mh-iname');
+  if(!n){alert('Selecciona un jugador.');return;}
+  const prev={dk:g('mh-idate'),zona:(g('mh-izone')||'').trim(),lado:g('mh-iside')||'',
+              pain:g('mh-ipain'),nota:(g('mh-inote')||'').trim(),
+              rtp:g('mh-irtp')||'',status:g('mh-istatus')||''};
+  closeHeroForm();
+  if(!window.openMedInjury){if(window.toast)toast('No se puede abrir el registro de lesión');return;}
+  try{if(window.go)go('medico');}catch(e){}
+  openMedInjury(n);
+  /* El formulario se pinta con innerHTML y se muestra; se cede un tick antes
+     de tocarlo, que es la regla ya escrita para lo que se despliega. */
+  setTimeout(function(){
+   const s=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
+   s('mi-name',n);s('mi-dk',prev.dk);s('mi-zona',prev.zona);s('mi-lado',prev.lado);
+   s('mi-pain',prev.pain);s('mi-desc',prev.nota);s('mi-rtp',prev.rtp);
+   /* El estado solo se copia si el desplegable de la lesión lo admite: los dos
+      no tienen por qué ofrecer la misma lista, y forzar un valor que no está
+      dejaría el select en blanco sin decirlo. */
+   const st=document.getElementById('mi-status');
+   if(st&&prev.status&&[].some.call(st.options,function(o){return o.value===prev.status;}))st.value=prev.status;
+   const t=document.getElementById('mi-title');
+   if(t&&!t.value){if(prev.zona)t.placeholder='p. ej. molestia en '+prev.zona;t.focus();}
+  },60);
  };
  var _o=document.getElementById('ph-overlay');if(_o)_o.addEventListener('click',function(e){if(e.target===this)closeHeroForm();});
 })();
@@ -34843,8 +34895,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.5*/
-const VER_ACTUAL='2026-10-26.5';
+/*BUILD:2026-10-26.6*/
+const VER_ACTUAL='2026-10-26.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
