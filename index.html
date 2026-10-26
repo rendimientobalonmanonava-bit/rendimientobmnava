@@ -54,6 +54,10 @@ window.__PHOTOS__ = window.__PHOTOS__ || {};</script>
   /* ── tinta ── */
   --txt:#10151f; --muted:#5c6470; --muted2:#9aa1ac;
   /* ── acción ── */
+  /* v467 · Par aeróbico/anaeróbico de los anillos de carga. Se declara en los
+     DOS temas, que es la regla: un token de color que solo existe en claro se
+     pinta igual sobre el lienzo negro. */
+  --te-aer:#17a2b8;--te-ana:#13697c;
   --accent:#3056c4; --accent-hover:#2747a6; --accent2:#c2702e; --accent-dim:rgba(48,86,196,.10);
   --focus:0 0 0 3px rgba(48,86,196,.16);
   /* ── semántica · rojo SOLO alerta ── */
@@ -287,7 +291,7 @@ html[data-theme="dark"]{
   --ok:#30d47f; --ok-bg:rgba(48,212,127,.13); --ok-text:#7ceaad;
   --warn:#ffb224; --warn-bg:rgba(255,178,36,.14); --warn-text:#ffd18a;
   --bad:#ff5f52; --bad-bg:rgba(255,95,82,.14); --bad-text:#ffa79e;
-  --accent:#6d8cff; --accent-hover:#899fff; --accent-dim:rgba(109,140,255,.14);
+  --te-aer:#3ec9df;--te-ana:#2b9fb6;--accent:#6d8cff; --accent-hover:#899fff; --accent-dim:rgba(109,140,255,.14);
   --na:#7d8593; --na-bg:#212530;
   --c-teal:#5fc8dd;
   --row-warn:rgba(255,178,36,.06); --row-bad:rgba(255,95,82,.07);
@@ -6046,6 +6050,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div id="pl-advice"></div>
       <!-- Lo que Daniel echó en falta: Polar e intensidad con sus números, y un
            poco de médico y de físico con el detalle en su pestaña. -->
+      <div id="pl-anillos"></div>
       <div id="pl-ses"></div>
       <div id="pl-resumen"></div>
       <div class="pl-g2">
@@ -13281,6 +13286,7 @@ function renderPlayer(name){
      dijera ya el estado del problema. */
   /* v464 · los dos bloques nuevos de la ficha por pestañas */
   try{renderPlNormal(name);}catch(e){console.error('carga normal',e);}
+  try{renderPlAnillos(name);}catch(e){console.error('anillos',e);}
   try{renderPlSesiones(name);}catch(e){console.error('sesiones',e);}
   try{renderPlResumen(name);}catch(e){console.error('resumen ficha',e);}
   try{renderPlFisico(name);}catch(e){console.error('perfil fisico',e);}
@@ -13289,6 +13295,103 @@ function renderPlayer(name){
   /* El marcado nace con «Hoy» puesto; esto lo deja en la pestaña que estuviera
      abierta al cambiar de jugador, para poder comparar a dos en la misma. */
   try{plTab(PL_TAB);}catch(e){}
+}
+/* ═══ v467 · Anillos concéntricos ═══
+   Daniel, 26/10/2026, con capturas de Firstbeat Sports y WHOOP delante: *\u00abmuy
+   mal, necesito que sea much\u00edsimo m\u00e1s est\u00e9tico, que uses m\u00e1s gr\u00e1ficos con
+   colores\u00bb*. La pieza que se repite en toda esa referencia es el **medidor de
+   anillos conc\u00e9ntricos con la cifra grande dentro**.
+   `plArcos` lo dibuja en SVG, no en Chart.js: va dentro de pesta\u00f1as que pueden
+   estar ocultas, y un canvas ah\u00ed nace de tama\u00f1o cero.
+   **El arco nace con su valor final en el marcado** —la animaci\u00f3n, si alguna
+   vez la hay, solo rebobina—, que es la regla escrita de los anillos: ninguno
+   puede quedarse vac\u00edo esperando a que alguien lo rellene.
+   Cada anillo lleva **su pista propia** en `--hair`, as\u00ed que un valor de 0 se
+   lee como un c\u00edrculo vac\u00edo y no como un hueco. */
+function plArcos(aros,cfg){
+  cfg=cfg||{};
+  const S=cfg.size||132, gro=cfg.grosor||11, hueco=cfg.hueco||5;
+  const c=S/2;
+  let r=c-gro/2-2, cuerpo='';
+  aros.forEach(a=>{
+    const frac=Math.max(0,Math.min(1,(+a.v||0)/(a.max||1)));
+    const L=2*Math.PI*r;
+    cuerpo+='<circle cx="'+c+'" cy="'+c+'" r="'+r.toFixed(2)+'" fill="none" '
+      +'stroke="var(--hair)" stroke-width="'+gro+'"/>'
+      +'<circle cx="'+c+'" cy="'+c+'" r="'+r.toFixed(2)+'" fill="none" stroke="'+a.col+'" '
+      +'stroke-width="'+gro+'" stroke-linecap="round" '
+      +'stroke-dasharray="'+(L*frac).toFixed(2)+' '+(L*(1-frac)+1).toFixed(2)+'" '
+      +'transform="rotate(-90 '+c+' '+c+')">'
+      +(a.tit?'<title>'+a.tit+'</title>':'')+'</circle>';
+    r-=gro+hueco;
+  });
+  return '<svg class="pla" viewBox="0 0 '+S+' '+S+'" width="'+S+'" height="'+S+'" aria-hidden="true">'
+    +cuerpo+'</svg>';
+}
+/* ═══ v467 · La fila de medidores de Hoy ═══
+   Tres lecturas, las mismas tres que el resumen de Firstbeat: **qu\u00e9 efecto tuvo
+   el entrenamiento**, **cu\u00e1nta carga lleva** y **c\u00f3mo ha llegado**.
+   Ninguna cifra es nueva: `trainingEffect` ya exist\u00eda —con su `teColor` y su
+   `teLabel`—, el ACWR es `p.acwr.ratio` (el úNICO que manda desde la v452) y el
+   readiness es el de siempre. Lo que cambia es que se ven. */
+function renderPlAnillos(name){
+  const box=document.getElementById('pl-anillos');if(!box)return;
+  const p=(STATE.players||{})[name];if(!p)return;
+  const n1=v=>v==null||isNaN(v)?'\u2014':(Math.round(v*10)/10).toString().replace('.',',');
+  const n0=v=>v==null||isNaN(v)?'\u2014':Math.round(v).toLocaleString('es-ES');
+
+  /* — 1 · efecto del entrenamiento, de la última sesión con pulsómetro — */
+  let te=null,teDk=null;
+  try{
+    if(typeof hrEnsure==='function')hrEnsure();
+    const d=(typeof hrpDatos==='function')?hrpDatos(name,0):[];
+    for(let i=d.length-1;i>=0;i--){if(d[i]&&d[i].te){te=d[i].te;teDk=d[i].dk;break;}}
+  }catch(e){}
+  const g1=te
+    ? plArcos([{v:te.aer,max:5,col:'var(--te-aer)',tit:'Aer\u00f3bico '+n1(te.aer)},
+               {v:te.ana,max:5,col:'var(--te-ana)',tit:'Anaer\u00f3bico '+n1(te.ana)}])
+    : plArcos([{v:0,max:5,col:'var(--te-aer)'},{v:0,max:5,col:'var(--te-ana)'}]);
+  const t1='<div class="pla-c">'+g1
+    +'<div class="pla-v" style="color:'+(te?teColor(te.aer):'var(--muted)')+'">'+(te?n1(te.aer):'\u2014')+'</div></div>'
+    +'<div class="pla-t">Efecto del entrenamiento</div>'
+    +'<div class="pla-s">'+(te?teLabel(te.aer):'sin puls\u00f3metro')+'</div>'
+    +(te?'<div class="pla-l"><span><i style="background:var(--te-aer)"></i>'+n1(te.aer)+' aer\u00f3bico</span>'
+        +'<span><i style="background:var(--te-ana)"></i>'+n1(te.ana)+' anaer\u00f3bico</span></div>':'');
+
+  /* — 2 · carga: ACWR con sus dos ventanas — */
+  const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null;
+  const acCol=(ac!=null&&typeof acwrClass==='function')?'var(--'+acwrClass(ac)+')':'var(--muted)';
+  const agu=p.acwr&&p.acwr.acute?p.acwr.acute:null;
+  const cro=p.acwr&&p.acwr.chronic?p.acwr.chronic:null;
+  /* El anillo del ACWR se dibuja sobre 2,0, que es donde acaba la escala del
+     sem\u00e1foro de carga: as\u00ed 1,0 cae justo a la mitad y la banda buena —0,8 a
+     1,3— se reconoce de un vistazo sin leer el n\u00famero. */
+  const g2=plArcos([{v:ac==null?0:Math.min(ac,2),max:2,col:acCol,tit:'ACWR '+n1(ac)},
+                    {v:agu&&cro?Math.min(agu/Math.max(cro,1),2):0,max:2,col:'var(--te-ana)',tit:'aguda/cr\u00f3nica'}]);
+  const t2='<div class="pla-c">'+g2
+    +'<div class="pla-v" style="color:'+acCol+'">'+(ac==null?'\u2014':n1(ac))+'</div></div>'
+    +'<div class="pla-t">Carga</div>'
+    +'<div class="pla-s">'+(ac==null?'sin datos':(ac<0.8?'por debajo':ac>1.3?'por encima':'en banda'))+'</div>'
+    +'<div class="pla-l"><span>'+n0(agu)+' aguda</span><span>'+n0(cro)+' cr\u00f3nica</span></div>';
+
+  /* — 3 · cómo llega: readiness — */
+  const rd=p.readiness!=null?Math.round(p.readiness):null;
+  const rdCol='var(--'+(p.sev||'muted')+')';
+  const g3=plArcos([{v:rd==null?0:rd,max:100,col:rdCol,tit:'Readiness '+(rd==null?'\u2014':rd)}],{grosor:14});
+  const t3='<div class="pla-c">'+g3
+    +'<div class="pla-v" style="color:'+rdCol+'">'+(rd==null?'\u2014':rd)+'</div></div>'
+    +'<div class="pla-t">C\u00f3mo llega</div>'
+    +'<div class="pla-s">'+(rd==null?'sin wellness':(p.sev==='ok'?'\u00d3ptimo':p.sev==='warn'?'Moderado':'Bajo'))+'</div>'
+    +'<div class="pla-l"><span>verde \u226575 \u00b7 \u00e1mbar 55\u201374</span></div>';
+
+  box.innerHTML='<div class="panel pla-p"><div class="pla-g">'
+    +'<div class="pla-u">'+t1+'</div>'
+    +'<div class="pla-u">'+t2+'</div>'
+    +'<div class="pla-u">'+t3+'</div>'
+  +'</div>'
+  +'<p class="hint" style="margin:14px 0 0">El efecto del entrenamiento sale de la \u00faltima sesi\u00f3n con puls\u00f3metro'
+    +(teDk?' ('+teDk.slice(8)+'/'+teDk.slice(5,7)+')':'')+': anillo exterior aer\u00f3bico, interior anaer\u00f3bico, de 0 a 5. '
+    +'La carga es el ACWR 7:21, el mismo de todas las pantallas.</p></div>';
 }
 /* ═══ v465 · Las últimas sesiones del jugador, con sus números ═══
    Sustituye a «Wellness · evolución», que Daniel retiró el 26/10/2026 («no me
@@ -13337,7 +13440,18 @@ function renderPlSesiones(name){
     }}catch(e){}
     const niv=(r.nivel!=null&&NIVL[r.nivel])?NIVL[r.nivel]:null;
     const nivc=r.nivel===2?'var(--bad)':r.nivel===1?'var(--warn)':'var(--ok)';
+    /* v467 \u00b7 Cada sesi\u00f3n lleva su propio medidor de efecto, el mismo objeto
+       que el grande de arriba a escala peque\u00f1a: la fila deja de ser una tabla
+       y se lee de un vistazo. */
+    const mini=r.te
+      ? plArcos([{v:r.te.aer,max:5,col:'var(--te-aer)',tit:'Aer\u00f3bico '+n1(r.te.aer)},
+                 {v:r.te.ana,max:5,col:'var(--te-ana)',tit:'Anaer\u00f3bico '+n1(r.te.ana)}],
+                {size:52,grosor:6,hueco:3})
+      : '';
     return '<div class="pls-r">'
+      +(mini?'<div class="pls-te"><div class="pls-tew">'+mini
+        +'<b style="color:'+teColor(r.te.aer)+'">'+n1(r.te.aer)+'</b></div></div>':'')
+      +'<div class="pls-bd">'
       +'<div class="pls-h">'
         +'<span class="pls-d">'+esc(r.dk.slice(8)+'/'+r.dk.slice(5,7)+(r.dk<TEMP_INICIO?'/'+r.dk.slice(2,4):''))+'</span>'
         +'<span class="pls-l" title="'+esc(r.lab)+'">'+esc(r.lab)+'</span>'
@@ -13352,6 +13466,7 @@ function renderPlSesiones(name){
         +'<span><em>RPE</em><b>'+n1(r.rpe)+'</b></span>'
         +'<span><em>Contacto</em><b>'+n1(r.ct)+'</b></span>'
         +'<span><em>UA</em><b>'+n0(r.ua)+'</b></span>'
+      +'</div>'
       +'</div>'
     +'</div>';
   }).join('');
@@ -29254,6 +29369,32 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 /* v465 · Sesiones del jugador: una fila por sesión, con la barra apilada de
    zonas y sus cifras debajo. La barra ES el reparto del tiempo, no una barra
    contra un máximo: las cinco zonas suman el 100 %. */
+/* v467 · Medidores de anillos · el lenguaje visual que pidió Daniel */
+.pla-p{padding-top:22px}
+.pla-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.pla-u{display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0}
+.pla-c{position:relative;display:flex;align-items:center;justify-content:center}
+.pla{display:block;max-width:100%;height:auto}
+/* La cifra va DENTRO del anillo, que es lo que hace que se lea como medidor
+   y no como una rosquilla con un rótulo al lado. */
+.pla-v{position:absolute;font-size:30px;font-weight:600;letter-spacing:-.025em;
+  font-variant-numeric:tabular-nums;line-height:1}
+.pla-t{margin-top:12px;font-size:14px;font-weight:600;letter-spacing:-.01em}
+.pla-s{font-size:12.5px;color:var(--muted);margin-top:2px}
+.pla-l{display:flex;flex-direction:column;gap:3px;margin-top:9px}
+.pla-l span{display:flex;align-items:center;gap:6px;justify-content:center;
+  font-size:11.5px;color:var(--muted)}
+.pla-l i{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+/* La fila de sesión pasa a dos columnas: el medidor y el contenido. */
+.pls-r{display:flex;gap:14px;align-items:flex-start}
+.pls-bd{flex:1;min-width:0}
+.pls-te{flex:0 0 auto;padding-top:2px}
+.pls-tew{position:relative;display:flex;align-items:center;justify-content:center}
+.pls-tew b{position:absolute;font-size:13px;font-weight:650;
+  font-variant-numeric:tabular-nums;line-height:1}
+@media(max-width:760px){
+  .pla-g{grid-template-columns:minmax(0,1fr);gap:26px}
+}
 .pls-leg{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 12px}
 .pls-leg span{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted)}
 .pls-leg i{width:9px;height:9px;border-radius:3px;display:inline-block}
@@ -35642,8 +35783,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.15*/
-const VER_ACTUAL='2026-10-26.15';
+/*BUILD:2026-10-26.16*/
+const VER_ACTUAL='2026-10-26.16';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
