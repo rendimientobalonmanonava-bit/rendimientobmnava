@@ -20063,12 +20063,46 @@ function vendSetDia(dk){
 }
 function vendDiaMover(n){vendSetDia(fisDkSuma(vendDkey(),n));}
 window.vendSetDia=vendSetDia;window.vendDiaMover=vendDiaMover;
+/* v456 · Las respuestas de Virginia (26/10/2026), sembradas desde el código.
+   `bmnava_vendajes` vive en el `localStorage` de CADA navegador y el alta de
+   Supabase sigue sin confirmar, así que lo que escriba en su equipo no llega
+   al de nadie más: misma razón por la que el pedido de FullGas va en el
+   código y no en una importación.
+
+   **Se siembra una vez y no pisa nada**: si un campo ya tiene valor puesto a
+   mano, se respeta — quien está delante del armario sabe más que esta tabla.
+
+   **Rodilla y hombro se quedan VACÍOS a propósito.** Dijo que esas van con
+   Tensoplast y no dio la medida; rellenarlas con un número de catálogo haría
+   justo lo que esta pestaña evita desde el primer día, que es un stock con
+   aspecto de dato. Si algún día venda una rodilla, el bloque se abrirá solo y
+   se las pedirá, que es lo correcto. */
+const VEND_SEED_FLAG='bmnava_vend_seed_virginia';
+const VEND_SEED_CFG={
+  cm:{tobillo:900,muneca:100,mano:150,dedo:25},
+  rollo:10, stock:45,
+  nota:'Tape de 3,75 cm para tobillos y muñecas; de 2 cm para dedos; en manos '
+      +'los dos anchos. Los dos rollos son de 10 m. Pretape en casi todos '
+      +'(tobillo, muñeca y mano; en dedos no). Rodillas y codos van con '
+      +'Tensoplast, que no está medido aquí. — Virginia, 26/10/2026'
+};
+function vendSembrarCfg(V){
+  try{ if(lsLeer(VEND_SEED_FLAG,null))return false; }catch(e){}
+  const c=V.cfg;
+  Object.keys(VEND_SEED_CFG.cm).forEach(z=>{ if(!(+c.cm[z]>0))c.cm[z]=VEND_SEED_CFG.cm[z]; });
+  if(!(+c.rollo>0))c.rollo=VEND_SEED_CFG.rollo;
+  if(!(+c.stock>0))c.stock=VEND_SEED_CFG.stock;
+  if(!c.nota)c.nota=VEND_SEED_CFG.nota;
+  try{lsGuardar(VEND_LS,V);lsGuardar(VEND_SEED_FLAG,1);}catch(e){}
+  return true;
+}
 function vendLoad(){
   if(!STATE.vend){
     const d=lsLeer(VEND_LS,null)||{};
     STATE.vend={reg:Array.isArray(d.reg)?d.reg:[],
                 cfg:(d.cfg&&typeof d.cfg==='object')?d.cfg:{}};
     if(!STATE.vend.cfg.cm||typeof STATE.vend.cfg.cm!=='object')STATE.vend.cfg.cm={};
+    try{vendSembrarCfg(STATE.vend);}catch(e){}
   }
   return STATE.vend;
 }
@@ -20365,6 +20399,10 @@ function vendPanel(){
     +consumo
     +'<div class="vd-sub">Centímetros de tape por vendaje</div>'
     +'<div class="vd-form">'+cfgCampos+'</div>'
+    /* La nota del material va PEGADA a los números: ella usa cuatro cosas
+       distintas —tape de 3,75, de 2, pretape y Tensoplast— y una sola cifra
+       por zona se leería como un único material. */
+    +(V.cfg.nota?'<p class="hint" style="margin:8px 0 0">'+esc(V.cfg.nota)+'</p>':'')
     +'<div class="vd-sub">El rollo y lo que tienes</div>'
     +'<div class="vd-form"><label class="vd-f"><span>Metros por rollo</span><input type="text" inputmode="decimal" value="'+(V.cfg.rollo!=null?String(V.cfg.rollo).replace('.',','):'')+'" placeholder="m" onchange="vendSetCfg(\'rollo\',this.value)"></label>'
     +'<label class="vd-f"><span>Rollos en el almacén</span><input type="text" inputmode="decimal" value="'+(V.cfg.stock!=null?String(V.cfg.stock).replace('.',','):'')+'" placeholder="uds" onchange="vendSetCfg(\'stock\',this.value)"></label></div>'
@@ -34805,8 +34843,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.4*/
-const VER_ACTUAL='2026-10-26.4';
+/*BUILD:2026-10-26.5*/
+const VER_ACTUAL='2026-10-26.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
