@@ -6008,73 +6008,74 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     </details>
   </section>
 
+  <!-- ═══ v464 · La ficha, por pestañas ═══
+       Eran ~20 módulos en tres columnas y un scroll largo. Daniel, 26/10/2026,
+       preguntado antes de tocar nada: usa la ficha para las CUATRO cosas —cómo
+       está hoy, su físico, su historial médico y su carga— y quiere pestañas.
+       HIG · Layout: «make essential information easy to find by giving it
+       sufficient space … you can make secondary information available in other
+       parts of the window» y «take advantage of progressive disclosure».
+       **Todos los contenedores conservan su id**: solo cambia en qué pestaña
+       caen, así que ninguna función que escriba en ellos se entera. -->
   <section class="view" id="v-jugador">
     <button class="back" onclick="go('jugadores')">‹ volver a jugadores</button>
     <div id="player-hero"></div>
-    <!-- v229 · Tira de titulares. Antes había que leer tres paneles distintos
-         para saber si un jugador estaba bien: readiness en uno, ACWR en otro y
-         la disponibilidad enterrada abajo. Aquí van los cinco números que el
-         cuerpo técnico mira primero. -->
-    <div id="pl-strip"></div>
-    <div id="pl-advice"></div>
-    <!-- v229 · Tres columnas temáticas en vez de dos genéricas. Cada una
-         responde a una pregunta del cuerpo técnico: ¿cómo está?, ¿cuánto ha
-         cargado?, ¿qué le pasa y qué le han hecho? Se conserva EXACTO el
-         cálculo y el HTML interno de los bloques que Daniel pidió mantener
-         (Z-score, Readiness, "¿De dónde viene el readiness?", Semáforo de carga
-         individual, KPIs ACWR): solo cambia dónde caen y qué los acompaña. -->
-    <div class="pl-cols3">
-      <div class="pl-col">
-        <div class="pl-cab"><span class="pl-cab-p" style="background:var(--ok)"></span>Estado de forma</div>
-        <div id="player-readiness" class="panel"></div>
-        <div id="pl-zrow" class="panel"></div>
-        <div id="pl-charts"></div>
-        <div id="pl-recov" class="panel"></div>
-        <div class="panel"><h2>Wellness · evolución</h2><div class="pl-ch"><canvas id="ch-well"></canvas></div></div>
-      </div>
-      <div class="pl-col">
-        <div class="pl-cab"><span class="pl-cab-p" style="background:var(--accent)"></span>Cargas</div>
-        <div id="pl-kpisem" class="pg-col"></div>
-        <div class="panel"><h2>Carga diaria y media 7d</h2><div class="pl-ch"><canvas id="ch-load"></canvas></div></div>
-        <div class="panel"><h2>ACWR · evolución <span class="r muted">banda 0.8–1.3</span></h2><div class="pl-ch"><canvas id="ch-pacwr"></canvas></div></div>
-      </div>
-      <div class="pl-col">
-        <!-- v274 · Un solo panel. Antes había cuatro (fisioterapia, incidencias,
-             consultas y seguimiento del día a día) contando la misma historia
-             desde cuatro sitios. Los contenedores viejos se conservan ocultos
-             porque otras funciones siguen escribiendo en ellos; lo que se ve es
-             este. -->
-        <div class="pl-cab"><span class="pl-cab-p" style="background:var(--warn)"></span>Estado médico</div>
-        <div id="pl-problemas" class="panel"></div>
-        <!-- v454 · Vendajes del jugador. Vacío si no se le ha vendado nunca:
-             no deja un panel de «sin datos» en dieciocho fichas. -->
-        <div id="pl-vend"></div>
-        <div id="pl-fisio" class="panel" style="display:none"></div>
-        <div id="player-physio" class="panel" style="display:none"></div>
-        <div id="player-medical" class="panel" style="display:none"></div>
-        <!-- v281 · Las reuniones van en su propio bloque, no dentro de Estado
-             médico: una charla técnica no es una incidencia física. -->
-        <div class="pl-cab" style="margin-top:18px"><span class="pl-cab-p" style="background:var(--accent)"></span>Cuerpo técnico</div>
-        <div id="pl-reuniones" class="panel"></div>
-        <!-- v444 · Nutrición. Daniel, 21/10/2026: «que cuando entremos a la
-             ficha del jugador aparezca también toda la parte de nutrición: si
-             le falta de pagar, qué ha pagado y qué no». El bloque ENTERO
-             —incluida su cabecera— lo escribe `nutFichaHTML`, así que en un
-             jugador sin nada de nutrición no queda un panel vacío. -->
-        <div id="pl-nutri"></div>
-      </div>
+
+    <div class="plt-bar" id="plt-bar" role="tablist">
+      <button class="plt-b on" data-t="hoy" onclick="plTab('hoy')" role="tab">Hoy</button>
+      <button class="plt-b" data-t="carga" onclick="plTab('carga')" role="tab">Carga</button>
+      <button class="plt-b" data-t="medico" onclick="plTab('medico')" role="tab">Médico</button>
+      <button class="plt-b" data-t="perfil" onclick="plTab('perfil')" role="tab">Físico</button>
+      <button class="plt-b" data-t="datos" onclick="plTab('datos')" role="tab">Datos</button>
     </div>
-    <!-- Lo que no se consulta a diario baja al final y se pliega: el detalle
-         completo de incidencias (mapa corporal, cronología, RTP) y la ficha
-         administrativa. El dato sigue a un clic sin cargar la primera pantalla. -->
-    <!-- v274 · «Seguimiento del día a día» sale de la vista: todo lo que
-         contaba está ahora dentro del problema al que pertenece. El contenedor
-         se conserva oculto porque renderPlayerDaily sigue escribiendo en él. -->
-    <div id="player-daily" class="panel" style="display:none"></div>
-    <details class="panel pl-evo" id="pl-datos">
-      <summary>Datos personales <span class="small muted">DNI, contacto, talla, gestión</span></summary>
-      <div id="pl-personal"></div>
-    </details>
+
+    <!-- HOY · cómo llega hoy y de dónde sale ese número -->
+    <div class="plt-pane on" id="plt-hoy">
+      <div id="pl-strip"></div>
+      <div id="pl-advice"></div>
+      <div class="pl-g2">
+        <div id="player-readiness" class="panel"></div>
+        <div id="pl-charts"></div>
+      </div>
+      <div class="pl-g2">
+        <div id="pl-zrow" class="panel"></div>
+        <div id="pl-recov" class="panel"></div>
+      </div>
+      <div class="panel"><h2>Wellness · evolución</h2><div class="pl-ch"><canvas id="ch-well"></canvas></div></div>
+    </div>
+
+    <!-- CARGA · «Carga diaria y media 7d» y «ACWR · evolución» fuera por decisión
+         de Daniel (26/10/2026: «no me sirven de nada»). Los sustituye un solo
+         bloque que compara al jugador con SU propio normal. -->
+    <div class="plt-pane" id="plt-carga">
+      <div id="pl-normal"></div>
+      <div id="pl-kpisem" class="pg-col"></div>
+    </div>
+
+    <!-- MÉDICO · los contenedores ocultos siguen aquí porque hay funciones que
+         escriben en ellos; lo que se ve es el panel de problemas. -->
+    <div class="plt-pane" id="plt-medico">
+      <div id="pl-problemas" class="panel"></div>
+      <div id="pl-vend"></div>
+      <div id="pl-fisio" class="panel" style="display:none"></div>
+      <div id="player-physio" class="panel" style="display:none"></div>
+      <div id="player-medical" class="panel" style="display:none"></div>
+      <div id="player-daily" class="panel" style="display:none"></div>
+    </div>
+
+    <!-- FÍSICO · no se construye nada nuevo: es el semáforo de capacidades que
+         ya existe (`fichaSemaforo`, baremo del puesto) y el acceso a la ficha
+         exportable, que es donde vive el detalle. -->
+    <div class="plt-pane" id="plt-perfil">
+      <div id="pl-fisico"></div>
+    </div>
+
+    <!-- DATOS · lo administrativo y lo que no se consulta a diario. -->
+    <div class="plt-pane" id="plt-datos">
+      <div id="pl-reuniones" class="panel"></div>
+      <div id="pl-nutri"></div>
+      <div class="panel"><h2>Datos personales</h2><div id="pl-personal"></div></div>
+    </div>
   </section>
 
   <section class="view" id="v-jugadores">
@@ -13261,26 +13262,167 @@ function renderPlayer(name){
      automática— sale del todo de la ficha: lo que contaba está ahora dentro del
      problema al que pertenece, y la clasificación no aportaba nada que no
      dijera ya el estado del problema. */
+  /* v464 · los dos bloques nuevos de la ficha por pestañas */
+  try{renderPlNormal(name);}catch(e){console.error('carga normal',e);}
+  try{renderPlFisico(name);}catch(e){console.error('perfil fisico',e);}
   try{renderProblemas(name);}catch(e){console.error('problemas',e);}
   try{renderReuniones(name);}catch(e){console.error('reuniones',e);}
+  /* El marcado nace con «Hoy» puesto; esto lo deja en la pestaña que estuviera
+     abierta al cambiar de jugador, para poder comparar a dos en la misma. */
+  try{plTab(PL_TAB);}catch(e){}
+}
+/* ═══ v464 · Pestañas de la ficha ═══ */
+let PL_TAB='hoy';
+function plTab(k){
+  PL_TAB=k;
+  document.querySelectorAll('#plt-bar .plt-b').forEach(b=>b.classList.toggle('on',b.dataset.t===k));
+  document.querySelectorAll('#v-jugador .plt-pane').forEach(x=>x.classList.toggle('on',x.id==='plt-'+k));
+  /* Chart.js mide el contenedor al crear el gráfico, así que uno que nació
+     dentro de una pestaña oculta sale de tamaño cero. Al abrir una pestaña se
+     le pide que se reajuste; `offsetParent` null = sigue oculto. */
+  try{Object.keys(window.charts||{}).forEach(id=>{
+    const c=window.charts[id];
+    if(c&&c.canvas&&c.canvas.offsetParent)c.resize();
+  });}catch(e){}
+}
+window.plTab=plTab;
+
+/* ═══ v464 · Él contra SU propio normal ═══
+   Sustituye a «Carga diaria y media 7d» y «ACWR · evolución», que Daniel retiró
+   el 26/10/2026 («no me sirven de nada») y eligió esto en su lugar.
+
+   **La diferencia es contra qué se compara.** Los dos gráficos viejos pintaban
+   su carga contra una banda que vale para todos; un pivote que entrena siempre
+   a 700 UA y un extremo que entrena a 300 salían igual de «normales» o igual
+   de «altos» según el mismo listón. Aquí el listón es **suyo**.
+
+   Tres reglas, ninguna nueva en este proyecto:
+   · **Mediana y MAD**, no media y desviación: un partido o una sesión doble
+     arrastran la media. Es lo mismo que hace `hrEficiencia` con el coste
+     cardíaco, y por la misma razón.
+   · **Un día sin carga NO es un día de 0 UA**, es un día del que no sabemos
+     nada: no entra en la mediana. Misma regla que `calRefMD`.
+   · Por debajo de `PLN_MIN` días con carga **no se dibuja banda**: una mediana
+     sobre cuatro días no es el normal de nadie. */
+const PLN_MIN=10;
+const PLN_DIAS=27;
+function plDkSuma(dk,n){const d=dkToDate(dk);d.setDate(d.getDate()+n);return dkey(d);}
+function plMediana(a){if(!a.length)return null;const b=a.slice().sort((x,y)=>x-y);const m=b.length>>1;
+  return b.length%2?b[m]:(b[m-1]+b[m])/2;}
+function plNormal(name,dias){
+  dias=dias||PLN_DIAS;
+  const hasta=dkey(REF()), desde=plDkSuma(hasta,-dias);
+  const por={};
+  try{(dailyAgg(name)||[]).forEach(d=>{if(d&&d.dk>=desde&&d.dk<=hasta)por[d.dk]=+d.ua||0;});}catch(e){}
+  const serie=[];
+  for(let d=desde;d<=hasta;d=plDkSuma(d,1))serie.push({dk:d,ua:por[d]!=null?por[d]:null});
+  /* Un día con cuestionario pero con 0 UA no es un día flojo: es un día SIN
+     MINUTOS, y entonces la carga no es calculable. Se cuenta aparte para poder
+     decirlo —misma regla que el `min?` de la casilla del mes— en vez de soltar
+     un «sin carga registrada» que hace pensar que no entrenó. */
+  const sinMin=serie.filter(x=>x.ua===0).length;
+  const con=serie.filter(x=>x.ua>0).map(x=>x.ua);
+  const med=plMediana(con);
+  const mad=med==null?null:plMediana(con.map(v=>Math.abs(v-med)));
+  const hay=con.length>=PLN_MIN&&med!=null&&med>0;
+  const lo=hay?Math.max(0,med-(mad||0)):null, hi=hay?med+(mad||0):null;
+  /* «Por encima de lo suyo» se cuenta solo sobre los días que entrenó: un
+     descanso no es un día por debajo, es un día sin dato. */
+  const ult7=serie.slice(-7).filter(x=>x.ua>0);
+  const altos=hay?ult7.filter(x=>x.ua>hi).length:0;
+  const bajos=hay?ult7.filter(x=>x.ua<lo).length:0;
+  return {serie,con:con.length,sinMin,med,mad,lo,hi,hay,min:PLN_MIN,ult7:ult7.length,altos,bajos,
+          ultimo:serie.slice().reverse().find(x=>x.ua>0)||null};
+}
+function renderPlNormal(name){
+  const box=document.getElementById('pl-normal');if(!box)return;
+  const N=plNormal(name);
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  if(!N.con){
+    box.innerHTML='<div class="panel"><h2>Su carga contra su normal</h2>'
+      +'<p class="hint" style="margin:8px 0 0">'
+      +(N.sinMin
+        ? 'Hay <b>'+N.sinMin+'</b> día'+(N.sinMin===1?'':'s')+' con cuestionario en los '+(PLN_DIAS+1)
+          +' últimos, pero <b>sin minutos apuntados</b>: sin duración no hay carga que calcular. '
+          +'No es que no entrenara, es que falta el dato.'
+        : 'Sin cuestionarios en los últimos '+(PLN_DIAS+1)+' días.')
+      +'</p></div>';
+    return;
+  }
+  const W=720,H=170,L=4,R=4,T=14,B=22;
+  const max=Math.max(1,...N.serie.map(x=>x.ua||0),(N.hi||0));
+  const py=v=>T+(1-v/max)*(H-T-B);
+  const bw=(W-L-R)/N.serie.length;
+  /* La banda va en NEUTRO y el punto en color: lo que se mira es dónde cae la
+     barra, no la banda. Misma regla escrita para `calRefMD`. */
+  const banda=N.hay?'<rect x="'+L+'" y="'+py(N.hi).toFixed(1)+'" width="'+(W-L-R).toFixed(1)
+      +'" height="'+(py(N.lo)-py(N.hi)).toFixed(1)+'" fill="var(--muted)" opacity=".13"/>'
+    +'<line x1="'+L+'" y1="'+py(N.med).toFixed(1)+'" x2="'+(W-R)+'" y2="'+py(N.med).toFixed(1)
+      +'" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 3" opacity=".7"/>':'';
+  const barras=N.serie.map((x,i)=>{
+    if(!(x.ua>0))return '';
+    const col=!N.hay?'var(--accent)':(x.ua>N.hi?'var(--warn)':(x.ua<N.lo?'var(--muted2)':'var(--accent)'));
+    const y=py(x.ua), w=Math.max(2,bw*0.62), cx=L+i*bw+(bw-w)/2;
+    return '<rect x="'+cx.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)
+      +'" height="'+(py(0)-y).toFixed(1)+'" rx="2" fill="'+col+'">'
+      +'<title>'+x.dk.split('-').reverse().join('/')+' · '+Math.round(x.ua)+' UA</title></rect>';
+  }).join('');
+  const n0=v=>Math.round(v).toLocaleString('es-ES');
+  const kpi=(et,v,sub,col)=>'<div class="pln-c"><em>'+et+'</em><b'+(col?' style="color:'+col+'"':'')+'>'+v+'</b><u>'+sub+'</u></div>';
+  const u=N.ultimo;
+  const estado=!N.hay||!u?null:(u.ua>N.hi?['Por encima de lo suyo','var(--warn)']
+    :(u.ua<N.lo?['Por debajo de lo suyo','var(--muted)']:['En lo suyo','var(--ok)']));
+  box.innerHTML='<div class="panel">'
+    +'<h2>Su carga contra su normal <span class="r muted" style="font-weight:400;font-size:12.5px">'+(PLN_DIAS+1)+' días</span></h2>'
+    +(N.hay
+      ? '<div class="pln-k">'
+          +kpi('Su día normal',n0(N.med)+' UA',(N.lo!=null?n0(N.lo)+'–'+n0(N.hi)+' UA lo habitual':''))
+          +kpi('Último día',u?n0(u.ua)+' UA':'—',estado?estado[0]:'',estado?estado[1]:null)
+          +kpi('Fuera de lo suyo',(N.altos+N.bajos)+' de '+N.ult7,
+               N.ult7?(N.altos+' por encima · '+N.bajos+' por debajo'):'sin sesiones',
+               (N.altos+N.bajos)?'var(--warn)':'var(--ok)')
+        +'</div>'
+      : '')
+    +'<div class="pln-ch"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" width="100%" height="'+H+'">'
+      +banda+barras
+    +'</svg></div>'
+    +'<p class="hint" style="margin:8px 0 0">'
+      +(N.hay
+        ? 'La franja es <b>su</b> normal —mediana y desviación de sus propios días con carga—, no una banda del equipo. Los días sin entrenar no cuentan: un descanso no es un día de 0 UA.'
+        : 'Lleva <b>'+N.con+'</b> día'+(N.con===1?'':'s')+' con carga de los '+N.min+' que hacen falta para saber cuál es su normal. Mientras tanto se pintan los días, sin banda.')
+    +'</p></div>';
+}
+/* El bloque físico NO construye nada: reutiliza el semáforo de capacidades que
+   ya existe (baremo del puesto) y manda al documento donde vive el detalle. */
+function renderPlFisico(name){
+  const box=document.getElementById('pl-fisico');if(!box)return;
+  const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
+  let sem='';
+  try{
+    if(typeof buildTests==='function')buildTests();
+    if(typeof fichaSemaforo==='function')sem=fichaSemaforo(name)||'';
+    if(!sem&&typeof fichaSemaforoZ==='function')sem=fichaSemaforoZ(name)||'';
+  }catch(e){}
+  box.innerHTML='<div class="panel"><h2>Perfil físico</h2>'
+    +(sem||'<p class="hint" style="margin:8px 0 0">Sin valoraciones vigentes de esta temporada.</p>')
+    +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'
+      +'<button class="btn" onclick="openFicha(\''+q(name)+'\')">Abrir la ficha completa</button>'
+      +'<button class="btn ghost" onclick="go(\'tests\')">Ir a Perfil físico</button>'
+    +'</div></div>';
 }
 function drawPlayerCharts(p){
-  killCharts(['ch-well','ch-load','ch-pacwr']);
+  killCharts(['ch-well']);
   const w=p.w,labels=w.map(x=>x.dk.slice(5));
   charts['ch-well']=new Chart(document.getElementById('ch-well'),{type:'line',data:{labels,datasets:[
     {label:'Fatiga',data:w.map(x=>x.fatiga),borderColor:PAL.bad,tension:.35,pointRadius:0},
     {label:'DOMS',data:w.map(x=>x.doms),borderColor:PAL.warn,tension:.35,pointRadius:0},
     {label:'Sueño',data:w.map(x=>x.sueno),borderColor:PAL.data,tension:.35,pointRadius:0}]},
     options:{...BASE,scales:{x:AX,y:{...AX,min:1,max:5}}}});
-  const cont=contDailyTo(p.name,REF()),ld=cont.map(d=>d.ua),roll=ld.map((_,i)=>mean(ld.slice(Math.max(0,i-6),i+1)));
-  charts['ch-load']=new Chart(document.getElementById('ch-load'),{data:{labels:cont.map(d=>d.dk.slice(5)),datasets:[
-    {type:'bar',label:'Carga diaria',data:ld,backgroundColor:rgba(PAL.data,.28),borderColor:PAL.data,borderWidth:1.2,borderRadius:4},
-    {type:'line',label:'Media 7d',data:roll,borderColor:PAL.accent,tension:.35,pointRadius:0,fill:'origin'}]},options:BASE});
-  const ser=acwrSeries(p.name,'ua',REF());
-  charts['ch-pacwr']=new Chart(document.getElementById('ch-pacwr'),{type:'line',data:{labels:ser.map(s=>s.dk.slice(5)),datasets:[
-    {label:'ACWR RA',data:ser.map(s=>s.ra),borderColor:PAL.data,tension:.35,pointRadius:0,fill:'origin'},
-    {label:'ACWR EWMA',data:ser.map(s=>s.ewma),borderColor:PAL.accent,borderDash:[4,3],tension:.35,pointRadius:0}]},
-    options:{...BASE,scales:{x:AX,y:{...AX,suggestedMin:0,suggestedMax:2}}},plugins:[yBand(0.8,1.3,rgba(PAL.ok,.07))]});
+  /* v464 · «Carga diaria y media 7d» y «ACWR · evolución» se retiran por
+     decisión de Daniel (26/10/2026: «no me sirven de nada»). Los sustituye
+     `renderPlNormal`, que compara al jugador con SU propio normal en vez de
+     con una banda que vale para todos. `acwrSeries` y `contDailyTo` siguen
+     intactos: los usan otras pantallas. */
 }
 /* ===================== v227 · DATOS PERSONALES ===================== */
 /* Resumen de solo lectura de STATE.info dentro de la propia ficha, con un
@@ -28922,6 +29064,43 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 .pl-pd-l{color:var(--muted);flex:none}
 .pl-pd-v{font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* v227 · bloque plegado de gráficos de tendencia */
+/* ═══ v464 · Pestañas de la ficha ═══
+   Control segmentado del sistema. **No se reutiliza `.seg`**: esa clase está
+   compartida con las barras de la tira de readiness y tocarla las toca a las
+   dos —ya pasó con la capa Apple—.
+   El segmento activo lleva fondo y color de texto JUNTOS: cambiar solo el
+   fondo fue lo que dejó blanco sobre blanco la última vez. */
+.plt-bar{display:flex;gap:4px;background:var(--panel2);padding:4px;border-radius:13px;
+  margin:16px 0 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.plt-bar::-webkit-scrollbar{display:none}
+.plt-b{flex:1;min-width:0;white-space:nowrap;font:inherit;font-size:14px;font-weight:500;
+  color:var(--muted);background:none;border:0;border-radius:10px;padding:10px 14px;
+  min-height:42px;cursor:pointer;
+  transition:background .4s cubic-bezier(.32,.72,0,1),color .4s cubic-bezier(.32,.72,0,1)}
+.plt-b.on{background:var(--panel);color:var(--txt);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.plt-b:active{transform:scale(.97)}
+.plt-pane{display:none}
+.plt-pane.on{display:block;animation:pltIn .35s cubic-bezier(.32,.72,0,1)}
+@keyframes pltIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.plt-pane.on{animation:none}}
+/* Dos columnas que se parten solas; `minmax` con suelo para que un panel no
+   quede de 180 px cuando el menú está desplegado. */
+.pln-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0 4px}
+.pln-c{background:var(--panel2);border-radius:12px;padding:11px 13px;min-width:0}
+.pln-c em{display:block;font-style:normal;font-size:12px;color:var(--muted);font-weight:500}
+.pln-c b{display:block;font-size:22px;font-weight:600;letter-spacing:-.015em;line-height:1.2;
+  margin-top:2px;font-variant-numeric:tabular-nums}
+.pln-c u{display:block;text-decoration:none;font-size:12px;color:var(--muted);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pln-ch{margin-top:10px}
+.pln-ch svg{display:block;width:100%;height:auto;overflow:visible}
+.pl-g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;margin-bottom:16px}
+.pl-g2>.panel{margin:0}
+@media(max-width:560px){
+  .plt-bar{margin:12px 0 16px}
+  .plt-b{flex:0 0 auto;min-height:44px}
+  .pl-g2{grid-template-columns:minmax(0,1fr);gap:12px}
+}
 .pl-evo{margin-top:14px}
 .pl-evo>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:2px;user-select:none}
 .pl-evo>summary::-webkit-details-marker{display:none}
@@ -29197,21 +29376,46 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 </script>
 
 <style>
-.phero{display:grid;grid-template-columns:1fr auto auto;gap:20px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:14px}
-.phero-id{display:flex;gap:15px;align-items:center;min-width:0}
-.phero-photo{width:86px;height:86px;border-radius:14px;object-fit:cover;background:var(--panel2);border:1px solid var(--line);flex:0 0 auto}
-.phero-name{font-size:24px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
-.phero-sub{font-size:13px;color:var(--muted);margin-top:2px}
-.phero-tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-.phero-tag{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
-.phero-rd{display:flex;flex-direction:column;align-items:center;gap:1px}
-.phero-ring{position:relative;width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-.phero-ring::before{content:'';position:absolute;width:72px;height:72px;border-radius:50%;background:var(--panel)}
-.phero-rdn{position:relative;font-size:27px;font-weight:800}
-.phero-rdl{font-size:10px;letter-spacing:.13em;color:var(--muted);font-weight:700;margin-top:2px}
-.phero-rds{font-size:14.5px;font-weight:700}
-.phero-btns{display:flex;flex-direction:column;gap:8px}
-.phero-add{white-space:nowrap;font-size:13px}
+/* ═══ v464 · Cabecera de la ficha, estética Apple ═══
+   Lo que había: nombre en 24/800, foto cuadrada de 86 px, anillo de 96 y
+   **cuatro botones rellenos apilados en columna**. En el teléfono eso eran
+   cuatro barras azules a todo lo ancho que empujaban el contenido media
+   pantalla hacia abajo —HIG · Layout > Mobile: «avoid full-width buttons»—.
+   Ahora: foto redonda, nombre en Title (28/600), el readiness a la derecha y
+   las acciones en una fila de botones planos que envuelve. */
+.phero{display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  background:var(--panel);border:0;border-radius:18px;padding:20px 22px;box-shadow:var(--shadow)}
+.phero-id{display:flex;gap:16px;align-items:center;min-width:0;flex:1}
+.phero-photo{width:68px;height:68px;border-radius:50%;object-fit:cover;
+  background:var(--panel2);border:0;flex:0 0 auto;box-shadow:0 0 0 1px var(--hair)}
+.phero-name{font-size:28px;font-weight:600;letter-spacing:-.022em;line-height:1.1}
+.phero-sub{font-size:15px;color:var(--muted);margin-top:3px}
+.phero-tags{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.phero-tag{font-size:12.5px;font-weight:500;padding:3px 10px;border-radius:999px;
+  background:var(--panel2);border:0;color:var(--muted)}
+.phero-rd{display:flex;flex-direction:column;align-items:center;gap:1px;flex:0 0 auto}
+.phero-ring{position:relative;width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.phero-ring::before{content:'';position:absolute;width:66px;height:66px;border-radius:50%;background:var(--panel)}
+.phero-rdn{position:relative;font-size:25px;font-weight:600;font-variant-numeric:tabular-nums}
+.phero-rdl{font-size:11px;letter-spacing:0;color:var(--muted);font-weight:500;margin-top:3px;text-transform:none}
+.phero-rds{font-size:13.5px;font-weight:600}
+/* Acciones: fila que envuelve, en el nivel plano del sistema. Dejan de ser
+   cuatro bloques rellenos compitiendo con el nombre. */
+.phero-btns{display:flex;flex-direction:row;gap:8px;flex-wrap:wrap;width:100%;
+  padding-top:16px;margin-top:2px;border-top:.5px solid var(--hair)}
+.phero-add{white-space:nowrap;font-size:13.5px;font-weight:500;
+  background:var(--panel2);color:var(--accent);border:0;min-height:38px;padding:8px 14px}
+.phero-add:hover{background:var(--hair)}
+@media(max-width:560px){
+  .phero{padding:16px;gap:14px}
+  .phero-photo{width:56px;height:56px}
+  .phero-name{font-size:24px}
+  .phero-ring{width:72px;height:72px}
+  .phero-ring::before{width:56px;height:56px}
+  .phero-rdn{font-size:22px}
+  .phero-btns{gap:6px;padding-top:14px}
+  .phero-add{flex:1 1 calc(50% - 3px);min-width:0;padding:8px 10px;font-size:13px}
+}
 .qt-form{display:flex;flex-direction:column;gap:12px}
 .qt-form>label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--txt)}
 .qt-form label.qt-check{flex-direction:row;align-items:center;gap:8px;font-weight:500}
@@ -35165,8 +35369,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.12*/
-const VER_ACTUAL='2026-10-26.12';
+/*BUILD:2026-10-26.13*/
+const VER_ACTUAL='2026-10-26.13';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
