@@ -2725,6 +2725,11 @@ main{padding:20px 18px 80px}
 .vd-c:hover{border-color:var(--accent);color:var(--accent)}
 .vd-c--on{background:var(--accent);border-color:var(--accent);color:#fff}
 .vd-c--on:hover{color:#fff;filter:brightness(1.08)}
+.vd-c--due{box-shadow:inset 0 0 0 1.5px var(--warn)}
+.vd-c--on.vd-c--due{box-shadow:inset 0 0 0 1.5px var(--warn),0 0 0 1px var(--warn)}
+.vd-dol{font-style:normal;font-size:9px;line-height:1;color:var(--warn);margin-right:5px;flex:none}
+.vd-dol--g{color:var(--bad);font-size:10px;font-weight:800}
+.vd-chip--dol{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
 .vd-t{text-align:center;font-size:12.5px;font-weight:800;color:var(--muted2);
   font-variant-numeric:tabular-nums}
 .vd-r--on .vd-t{color:var(--txt)}
@@ -20128,6 +20133,46 @@ function vendBorrarDia(dk){
 window.vendCicla=vendCicla;window.vendSetCm=vendSetCm;window.vendSetCfg=vendSetCfg;
 window.vendCopiarUltimo=vendCopiarUltimo;window.vendBorrarDia=vendBorrarDia;
 
+/* ══ v453 · Lo que el jugador ha declarado, al lado de la casilla ══════════
+   Daniel, 25/10/2026, sobre mejorar el trabajo de Virginia. Ella venda nueve
+   tobillos al día y, por separado, los jugadores declaran cada mañana dónde
+   les duele en el cuestionario. **Las dos cosas ya estaban; no se hablaban.**
+
+   Aquí no se inventa ninguna zona nueva: se trocea el texto con `fisZonas`
+   —el mismo que usan el mapa corporal y las rachas— y se lleva a región con
+   `zoneRegion`, el diccionario anatómico de la app. De las diez regiones que
+   devuelve, solo cuatro tienen columna de vendaje; las demás se dicen igual
+   en la fila, porque «le duele el isquio» es información aunque no se vende.
+
+   Es **contexto, no una orden**: no marca la casilla ni la sugiere. Virginia
+   decide si venda; esto solo evita que tenga que acordarse. Por eso va en
+   ámbar y no en rojo —el rojo en esta app es solo de alertas—, salvo que el
+   jugador haya marcado que es un GOLPE, que es lo que `fisCandidatos` ya trata
+   aparte. */
+const VEND_REG={pie:'tobillo',rodilla:'rodilla',mano:'muneca',hombro:'hombro'};
+/* Lo declarado en el cuestionario ese día: {jugador: {zonas:[], cols:Set, golpe}} */
+function vendDolorDia(dk){
+  const out={};
+  (STATE.wellness||[]).forEach(w=>{
+    if(!w||w.dk!==dk||!w.dolor)return;
+    const zs=(typeof fisZonas==='function')?fisZonas(w.zona):[];
+    const o=out[w.name]||(out[w.name]={zonas:[],cols:{},golpe:false});
+    if(w.golpe)o.golpe=true;
+    zs.forEach(z=>{
+      if(o.zonas.indexOf(z)<0)o.zonas.push(z);
+      let r=null;
+      try{r=(typeof zoneRegion==='function')?zoneRegion(z):null;}catch(e){}
+      /* `mano` de zoneRegion cubre muñeca Y mano: si el texto dice «mano» se
+         marca la columna de mano, y si no, la de muñeca. */
+      let col=r?VEND_REG[r]:null;
+      if(r==='mano'&&/mano|dedo|pulgar/i.test(z))col=/dedo|pulgar/i.test(z)?'dedo':'mano';
+      if(col)o.cols[col]=true;
+    });
+    /* Sin zona escrita pero con dolor marcado: se dice que hay algo. */
+    if(!zs.length&&!o.zonas.length)o.zonas.push('sin zona');
+  });
+  return out;
+}
 function vendPanel(){
   const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const V=vendLoad();
@@ -20135,6 +20180,7 @@ function vendPanel(){
   const hoyReal=dkey(new Date());
   const jug=(typeof sortedPlayerNames==='function')?sortedPlayerNames():Object.keys(STATE.players||{}).sort();
   const dia=vendDia(dk);
+  const dolor=vendDolorDia(dk);
   const tot=vendTotalDia(dk);
   const porZ=vendPorZona(dk,dk);
   /* Filas: primero quien lleva algo hoy, que es a quien hay que mirar. */
@@ -20142,15 +20188,22 @@ function vendPanel(){
   const orden=jug.slice().sort((a,b)=>(conAlgo.has(b)?1:0)-(conAlgo.has(a)?1:0)||a.localeCompare(b,'es'));
   const filas=orden.map(n=>{
     const q="'"+esc(n).replace(/'/g,"\\'")+"'";
+    const dol=dolor[n]||null;
     const cel=VEND_ZONAS.map(([z,lab])=>{
       const r=vendDe(dk,n,z);
       const l=r?r.lado:'';
-      return '<button class="vd-c'+(l?' vd-c--on':'')+'" onclick="vendCicla(\''+dk+'\','+q+',\''+z+'\')"'
-        +' title="'+esc(lab)+(l?' · '+VEND_LADO[l]:' · sin vendaje')+' · pulsa para cambiar">'
+      const due=!!(dol&&dol.cols[z]);
+      return '<button class="vd-c'+(l?' vd-c--on':'')+(due?' vd-c--due':'')+'" onclick="vendCicla(\''+dk+'\','+q+',\''+z+'\')"'
+        +' title="'+esc(lab)+(l?' · '+VEND_LADO[l]:' · sin vendaje')
+        +(due?' · DECLARÓ DOLOR AQUÍ ese día':'')+' · pulsa para cambiar">'
         +(l?VEND_SIG[l]:'')+'</button>';
     }).join('');
     const nj=dia.filter(r=>r.jugador===n).reduce((a,r)=>a+(+r.n||0),0);
-    return '<div class="vd-r'+(nj?' vd-r--on':'')+'"><span class="vd-n" title="'+esc(n)+'">'+esc(n)+'</span>'
+    const marca=dol?('<i class="vd-dol'+(dol.golpe?' vd-dol--g':'')+'" title="'
+      +esc('Declaró este día: '+dol.zonas.join(' · ')+(dol.golpe?' (por golpe)':''))+'">'
+      +(dol.golpe?'✕':'●')+'</i>'):'';
+    return '<div class="vd-r'+(nj?' vd-r--on':'')+'"><span class="vd-n" title="'+esc(n)+'">'
+      +marca+esc(n)+'</span>'
       +cel+'<span class="vd-t">'+(nj||'')+'</span></div>';
   }).join('');
   const cab='<div class="vd-h"><span class="vd-n"></span>'
@@ -20208,12 +20261,14 @@ function vendPanel(){
     +'<span>pulsa una casilla para marcar</span>'+nav+'</div>'
     +'<div class="vd-top"><div class="vd-kpi"><b>'+tot+'</b><em>vendaje'+(tot===1?'':'s')+' este día</em></div>'
     +'<div class="vd-chips">'+VEND_ZONAS.filter(z=>porZ[z[0]]>0).map(([z,lab])=>'<span class="vd-chip">'+esc(lab)+' <b>'+porZ[z]+'</b></span>').join('')
+    +(Object.keys(dolor).length?'<span class="vd-chip vd-chip--dol" title="Lo han dicho ellos en el cuestionario de ese día">\u25cf '+Object.keys(dolor).length+' con dolor declarado</span>':'')
     +(tot?'':'<span class="hint" style="margin:0">Todavía no has marcado ninguno.</span>')+'</div>'
     +'<div class="vd-acc"><button class="btn ghost" onclick="vendCopiarUltimo(\''+dk+'\')">Copiar el último día</button>'
     +(tot?'<button class="estado-del" onclick="vendBorrarDia(\''+dk+'\')" title="Borrar todos los de este día">✕</button>':'')
     +'</div></div>'
     +(esHoy?'':'<div class="nut-aviso">Estás rellenando el <b>'+esc(dk.split('-').reverse().join('/'))+'</b>, no hoy.</div>')
     +'<div class="vd-grid">'+cab+filas+'</div>'
+    +'<p class="hint">El punto ámbar junto al nombre es <b>dolor que ha declarado él</b> en el cuestionario de ese día, y la casilla con borde ámbar es la zona. Es información, no una indicación: vendas tú. <b>✕</b> en vez de punto significa que dijo que fue por un golpe.</p>'
     +'<p class="hint"><b>2</b> = los dos lados · <b>I</b> = izquierdo · <b>D</b> = derecho. Cada toque pasa al siguiente y el cuarto lo quita. Lo que no sea una de estas seis zonas se sigue apuntando como tratamiento en Médico.</p>'
     +'<details class="vd-det"><summary>Tape y stock</summary>'
     +consumo
@@ -34629,8 +34684,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-25.2*/
-const VER_ACTUAL='2026-10-25.2';
+/*BUILD:2026-10-26.1*/
+const VER_ACTUAL='2026-10-26.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
