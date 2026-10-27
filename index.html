@@ -14098,8 +14098,24 @@ function renderPlRegistro(name){
     try{const nv=calZonaNivel(Math.round(pct*10)/10,key);
       return nv===2?'var(--bad)':nv===1?'var(--warn)':'var(--ok)';}catch(e){return null;}
   };
-  const cel=(rot,val,col)=>'<span class="plg-v"><em>'+rot+'</em><b'
+  const cel=(rot,val,col,ttl)=>'<span class="plg-v"'+(ttl?' title="'+esc(ttl)+'"':'')
+    +'><em>'+rot+'</em><b'
     +(col?' style="color:'+col+'"':'')+'>'+val+'</b></span>';
+  /* La cabecera dice QUE es cada columna y en que unidad; con ella puesta, el
+     rotulo de cada celda sobra en pantalla ancha y solo vuelve en movil, donde
+     la rejilla se parte y una cabecera no podria quedar alineada. */
+  const th=(nom,uni)=>'<span class="plg-th"><b>'+nom+'</b><em>'+uni+'</em></span>';
+  const enc='<div class="plg-r plg-h">'
+    +'<span class="plg-th plg-th--d"><b>D\u00eda y sesi\u00f3n</b>'
+      +'<em>el color es el nivel de la sesi\u00f3n</em></span>'
+    +'<div class="plg-n">'
+      +th('RPE','lo que declar\u00f3, 0\u201310')
+      +th('Carga','UA \u00b7 RPE \u00d7 minutos')
+      +th('Contacto','lo que declar\u00f3, 1\u20135')
+      +th('% en Z5','del tiempo de sesi\u00f3n')
+      +th('% en Z4','del tiempo de sesi\u00f3n')
+    +'</div>'
+  +'</div>';
   const filas=d.map(r=>{
     const niv=(r.nivel!=null&&NIVL[r.nivel])?NIVL[r.nivel]:null;
     const nivc=r.nivel===2?'var(--bad)':r.nivel===1?'var(--warn)':'var(--ok)';
@@ -14115,21 +14131,25 @@ function renderPlRegistro(name){
         +'<i'+(niv?' style="color:'+nivc+'"':'')+'>'+(niv||'sin puls\u00f3metro')+'</i>'
       +'</div>'
       +'<div class="plg-n">'
-        +cel('RPE',n1(r.rpe))
-        +cel('Carga',n0(r.ua),null)
-        +cel('Contacto',n1(r.ct))
-        +cel('%Z5',r.z5==null?'\u2014':n1(r.z5),zcol(r.z5,'z5'))
-        +cel('%Z4',r.z4==null?'\u2014':n1(r.z4),zcol(r.z4,'z4'))
+        +cel('RPE',n1(r.rpe),null,'Esfuerzo que declar\u00f3 \u00e9l en el cuestionario, de 0 a 10')
+        +cel('Carga',n0(r.ua),null,'Carga de la sesi\u00f3n en UA: su RPE por los minutos que hizo')
+        +cel('Contacto',n1(r.ct),null,'Contacto que declar\u00f3 \u00e9l en el cuestionario, de 1 a 5')
+        +cel('%Z5',r.z5==null?'\u2014':n1(r.z5),zcol(r.z5,'z5'),
+          'Porcentaje del tiempo de sesi\u00f3n en zona 5, contra la banda de Z5 del club')
+        +cel('%Z4',r.z4==null?'\u2014':n1(r.z4),zcol(r.z4,'z4'),
+          'Porcentaje del tiempo de sesi\u00f3n en zona 4, contra la banda de Z4 del club')
       +'</div>'
     +'</div>';
   }).join('');
   const sinPulso=d.filter(x=>!x.pulso).length;
-  box.innerHTML='<div class="panel">'+cab+'<div class="plg-g">'+filas+'</div>'
+  box.innerHTML='<div class="panel">'+cab+'<div class="plg-g">'+enc+filas+'</div>'
     +'<p class="hint" style="margin:12px 0 0">El sem\u00e1foro es el nivel con el que la app clasifica '
       +'esa sesi\u00f3n, el mismo del calendario, y respeta la correcci\u00f3n manual. '
-      +'El %Z5 y el %Z4 van por separado y cada uno con <b>su propia banda</b> del club: '
-      +'un 4 % es mucho en Z5 y poco en Z4. El RPE, la carga y el contacto van en neutro, '
-      +'porque la app no tiene banda por jugador para ellos.'
+      +'<b>RPE</b> y <b>contacto</b> son lo que declar\u00f3 \u00e9l en el cuestionario (0\u201310 y 1\u20135) '
+      +'y la <b>carga</b> es su RPE por los minutos, en UA: los tres van en neutro, porque la app '
+      +'no tiene banda por jugador para ellos. El <b>%Z5</b> y el <b>%Z4</b> son cu\u00e1nto del tiempo '
+      +'de sesi\u00f3n pas\u00f3 en cada zona de pulso, y van por separado porque cada uno se mide con '
+      +'<b>su propia banda</b> del club: un 4 % es mucho en Z5 y poco en Z4.'
       +(sinPulso?' <b>'+sinPulso+'</b> de estas '+d.length+' no llev'+(sinPulso===1?'\u00f3':'aron')
         +' puls\u00f3metro: tienen RPE, carga y contacto, y no zonas.':'')
     +'</p></div>';
@@ -30154,7 +30174,17 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 .plg-v{min-width:0}
 .plg-v em{display:block;font-style:normal;font-size:10.5px;color:var(--muted)}
 .plg-v b{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+/* La cabecera de columnas comparte la rejilla de las filas; en móvil se
+   retira y el rótulo vuelve a cada celda, que es donde sí queda alineado. */
+.plg-h{padding:0 0 8px;border-bottom:1px solid var(--line);align-items:end}
+.plg-th{min-width:0}
+.plg-th b{display:block;font-size:11.5px;font-weight:650;color:var(--txt);line-height:1.25}
+.plg-th em{display:block;font-style:normal;font-size:10px;color:var(--muted);
+  line-height:1.3;margin-top:1px}
+.plg-th--d{grid-column:1/3}
+@media(min-width:861px){.plg-v em{display:none}}
 @media(max-width:860px){
+  .plg-h{display:none}
   .plg-r{grid-template-columns:28px minmax(0,1fr);row-gap:9px}
   .plg-n{display:grid;grid-column:1/-1;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 }
@@ -36602,8 +36632,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-27.3*/
-const VER_ACTUAL='2026-10-27.3';
+/*BUILD:2026-10-27.4*/
+const VER_ACTUAL='2026-10-27.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
