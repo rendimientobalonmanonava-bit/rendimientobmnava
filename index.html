@@ -21916,7 +21916,17 @@ function exportNodePNG(id,filename){
   const marcados=[el].concat(Array.prototype.slice.call(el.querySelectorAll('*')));
   marcados.forEach((nd,i)=>{try{nd.setAttribute('data-x2p',i);}catch(e){}});
   const desmarcar=()=>marcados.forEach(nd=>{try{nd.removeAttribute('data-x2p');}catch(e){}});
-  html2canvas(el,{scale:2,useCORS:true,backgroundColor:cssVar('--bg')||'#ffffff',logging:false,
+  /* v475 · DEVUELVE la promesa. Sin esto, `calSemanaA4PNG` hacía
+     `Promise.resolve(exportNodePNG(...)).then(fin)` sobre `undefined`, así que
+     `fin` —que vacía el host y lo pone a display:none— corría en el microtask
+     siguiente, con html2canvas a medias. Medido: al llamar, el nodo estaba
+     conectado; 271 ms después, en `onclone`, `isConnected` era false, el host
+     estaba vacío y `getComputedStyle` del nodo devolvía cadena vacía. Con eso
+     los 140 elementos se quedaban SIN tratar y, entre otras cosas, no se
+     retiraba el `box-shadow: inset`, que html2canvas pinta como un relleno:
+     la columna de hoy salía como un bloque índigo macizo. Es el síntoma que la
+     v413 creyó haber arreglado —y el arreglo estaba bien: no llegaba a correr. */
+  return html2canvas(el,{scale:2,useCORS:true,backgroundColor:cssVar('--bg')||'#ffffff',logging:false,
     onclone:(doc)=>{try{const c=doc.getElementById(id);if(!c)return;
       /* v222 · El emparejado original↔copia es por índice, así que la copia debe
          tener exactamente la misma estructura mientras se copian los estilos. Antes
@@ -36748,8 +36758,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-27.7*/
-const VER_ACTUAL='2026-10-27.7';
+/*BUILD:2026-10-27.8*/
+const VER_ACTUAL='2026-10-27.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
