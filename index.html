@@ -14103,10 +14103,17 @@ function renderPlRegistro(name){
   const NIVL=['BAJA','MEDIA','ALTA'];
   /* El color de una zona sale de su propia banda calibrada, y se decide sobre
      la cifra redondeada que se ve. */
+  /* v476 · el color va sobre una CIFRA, no sobre un gráfico, así que usa la
+     variante de texto del token. Los colores del semáforo valen para un punto
+     o una barra, pero sobre blanco el ámbar da 2,83:1 y el verde 4,37:1, por
+     debajo del 4,5:1 que necesita el texto de menos de 18 pt —la misma razón
+     por la que la lámina A4 tiene `tinta()`—. `--ok-text`/`--warn-text`/
+     `--bad-text` ya existían y estaban declarados en los DOS temas: 6,54 / 6,27
+     / 6,34 en claro y 10,8 / 11,19 / 8,56 en oscuro. No se inventa ningún color. */
   const zcol=(pct,key)=>{
     if(pct==null||isNaN(pct))return null;
     try{const nv=calZonaNivel(Math.round(pct*10)/10,key);
-      return nv===2?'var(--bad)':nv===1?'var(--warn)':'var(--ok)';}catch(e){return null;}
+      return nv===2?'var(--bad-text)':nv===1?'var(--warn-text)':'var(--ok-text)';}catch(e){return null;}
   };
   const cel=(rot,val,col,ttl)=>'<span class="plg-v"'+(ttl?' title="'+esc(ttl)+'"':'')
     +'><em>'+rot+'</em><b'
@@ -14128,7 +14135,7 @@ function renderPlRegistro(name){
   +'</div>';
   const filas=d.map(r=>{
     const niv=(r.nivel!=null&&NIVL[r.nivel])?NIVL[r.nivel]:null;
-    const nivc=r.nivel===2?'var(--bad)':r.nivel===1?'var(--warn)':'var(--ok)';
+    const nivc=r.nivel===2?'var(--bad-text)':r.nivel===1?'var(--warn-text)':'var(--ok-text)';
     /* `calTraffic` toma 1 verde \u00b7 2 \u00e1mbar \u00b7 3 rojo; el nivel de sesi\u00f3n va de 0 a 2. */
     const sem=(typeof calTraffic==='function')
       ? calTraffic(r.nivel!=null?r.nivel+1:0,34,'plg-sem')
@@ -14184,10 +14191,10 @@ function renderPlResumen(name){
   try{vd=(typeof vendDeJugador==='function')?vendDeJugador(name,hace(-29),hoy):null;}catch(e){}
   try{molest=(STATE.wellness||[]).filter(w=>w&&w.name===name&&w.dolor&&w.dk>=hace(-6)).length;}catch(e){}
   const med='<div class="panel plr"><h2>M\u00e9dico <span class="r"><button class="btn ghost plr-b" onclick="plTab(\'medico\')">Ver todo</button></span></h2>'
-    +li('Problemas abiertos',abiertos.length,abiertos.length?'var(--warn)':'var(--ok)')
+    +li('Problemas abiertos',abiertos.length,abiertos.length?'var(--warn-text)':'var(--ok-text)')
     +(abiertos.length?'<div class="plr-s">'+abiertos.slice(0,2).map(e=>esc(e.title||e.zona||'\u2014')).join(' \u00b7 ')
       +(abiertos.length>2?' +'+(abiertos.length-2):'')+'</div>':'')
-    +li('D\u00edas con dolor (7d)',molest,molest?'var(--warn)':'var(--ok)')
+    +li('D\u00edas con dolor (7d)',molest,molest?'var(--warn-text)':'var(--ok-text)')
     +li('\u00daltimo tratamiento',ultTrat?esc(ultTrat.dk.slice(8)+'/'+ultTrat.dk.slice(5,7)):'\u2014',null)
     +(ultTrat?'<div class="plr-s">'+esc(ultTrat.tipo||'')+(ultTrat.dur?' \u00b7 '+ultTrat.dur+"'":'')+'</div>':'')
     +li('Vendajes (30d)',vd&&vd.tot?vd.tot:'\u2014',null)
@@ -33179,6 +33186,11 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
    función se acuerde. `:empty` solo casa si no hay NINGÚN hijo, así que en
    cuanto algo escribe dentro —aunque sea «Sin wellness»— vuelve a verse. */
 #v-jugador .panel:empty{display:none}
+
+/* v476 · «sin pulsómetro» iba en `--muted2`, que sobre blanco da 2,6:1. Es una
+   etiqueta de 11 px, o sea texto, no un gráfico: pasa a `--muted` (5,98 en claro,
+   6,96 en oscuro). Token que ya existía. */
+#v-jugador .plg-d i{color:var(--muted)}
 </style>
 
 <style id="mobile-pass">
@@ -36758,8 +36770,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-27.8*/
-const VER_ACTUAL='2026-10-27.8';
+/*BUILD:2026-10-27.9*/
+const VER_ACTUAL='2026-10-27.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
