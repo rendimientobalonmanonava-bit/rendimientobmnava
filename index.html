@@ -6051,20 +6051,27 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
            `renderPlayerStrip` sigue escribiendo en él. -->
       <div id="pl-strip" style="display:none"></div>
       <div id="pl-advice"></div>
-      <!-- Lo que Daniel echó en falta: Polar e intensidad con sus números, y un
-           poco de médico y de físico con el detalle en su pestaña. -->
-      <div id="pl-anillos"></div>
+      <!-- v470 · El orden lo dio Daniel el 27/10/2026, en estas palabras:
+           «arriba en Hoy: Intensidad de su última sesión, Readiness, de dónde
+           viene el readiness, z-score por variable, un registro de sus últimos
+           entrenamientos… y ya luego el resto». Tres de los cinco YA existían
+           (`player-readiness`, `pl-charts`, `pl-zrow`): lo único que les pasaba
+           es que estaban debajo de todo. -->
       <div id="pl-intens"></div>
-      <div id="pl-ses"></div>
-      <div id="pl-resumen"></div>
       <div class="pl-g2">
         <div id="player-readiness" class="panel"></div>
         <div id="pl-charts"></div>
       </div>
-      <div class="pl-g2">
-        <div id="pl-zrow" class="panel"></div>
-        <div id="pl-recov" class="panel"></div>
-      </div>
+      <div id="pl-zrow" class="panel"></div>
+      <div id="pl-reg"></div>
+      <!-- v470 · Fuera de la vista, por decisión de Daniel (27/10/2026):
+           `pl-anillos` —los medidores de efecto del entrenamiento, «no me
+           gustan, quítalos»— y `pl-ses` —«Sus últimas sesiones», que lo
+           sustituye el registro de arriba—. **No se ha borrado nada**:
+           `renderPlAnillos`, `plArcos` y `renderPlSesiones` siguen enteras y
+           basta con devolverles su contenedor. -->
+      <div id="pl-resumen"></div>
+      <div id="pl-recov" class="panel"></div>
       <!-- v465 · «Wellness · evolución» retirado por decisión de Daniel
            (26/10/2026: «no me dice nada, muy poco práctica»). Su sitio lo ocupa
            «Sus últimas sesiones». El canvas desaparece con él. -->
@@ -13296,9 +13303,8 @@ function renderPlayer(name){
      dijera ya el estado del problema. */
   /* v464 · los dos bloques nuevos de la ficha por pestañas */
   try{renderPlNormal(name);}catch(e){console.error('carga normal',e);}
-  try{renderPlAnillos(name);}catch(e){console.error('anillos',e);}
   try{renderPlIntensidad(name);}catch(e){console.error('intensidad ficha',e);}
-  try{renderPlSesiones(name);}catch(e){console.error('sesiones',e);}
+  try{renderPlRegistro(name);}catch(e){console.error('registro ficha',e);}
   try{renderPlResumen(name);}catch(e){console.error('resumen ficha',e);}
   try{renderPlMicroJug(name);}catch(e){console.error('microciclo jugador',e);}
   try{renderPlZonaCalor(name);}catch(e){console.error('mapa de zonas',e);}
@@ -13445,7 +13451,7 @@ function renderPlAnillos(name){
      MAD, así que por construcción la mitad de sus sesiones cae fuera: pintarlas
      en ámbar sería marcar media temporada. Lo que se mira es **dónde cae el
      punto**, igual que en `calRefMD`. */
-const PLI_N=12;
+const PLI_N=8;
 function renderPlIntensidad(name){
   const box=document.getElementById('pl-intens');if(!box)return;
   const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -13479,7 +13485,31 @@ function renderPlIntensidad(name){
   const g3=arcGauge('FC media',fcm||0,100,[{to:100,color:'var(--c-data)'}],
     fcm==null?'\u2014':fcm+'%','de su m\u00e1x.',96);
 
-  /* ── su pulso, sesión a sesión, contra su propia mediana ── */
+  /* ── v470 · Su pulso, sesión a sesión ──
+     Daniel, 27/10/2026: «reházlo por completo, añadiendo colores y más datos
+     para hacerlo interpretable y sencillo de comprender, así no me dice nada».
+     La versión anterior era un punto por sesión sobre un plano: una sola cifra
+     (la FC media) y un solo color.
+
+     Ahora **cada sesión es una barra que va de su FC media a su FC máxima**,
+     sobre una escala común. Eso dice dos cosas de un vistazo que un punto no
+     podía decir: dónde estuvo el pulso (posición) y **cuánto se estiró hasta el
+     tope** (longitud). Y entran dos cifras que la app tenía sin enseñar en la
+     ficha: la FC máxima y el TRIMP.
+
+     Tres reglas, ninguna nueva:
+     · **El color NO se inventa**: la barra va con el color de la banda del
+       %Z4+Z5 de esa sesión (`calZonaNivel` sobre `SESEF()`), o sea las mismas
+       bandas calibradas del club que usan la casilla del mes y la lámina. Una
+       sesión roja aquí es «mucho Z4+Z5», que es la excepción del rojo ya
+       autorizada para las zonas, y no «peligro».
+     · **La franja de fondo es SU rango habitual** de FC media (mediana ± MAD)
+       y va en neutro, con la mediana en una raya: lo que se mira es dónde cae
+       la barra, misma regla que `calRefMD`. Hace falta `HRE_MIN` sesiones para
+       tenerla; por debajo se dibujan las barras y **se calla la conclusión**.
+     · **Cada jugador solo contra sí mismo**, como `hrEficiencia`: Josu y Óscar
+       llevan el pulso bajo y contra la media del equipo saldrían marcados
+       todos los días. */
   const conFC=d.filter(r=>r.hrAvg!=null&&!isNaN(r.hrAvg));
   let fc='';
   if(conFC.length){
@@ -13487,23 +13517,40 @@ function renderPlIntensidad(name){
     const med=plMediana(vals);
     const mad=med==null?null:plMediana(vals.map(v=>Math.abs(v-med)));
     const base=conFC.length>=HRE_MIN&&med!=null;
-    const ult=conFC.slice(-PLI_N);
+    const ult=conFC.slice(-PLI_N).reverse();        /* la m\u00e1s reciente arriba */
     const bLo=base?med-(mad||0):null, bHi=base?med+(mad||0):null;
-    let lo=Math.min.apply(null,ult.map(r=>r.hrAvg)), hi=Math.max.apply(null,ult.map(r=>r.hrAvg));
+    let lo=Math.min.apply(null,ult.map(r=>r.hrAvg));
+    let hi=Math.max.apply(null,ult.map(r=>(r.hrMax!=null&&!isNaN(r.hrMax))?r.hrMax:r.hrAvg));
     if(base){lo=Math.min(lo,bLo);hi=Math.max(hi,bHi);}
-    lo=Math.floor(lo-2);hi=Math.ceil(hi+2);
-    const pz=v=>hi>lo?Math.max(0,Math.min(100,(v-lo)/(hi-lo)*100)):50;
-    const puntos=ult.map((r,i)=>{
-      const x=ult.length>1?(i/(ult.length-1))*100:50;
-      return '<span class="pli-dot'+(i===ult.length-1?' pli-dot--u':'')+'" '
-        +'style="left:'+x.toFixed(2)+'%;bottom:'+pz(r.hrAvg).toFixed(2)+'%" '
-        +'title="'+esc(fch(r.dk)+' \u00b7 FC media '+Math.round(r.hrAvg)+'% \u00b7 '+r.lab)+'"></span>';
-    }).join('');
-    const banda=base
-      ?'<div class="pli-band" style="bottom:'+pz(bLo).toFixed(2)+'%;height:'
-        +Math.max(2,pz(bHi)-pz(bLo)).toFixed(2)+'%"></div>'
-       +'<div class="pli-med" style="bottom:'+pz(med).toFixed(2)+'%"></div>'
+    lo=Math.max(0,Math.floor((lo-4)/5)*5);hi=Math.min(100,Math.ceil((hi+3)/5)*5);
+    const px=v=>hi>lo?Math.max(0,Math.min(100,(v-lo)/(hi-lo)*100)):50;
+    const ref=base
+      ?'<i class="plp-band" style="left:'+px(bLo).toFixed(2)+'%;width:'
+        +Math.max(1.5,px(bHi)-px(bLo)).toFixed(2)+'%"></i>'
+       +'<i class="plp-med" style="left:'+px(med).toFixed(2)+'%"></i>'
       :'';
+    const filas=ult.map(r=>{
+      const a=px(r.hrAvg);
+      const mx=(r.hrMax!=null&&!isNaN(r.hrMax)&&r.hrMax>r.hrAvg)?r.hrMax:null;
+      const b=mx!=null?px(mx):a;
+      let col='var(--c-data)';
+      try{if(typeof calZonaNivel==='function'&&r.z45!=null){
+        const nv=calZonaNivel(Math.round(r.z45),'z54');
+        col=nv===2?'var(--bad)':nv===1?'var(--warn)':'var(--ok)';
+      }}catch(e){}
+      return '<div class="plp-r">'
+        +'<span class="plp-d" title="'+esc(r.dk+' \u00b7 '+r.lab)+'">'+esc(fch(r.dk))+'</span>'
+        +'<div class="plp-t">'+ref
+          +'<b class="plp-bar" style="left:'+a.toFixed(2)+'%;width:'+Math.max(1.2,b-a).toFixed(2)+'%;'
+            +'background:'+col+'" title="'+esc('FC media '+Math.round(r.hrAvg)+'% \u2192 m\u00e1xima '
+            +(mx!=null?Math.round(mx)+'%':'sin dato'))+'"></b>'
+          +'<u class="plp-dot" style="left:'+a.toFixed(2)+'%;background:'+col+'"></u>'
+        +'</div>'
+        +'<span class="plp-v">'+Math.round(r.hrAvg)+'<em>med</em></span>'
+        +'<span class="plp-v">'+(mx!=null?Math.round(mx):'\u2014')+'<em>m\u00e1x</em></span>'
+        +'<span class="plp-v">'+(r.trimp==null?'\u2014':Math.round(r.trimp))+'<em>TRIMP</em></span>'
+      +'</div>';
+    }).join('');
     const last=conFC[conFC.length-1];
     const dentro=base&&mad!=null&&Math.abs(last.hrAvg-med)<=mad;
     const minAlta=r=>(((r.z&&r.z[3])||0)+((r.z&&r.z[4])||0))/60;
@@ -13514,21 +13561,23 @@ function renderPlIntensidad(name){
        +(dentro?'lo normal en \u00e9l.'
          :'<b>'+n1(Math.abs(last.hrAvg-med))+' puntos por '+(last.hrAvg>med?'encima':'debajo')+'</b> de lo suyo.')
       :'Con '+conFC.length+(conFC.length===1?' sesi\u00f3n medida':' sesiones medidas')+' todav\u00eda no se '
-       +'puede decir qu\u00e9 es normal en \u00e9l: hacen falta '+HRE_MIN+'. Los puntos son lo que hay.';
+       +'puede decir qu\u00e9 es normal en \u00e9l: hacen falta '+HRE_MIN+'. Las barras son lo que hay.';
     const frase2='Estuvo <b>'+n1(minAlta(last))+' min</b> en zona alta (Z4+Z5)'
       +((base&&medAlta!=null)?'; en sus sesiones suele hacer <b>'+n1(medAlta)+' min</b>.':'.');
     fc='<div class="pli-fc">'
       +'<div class="pli-h">Su pulso, sesi\u00f3n a sesi\u00f3n '
         +'<span class="muted" style="font-weight:400;font-size:12.5px">\u00faltimas '+ult.length
-        +' con puls\u00f3metro'+(base?' \u00b7 la banda gris es lo normal en \u00e9l':'')+'</span></div>'
-      +'<div class="pli-sp">'+banda+puntos+'</div>'
-      +'<div class="pli-ax"><span>'+lo+'\u2009% FC m\u00e1x.</span>'
-        +'<span>'+hi+'\u2009%</span></div>'
+        +' \u00b7 de su FC media a su m\u00e1xima'+(base?' \u00b7 franja gris: lo normal en \u00e9l':'')+'</span></div>'
+      +'<div class="plp-g">'+filas+'</div>'
+      +'<div class="plp-ax"><span>'+lo+'\u2009% FC m\u00e1x.</span><span>'+hi+'\u2009%</span></div>'
+      +'<div class="plp-leg"><span>Color de la barra, por el %Z4+Z5 de la sesi\u00f3n:</span>'
+        +'<span><i style="background:var(--ok)"></i>bajo</span>'
+        +'<span><i style="background:var(--warn)"></i>medio</span>'
+        +'<span><i style="background:var(--bad)"></i>alto</span></div>'
       +'<p class="pli-say">'+frase+'</p>'
       +'<p class="pli-say">'+frase2+'</p>'
     +'</div>';
   }
-
   const vieja=u.dk<TEMP_INICIO;
   box.innerHTML='<div class="panel"><h2>Intensidad de su \u00faltima sesi\u00f3n '
     +'<span class="r muted" style="font-weight:400;font-size:12.5px">'+esc(fch(u.dk))+' \u00b7 '+esc(u.lab)+'</span></h2>'
@@ -13968,6 +14017,122 @@ function renderPlRadar(name){
       +'. El borde dorado es el list\u00f3n Champions, as\u00ed que lo que falta hasta \u00e9l es literalmente '
       +'la distancia al borde. Cada eje es la media del nivel de sus pruebas vigentes de esa capacidad.</p>'
   +'</div>';
+}
+/* ═══ v470 · Registro de sus últimos entrenamientos ═══
+   Daniel, 27/10/2026, enumerando qué quiere arriba en Hoy: «un registro de sus
+   últimos entrenamientos de manera súper sencilla de interpretar (semáforo
+   resultante, RPE, carga total, contacto, %Z5 y %Z4)». Sustituye a «Sus
+   últimas sesiones», que contaba lo mismo con barras de zonas y seis cifras.
+
+   Son **sus seis columnas, en su orden**, y nada más.
+
+   Cuatro reglas, ninguna nueva:
+
+   · **Un día entrenado sin pulsómetro sigue siendo una sesión.** Es la regla
+     ya escrita para «Últimas sesiones» del Resumen: lo que hay se pinta y lo
+     que falta se dice. Si el registro saliera solo de Polar, en la 26/27 estaría
+     casi vacío y parecería que no entrena.
+   · **Sin criterio no se inventa nivel.** El semáforo sale de `hrpNivel`, el
+     mismo con el que la app clasifica cualquier sesión y que respeta la
+     corrección manual; un día sin captura se queda con el semáforo apagado y
+     lo dice, en vez de pintar un verde que no sabe nadie de dónde sale.
+   · **El %Z5 y el %Z4 van SEPARADOS y cada uno contra SU banda** (`z5` y `z4`
+     de `SESEF()`), que es exactamente lo que ya hace la casilla del mes: un
+     4 % es mucho en Z5 y poco en Z4, así que colorearlos con la misma regla
+     sería decir dos cosas distintas con el mismo color.
+   · **El color se decide sobre la cifra redondeada que se ve**, no sobre el
+     valor interno.
+
+   El RPE, la carga y el contacto van en **neutro**: la app no tiene banda por
+   jugador para ninguno de los tres y aquí no se inventa una. */
+const PLG_N=8;
+function plRegistroFilas(name,n){
+  n=n||PLG_N;
+  let hr=[];
+  try{if(typeof hrEnsure==='function')hrEnsure();hr=(typeof hrpDatos==='function')?hrpDatos(name,0):[];}catch(e){}
+  const por={};
+  hr.forEach(r=>{por[r.dk]={dk:r.dk,lab:r.lab,nivel:r.nivel,rpe:r.rpe,ct:r.ct,ua:r.ua,
+    z5:r.z5,z4:r.z4pct,partido:r.partido,pulso:true};});
+  /* Los d\u00edas que declar\u00f3 por cuestionario y no llevaron puls\u00f3metro. Mismo
+     \u00edndice que usa `hrpDatos`, as\u00ed que el RPE, el contacto y las UA se calculan
+     igual en los dos casos. */
+  try{
+    const ix=hrpIndice();
+    Object.keys(ix.rpePorDia||{}).forEach(k=>{
+      const i=k.indexOf('\u0000');if(i<0)return;
+      if(k.slice(0,i)!==name)return;
+      const dk=k.slice(i+1);
+      if(por[dk])return;
+      const rp=ix.rpePorDia[k]||[];if(!rp.length)return;
+      const rr=rp.filter(x=>x.rpe).map(x=>x.rpe);
+      const cc=rp.filter(x=>x.contacto&&(!window.contactoDePista||contactoDePista(x))).map(x=>x.contacto);
+      const ua=rp.reduce((a,x)=>a+(x.ua||0),0);
+      const tipo=String((rp[0]||{}).tipo||'');
+      por[dk]={dk,lab:tipo||'Entrenamiento',nivel:null,
+        rpe:rr.length?hrpMedia(rr):null,ct:cc.length?hrpMedia(cc):null,
+        ua:ua||null,z5:null,z4:null,partido:/partido/i.test(tipo),pulso:false};
+    });
+  }catch(e){}
+  return Object.values(por).sort((a,b)=>a.dk<b.dk?1:(a.dk>b.dk?-1:0)).slice(0,n);
+}
+function renderPlRegistro(name){
+  const box=document.getElementById('pl-reg');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const d=plRegistroFilas(name);
+  const cab='<h2>Sus \u00faltimos entrenamientos '
+    +'<span class="r muted" style="font-weight:400;font-size:12.5px">'
+    +(d.length?d.length+' sesiones':'sin registros')+'</span></h2>';
+  if(!d.length){
+    box.innerHTML='<div class="panel">'+cab
+      +'<p class="hint" style="margin:8px 0 0">Todav\u00eda no hay ning\u00fan d\u00eda suyo con cuestionario '
+      +'ni captura de puls\u00f3metro.</p></div>';
+    return;
+  }
+  const n1=v=>(v==null||isNaN(v))?'\u2014':(Math.round(v*10)/10).toString().replace('.',',');
+  const n0=v=>(v==null||isNaN(v))?'\u2014':Math.round(v).toLocaleString('es-ES');
+  const NIVL=['BAJA','MEDIA','ALTA'];
+  /* El color de una zona sale de su propia banda calibrada, y se decide sobre
+     la cifra redondeada que se ve. */
+  const zcol=(pct,key)=>{
+    if(pct==null||isNaN(pct))return null;
+    try{const nv=calZonaNivel(Math.round(pct*10)/10,key);
+      return nv===2?'var(--bad)':nv===1?'var(--warn)':'var(--ok)';}catch(e){return null;}
+  };
+  const cel=(rot,val,col)=>'<span class="plg-v"><em>'+rot+'</em><b'
+    +(col?' style="color:'+col+'"':'')+'>'+val+'</b></span>';
+  const filas=d.map(r=>{
+    const niv=(r.nivel!=null&&NIVL[r.nivel])?NIVL[r.nivel]:null;
+    const nivc=r.nivel===2?'var(--bad)':r.nivel===1?'var(--warn)':'var(--ok)';
+    /* `calTraffic` toma 1 verde \u00b7 2 \u00e1mbar \u00b7 3 rojo; el nivel de sesi\u00f3n va de 0 a 2. */
+    const sem=(typeof calTraffic==='function')
+      ? calTraffic(r.nivel!=null?r.nivel+1:0,34,'plg-sem')
+      : '';
+    return '<div class="plg-r">'
+      +'<div class="plg-s">'+sem+'</div>'
+      +'<div class="plg-d">'
+        +'<b>'+esc(r.dk.slice(8)+'/'+r.dk.slice(5,7)+(r.dk<TEMP_INICIO?'/'+r.dk.slice(2,4):''))+'</b>'
+        +'<span>'+esc(r.lab||'')+'</span>'
+        +'<i'+(niv?' style="color:'+nivc+'"':'')+'>'+(niv||'sin puls\u00f3metro')+'</i>'
+      +'</div>'
+      +'<div class="plg-n">'
+        +cel('RPE',n1(r.rpe))
+        +cel('Carga',n0(r.ua),null)
+        +cel('Contacto',n1(r.ct))
+        +cel('%Z5',r.z5==null?'\u2014':n1(r.z5),zcol(r.z5,'z5'))
+        +cel('%Z4',r.z4==null?'\u2014':n1(r.z4),zcol(r.z4,'z4'))
+      +'</div>'
+    +'</div>';
+  }).join('');
+  const sinPulso=d.filter(x=>!x.pulso).length;
+  box.innerHTML='<div class="panel">'+cab+'<div class="plg-g">'+filas+'</div>'
+    +'<p class="hint" style="margin:12px 0 0">El sem\u00e1foro es el nivel con el que la app clasifica '
+      +'esa sesi\u00f3n, el mismo del calendario, y respeta la correcci\u00f3n manual. '
+      +'El %Z5 y el %Z4 van por separado y cada uno con <b>su propia banda</b> del club: '
+      +'un 4 % es mucho en Z5 y poco en Z4. El RPE, la carga y el contacto van en neutro, '
+      +'porque la app no tiene banda por jugador para ellos.'
+      +(sinPulso?' <b>'+sinPulso+'</b> de estas '+d.length+' no llev'+(sinPulso===1?'\u00f3':'aron')
+        +' puls\u00f3metro: tienen RPE, carga y contacto, y no zonas.':'')
+    +'</p></div>';
 }
 /* ═══ v465 · Un poco de médico y un poco de físico, dentro de Hoy ═══
    Daniel: «tener un poquito de cada uno de esos apartados en el hoy», con el
@@ -29947,19 +30112,56 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
     border-left:.5px solid var(--hair)}
 }
 .pli-h{font-size:14px;font-weight:600;letter-spacing:-.01em;margin-bottom:14px}
-/* El plano de los puntos. La banda es la mediana ± MAD y va en NEUTRO: no es
-   una alerta, es el rango en el que suele caer él. Lo que se mira es dónde cae
-   el punto —misma regla que `calRefMD`—. */
-.pli-sp{position:relative;height:74px;margin:0 8px 7px}
-.pli-band{position:absolute;left:0;right:0;border-radius:6px;
-  background:color-mix(in srgb,var(--muted2) 24%,transparent)}
-.pli-med{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--muted2)}
-.pli-dot{position:absolute;width:9px;height:9px;margin:0 0 -4.5px -4.5px;border-radius:50%;
-  background:var(--c-data)}
-.pli-dot--u{width:13px;height:13px;margin:0 0 -6.5px -6.5px;background:var(--accent);
-  box-shadow:0 0 0 3px var(--panel)}
-.pli-ax{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);
-  font-variant-numeric:tabular-nums}
+/* v470 · Su pulso, sesión a sesión. Cada barra va de la FC media a la máxima
+   sobre una escala común: la posición dice dónde estuvo el pulso y la longitud
+   cuánto se estiró hasta el tope. La franja es su rango habitual y va en
+   NEUTRO —lo que se mira es dónde cae la barra, misma regla que `calRefMD`—.
+   *Sustituye al plano de puntos de la v468: una sola cifra y un solo color.* */
+.plp-g{display:flex;flex-direction:column;gap:7px;margin:2px 0 7px}
+.plp-r{display:grid;grid-template-columns:46px minmax(0,1fr) 32px 32px 46px;gap:10px;
+  align-items:center}
+.plp-d{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.plp-t{position:relative;height:22px;background:var(--panel2);border-radius:6px;overflow:hidden}
+.plp-band{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--muted2) 22%,transparent)}
+.plp-med{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--muted2)}
+.plp-bar{position:absolute;top:6px;height:10px;border-radius:5px}
+.plp-dot{position:absolute;top:3px;width:4px;height:16px;border-radius:2px;margin-left:-2px}
+.plp-v{font-size:12.5px;font-weight:650;font-variant-numeric:tabular-nums;text-align:right;
+  line-height:1.15}
+.plp-v em{display:block;font-style:normal;font-size:10px;font-weight:400;color:var(--muted)}
+.plp-ax{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);
+  font-variant-numeric:tabular-nums;padding:0 140px 0 56px}
+.plp-leg{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px;
+  font-size:11.5px;color:var(--muted)}
+.plp-leg span{display:flex;align-items:center;gap:5px}
+.plp-leg i{width:13px;height:6px;border-radius:3px;flex:0 0 auto}
+/* v470 · Registro de sus últimos entrenamientos. En ancho, las cinco cifras
+   son columnas de la misma rejilla (`display:contents`) para que se alineen
+   entre filas; por debajo de 860 px bajan a su propia línea en vez de
+   estrecharse hasta dejar de leerse. */
+.plg-g{display:flex;flex-direction:column}
+.plg-r{display:grid;grid-template-columns:28px minmax(140px,1.6fr) repeat(5,minmax(0,1fr));
+  gap:10px;align-items:center;padding:11px 0;border-bottom:.5px solid var(--hair)}
+.plg-r:last-child{border-bottom:0;padding-bottom:2px}
+.plg-s{display:flex;align-items:center;justify-content:center}
+.plg-d{display:flex;align-items:baseline;gap:8px;min-width:0}
+.plg-d b{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.plg-d span{font-size:12.5px;color:var(--muted);flex:1;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.plg-d i{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+  flex:0 0 auto;color:var(--muted2)}
+.plg-n{display:contents}
+.plg-v{min-width:0}
+.plg-v em{display:block;font-style:normal;font-size:10.5px;color:var(--muted)}
+.plg-v b{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+@media(max-width:860px){
+  .plg-r{grid-template-columns:28px minmax(0,1fr);row-gap:9px}
+  .plg-n{display:grid;grid-column:1/-1;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+}
+@media(max-width:760px){
+  .plp-r{grid-template-columns:40px minmax(0,1fr) 28px 28px 40px;gap:6px}
+  .plp-ax{padding:0 108px 0 46px}
+}
 .pli-say{font-size:13px;line-height:1.55;margin:10px 0 0}
 .pli-say b{font-variant-numeric:tabular-nums}
 /* v469 \u00b7 D\u00f3nde carga dentro del ciclo.
@@ -36400,8 +36602,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-27.2*/
-const VER_ACTUAL='2026-10-27.2';
+/*BUILD:2026-10-27.3*/
+const VER_ACTUAL='2026-10-27.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
