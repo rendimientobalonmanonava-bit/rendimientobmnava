@@ -6051,6 +6051,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <!-- Lo que Daniel echó en falta: Polar e intensidad con sus números, y un
            poco de médico y de físico con el detalle en su pestaña. -->
       <div id="pl-anillos"></div>
+      <div id="pl-intens"></div>
       <div id="pl-ses"></div>
       <div id="pl-resumen"></div>
       <div class="pl-g2">
@@ -13287,6 +13288,7 @@ function renderPlayer(name){
   /* v464 · los dos bloques nuevos de la ficha por pestañas */
   try{renderPlNormal(name);}catch(e){console.error('carga normal',e);}
   try{renderPlAnillos(name);}catch(e){console.error('anillos',e);}
+  try{renderPlIntensidad(name);}catch(e){console.error('intensidad ficha',e);}
   try{renderPlSesiones(name);}catch(e){console.error('sesiones',e);}
   try{renderPlResumen(name);}catch(e){console.error('resumen ficha',e);}
   try{renderPlFisico(name);}catch(e){console.error('perfil fisico',e);}
@@ -13392,6 +13394,144 @@ function renderPlAnillos(name){
   +'<p class="hint" style="margin:14px 0 0">El efecto del entrenamiento sale de la \u00faltima sesi\u00f3n con puls\u00f3metro'
     +(teDk?' ('+teDk.slice(8)+'/'+teDk.slice(5,7)+')':'')+': anillo exterior aer\u00f3bico, interior anaer\u00f3bico, de 0 a 5. '
     +'La carga es el ACWR 7:21, el mismo de todas las pantallas.</p></div>';
+}
+/* ═══ v468 · «Intensidad de su última sesión» · la del Resumen, pero SUYA ═══
+   Daniel, 27/10/2026, con la captura del panel del Resumen delante: «métele el
+   gráfico que hay en resumen, pero individualizado a cada jugador», y además
+   «datos de sus últimas sesiones de FC, muy sencillo interpretado».
+
+   **No es un gráfico nuevo: es `arcGauge`, el mismo que dibuja el del Resumen.**
+   Lo que cambia son los números: allí la carga es la media de la plantilla y el
+   contacto una estimación sacada del nombre de la sesión; aquí todo es de él.
+
+   Cuatro decisiones:
+
+   · **Los cortes son los mismos en las dos pantallas.** Vivían escritos a mano
+     dentro de `renderTeamIntensity` y ahora los dos leen `INT_SRPE` /
+     `INT_TRIMP`. Un solo criterio, un solo sitio.
+   · **El %Z4+Z5 no estrena umbrales**: sus tramos salen de `SESEF()` por
+     `intStopsZona`, o sea de las bandas calibradas del club.
+   · **La FC media va en NEUTRO**, que es la regla ya escrita para la lámina A4:
+     la app no tiene banda para la FC media y aquí no se inventa una.
+   · **El ACWR no se repite.** Está en el anillo de «Carga» justo encima, y en
+     esta app una cifra que se ve dos veces no añade nada. Este panel describe
+     LA SESIÓN; el de arriba, cómo llega el jugador.
+
+   Y debajo, lo que pidió «muy sencillo interpretado»: **su pulso leído contra el
+   suyo**. Cada jugador solo contra sí mismo —misma regla que `hrEficiencia`, y
+   por el mismo motivo: Josu y Óscar llevan el pulso sistemáticamente bajo y
+   contra la media del equipo saldrían marcados todos los días—. Mediana y MAD,
+   no media y desviación. Hacen falta `HRE_MIN` sesiones con pulso para tener
+   línea base; por debajo se dibujan los puntos y **se calla la conclusión**.
+
+   Dos cosas que NO hace, y las dos son reglas ya escritas de este proyecto:
+
+   · **Nada de Δ%.** La diferencia va en **puntos de FC** y en **minutos**. Sobre
+     una base pequeña el porcentaje es ruido con aspecto de medición: ya pasó
+     con el progreso del TSA y con el tiempo en zonas de la semana.
+   · **La desviación va en neutro, sin color de aviso.** La banda es mediana ±
+     MAD, así que por construcción la mitad de sus sesiones cae fuera: pintarlas
+     en ámbar sería marcar media temporada. Lo que se mira es **dónde cae el
+     punto**, igual que en `calRefMD`. */
+const PLI_N=12;
+function renderPlIntensidad(name){
+  const box=document.getElementById('pl-intens');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let d=[];
+  try{if(typeof hrEnsure==='function')hrEnsure();d=(typeof hrpDatos==='function')?hrpDatos(name,0):[];}catch(e){}
+  /* Sin ninguna captura suya este panel no existe: «Sus últimas sesiones», justo
+     debajo, ya dice que no hay pulsómetros. Dos paneles diciendo lo mismo es
+     ruido —misma regla que `nutFichaHTML`—. */
+  if(!d.length){box.innerHTML='';return;}
+  const n0=v=>(v==null||isNaN(v))?'\u2014':Math.round(v).toLocaleString('es-ES');
+  const n1=v=>(v==null||isNaN(v))?'\u2014':(Math.round(v*10)/10).toString().replace('.',',');
+  const fch=dk=>dk.slice(8)+'/'+dk.slice(5,7)+(dk<TEMP_INICIO?'/'+dk.slice(2,4):'');
+  const u=d[d.length-1];
+
+  /* ── los cuatro medidores de la última sesión ── */
+  const ua=(u.ua!=null&&u.ua>0)?u.ua:null;
+  /* Un hueco se explica, no se deja mudo: misma regla que el `min?` de la
+     casilla del mes. Sin cuestionarios ese d\u00eda la carga no es calculable. */
+  const big=arcGauge('Carga de la sesi\u00f3n \u00b7 sRPE',ua||0,700,INT_SRPE,
+    ua!=null?n0(ua):'\u2014',ua!=null?'UA':'sin RPE',168);
+  const g1=arcGauge('TRIMP',u.trimp||0,300,INT_TRIMP,n0(u.trimp),'Edwards',96);
+  const sz=intStopsZona('z54');
+  /* El color se decide sobre la **cifra redondeada que se ve**, no sobre el
+     valor interno: un 8,1 pintado como \u00ab8 %\u00bb con el color del tramo de al lado
+     hace que se deje de creer a la pantalla. Es la regla ya escrita para el
+     ACWR proyectado y para la casilla del mes. */
+  const z45=u.z45==null?null:Math.round(u.z45);
+  const g2=arcGauge('Tiempo en alta',z45||0,sz.cap,sz.stops,
+    z45==null?'\u2014':z45+'%','Z4+Z5',96);
+  const fcm=u.hrAvg==null?null:Math.round(u.hrAvg);
+  const g3=arcGauge('FC media',fcm||0,100,[{to:100,color:'var(--c-data)'}],
+    fcm==null?'\u2014':fcm+'%','de su m\u00e1x.',96);
+
+  /* ── su pulso, sesión a sesión, contra su propia mediana ── */
+  const conFC=d.filter(r=>r.hrAvg!=null&&!isNaN(r.hrAvg));
+  let fc='';
+  if(conFC.length){
+    const vals=conFC.map(r=>r.hrAvg);
+    const med=plMediana(vals);
+    const mad=med==null?null:plMediana(vals.map(v=>Math.abs(v-med)));
+    const base=conFC.length>=HRE_MIN&&med!=null;
+    const ult=conFC.slice(-PLI_N);
+    const bLo=base?med-(mad||0):null, bHi=base?med+(mad||0):null;
+    let lo=Math.min.apply(null,ult.map(r=>r.hrAvg)), hi=Math.max.apply(null,ult.map(r=>r.hrAvg));
+    if(base){lo=Math.min(lo,bLo);hi=Math.max(hi,bHi);}
+    lo=Math.floor(lo-2);hi=Math.ceil(hi+2);
+    const pz=v=>hi>lo?Math.max(0,Math.min(100,(v-lo)/(hi-lo)*100)):50;
+    const puntos=ult.map((r,i)=>{
+      const x=ult.length>1?(i/(ult.length-1))*100:50;
+      return '<span class="pli-dot'+(i===ult.length-1?' pli-dot--u':'')+'" '
+        +'style="left:'+x.toFixed(2)+'%;bottom:'+pz(r.hrAvg).toFixed(2)+'%" '
+        +'title="'+esc(fch(r.dk)+' \u00b7 FC media '+Math.round(r.hrAvg)+'% \u00b7 '+r.lab)+'"></span>';
+    }).join('');
+    const banda=base
+      ?'<div class="pli-band" style="bottom:'+pz(bLo).toFixed(2)+'%;height:'
+        +Math.max(2,pz(bHi)-pz(bLo)).toFixed(2)+'%"></div>'
+       +'<div class="pli-med" style="bottom:'+pz(med).toFixed(2)+'%"></div>'
+      :'';
+    const last=conFC[conFC.length-1];
+    const dentro=base&&mad!=null&&Math.abs(last.hrAvg-med)<=mad;
+    const minAlta=r=>(((r.z&&r.z[3])||0)+((r.z&&r.z[4])||0))/60;
+    const medAlta=plMediana(conFC.map(minAlta));
+    const frase=base
+      ?'Su FC media suele rondar el <b>'+Math.round(med)+'\u00a0%</b> de su m\u00e1xima. '
+       +'En la \u00faltima ('+esc(fch(last.dk))+') lleg\u00f3 al <b>'+Math.round(last.hrAvg)+'\u00a0%</b>: '
+       +(dentro?'lo normal en \u00e9l.'
+         :'<b>'+n1(Math.abs(last.hrAvg-med))+' puntos por '+(last.hrAvg>med?'encima':'debajo')+'</b> de lo suyo.')
+      :'Con '+conFC.length+(conFC.length===1?' sesi\u00f3n medida':' sesiones medidas')+' todav\u00eda no se '
+       +'puede decir qu\u00e9 es normal en \u00e9l: hacen falta '+HRE_MIN+'. Los puntos son lo que hay.';
+    const frase2='Estuvo <b>'+n1(minAlta(last))+' min</b> en zona alta (Z4+Z5)'
+      +((base&&medAlta!=null)?'; en sus sesiones suele hacer <b>'+n1(medAlta)+' min</b>.':'.');
+    fc='<div class="pli-fc">'
+      +'<div class="pli-h">Su pulso, sesi\u00f3n a sesi\u00f3n '
+        +'<span class="muted" style="font-weight:400;font-size:12.5px">\u00faltimas '+ult.length
+        +' con puls\u00f3metro'+(base?' \u00b7 la banda gris es lo normal en \u00e9l':'')+'</span></div>'
+      +'<div class="pli-sp">'+banda+puntos+'</div>'
+      +'<div class="pli-ax"><span>'+lo+'\u2009% FC m\u00e1x.</span>'
+        +'<span>'+hi+'\u2009%</span></div>'
+      +'<p class="pli-say">'+frase+'</p>'
+      +'<p class="pli-say">'+frase2+'</p>'
+    +'</div>';
+  }
+
+  const vieja=u.dk<TEMP_INICIO;
+  box.innerHTML='<div class="panel"><h2>Intensidad de su \u00faltima sesi\u00f3n '
+    +'<span class="r muted" style="font-weight:400;font-size:12.5px">'+esc(fch(u.dk))+' \u00b7 '+esc(u.lab)+'</span></h2>'
+    +(vieja?'<p class="hint" style="margin:2px 0 12px">Es una sesi\u00f3n <b>anterior al 1 de julio</b>, '
+      +'o sea de la temporada pasada: no hay capturas suyas en la 26/27.</p>':'')
+    +'<div class="pli-w">'
+      +'<div class="pli-g"><div class="pli-big">'+big+'</div>'
+        +'<div class="pli-row">'+g1+g2+g3+'</div></div>'
+      +fc
+    +'</div>'
+    +'<p class="hint" style="margin:14px 0 0">Los mismos medidores del Resumen, con sus n\u00fameros. '
+      +'Los tramos de color del tiempo en alta salen de las bandas calibradas del club; '
+      +'la FC media va en neutro porque la app no tiene banda para ella. '
+      +'El ACWR no se repite aqu\u00ed: est\u00e1 en el anillo de Carga, encima.</p>'
+  +'</div>';
 }
 /* ═══ v465 · Las últimas sesiones del jugador, con sus números ═══
    Sustituye a «Wellness · evolución», que Daniel retiró el 26/10/2026 («no me
@@ -25734,6 +25874,29 @@ function effBand(r){if(r==null||isNaN(r))return{c:'var(--muted2)',t:'—'};
    fuente real —su único escritor era el propio generador— así que esa vista
    entera mostraba una temporada inventada. Además era inalcanzable: no estaba
    en NAV ni había ningún enlace a go('unif'). */
+/* ═══ v468 · Los cortes de los medidores de intensidad, en UN solo sitio ═══
+   Estaban escritos a mano dentro de `renderTeamIntensity`. Al llevar el mismo
+   panel a la ficha del jugador habría habido dos copias de los mismos números,
+   y dos copias se desincronizan al primer ajuste: el Resumen diría media y la
+   ficha alta de la misma sesión. **No hay ningún valor nuevo**: son exactamente
+   los que ya tenía el panel del Resumen. */
+const INT_SRPE=[{to:250,color:'var(--ok)'},{to:450,color:'var(--warn)'},{to:700,color:'var(--bad)'}];
+const INT_TRIMP=[{to:120,color:'var(--ok)'},{to:220,color:'var(--warn)'},{to:300,color:'var(--bad)'}];
+const INT_ACWR=[{to:0.8,color:'var(--warn)'},{to:1.3,color:'var(--ok)'},{to:1.5,color:'var(--warn)'},{to:2,color:'var(--bad)'}];
+/* Los tramos de color de un medidor de zona salen de `SESEF()` —las bandas
+   calibradas del club— aplastadas a tres niveles igual que hace `calZonaNivel`
+   (`Math.min(2,banda)`), así que **no se inventa ningún umbral** y el medidor de
+   la ficha no puede decir que un 12 % es media si la casilla del mes lo pinta
+   alta. */
+function intStopsZona(key){
+  let sp=null;
+  try{sp=SESEF().find(x=>x.key===key);}catch(e){}
+  if(!sp||!sp.bands)return {cap:28,stops:[{to:28,color:'var(--c-data)'}]};
+  const cap=Math.max(sp.cap,sp.bands[2][1]);
+  return {cap,stops:[{to:sp.bands[0][1],color:'var(--ok)'},
+                     {to:sp.bands[1][1],color:'var(--warn)'},
+                     {to:cap,color:'var(--bad)'}]};
+}
 function arcGauge(label,val,cap,stops,valTxt,sub,size){
   size=size||150;const stroke=Math.round(size*0.10);const cx=size/2,cy=size/2,r=(size-stroke)/2-2;
   const start=135,sweep=270;
@@ -26160,9 +26323,9 @@ function renderTeamIntensity(){
   if(tn.includes('partido')||/\bmd\b/.test(tn)){contact=3;clab='Alto';}
   else if(tn.includes('tactic')||tn.includes('oposic')||tn.includes('especif')){contact=2;clab='Medio';}
   const okc='var(--ok)',wc='var(--warn)',bc='var(--bad)';
-  const big=arcGauge('Carga general · sRPE',srpe||0,700,[{to:250,color:okc},{to:450,color:wc},{to:700,color:bc}],srpe!=null?Math.round(srpe):'—','UA',172);
-  const g1=arcGauge('ACWR',isNaN(teamA)?0:teamA,2,[{to:0.8,color:wc},{to:1.3,color:okc},{to:1.5,color:wc},{to:2,color:bc}],isNaN(teamA)?'—':teamA.toFixed(2),CONFIG.load.acute+':'+CONFIG.load.chronic,98);
-  const g2=arcGauge('TRIMP últ.',trimp||0,300,[{to:120,color:okc},{to:220,color:wc},{to:300,color:bc}],Math.round(trimp),'Edwards',98);
+  const big=arcGauge('Carga general · sRPE',srpe||0,700,INT_SRPE,srpe!=null?Math.round(srpe):'—','UA',172);
+  const g1=arcGauge('ACWR',isNaN(teamA)?0:teamA,2,INT_ACWR,isNaN(teamA)?'—':teamA.toFixed(2),CONFIG.load.acute+':'+CONFIG.load.chronic,98);
+  const g2=arcGauge('TRIMP últ.',trimp||0,300,INT_TRIMP,Math.round(trimp),'Edwards',98);
   const g3=arcGauge('Contacto',contact,3,[{to:1.5,color:okc},{to:2.5,color:wc},{to:3,color:bc}],clab,'estimado',98);
   box.innerHTML=`<div style="display:flex;justify-content:center;margin-bottom:4px">${big}</div>
     <div style="display:flex;justify-content:space-around;gap:4px;flex-wrap:wrap">${g1}${g2}${g3}</div>
@@ -29410,6 +29573,49 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 .pls-bar i{display:block;height:100%}
 .pls-n{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
 .pls-n span{min-width:0}
+/* v468 · «Intensidad de su última sesión» · los medidores del Resumen, suyos.
+   El medidor grande y los tres pequeños van EN LA MISMA FILA: apilados, la
+   tarjeta se iba a 480 px para decir cuatro cifras. */
+.pli-w{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.pli-g{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}
+.pli-big{display:flex;justify-content:center}
+.pli-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+/* Los medidores crecen con su columna. `arcGauge` los emite con un ancho fijo
+   en p\u00edxeles, y en un panel de 1.100 px eso dejaba 300 px de aire por columna
+   para dibujar 96 \u2014la misma pega que Daniel puso al microciclo: \u00abmuy mal
+   optimizado a nivel de espacio\u00bb\u2014. El SVG lleva viewBox, as\u00ed que escala
+   entero, texto incluido. */
+.pli-big svg,.pli-row svg{width:100%;height:auto;display:block;margin:0 auto}
+.pli-big svg{max-width:190px}
+.pli-row svg{max-width:140px}
+.pli-fc{margin-top:16px;padding-top:16px;border-top:.5px solid var(--hair)}
+/* A partir de aqu\u00ed caben los medidores y el pulso uno al lado del otro: el
+   hueco de la derecha se llena con dato en vez de con aire. */
+@media(min-width:1240px){
+  .pli-w{grid-template-columns:auto minmax(0,1fr);gap:26px;align-items:center}
+  .pli-fc{margin-top:0;padding-top:0;padding-left:26px;border-top:0;
+    border-left:.5px solid var(--hair)}
+}
+.pli-h{font-size:14px;font-weight:600;letter-spacing:-.01em;margin-bottom:14px}
+/* El plano de los puntos. La banda es la mediana ± MAD y va en NEUTRO: no es
+   una alerta, es el rango en el que suele caer él. Lo que se mira es dónde cae
+   el punto —misma regla que `calRefMD`—. */
+.pli-sp{position:relative;height:74px;margin:0 8px 7px}
+.pli-band{position:absolute;left:0;right:0;border-radius:6px;
+  background:color-mix(in srgb,var(--muted2) 24%,transparent)}
+.pli-med{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--muted2)}
+.pli-dot{position:absolute;width:9px;height:9px;margin:0 0 -4.5px -4.5px;border-radius:50%;
+  background:var(--c-data)}
+.pli-dot--u{width:13px;height:13px;margin:0 0 -6.5px -6.5px;background:var(--accent);
+  box-shadow:0 0 0 3px var(--panel)}
+.pli-ax{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.pli-say{font-size:13px;line-height:1.55;margin:10px 0 0}
+.pli-say b{font-variant-numeric:tabular-nums}
+@media(max-width:760px){
+  .pli-g{grid-template-columns:minmax(0,1fr);gap:10px}
+  .pli-row{gap:2px}
+}
 .pls-n em{display:block;font-style:normal;font-size:10.5px;color:var(--muted);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pls-n b{display:block;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;
@@ -35783,8 +35989,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-26.16*/
-const VER_ACTUAL='2026-10-26.16';
+/*BUILD:2026-10-27.1*/
+const VER_ACTUAL='2026-10-27.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
