@@ -26449,7 +26449,7 @@ function arcGauge(label,val,cap,stops,valTxt,sub,size){
       <text x="${cx}" y="${cy-size*0.02}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="800" fill="var(--txt)" font-family="'Inter',sans-serif">${txt}</text>
       ${sub?`<text x="${cx}" y="${cy+size*0.17}" text-anchor="middle" font-size="${Math.round(size*0.085)}" fill="var(--muted)">${sub}</text>`:''}
     </svg>
-    <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-top:1px">${label}</div>
+    <div class="ag-lab">${label}</div>
   </div>`;
 }
 function teamRingItem(p,col,tag,reason){
@@ -30048,6 +30048,11 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   margin:18px 0 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
   position:sticky;top:6px;z-index:30;box-shadow:0 1px 0 var(--hair),0 8px 20px rgba(11,13,18,.07)}
 .plt-bar::-webkit-scrollbar{display:none}
+/* v472 · el rótulo del medidor sale del atributo style con los MISMOS valores:
+   en línea gana a cualquier selector, así que no había forma de corregirlo
+   por pantalla ni por tema. Aquí no cambia nada; lo cambia el bloque v472. */
+.ag-lab{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted);margin-top:1px}
 .plt-b{flex:1;min-width:0;white-space:nowrap;font:inherit;font-size:15px;font-weight:500;
   color:var(--muted);background:none;border:0;border-radius:11px;padding:11px 16px;
   min-height:46px;cursor:pointer;letter-spacing:-.01em;
@@ -33053,6 +33058,95 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
   filter:drop-shadow(0 3px 5px rgba(20,29,46,.18));
 }
 .ath-ph--photo .ath-rd{z-index:3}
+
+/* ================= v472 · La ficha usa la escala tipográfica =================
+   Daniel, 27/10/2026: «me falta que sea más profesional». Medido antes de tocar:
+   99 de 211 elementos de texto de la pestaña Hoy estaban a un tamaño que la
+   escala de §3 no tiene — 8, 10, 10,5, 11,5, 13, 13,5, 16, 23, 40 y 45 px —,
+   o sea OCHO tamaños distintos metidos en cuatro píxeles. Es exactamente el
+   diagnóstico que §3 ya tiene escrito para el Resumen: «con todo en la misma
+   banda no hay jerarquía». Los seis tokens existían y estaban sin usar.
+
+   Bloque ADITIVO y acotado a #v-jugador, como la capa Apple de la v420: no se
+   borra ni se modifica una sola regla anterior, así que quitándolo la ficha
+   vuelve exactamente a como estaba y NINGUNA otra pantalla se entera — .rc-lab,
+   .phys-sec y .ag-lab se comparten con Perfil físico y con el Resumen y ahí
+   siguen igual.
+
+   Cada tamaño cae en el escalón de SU PAPEL, no en el píxel más cercano:
+   11 etiqueta · 12,5 secundario · 14 normal · 17 cifra · 24 cifra protagonista.
+   Dos cosas quedan fuera a propósito: el texto DENTRO de los SVG —los números
+   del medidor y del radar son geometría, van en unidades del viewBox y se
+   escalan con el dibujo, no son tipografía de página— y la barra de pestañas
+   a 15 px, que Daniel pidió expresamente así en la v465. */
+
+/* --- etiqueta (11) --- */
+#v-jugador .plp-v em,
+#v-jugador .plg-v em,
+#v-jugador .plg-th em,
+#v-jugador .plg-d i,
+#v-jugador .plm-n,
+#v-jugador .plz-tot,
+#v-jugador .plz-h,
+#v-jugador .pls-n em,
+#v-jugador .pls-tag,
+#v-jugador .phys-sec,
+#v-jugador .phys-si .l,
+#v-jugador .phys-recad,
+#v-jugador .rc-lab,
+#v-jugador .pl-tile-l,
+#v-jugador .pl-fx-l,
+#v-jugador .pl-fx-sec,
+#v-jugador .pl-band-t,
+#v-jugador .ag-lab{font-size:var(--fs-xs)}
+
+/* --- secundario (12,5) --- */
+#v-jugador .plp-d,
+#v-jugador .plg-th b,
+#v-jugador .plr-leg span,
+#v-jugador .plr-e em,
+#v-jugador .pls-leg span,
+#v-jugador .pl-num,
+#v-jugador .pl-pd-row,
+#v-jugador .pls-d,
+#v-jugador .pls-l,
+#v-jugador .pls-tew b,
+#v-jugador .plan-row,
+#v-jugador .pln-c em,
+#v-jugador .pln-c u{font-size:var(--fs-sm)}
+
+/* --- normal (14) --- */
+#v-jugador .plg-d b,
+#v-jugador .pli-say,
+#v-jugador .plr-i span,
+#v-jugador .pls-n b{font-size:var(--fs-body)}
+
+/* --- cifra (17) --- */
+#v-jugador .phys-si .v{font-size:var(--fs-h2)}
+
+/* --- cifra protagonista (24) --- */
+#v-jugador .pl-name,
+#v-jugador .pl-tile-v,
+#v-jugador .pl-fx-v,
+#v-jugador .pln-c b{font-size:var(--fs-h1)}
+
+/* --- hero (34) --- */
+#v-jugador .pla-v{font-size:var(--fs-hero)}
+
+/* --- Fuera las versalitas -------------------------------------------------
+   El texto ya viene en frase desde el JS («Fatiga», «Readiness», «Wellness ·
+   Jugador vs Equipo · menor = mejor»): lo que gritaba era el CSS, así que con
+   quitar la regla vuelve solo y no hay que tocar una línea de JavaScript.
+   Es lo mismo que se quitó de la tarjeta del jugador en la v463 por leerse como
+   una tarjeta de videojuego, y que había sobrevivido en todas partes menos ahí. */
+#v-jugador .rc-lab,
+#v-jugador .phys-sec,
+#v-jugador .phys-si .l,
+#v-jugador .pl-cab,
+#v-jugador .pl-tile-l,
+#v-jugador .pl-fx-l,
+#v-jugador .pl-fx-sec,
+#v-jugador .ag-lab{text-transform:none;letter-spacing:0}
 </style>
 
 <style id="mobile-pass">
@@ -36632,8 +36726,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-27.4*/
-const VER_ACTUAL='2026-10-27.4';
+/*BUILD:2026-10-27.5*/
+const VER_ACTUAL='2026-10-27.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
