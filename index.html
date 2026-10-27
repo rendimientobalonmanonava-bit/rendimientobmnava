@@ -9111,7 +9111,17 @@ const norm=s=>(s||"").toString().trim().toLowerCase().normalize("NFD").replace(/
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN;
 const sd=a=>{if(a.length<2)return NaN;const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1));};
 const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
-const fmt=(x,d=1)=>(x===null||x===undefined||isNaN(x))?"—":(+x).toFixed(d);
+/* v473 · coma decimal. Es una app en español y `toFixed` escribe «2.0»:
+   en la misma pantalla de la ficha convivían «2.0» y «7.0» de los anillos de
+   readiness con «3,2», «15,6» y «7,5» de las zonas y el RPE. Se cambia AQUÍ y
+   no solo en la ficha a propósito: el mismo valor de wellness se ve en la
+   ficha y en el Resumen, y arreglarlo en un sitio sería cambiar una
+   incoherencia dentro de una pantalla por otra entre dos pantallas.
+   Comprobado antes de tocarlo que se puede: ningún `fmt()` alimenta un
+   value de input, un atributo SVG o CSS, ni se vuelve a convertir a número
+   —los «+fmt(» son concatenaciones— y nada en la app re-parsea texto del DOM.
+   Solo cambia el separador: ni miles ni redondeo, para no tocar magnitudes. */
+const fmt=(x,d=1)=>(x===null||x===undefined||isNaN(x))?"—":(+x).toFixed(d).replace(".",",");
 const sum=a=>a.reduce((x,y)=>x+y,0);
 function parseSleep(raw){if(raw==null)return NaN;let s=raw.toString().trim().replace(",",".");if(/^\d{4,}$/.test(s))return NaN;if(/[:;]/.test(s)){const p=s.split(/[:;]/);return (+p[0])+(+p[1]||0)/60;}const v=parseFloat(s);return(isNaN(v)||v<0||v>16)?NaN:v;}
 function parseDate(raw){if(!raw)return null;let s=raw.toString().trim().split(" ")[0];let p=s.split(/[\/\-]/);if(p.length<3){const d=new Date(raw);return isNaN(d)?null:d;}let a=+p[0],b=+p[1],c=+p[2];if(c<100)c+=2000;let day,mon;if(a>12){day=a;mon=b;}else if(b>12){mon=a;day=b;}else{day=a;mon=b;}const d=new Date(c,mon-1,day);return isNaN(d)?null:d;}
@@ -36726,8 +36736,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-27.5*/
-const VER_ACTUAL='2026-10-27.5';
+/*BUILD:2026-10-27.6*/
+const VER_ACTUAL='2026-10-27.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
