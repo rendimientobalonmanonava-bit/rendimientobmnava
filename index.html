@@ -58,6 +58,8 @@ window.__PHOTOS__ = window.__PHOTOS__ || {};</script>
      DOS temas, que es la regla: un token de color que solo existe en claro se
      pinta igual sobre el lienzo negro. */
   --te-aer:#17a2b8;--te-ana:#13697c;
+  /* v469 · anillos del radar de capacidades · declarados en los dos temas */
+  --plr-ok:#e2f2e8;--plr-warn:#fcefd6;--plr-bad:#fbe2df;--plr-now:rgba(48,86,196,.20);
   --accent:#3056c4; --accent-hover:#2747a6; --accent2:#c2702e; --accent-dim:rgba(48,86,196,.10);
   --focus:0 0 0 3px rgba(48,86,196,.16);
   /* ── semántica · rojo SOLO alerta ── */
@@ -291,7 +293,8 @@ html[data-theme="dark"]{
   --ok:#30d47f; --ok-bg:rgba(48,212,127,.13); --ok-text:#7ceaad;
   --warn:#ffb224; --warn-bg:rgba(255,178,36,.14); --warn-text:#ffd18a;
   --bad:#ff5f52; --bad-bg:rgba(255,95,82,.14); --bad-text:#ffa79e;
-  --te-aer:#3ec9df;--te-ana:#2b9fb6;--accent:#6d8cff; --accent-hover:#899fff; --accent-dim:rgba(109,140,255,.14);
+  --te-aer:#3ec9df;--te-ana:#2b9fb6;--accent:#6d8cff;
+  --plr-ok:#17301f;--plr-warn:#302512;--plr-bad:#3a1d19;--plr-now:rgba(109,140,255,.26); --accent-hover:#899fff; --accent-dim:rgba(109,140,255,.14);
   --na:#7d8593; --na-bg:#212530;
   --c-teal:#5fc8dd;
   --row-warn:rgba(255,178,36,.06); --row-bad:rgba(255,95,82,.07);
@@ -6072,6 +6075,11 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
          bloque que compara al jugador con SU propio normal. -->
     <div class="plt-pane" id="plt-carga">
       <div id="pl-normal"></div>
+      <!-- v469 · Dónde carga dentro del ciclo y cómo reparte la intensidad.
+           Las dos son lecturas longitudinales, que es lo que esta pestaña
+           contenía: Hoy describe el día, Carga describe el hábito. -->
+      <div id="pl-micro"></div>
+      <div id="pl-zheat"></div>
       <div id="pl-kpisem" class="pg-col"></div>
     </div>
 
@@ -6090,6 +6098,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
          ya existe (`fichaSemaforo`, baremo del puesto) y el acceso a la ficha
          exportable, que es donde vive el detalle. -->
     <div class="plt-pane" id="plt-perfil">
+      <div id="pl-radar"></div>
       <div id="pl-fisico"></div>
     </div>
 
@@ -13291,6 +13300,9 @@ function renderPlayer(name){
   try{renderPlIntensidad(name);}catch(e){console.error('intensidad ficha',e);}
   try{renderPlSesiones(name);}catch(e){console.error('sesiones',e);}
   try{renderPlResumen(name);}catch(e){console.error('resumen ficha',e);}
+  try{renderPlMicroJug(name);}catch(e){console.error('microciclo jugador',e);}
+  try{renderPlZonaCalor(name);}catch(e){console.error('mapa de zonas',e);}
+  try{renderPlRadar(name);}catch(e){console.error('radar capacidades',e);}
   try{renderPlFisico(name);}catch(e){console.error('perfil fisico',e);}
   try{renderProblemas(name);}catch(e){console.error('problemas',e);}
   try{renderReuniones(name);}catch(e){console.error('reuniones',e);}
@@ -13547,6 +13559,11 @@ function renderPlIntensidad(name){
    si el calendario lo pinta alta.
    La barra apilada ES el reparto —las cinco zonas suman el tiempo de sesión—,
    que es la regla ya escrita para el tiempo en zonas de la semana. */
+/* Los cinco colores de zona de la ficha, en UN sitio: los usan la barra
+   apilada de las sesiones y el mapa de calor, y si discreparan la misma Z4
+   ser\u00eda \u00e1mbar en un panel y otra cosa en el de al lado. Son tokens, no
+   hexadecimales: tienen que virar con el tema. */
+const PL_ZCOL=['var(--muted2)','#7c9cbf','var(--ok)','var(--warn)','var(--bad)'];
 const PLS_N=6;
 function renderPlSesiones(name){
   const box=document.getElementById('pl-ses');if(!box)return;
@@ -13560,7 +13577,7 @@ function renderPlSesiones(name){
       +'Las sesiones aparecen aqu\u00ed seg\u00fan se van subiendo desde Puls\u00f3metros.</p></div>';
     return;
   }
-  const ZC=['var(--muted2)','#7c9cbf','var(--ok)','var(--warn)','var(--bad)'];
+  const ZC=PL_ZCOL;
   const n1=v=>v==null||isNaN(v)?'\u2014':(Math.round(v*10)/10).toString().replace('.',',');
   const n0=v=>v==null||isNaN(v)?'\u2014':Math.round(v).toLocaleString('es-ES');
   const NIVL=['BAJA','MEDIA','ALTA'];
@@ -13626,6 +13643,330 @@ function renderPlSesiones(name){
     +'<div class="pls-leg">'+['Z1','Z2','Z3','Z4','Z5'].map((z,i)=>
       '<span><i style="background:'+ZC[i]+'"></i>'+z+'</span>').join('')+'</div>'
     +filas
+  +'</div>';
+}
+/* ═══ v469 · Dónde carga dentro del ciclo ═══
+   `calRefMD` lleva desde la v395 calculando la carga del equipo en cada
+   posición del microciclo, y **por jugador no existía**: la pregunta de
+   «¿quién no sube en los MD-2?» no se podía contestar en ninguna pantalla.
+   Aquí se contesta con las piezas que ya hay —`calMd` para etiquetar el día,
+   `dailyAgg` para su carga, `calRefMD` para la referencia—: **ningún cálculo
+   nuevo y ningún umbral nuevo**.
+
+   La ventana es **la misma que la de `calRefMD`** (`MD_REF_DESDE`, 1 de
+   septiembre) y los partidos se filtran igual. No es un detalle: si cada barra
+   describiera un periodo distinto, la comparación sería falsa y no habría
+   forma de verlo en el dibujo. Por eso la ventana **no es un parámetro**.
+
+   Tres reglas heredadas de `calRefMD`, ninguna nueva:
+   · **Un día sin carga no es un día de 0 UA**, es un día del que no sabemos
+     nada: no entra en la media, porque un cero hundiría la posición.
+   · **Hay que filtrar los PARTIDOS, no solo los días**: si no, un día de
+     septiembre cuyo partido más cercano fuese el último amistoso de agosto
+     entraría etiquetado contra la pretemporada.
+   · **Menos de 3 días en una posición se atenúa y se dice.**
+
+   Una honestidad que va escrita en la pantalla: su carga incluye la
+   **tecnificación** —entra en lo individual por decisión de Daniel del
+   14/10/2026— y la del equipo no, así que en cuanto alguien haga
+   tecnificación su barra sube por ahí y no por entrenar más. */
+function plMicroJug(name){
+  try{calLoad();}catch(e){}
+  const ps=((typeof calPartidosDks==='function')?calPartidosDks():[]).filter(p=>p>=MD_REF_DESDE);
+  if(!ps.length)return {sinPartidos:true,filas:[]};
+  const por={};MD_ORDEN.forEach(k=>por[k]=[]);
+  let dias=0;
+  try{
+    (dailyAgg(name)||[]).forEach(d=>{
+      if(!d||!d.dk||d.dk<MD_REF_DESDE)return;
+      if(!(d.ua>0))return;                 /* sin carga no es carga 0 */
+      const m=calMd(d.dk,ps);              /* calMd devuelve un OBJETO, no texto */
+      if(!m||!por[m.txt])return;           /* ciclos de m\u00e1s de una semana, fuera */
+      por[m.txt].push(d.ua);dias++;
+    });
+  }catch(e){}
+  const refEq={};
+  try{calRefMD().filas.forEach(f=>{refEq[f.md]=f;});}catch(e){}
+  const filas=MD_ORDEN.map(k=>{
+    const v=por[k];
+    const eq=refEq[k];
+    return {md:k,n:v.length,
+      media:v.length?v.reduce((a,b)=>a+b,0)/v.length:null,
+      eq:(eq&&eq.n>=3)?eq.media:null, eqn:eq?eq.n:0};
+  });
+  return {sinPartidos:false,filas,dias,partidos:ps.length,desde:MD_REF_DESDE};
+}
+function renderPlMicroJug(name){
+  const box=document.getElementById('pl-micro');if(!box)return;
+  const n0=v=>(v==null||isNaN(v))?'\u2014':Math.round(v).toLocaleString('es-ES');
+  const r=plMicroJug(name);
+  const cab='<h2>D\u00f3nde carga dentro del ciclo '
+    +'<span class="r muted" style="font-weight:400;font-size:12.5px">desde el 1 de septiembre</span></h2>';
+  if(r.sinPartidos){
+    box.innerHTML='<div class="panel">'+cab
+      +'<p class="hint" style="margin:8px 0 0">No hay partidos en el calendario a partir del '
+      +'1 de septiembre, as\u00ed que no se puede etiquetar ning\u00fan d\u00eda como MD-1 o MD+2. '
+      +'En cuanto haya partidos puestos, este bloque se rellena solo.</p></div>';
+    return;
+  }
+  const con=r.filas.filter(f=>f.n>0);
+  if(!con.length){
+    box.innerHTML='<div class="panel">'+cab
+      +'<p class="hint" style="margin:8px 0 0">Tiene '+r.partidos+' partido'+(r.partidos===1?'':'s')
+      +' en el calendario desde septiembre, pero <b>ning\u00fan d\u00eda suyo con carga calculable</b> '
+      +'en ese tramo. La carga necesita minutos y cuestionario; sin minutos no sale.</p></div>';
+    return;
+  }
+  const tope=Math.max.apply(null,r.filas.map(f=>Math.max(f.media||0,f.eq||0)))||1;
+  const cols=r.filas.map(f=>{
+    const h=f.media?Math.max(3,(f.media/tope)*100):0;
+    const he=f.eq?Math.max(0,Math.min(100,(f.eq/tope)*100)):null;
+    const flojo=f.n>0&&f.n<3;
+    const esMd=f.md==='MD';
+    return '<div class="plm-c'+(flojo?' plm-c--poco':'')+(esMd?' plm-c--md':'')+'">'
+      +'<div class="plm-plot" title="'+f.md+' \u00b7 '+(f.n?n0(f.media)+' UA de media en '+f.n+' d\u00eda'+(f.n===1?'':'s'):'sin d\u00edas con carga')
+        +(f.eq?' \u00b7 equipo '+n0(f.eq)+' UA':'')+'">'
+        +(he!=null?'<i class="plm-eq" style="bottom:'+he.toFixed(1)+'%"></i>':'')
+        +(f.media?'<b class="plm-b" style="height:'+h.toFixed(1)+'%"></b>':'<span class="plm-nada"></span>')
+      +'</div>'
+      +'<div class="plm-v">'+(f.media?n0(f.media):'\u2014')+'</div>'
+      +'<div class="plm-md">'+f.md+'</div>'
+      +'<div class="plm-n">'+(f.n?f.n+'d':'\u2014')+'</div>'
+    +'</div>';
+  }).join('');
+  /* La lectura que convierte el dibujo en decisi\u00f3n: d\u00f3nde se separa m\u00e1s de su
+     equipo. Solo sobre posiciones con 3 o m\u00e1s d\u00edas suyos Y referencia de
+     equipo: con dos d\u00edas la diferencia es la de esos dos d\u00edas. */
+  const comp=r.filas.filter(f=>f.n>=3&&f.eq);
+  let frase='';
+  if(comp.length){
+    const peor=comp.slice().sort((a,b)=>Math.abs(b.media-b.eq)-Math.abs(a.media-a.eq))[0];
+    const d=peor.media-peor.eq;
+    frase='En <b>'+peor.md+'</b> hace <b>'+n0(Math.abs(d))+' UA '+(d>0?'m\u00e1s':'menos')+'</b> que el equipo ('
+      +n0(peor.media)+' frente a '+n0(peor.eq)+').';
+  }else{
+    frase='Todav\u00eda no hay ninguna posici\u00f3n con 3 d\u00edas suyos y referencia de equipo, '
+      +'as\u00ed que no se compara: con uno o dos d\u00edas la diferencia es la de esos d\u00edas.';
+  }
+  box.innerHTML='<div class="panel">'+cab
+    +'<div class="plm-g">'+cols+'</div>'
+    +'<p class="pli-say">'+frase+'</p>'
+    +'<p class="hint" style="margin:10px 0 0">Barra: la media de UA de <b>sus</b> d\u00edas en esa posici\u00f3n del '
+      +'ciclo. La raya es la del equipo, de la misma referencia que usa el calendario, y solo sale con 3 d\u00edas '
+      +'o m\u00e1s. Un d\u00eda sin carga no cuenta como 0: no entra. '
+      +'Su carga incluye la tecnificaci\u00f3n y la del equipo no, as\u00ed que quien la haga sube por ah\u00ed.</p>'
+  +'</div>';
+}
+
+/* ═══ v469 · Cómo reparte la intensidad, sesión a sesión ═══
+   La barra apilada de «Sus últimas sesiones» **normaliza cada sesión al 100 %**,
+   que es lo correcto para leer el reparto de UNA sesión y lo que impide
+   comparar el volumen entre dos: media hora y hora y media se dibujan igual de
+   largas. Este bloque es la otra lectura, en **minutos**.
+
+   Dos decisiones, y la segunda es la que lo hace legible:
+
+   · **Cada fila se normaliza contra sí misma**, no contra el máximo de la
+     rejilla. Ya está escrito en este proyecto lo que pasa al revés —«las
+     barras por fila iban contra el máximo y pintaban Z5, que es el 1 % del
+     tiempo, del tamaño de Z1»—: con un solo máximo, la fila Z1 satura y las
+     de Z4 y Z5, que son las que interesan, salen en blanco siempre.
+   · **El color es el de la zona y la opacidad dice los minutos.** El mapa de
+     calor del dashboard de cargas va en un solo tono porque allí «más alto»
+     no significa nada más; aquí el tono **identifica la zona** —es el mismo
+     `PL_ZCOL` de la barra apilada y de la leyenda de Pulsómetros—, así que el
+     rojo de la fila Z5 quiere decir «Z5», no «peligro». */
+const PLZ_N=10;
+function renderPlZonaCalor(name){
+  const box=document.getElementById('pl-zheat');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let d=[];
+  try{if(typeof hrEnsure==='function')hrEnsure();d=(typeof hrpDatos==='function')?hrpDatos(name,0):[];}catch(e){}
+  d=d.slice(-PLZ_N);
+  const fch=dk=>dk.slice(8)+'/'+dk.slice(5,7);
+  const cab='<h2>C\u00f3mo reparte la intensidad '
+    +'<span class="r muted" style="font-weight:400;font-size:12.5px">minutos por zona \u00b7 '
+    +(d.length?'\u00faltimas '+d.length+' sesiones \u00b7 '+fch(d[0].dk)+'\u2013'+fch(d[d.length-1].dk)
+      :'sin datos')+'</span></h2>';
+  if(!d.length){
+    box.innerHTML='<div class="panel">'+cab
+      +'<p class="hint" style="margin:8px 0 0">Sin capturas de puls\u00f3metro de este jugador. '
+      +'Las sesiones aparecen seg\u00fan se van subiendo desde Puls\u00f3metros.</p></div>';
+    return;
+  }
+  const mins=(r,i)=>((r.z&&r.z[i])||0)/60;
+  /* m\u00e1ximo POR ZONA, que es lo que hace legible la fila de Z5 */
+  const maxZ=[0,1,2,3,4].map(i=>Math.max.apply(null,d.map(r=>mins(r,i)).concat([0])));
+  const totZ=[0,1,2,3,4].map(i=>d.reduce((a,r)=>a+mins(r,i),0));
+  const cabCols='<div class="plz-r plz-r--h"><span class="plz-lab"></span>'
+    +d.map(r=>'<span class="plz-h'+(r.partido?' plz-h--p':'')+'" title="'+esc(r.dk+' \u00b7 '+r.lab)+'">'
+      +esc(r.dk.slice(8))+'<small>/'+esc(r.dk.slice(5,7))+'</small></span>').join('')
+    +'<span class="plz-tot">tot</span></div>';
+  const filas=[4,3,2,1,0].map(i=>{
+    const mx=maxZ[i];
+    const celdas=d.map(r=>{
+      const v=mins(r,i);
+      if(!(v>0))return '<span class="plz-c plz-c--0" title="Z'+(i+1)+' \u00b7 0 min"></span>';
+      /* La intensidad va en el FONDO con `color-mix`, no en la opacidad del
+         elemento: con `opacity` se apagaba tambi\u00e9n el n\u00famero y una celda floja
+         quedaba con texto blanco sobre casi blanco. Y por eso el color del
+         n\u00famero depende de cu\u00e1nto tiene detr\u00e1s. */
+      /* La mezcla se queda en el 60 %: con el color puro detras, el numero
+         pierde contraste en los dos temas \u2014medido, el gris de Z1 al 100 %
+         daba 3,4:1 con blanco encima y 3,1:1 con el color de texto\u2014. Entre el
+         12 y el 60 % la gradacion se distingue igual y el texto va SIEMPRE en
+         `--txt`, que es el unico color que vira solo con el tema. */
+      const pc=Math.round(12+48*(mx?v/mx:1));
+      return '<span class="plz-c" style="background:color-mix(in srgb,'+PL_ZCOL[i]+' '+pc+'%,var(--panel))" '
+        +'title="Z'+(i+1)+' \u00b7 '+fch(r.dk)+' \u00b7 '+(Math.round(v*10)/10).toString().replace('.',',')+' min">'
+        /* Una celda con color y sin numero no se puede leer: por debajo del
+           minuto se dice `<1` en vez de dejarla muda. */
+        +(v>=1?Math.round(v):'&lt;1')+'</span>';
+    }).join('');
+    return '<div class="plz-r"><span class="plz-lab"><i style="background:'+PL_ZCOL[i]+'"></i>Z'+(i+1)+'</span>'
+      +celdas+'<span class="plz-tot">'+Math.round(totZ[i])+'</span></div>';
+  }).join('');
+  box.innerHTML='<div class="panel">'+cab
+    +'<div class="plz-w"><div class="plz-g" style="--plz-n:'+d.length+'">'+cabCols+filas+'</div></div>'
+    +'<p class="hint" style="margin:12px 0 0">Cada celda son los <b>minutos</b> de esa sesi\u00f3n en esa zona, '
+      +'y el n\u00famero de dentro los mismos minutos redondeados. '
+      +'<b>Cada fila se compara consigo misma</b>: la celda m\u00e1s opaca de Z5 es su sesi\u00f3n de m\u00e1s Z5, '
+      +'no una sesi\u00f3n con tanto Z5 como Z1. Contra el m\u00e1ximo de toda la rejilla, Z4 y Z5 saldr\u00edan '
+      +'siempre en blanco. La \u00faltima columna es el total del periodo.</p>'
+  +'</div>';
+}
+/* ═══ v469 · El radar de capacidades, con el de principio de temporada detrás ═══
+   El radar de ocho capacidades ya existía, pero **solo en la ficha exportable**
+   y con un único polígono: el de hoy. Dice cómo está y no dice **de dónde
+   viene**, que es la pregunta con la que se decide si el trabajo del trimestre
+   ha servido.
+
+   Cinco decisiones:
+
+   · **La referencia es la PRIMERA valoración de esta temporada**, no «hace tres
+     meses»: tres meses sería un umbral inventado, y contra la primera de la
+     temporada es contra lo que ya comparan el progreso del TSA y el Camino a
+     Champions. Las dos mediciones son posteriores a `TEMP_INICIO`, que es la
+     regla escrita del Camino a Champions.
+   · **Solo con instantáneas REALES.** `buildTestHist` fabrica instantáneas
+     sintéticas cuando la hoja de valoraciones no está cargada —fechas
+     inventadas y valores derivados del actual—, así que se exige `real===true`.
+     Dibujar un «eras así en julio» a partir de un número fabricado sería la
+     peor clase de gráfico: el que parece un dato.
+   · **En SVG, no en Chart.js.** Vive dentro de una pestaña que puede estar
+     oculta, y un canvas que nace ahí sale de tamaño cero —la misma razón que
+     `plArcos` y `plNormal`—.
+   · **Los anillos son los del baremo del puesto** (0 rojo · 1 ámbar · 2 verde ·
+     3 listón Champions), exactamente la escala documentada del radar: la
+     distancia al borde dorado es literalmente lo que le falta. **No se inventa
+     ninguna escala** y los niveles salen de `refNivelCont`.
+   · **La flecha dice la dirección y el color si es a mejor**, que es la regla
+     del Camino a Champions y de `vhComparaFases`. Aquí sube siempre significa
+     mejor, porque el eje ya es el nivel del baremo y `refNivelCont` ya da la
+     vuelta a las pruebas de menos-es-mejor. */
+function plCapInicio(name,puesto){
+  const h=((STATE.testHist||{})[name]||[])
+    .filter(x=>x&&x.real===true&&(x.date||'')>=TEMP_INICIO)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(h.length<2)return null;                 /* una sola foto no es evoluci\u00f3n */
+  const ini=h[0];
+  const ejes=capPerfilDe(ini.vals||{},puesto);
+  return ejes?{dk:ini.date,ejes,n:h.length}:null;
+}
+/* Un radar en SVG. `series` = [{lab,col,vals[],relleno,guion}] sobre 0\u20133. */
+function plRadarSVG(labels,series){
+  const W=400,H=330,cx=200,cy=156,R=110,MAX=3;
+  const n=labels.length;
+  const ang=i=>(i/n)*2*Math.PI-Math.PI/2;
+  const poly=r=>{const p=[];for(let i=0;i<n;i++){const a=ang(i);
+    p.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1));}return p.join(' ');};
+  const pts=vals=>{const p=[];for(let i=0;i<n;i++){
+    const v=vals[i];if(v==null||isNaN(v))return null;
+    const r=R*Math.max(0,Math.min(MAX,v))/MAX;const a=ang(i);
+    p.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1));}return p.join(' ');};
+  /* Las bandas se pintan de fuera a dentro con relleno opaco sobre el panel:
+     as\u00ed quedan tres anillos limpios sin apilar transparencias. */
+  let g='<polygon points="'+poly(R)+'" fill="var(--plr-ok)"/>'
+       +'<polygon points="'+poly(R*2/3)+'" fill="var(--plr-warn)"/>'
+       +'<polygon points="'+poly(R/3)+'" fill="var(--plr-bad)"/>';
+  for(let i=0;i<n;i++){const a=ang(i);
+    g+='<line x1="'+cx+'" y1="'+cy+'" x2="'+(cx+R*Math.cos(a)).toFixed(1)+'" y2="'+(cy+R*Math.sin(a)).toFixed(1)
+      +'" stroke="var(--hair)" stroke-width="1"/>';}
+  /* El borde exterior ES el list\u00f3n Champions, por eso va dorado y discontinuo. */
+  g+='<polygon points="'+poly(R)+'" fill="none" stroke="var(--champ-gold)" stroke-width="1.6" stroke-dasharray="5 3"/>';
+  series.forEach(se=>{
+    const p=pts(se.vals);if(!p)return;
+    g+='<polygon points="'+p+'" fill="'+(se.relleno||'none')+'" stroke="'+se.col+'" '
+      +'stroke-width="'+(se.gro||2.2)+'"'+(se.guion?' stroke-dasharray="5 4"':'')+' stroke-linejoin="round"/>';
+    if(se.puntos)for(let i=0;i<n;i++){const v=se.vals[i];if(v==null)continue;
+      const r=R*Math.max(0,Math.min(MAX,v))/MAX,a=ang(i);
+      g+='<circle cx="'+(cx+r*Math.cos(a)).toFixed(1)+'" cy="'+(cy+r*Math.sin(a)).toFixed(1)
+        +'" r="3.6" fill="'+se.col+'" stroke="var(--panel)" stroke-width="1.4"><title>'
+        +labels[i]+' '+(Math.round(v*10)/10).toString().replace('.',',')+'/3</title></circle>';}
+  });
+  for(let i=0;i<n;i++){
+    const a=ang(i),rx=cx+(R+16)*Math.cos(a),ry=cy+(R+16)*Math.sin(a);
+    const cosv=Math.cos(a);
+    const anc=Math.abs(cosv)<0.3?'middle':(cosv>0?'start':'end');
+    g+='<text x="'+rx.toFixed(1)+'" y="'+(ry+3.5).toFixed(1)+'" text-anchor="'+anc+'" '
+      +'font-size="10.5" font-weight="600" fill="var(--muted)">'+labels[i]+'</text>';
+  }
+  return '<svg class="plr-svg" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+g+'</svg>';
+}
+function renderPlRadar(name){
+  const box=document.getElementById('pl-radar');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  try{if(typeof buildTests==='function')buildTests();}catch(e){}
+  const puesto=(window.refPuesto?refPuesto(name):null);
+  const ahora=puesto?capPerfil(name,puesto):null;
+  if(!ahora||ahora.length<3){
+    /* Sin baremo del puesto o con menos de tres ejes no hay radar: tres puntos
+       son un tri\u00e1ngulo y no una forma que se pueda leer. El sem\u00e1foro de
+       capacidades, que vive justo debajo, s\u00ed funciona con lo que haya. */
+    box.innerHTML='';
+    return;
+  }
+  const ini=plCapInicio(name,puesto);
+  const labels=ahora.map(o=>o.g);
+  const vIni=ini?labels.map(l=>{const o=ini.ejes.find(x=>x.g===l);return o?+o.v.toFixed(2):null;}):null;
+  const series=[];
+  if(vIni&&vIni.some(v=>v!=null))series.push({lab:'Inicio de temporada',col:'var(--muted2)',
+    vals:vIni,guion:true,gro:1.8});
+  series.push({lab:'Ahora',col:'var(--accent)',vals:labels.map((l,i)=>+ahora[i].v.toFixed(2)),
+    relleno:'var(--plr-now)',gro:2.4,puntos:true});
+  const NIVLAB=['Rojo','\u00c1mbar','Verde','Champions'];
+  const n1=v=>(Math.round(Math.abs(v)*10)/10).toString().replace('.',',');
+  /* Debajo, las capacidades que m\u00e1s se han movido. El dibujo ense\u00f1a la forma;
+     cu\u00e1nto se ha movido cada eje solo se lee con el n\u00famero al lado. */
+  let evo='';
+  if(vIni&&vIni.some(v=>v!=null)){
+    const difs=ahora.map((o,i)=>({g:o.g,d:vIni[i]==null?null:o.v-vIni[i]}))
+      .filter(x=>x.d!=null&&Math.abs(x.d)>=0.05)
+      .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+    evo=difs.length
+      ?'<div class="plr-ev">'+difs.slice(0,4).map(x=>
+          '<span class="plr-e"><em>'+esc(x.g)+'</em>'
+          +'<b style="color:'+(x.d>0?'var(--ok)':'var(--warn)')+'">'
+          +(x.d>0?'\u25b2':'\u25bc')+' '+n1(x.d)+'</b></span>').join('')+'</div>'
+      :'<p class="pli-say">Ninguna capacidad se ha movido medio escal\u00f3n desde la primera '
+       +'valoraci\u00f3n de la temporada.</p>';
+  }
+  const leyenda='<div class="plr-leg">'
+    +series.slice().reverse().map(se=>'<span><i style="background:'+se.col+'"></i>'+se.lab+'</span>').join('')
+    +'<span><i class="plr-ch"></i>List\u00f3n Champions</span></div>';
+  const pie=ini
+    ? 'Pol\u00edgono relleno: hoy. L\u00ednea discontinua: su primera valoraci\u00f3n de esta temporada ('
+      +esc(ini.dk.slice(8)+'/'+ini.dk.slice(5,7))+'). '
+    : '<b>Solo hay una valoraci\u00f3n suya de esta temporada</b>, as\u00ed que no hay con qu\u00e9 comparar todav\u00eda: '
+      +'en cuanto se cargue la siguiente, aparece detr\u00e1s. ';
+  box.innerHTML='<div class="panel"><h2>Perfil de capacidades '
+    +'<span class="r muted" style="font-weight:400;font-size:12.5px">baremo de '+esc(puesto)+'</span></h2>'
+    +'<div class="plr-w"><div class="plr-c">'+plRadarSVG(labels,series)+'</div>'
+      +'<div class="plr-side">'+leyenda+evo+'</div></div>'
+    +'<p class="hint" style="margin:12px 0 0">'+pie
+      +'Los anillos son el baremo de su puesto: '+NIVLAB.map((l,i)=>l+' = '+i).join(' \u00b7 ')
+      +'. El borde dorado es el list\u00f3n Champions, as\u00ed que lo que falta hasta \u00e9l es literalmente '
+      +'la distancia al borde. Cada eje es la media del nivel de sus pruebas vigentes de esa capacidad.</p>'
   +'</div>';
 }
 /* ═══ v465 · Un poco de médico y un poco de físico, dentro de Hoy ═══
@@ -16278,10 +16619,19 @@ const CAP_GRUPOS=[
 ];
 /* Perfil de capacidades de un jugador en la escala de su puesto. Devuelve un eje
    por grupo con al menos una prueba vigente y con baremo utilizable. */
+/* v469 \u00b7 El mismo perfil, pero sobre un mapa de valores cualquiera, para
+   poder calcular el de una valoraci\u00f3n anterior y superponerlo. **Las guardas
+   de vigencia no cambian** (`fichaVigente` y `tempVigente`): los ejes tienen
+   que ser los mismos en las dos fotos, porque si no se compararian radares de
+   distinta forma y la diferencia ser\u00eda del eje, no del jugador. */
 function capPerfil(name,puesto){
   puesto=puesto||(window.refPuesto?refPuesto(name):null);
   if(!puesto)return null;
-  const vals=(STATE.tests||{})[name]||{};
+  return capPerfilDe((STATE.tests||{})[name]||{},puesto);
+}
+function capPerfilDe(vals,puesto){
+  if(!puesto)return null;
+  vals=vals||{};
   const ejes=[];
   CAP_GRUPOS.forEach(gr=>{
     const ns=[];
@@ -16297,7 +16647,7 @@ function capPerfil(name,puesto){
   });
   return ejes.length?ejes:null;
 }
-window.refNivelCont=refNivelCont;window.capPerfil=capPerfil;
+window.refNivelCont=refNivelCont;window.capPerfil=capPerfil;window.capPerfilDe=capPerfilDe;
 window.refNivel=refNivel;window.refPuesto=refPuesto;window.refBarra=refBarra;
 window.refDistanciaChampions=refDistanciaChampions;window.refUmbralChampions=refUmbralChampions;
 
@@ -29612,6 +29962,67 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   font-variant-numeric:tabular-nums}
 .pli-say{font-size:13px;line-height:1.55;margin:10px 0 0}
 .pli-say b{font-variant-numeric:tabular-nums}
+/* v469 \u00b7 D\u00f3nde carga dentro del ciclo.
+   Plano compartido por las siete columnas: las barras no viven cada una en su
+   cajita, que es lo que imped\u00eda comparar un MD-1 con un MD+2 \u2014misma lecci\u00f3n
+   que el microciclo del calendario\u2014. */
+.plm-g{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:4px}
+.plm-c{min-width:0;text-align:center}
+.plm-plot{position:relative;height:112px;display:flex;align-items:flex-end;justify-content:center;
+  background:var(--panel2);border-radius:7px;overflow:hidden;padding:0 4px}
+/* La barra crece con la columna: con ancho fijo, todo el peso visual se va en
+   aire \u2014la pega que Daniel puso al microciclo del calendario\u2014. */
+.plm-b{display:block;width:100%;border-radius:5px 5px 0 0;background:var(--accent)}
+.plm-nada{display:block;width:100%;height:100%}
+/* La referencia del equipo va en NEUTRO y la barra en el color de acci\u00f3n: lo
+   que se mira es d\u00f3nde cae la barra respecto a la raya, misma regla que
+   `calRefMD`. */
+.plm-eq{position:absolute;left:3px;right:3px;height:0;border-top:2px dashed var(--muted2)}
+.plm-v{font-size:12.5px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:6px}
+.plm-md{font-size:11px;color:var(--muted);font-weight:600}
+.plm-n{font-size:10.5px;color:var(--muted2);font-variant-numeric:tabular-nums}
+.plm-c--poco{opacity:.55}
+.plm-c--md .plm-md{color:var(--accent)}
+.plm-c--md .plm-plot{box-shadow:inset 0 0 0 1.5px var(--accent-dim,var(--hair))}
+/* v469 \u00b7 C\u00f3mo reparte la intensidad \u00b7 mapa de calor sesi\u00f3n \u00d7 zona */
+.plz-w{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.plz-g{min-width:300px;display:flex;flex-direction:column;gap:3px;margin-top:4px}
+.plz-r{display:grid;grid-template-columns:40px repeat(var(--plz-n),minmax(0,1fr)) 30px;
+  gap:3px;align-items:center}
+.plz-lab{font-size:11px;font-weight:650;display:flex;align-items:center;gap:5px}
+.plz-lab i{width:8px;height:8px;border-radius:2px;flex:0 0 auto}
+.plz-c{height:26px;border-radius:4px;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;overflow:hidden;cursor:default;font-variant-numeric:tabular-nums;
+  color:var(--txt)}
+.plz-c--0{background:var(--panel2)}
+.plz-h{font-size:9.5px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;
+  overflow:hidden;white-space:nowrap}
+.plz-h small{font-size:inherit}
+@media(max-width:620px){.plz-h small{display:none}}
+.plz-h--p{color:var(--ok);font-weight:700}
+.plz-tot{font-size:10.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.plz-r--h{margin-bottom:2px}
+/* v469 \u00b7 Radar de capacidades */
+.plr-w{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:center}
+.plr-c{display:flex;justify-content:center;min-width:0}
+.plr-svg{width:100%;max-width:430px;height:auto;display:block}
+.plr-leg{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.plr-leg span{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+.plr-leg i{width:12px;height:3px;border-radius:2px;flex:0 0 auto}
+.plr-leg i.plr-ch{background:var(--champ-gold)}
+.plr-ev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.plr-e{display:flex;flex-direction:column;gap:1px;min-width:0}
+.plr-e em{font-style:normal;font-size:11.5px;color:var(--muted);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.plr-e b{font-size:14px;font-variant-numeric:tabular-nums}
+@media(min-width:1100px){
+  .plr-w{grid-template-columns:auto minmax(0,1fr);gap:24px}
+}
+@media(max-width:760px){
+  .plm-g{gap:3px}
+  .plm-plot{height:92px}
+  .plm-v{font-size:11.5px}
+}
 @media(max-width:760px){
   .pli-g{grid-template-columns:minmax(0,1fr);gap:10px}
   .pli-row{gap:2px}
@@ -35989,8 +36400,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-27.1*/
-const VER_ACTUAL='2026-10-27.1';
+/*BUILD:2026-10-27.2*/
+const VER_ACTUAL='2026-10-27.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
