@@ -3358,14 +3358,24 @@ html[data-theme="dark"] .hq-ct button.on{border-color:#4bb8cf;background:rgba(75
 .fis-gs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;margin-bottom:14px}
 .fis-g{margin:0}
 .fis-mapa{display:flex;gap:14px;align-items:flex-start;margin-top:10px}
-.fis-mapa .bm-svg{flex:none;max-width:120px}
+/* v478 · el tamaño del mapa corporal sale del atributo `style` del SVG a esta
+   clase, con los MISMOS valores que tenía en línea: en línea gana a cualquier
+   selector, así que no había forma de ajustarlo en una pantalla más ancha.
+   Misma corrección que se le hizo a `.ag-lab` en la v472. Aquí no cambia nada;
+   lo cambia el bloque de `#pl-dolor`. */
+.bm-svg{width:100%;max-width:176px;height:auto}
+/* Estos dos `max-width` (120 y 104) llevaban MUERTOS desde siempre: el estilo
+   en línea del SVG decía 176 y en línea gana. Al sacar el tamaño del atributo
+   despertaban y habrían encogido el mapa del EQUIPO de 176 a 104 px sin que
+   nadie lo pidiera, así que se retiran. `flex:none` sí estaba vivo —el estilo
+   en línea no lo tocaba— y se queda. */
+.fis-mapa .bm-svg{flex:none}
 .fis-zl{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
 .fis-zr{font-size:11.5px}
 .fis-zt{display:flex;align-items:baseline;gap:8px}
 .fis-zt span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fis-zt b{flex:none;font-variant-numeric:tabular-nums;font-size:11px}
 .fis-zr .fis-bar{margin-top:3px}
-.fis-mapa .bm-svg{max-width:104px}
 .fis-dias{flex:none;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
 /* ══ v305 · carga vs dolor y el día teñido por trabajo ══ */
 .fis-cd{width:100%;height:150px;display:block;margin-top:8px}
@@ -6094,10 +6104,24 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
          escriben en ellos; lo que se ve es el panel de problemas. -->
     <div class="plt-pane" id="plt-medico">
       <div id="pl-problemas" class="panel"></div>
+      <!-- v478 · Dónde le duele: el mapa corporal que ya existía para el
+           EQUIPO en Fisioterapia · Análisis, ahora de este jugador. Mismo
+           `bodyMapSVG`, misma cuenta y las mismas clases. -->
+      <div id="pl-dolor"></div>
       <div id="pl-vend"></div>
+      <!-- v478 · El historial médico vuelve a verse. Estaba oculto desde la
+           v464 sin decisión escrita detrás —colateral del reparto por
+           pestañas—, y es otra cosa que «Problemas»: aquello son lesiones y
+           molestias, esto son citas, reconocimientos y pruebas, con su
+           botón de añadir. -->
+      <div id="player-medical" class="panel"></div>
+      <!-- Estos DOS siguen ocultos a propósito y con decisión escrita:
+           `player-physio` se retiró en la v274 porque sus tratamientos y
+           avisos salen dentro del problema al que pertenecen, y
+           `player-daily` en la v275. Se siguen rellenando por si otra vista
+           los consulta. `pl-fisio` se queda fuera de esta pasada. -->
       <div id="pl-fisio" class="panel" style="display:none"></div>
       <div id="player-physio" class="panel" style="display:none"></div>
-      <div id="player-medical" class="panel" style="display:none"></div>
       <div id="player-daily" class="panel" style="display:none"></div>
     </div>
 
@@ -13316,6 +13340,7 @@ function renderPlayer(name){
   try{renderPlIntensidad(name);}catch(e){console.error('intensidad ficha',e);}
   try{renderPlRegistro(name);}catch(e){console.error('registro ficha',e);}
   try{renderPlResumen(name);}catch(e){console.error('resumen ficha',e);}
+  try{renderPlDolor(name);}catch(e){console.error('donde le duele',e);}
   try{renderPlMicroJug(name);}catch(e){console.error('microciclo jugador',e);}
   try{renderPlZonaCalor(name);}catch(e){console.error('mapa de zonas',e);}
   try{renderPlRadar(name);}catch(e){console.error('radar capacidades',e);}
@@ -14176,6 +14201,53 @@ function renderPlRegistro(name){
    detalle en su pestaña. **No se recalcula nada**: episodios abiertos de
    `STATE.med.inj`, último tratamiento de `medUltimoTrat`, vendajes de
    `vendDeJugador`, molestias del cuestionario y la nota del TSA de `tsaRows`. */
+/* v478 · «Dónde le duele», por jugador. **Ni un cálculo nuevo ni un umbral
+   nuevo**: la cuenta es `fisMapaCuentas` filtrada por él y el dibujo es
+   `bodyMapSVG`, el mismo de Fisioterapia · Análisis, con las mismas clases
+   (`fis-mapa`, `fis-zl`, `fis-zr`, `fis-bar`) — así el mapa del equipo y el
+   suyo no pueden decir cosas distintas.
+   La ventana son 30 días porque **es la que la ficha ya usa para un jugador**:
+   `renderPlayerFisio` mira 30 para las zonas tratadas y los vendajes del
+   resumen van a 30. Con los 6 del panel de equipo, un jugador solo saldría
+   casi siempre vacío.
+   Dice lo que declara ÉL por la mañana, no lo que se le ha tratado: son dos
+   preguntas distintas y el pie lo rotula. */
+const PLD_DIAS=30;
+function renderPlDolor(name){
+  const box=document.getElementById('pl-dolor');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let M=null;try{M=fisMapaCuentas(PLD_DIAS,name);}catch(e){}
+  const cab='<h2>D\u00f3nde le duele <span class="r muted" style="font-weight:400;font-size:12.5px">'
+    +'\u00faltimos '+PLD_DIAS+' d\u00edas</span></h2>';
+  const total=M?Object.values(M.counts).reduce((a,b)=>a+b,0):0;
+  if(!M||!total){
+    box.innerHTML='<div class="panel">'+cab
+      +'<p class="small" style="margin:8px 0 0;color:var(--ok-text)">No ha declarado dolor en los '
+      +'\u00faltimos '+PLD_DIAS+' d\u00edas.</p></div>';
+    return;
+  }
+  /* Última vez que declaró cada zona: el mismo troceo `fisZonas` de la cuenta. */
+  const ult={};
+  try{(STATE.wellness||[]).forEach(w=>{
+    if(!w||!w.dolor||!w.dk||w.name!==name)return;
+    if(w.dk<M.desde||w.dk>M.hasta)return;
+    fisZonas(w.zona).forEach(z=>{if(!ult[z]||w.dk>ult[z])ult[z]=w.dk;});
+  });}catch(e){}
+  const zonas=Object.keys(M.porZona).sort((a,b)=>M.porZona[b]-M.porZona[a]).slice(0,6);
+  const maxZ=Math.max(1,...zonas.map(z=>M.porZona[z]));
+  const fch=dk=>dk?dk.slice(8)+'/'+dk.slice(5,7):'';
+  const lista=zonas.map(z=>'<div class="fis-zr">'
+    +'<div class="fis-zt"><span>'+esc(z)+'</span><b>'+M.porZona[z]+'</b></div>'
+    +'<div class="fis-bar"><i style="width:'+Math.round(M.porZona[z]/maxZ*100)+'%;background:var(--bad)"></i></div>'
+    +'<div class="fis-zq">'+(ult[z]?'\u00faltima vez '+fch(ult[z]):'')+'</div>'
+    +'</div>').join('');
+  box.innerHTML='<div class="panel">'+cab
+    +'<div class="fis-mapa">'+((typeof bodyMapSVG==='function')?bodyMapSVG(M.counts):'')
+    +'<div class="fis-zl">'+lista+'</div></div>'
+    +'<p class="hint" style="margin:10px 0 0">Cu\u00e1ntas veces ha declarado cada zona en el '
+    +'cuestionario de la ma\u00f1ana, y cu\u00e1ndo fue la \u00faltima. Cuanto m\u00e1s intensa la silueta, '
+    +'m\u00e1s veces. Es lo que dice <b>\u00e9l</b>, no lo que se le ha tratado.</p></div>';
+}
 function renderPlResumen(name){
   const box=document.getElementById('pl-resumen');if(!box)return;
   const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -18624,7 +18696,7 @@ function bodyMapSVG(counts){
     `</g>`;
   let heat='';
   Object.keys(R).forEach(k=>{const base=k.split('_')[0];const[x,y,side]=R[k];const c=counts[k]||0;if(!c)return;const op=0.18+0.5*(c/max);heat+=`<g class="bm-hot" style="cursor:pointer" onclick="physioPickZone('${zof[base]}','${side}')"><circle cx="${x}" cy="${y}" r="13" fill="rgba(192,71,62,${op.toFixed(2)})" stroke="#c0473e" stroke-width="1.3"/><circle cx="${x}" cy="${y}" r="13" fill="none" stroke="#fff" stroke-width="0.6" opacity="0.5"/><text x="${x}" y="${y+3.5}" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" style="pointer-events:none">${c}</text><title>${base}${side?' '+side:''} · ${c}</title></g>`;});
-  return `<svg viewBox="0 0 200 320" style="width:100%;max-width:176px;height:auto" class="bm-svg">${sil}${heat}</svg>`;
+  return `<svg viewBox="0 0 200 320" class="bm-svg">${sil}${heat}</svg>`;
 }
 function physioStats(evs){
   const inj=evs.filter(e=>['trat','noentto','baja'].includes(e.status));
@@ -19990,12 +20062,17 @@ function fisLado(z){
 }
 /* Cuenta por región y lado lo que la plantilla declara en una ventana de días,
    con el formato que espera bodyMapSVG. */
-function fisMapaCuentas(dias){
+/* v478 · `name` es OPCIONAL y filtra a un jugador. Los llamantes de siempre
+   pasan solo `dias` y se comportan exactamente igual: es la misma cuenta,
+   el mismo troceo por `fisZonas` y la misma región por `zoneRegion`, así que
+   el mapa de un jugador y el del equipo no pueden discrepar. */
+function fisMapaCuentas(dias,name){
   const hasta=dkey(REF());
   const desde=fisDkSuma(hasta,-(dias||6));
   const c={};const porZona={};const quien={};
   (STATE.wellness||[]).forEach(w=>{
     if(!w||!w.dolor||!w.dk||w.dk<desde||w.dk>hasta)return;
+    if(name&&w.name!==name)return;
     fisZonas(w.zona).forEach(z=>{
       porZona[z]=(porZona[z]||0)+1;
       const r=zoneRegion(z);if(!r)return;
@@ -33209,6 +33286,28 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
    cuanto algo escribe dentro —aunque sea «Sin wellness»— vuelve a verse. */
 #v-jugador .panel:empty{display:none}
 
+/* v478 · «Dónde le duele» dentro de la ficha. El bloque se diseñó para la
+   columna estrecha del panel de equipo y aquí el panel mide 1.180 px: medido,
+   la silueta se quedaba en el 15 % del ancho y una barra de 30 declaraciones
+   se estiraba 936 px, con la de 1 al lado como un muñón. Las zonas pasan a DOS
+   columnas —el hueco se llena con dato, no con aire, que es la pega que Daniel
+   puso al microciclo— y la silueta crece hasta ser el gráfico y no un adorno.
+   Los dos tamaños de letra del bloque (11,5 y 9,5) entran además en la escala
+   de §3, que es lo que la v472 dejó hecho en el resto de la ficha. */
+#pl-dolor .fis-mapa{gap:24px;align-items:center}
+#pl-dolor .fis-mapa .bm-svg{max-width:210px}
+#pl-dolor .fis-zl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px 28px;align-content:center}
+#pl-dolor .fis-zr{font-size:var(--fs-sm)}
+/* `--muted2` da 2,6:1 sobre el panel claro y esto es texto de 11 px: pasa a
+   `--muted` (5,98), igual que se hizo con «sin pulsómetro» en la v476. */
+#pl-dolor .fis-zq{font-size:var(--fs-xs);color:var(--muted)}
+@media(max-width:860px){
+  #pl-dolor .fis-mapa{gap:14px}
+  #pl-dolor .fis-mapa .bm-svg{max-width:132px}
+  #pl-dolor .fis-zl{grid-template-columns:1fr}
+}
+
 /* v476 · «sin pulsómetro» iba en `--muted2`, que sobre blanco da 2,6:1. Es una
    etiqueta de 11 px, o sea texto, no un gráfico: pasa a `--muted` (5,98 en claro,
    6,96 en oscuro). Token que ya existía. */
@@ -36792,8 +36891,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-29.1*/
-const VER_ACTUAL='2026-10-29.1';
+/*BUILD:2026-10-29.3*/
+const VER_ACTUAL='2026-10-29.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
