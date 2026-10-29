@@ -17592,7 +17592,29 @@ function fichaCfgSum(){
 window.fichaTblChips=fichaTblChips;window.fichaTblToggle=fichaTblToggle;window.fichaTblNone=fichaTblNone;
 function closeFicha(){document.getElementById('ficha-overlay').style.display='none';}
 function printFicha(){document.body.classList.add('fichaPrint');window.print();setTimeout(()=>document.body.classList.remove('fichaPrint'),600);}
-async function exportFichaPNG(){const card=document.getElementById('ficha-card');if(!window.html2canvas){printFicha();return;}const msg=document.getElementById('ficha-msg');if(msg)msg.textContent='Generando PNG…';try{const cv=await html2canvas(card,{scale:2,backgroundColor:cssVar('--panel')||'#fff',logging:false,useCORS:true});const a=document.createElement('a');a.download='ficha_'+(FICHA_NAME||'jugador').replace(/\s+/g,'_')+'.png';a.href=cv.toDataURL('image/png');a.click();if(msg)msg.textContent='';}catch(e){if(msg)msg.textContent='No se pudo generar PNG; usa Imprimir → Guardar como PDF.';}}
+/* v477 · La ficha del jugador se exporta por `exportNodePNG`, no llamando a
+   html2canvas a pelo. Llamando directamente se saltaba TODOS los arreglos que
+   esa función acumula: el emparejado original↔copia por `data-x2p` (v413), la
+   conversión de `color()`/`oklch()`/`color-mix()` y, sobre todo, la retirada
+   del `box-shadow: inset`, que html2canvas no dibuja —RELLENA el elemento con
+   el color de la sombra—.
+   Medido por píxel sobre la ficha de un jugador real: los 10 chips de la
+   leyenda de capacidades llevan un filo interior blanco al 35 %, y en el PNG
+   salían lavados —azul Champions rgb(21,34,74) → rgb(103,111,137), verde
+   rgb(30,168,99) → rgb(109,198,153), ámbar rgb(224,168,0) → rgb(235,198,89)—.
+   O sea que la leyenda de color del documento que se le enseña al jugador salía
+   descolorida. `exportAllFichas` se arregla sola: llama a esta misma función.
+   El fondo se mantiene en `--panel`, que es el que tenía: la ficha es una
+   tarjeta blanca y con `--bg` habría salido con el gris del lienzo. */
+async function exportFichaPNG(){
+  if(!window.html2canvas){printFicha();return;}
+  const msg=document.getElementById('ficha-msg');if(msg)msg.textContent='Generando PNG…';
+  try{
+    await exportNodePNG('ficha-card','ficha_'+(FICHA_NAME||'jugador').replace(/\s+/g,'_')+'.png',
+      {bg:cssVar('--panel')||'#fff'});
+    if(msg)msg.textContent='';
+  }catch(e){if(msg)msg.textContent='No se pudo generar PNG; usa Imprimir → Guardar como PDF.';}
+}
 function squadAvgZ(scope,pos){const stt=testStats();const names=Object.keys(STATE.players).filter(nm=>scope==='pos'?posOf(nm)===pos:true);const out={};TESTS.filter(t=>t.incTSA!==false).forEach(t=>{const zs=names.map(nm=>{const v=(STATE.tests[nm]||{})[t.k];if(v==null||!(stt[t.k].s>0))return null;let z=(v-stt[t.k].m)/stt[t.k].s;return t.lowerBetter?-z:z;}).filter(z=>z!=null);out[t.k]=zs.length?mean(zs):null;});return out;}
 async function exportAllFichas(){const names=Object.keys(STATE.players);const msg=document.getElementById('ficha-msg');for(let i=0;i<names.length;i++){if(msg)msg.textContent='Exportando '+(i+1)+'/'+names.length+'…';openFicha(names[i]);await new Promise(r=>setTimeout(r,400));await exportFichaPNG();await new Promise(r=>setTimeout(r,300));}if(msg)msg.textContent='Plantilla exportada.';}
 function fichaPosAgg(name,getter,lowerBetter){
@@ -21907,7 +21929,7 @@ const barCol=v=>v==null?'#cbd5e1':v>=75?'#16a34a':v>=55?'#e0a800':'#dc2626';
   killCharts(['ch-parte-evo']);const el=document.getElementById('ch-parte-evo');
   if(el)charts['ch-parte-evo']=new Chart(el,{type:'bar',data:{labels:blabels,datasets:[{data:idx,backgroundColor:idx.map(barCol),borderRadius:5,maxBarThickness:30}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:18}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Readiness '+c.parsed.y+' / 100'}}},scales:{x:{ticks:{color:mc,font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:8},grid:{display:false}},y:{min:0,max:100,ticks:{color:mc,font:{size:10},stepSize:25},grid:{color:gc}}}},plugins:[dl]});
 }
-function exportNodePNG(id,filename){
+function exportNodePNG(id,filename,opts){
   const el=document.getElementById(id);
   if(!el){alert('No hay nada que exportar todavía.');return;}
   if(!window.html2canvas){alert('El exportador no está disponible en este entorno (sin conexión). Alternativa: Imprimir → Guardar como PDF.');return;}
@@ -21933,7 +21955,7 @@ function exportNodePNG(id,filename){
      retiraba el `box-shadow: inset`, que html2canvas pinta como un relleno:
      la columna de hoy salía como un bloque índigo macizo. Es el síntoma que la
      v413 creyó haber arreglado —y el arreglo estaba bien: no llegaba a correr. */
-  return html2canvas(el,{scale:2,useCORS:true,backgroundColor:cssVar('--bg')||'#ffffff',logging:false,
+  return html2canvas(el,{scale:2,useCORS:true,backgroundColor:(opts&&opts.bg)||cssVar('--bg')||'#ffffff',logging:false,
     onclone:(doc)=>{try{const c=doc.getElementById(id);if(!c)return;
       /* v222 · El emparejado original↔copia es por índice, así que la copia debe
          tener exactamente la misma estructura mientras se copian los estilos. Antes
@@ -36770,8 +36792,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-27.9*/
-const VER_ACTUAL='2026-10-27.9';
+/*BUILD:2026-10-29.1*/
+const VER_ACTUAL='2026-10-29.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
