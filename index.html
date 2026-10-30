@@ -6096,6 +6096,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
            Las dos son lecturas longitudinales, que es lo que esta pestaña
            contenía: Hoy describe el día, Carga describe el hábito. -->
       <div id="pl-micro"></div>
+      <!-- v479 · Cómo responde a la carga: el perfil, no un predictor. -->
+      <div id="pl-resp"></div>
       <div id="pl-zheat"></div>
       <div id="pl-kpisem" class="pg-col"></div>
     </div>
@@ -13341,6 +13343,7 @@ function renderPlayer(name){
   try{renderPlRegistro(name);}catch(e){console.error('registro ficha',e);}
   try{renderPlResumen(name);}catch(e){console.error('resumen ficha',e);}
   try{renderPlDolor(name);}catch(e){console.error('donde le duele',e);}
+  try{renderPlRespuesta(name);}catch(e){console.error('respuesta a la carga',e);}
   try{renderPlMicroJug(name);}catch(e){console.error('microciclo jugador',e);}
   try{renderPlZonaCalor(name);}catch(e){console.error('mapa de zonas',e);}
   try{renderPlRadar(name);}catch(e){console.error('radar capacidades',e);}
@@ -14247,6 +14250,109 @@ function renderPlDolor(name){
     +'<p class="hint" style="margin:10px 0 0">Cu\u00e1ntas veces ha declarado cada zona en el '
     +'cuestionario de la ma\u00f1ana, y cu\u00e1ndo fue la \u00faltima. Cuanto m\u00e1s intensa la silueta, '
     +'m\u00e1s veces. Es lo que dice <b>\u00e9l</b>, no lo que se le ha tratado.</p></div>';
+}
+/* v479 · «Cómo responde a la carga». Daniel, 29/10/2026: un perfil de
+   carga-respuesta, ver cómo responde cada jugador a una carga dada.
+   MEDIDO ANTES DE CONSTRUIRLO sobre 945 días-jugador reales: predecir el
+   wellness de mañana a partir de la carga de hoy NO funciona —el error contra
+   «su media de siempre» es 0,408 y añadiendo la carga sube a 0,520, y lo mismo
+   con DOMS, fatiga, sueño, estrés y ánimo por separado—. Lo que sí sale es el
+   CONTRASTE acumulado: con ocho veces más carga, la fatiga del día siguiente
+   sube 0,17 de media... pero por jugador va de +0,70 a 0,00. O sea que el
+   efecto es pequeño en un día suelto y grande entre unos y otros, así que esto
+   es un PERFIL, no un predictor, y la pantalla lo dice.
+   Ni un cálculo nuevo: la carga es `dailyAgg`, la misma del resto de la app
+   —y por tanto con los minutos de `lbDur`—, y el reparto es por SU propia
+   mediana, la regla de `hrEficiencia` y `plNormal`. Sus días suaves son el
+   grupo de control, que es la disciplina de `lesCarga`. */
+const PLR_ESC=1.0;            /* ancho del dibujo, ±1 punto de la escala 1-5 */
+function plRespuesta(name){
+  let ag=[];try{ag=dailyAgg(name)||[];}catch(e){}
+  const carga={};ag.forEach(d=>{if(d&&d.dk&&+d.ua>0)carga[d.dk]=+d.ua;});
+  const W={};
+  (STATE.wellness||[]).forEach(w=>{if(!w||w.name!==name||!w.dk)return;
+    W[w.dk]={fatiga:+w.fatiga,doms:+w.doms};});
+  const sig=dk=>{try{return dkey(new Date(dkToDate(dk).getTime()+86400000));}catch(e){return null;}};
+  const filas=[];
+  Object.keys(carga).forEach(dk=>{const s=sig(dk);if(!s)return;
+    const m=W[s];if(!m)return;
+    filas.push({dk,ua:carga[dk],fatiga:m.fatiga,doms:m.doms});});
+  if(filas.length<PLN_MIN*2)return {pocos:true,n:filas.length,min:PLN_MIN*2,dias:Object.keys(carga).length};
+  const med=a=>{const s=a.slice().sort((x,y)=>x-y);return s.length%2?s[(s.length-1)/2]:(s[s.length/2-1]+s[s.length/2])/2;};
+  const corte=med(filas.map(f=>f.ua));
+  const alto=filas.filter(f=>f.ua>corte), bajo=filas.filter(f=>f.ua<=corte);
+  if(alto.length<PLN_MIN||bajo.length<PLN_MIN)
+    return {pocos:true,n:filas.length,min:PLN_MIN*2,dias:Object.keys(carga).length};
+  const mm=(arr,c)=>{const v=arr.map(x=>x[c]).filter(x=>x>=1&&x<=5);
+    return v.length?v.reduce((s,y)=>s+y,0)/v.length:null;};
+  const delta=c=>{const a=mm(alto,c),b=mm(bajo,c);
+    return (a==null||b==null)?null:{d:a-b,alto:a,bajo:b};};
+  return {pocos:false,n:filas.length,corte,nAlto:alto.length,nBajo:bajo.length,
+    desde:filas.map(f=>f.dk).sort()[0],
+    fatiga:delta('fatiga'),doms:delta('doms')};
+}
+/* La referencia del equipo: la MEDIANA de los deltas de los demás, que es lo
+   que convierte un «+0,70» en una lectura. Misma idea que `cgPorPuesto`, donde
+   cada cifra va contra la mediana del equipo. Se memoriza por render porque
+   recorre la plantilla entera. */
+let PLR_EQ=null,PLR_EQ_REF=null;
+function plRespEquipo(){
+  const ref=STATE.rpe;
+  if(PLR_EQ&&PLR_EQ_REF===ref)return PLR_EQ;
+  const f=[],d=[];
+  try{Object.keys(STATE.players||{}).forEach(n=>{
+    const r=plRespuesta(n);
+    if(!r||r.pocos)return;
+    if(r.fatiga)f.push(r.fatiga.d);
+    if(r.doms)d.push(r.doms.d);});}catch(e){}
+  const med=a=>{if(!a.length)return null;const s=a.slice().sort((x,y)=>x-y);
+    return s.length%2?s[(s.length-1)/2]:(s[s.length/2-1]+s[s.length/2])/2;};
+  PLR_EQ_REF=ref;PLR_EQ={fatiga:med(f),doms:med(d),n:f.length};
+  return PLR_EQ;
+}
+function renderPlRespuesta(name){
+  const box=document.getElementById('pl-resp');if(!box)return;
+  const r=plRespuesta(name);
+  const n1=v=>(v==null||isNaN(v))?'—':((v>0?'+':'')+(Math.round(v*100)/100).toFixed(2).replace('.',','));
+  const cab='<h2>Cómo responde a la carga'
+    +'<span class="r muted" style="font-weight:400;font-size:12.5px">'
+    +(r.pocos?'':(r.n+' días · corte '+Math.round(r.corte).toLocaleString('es-ES')+' UA'))
+    +'</span></h2>';
+  if(r.pocos){
+    box.innerHTML='<div class="panel">'+cab
+      +'<p class="hint" style="margin:8px 0 0">Hacen falta <b>'+r.min+'</b> días suyos con carga '
+      +'calculable y cuestionario al día siguiente, y por ahora hay <b>'+r.n+'</b>'
+      +(r.dias?' (de '+r.dias+' días con carga)':'')+'. '
+      +'Se enseña el recuento y no se saca conclusión.</p></div>';
+    return;
+  }
+  const eq=plRespEquipo();
+  const fila=(rot,o,ref)=>{
+    if(!o)return '';
+    const pc=v=>50+Math.max(-50,Math.min(50,(v/PLR_ESC)*50));
+    const x=pc(o.d), xr=ref==null?null:pc(ref);
+    return '<div class="plrs-r">'
+      +'<div class="plrs-l">'+rot+'</div>'
+      +'<div class="plrs-p">'
+        +'<i class="plrs-cero"></i>'
+        +(xr==null?'':'<i class="plrs-eq" style="left:'+xr.toFixed(1)+'%" title="mediana del equipo '+n1(ref)+'"></i>')
+        +'<b class="plrs-b" style="left:'+Math.min(x,50).toFixed(1)+'%;width:'+Math.abs(x-50).toFixed(1)+'%"></b>'
+      +'</div>'
+      +'<div class="plrs-v">'+n1(o.d)+'</div>'
+      +'<div class="plrs-e">equipo '+n1(ref)+'</div>'
+    +'</div>';
+  };
+  box.innerHTML='<div class="panel">'+cab
+    +'<p class="plrs-q">Al día siguiente de uno de sus días <b>duros</b>, comparado con uno suyo <b>suave</b>:</p>'
+    +'<div class="plrs-g">'+fila('Fatiga',r.fatiga,eq.fatiga)+fila('DOMS',r.doms,eq.doms)+'</div>'
+    +'<p class="hint" style="margin:12px 0 0">Sus propios días, partidos por <b>su</b> mediana de carga '
+      +'('+Math.round(r.corte).toLocaleString('es-ES')+' UA): '+r.nAlto+' duros y '+r.nBajo+' suaves, desde el '
+      +r.desde.slice(8)+'/'+r.desde.slice(5,7)+'/'+r.desde.slice(2,4)+'. Sus días suaves son el grupo de control, '
+      +'así que la cifra es <b>suya contra sí mismo</b>; la raya es la mediana de la plantilla. '
+      +'En la escala del cuestionario, 1 es óptimo y 5 lo peor, así que <b>más es peor</b>. '
+      +'<b>No es un predictor</b>: medido sobre 945 días, la carga de un día suelto no dice qué wellness '
+      +'habrá mañana. Lo que sí distingue, y mucho, es a unos jugadores de otros.</p>'
+  +'</div>';
 }
 function renderPlResumen(name){
   const box=document.getElementById('pl-resumen');if(!box)return;
@@ -33302,6 +33408,33 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
 /* `--muted2` da 2,6:1 sobre el panel claro y esto es texto de 11 px: pasa a
    `--muted` (5,98), igual que se hizo con «sin pulsómetro» en la v476. */
 #pl-dolor .fis-zq{font-size:var(--fs-xs);color:var(--muted)}
+
+/* v479 · «Cómo responde a la carga». El plano va de −1 a +1 punto de la escala
+   del cuestionario con el cero marcado, así que la barra se lee por el LADO al
+   que cae: a la derecha, un día duro le pasa factura; a la izquierda, no. La
+   mediana del equipo es un filo en neutro y la barra va en el color de acción,
+   que es la regla ya escrita para `calRefMD`: lo que se mira es dónde cae la
+   barra respecto a la raya. **Sin rojo**: responder más a la carga es una
+   característica del jugador, no una alerta. */
+.plrs-q{margin:6px 0 10px;font-size:var(--fs-body);color:var(--muted)}
+.plrs-g{display:flex;flex-direction:column;gap:12px}
+.plrs-r{display:grid;grid-template-columns:76px minmax(0,1fr) 62px 96px;
+  gap:12px;align-items:center}
+.plrs-l{font-size:var(--fs-sm);font-weight:650}
+.plrs-p{position:relative;height:26px;background:var(--panel2);border-radius:8px}
+.plrs-cero{position:absolute;left:50%;top:3px;bottom:3px;width:1px;
+  background:var(--line);transform:translateX(-.5px)}
+.plrs-eq{position:absolute;top:1px;bottom:1px;width:2px;background:var(--muted2);
+  border-radius:2px;transform:translateX(-1px);z-index:2}
+.plrs-b{position:absolute;top:7px;height:12px;background:var(--accent);
+  border-radius:7px;min-width:3px}
+.plrs-v{font-size:var(--fs-h2);font-weight:650;font-variant-numeric:tabular-nums;
+  text-align:right}
+.plrs-e{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+@media(max-width:860px){
+  .plrs-r{grid-template-columns:64px minmax(0,1fr) 54px;row-gap:4px}
+  .plrs-e{grid-column:2/-1;text-align:right}
+}
 @media(max-width:860px){
   #pl-dolor .fis-mapa{gap:14px}
   #pl-dolor .fis-mapa .bm-svg{max-width:132px}
@@ -36891,8 +37024,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-29.3*/
-const VER_ACTUAL='2026-10-29.3';
+/*BUILD:2026-10-30.1*/
+const VER_ACTUAL='2026-10-30.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
