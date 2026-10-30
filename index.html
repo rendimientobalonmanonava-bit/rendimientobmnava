@@ -1342,7 +1342,12 @@ main{padding:20px 18px 80px}
   /* v378 · Igual que con el azul de Champions: la ficha es siempre un documento
      en claro, así que sus colores semánticos no pueden virar al subirlos de luz
      para el modo oscuro de la aplicación. */
-  --ok:#1ea863;--warn:#e0a800;--bad:#e23b32;--accent:#3056c4;--muted2:#9aa1ac}
+  --ok:#1ea863;--warn:#e0a800;--bad:#e23b32;--accent:#3056c4;--muted2:#9aa1ac;
+  /* v485 · Las variantes de TEXTO son posteriores a esta regla (v476) y se
+     quedaron sin fijar, así que con la app en oscuro resolvían a sus valores
+     de oscuro —#7ceaad, #ffd18a, #ffa79e— sobre el blanco del papel. Mismo motivo
+     que la línea de arriba: la ficha es siempre un documento en claro. */
+  --ok-text:#116b44;--warn-text:#8a5400;--bad-text:#b42b23}
 .cap-chips{display:flex;align-items:center;gap:2px;margin-top:4px;flex-wrap:wrap}
 .cap-chips i{width:11px;height:6px;border-radius:2px;display:block;flex:none;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
@@ -11432,7 +11437,7 @@ function pbBloque(inj,abierto){
         /* v291 · mientras no hay alta, el botón la da; una vez dada, lo que
            queda es cerrar el caso, que es una decisión aparte. */
         +(inj.open&&!pbGrupo(inj).alta
-           ?'<button class="med-chipbtn" style="border-color:#1ea863;color:#1ea863" onclick="medClose&&medClose(\''+q+'\')">✓ Dar el alta</button>':'')
+           ?'<button class="med-chipbtn" style="border-color:var(--ok);color:var(--ok-text)" onclick="medClose&&medClose(\''+q+'\')">✓ Dar el alta</button>':'')
         +(inj.open&&pbGrupo(inj).alta
            ?'<button class="med-chipbtn" onclick="medArchivar&&medArchivar(\''+q+'\')">Cerrar caso</button>':'')
         +(!inj.open
@@ -12354,7 +12359,7 @@ function medDetailHtml(e){if(!e)return '';
   +'<span class="r" style="margin-left:auto"></span>'
   +'<button class="med-chipbtn" onclick="openMedTreat(\''+medEsc(e.name)+'\',\''+e.id+'\')">＋ Tratamiento</button>'
   +'<button class="med-chipbtn" onclick="medInjuryEdit(\''+e.id+'\')" title="Cambiar diagnóstico, zona, fechas o alta prevista">✎ Editar episodio</button>'
-  +(e.open&&!e.altaDk?'<button class="med-chipbtn" onclick="medClose(\''+e.id+'\')" style="border-color:#1ea863;color:#1ea863">✓ Dar el alta</button>':'')
+  +(e.open&&!e.altaDk?'<button class="med-chipbtn" onclick="medClose(\''+e.id+'\')" style="border-color:var(--ok);color:var(--ok-text)">✓ Dar el alta</button>':'')
   +(e.open&&e.altaDk?'<button class="med-chipbtn" onclick="medArchivar(\''+e.id+'\')">Cerrar caso</button>':'')
   +(!e.open?'<button class="med-chipbtn" onclick="medReopen(\''+e.id+'\')">Reabrir</button>':'')
   +'<button class="med-chipbtn" onclick="medDelete(\''+e.id+'\')" style="color:var(--bad-text)">Eliminar</button>'
@@ -17892,7 +17897,7 @@ function fRefBar(label,val,agg){
 function wRing(val,color,size,cap){
   const v=clamp(val||0,0,100);const sw=Math.round(size*0.11);const r=(size-sw)/2;const c=2*Math.PI*r;const off=c*(1-v/100);
   return `<div style="text-align:center">
-    <div style="font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#6b7480;margin-bottom:8px">${cap}</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">${cap}</div>
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#edf0f4" stroke-width="${sw}"/>
       <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/>
@@ -18195,9 +18200,9 @@ function fichaFuertes(name){
     +';background:'+(g?'rgba(30,168,99,.07)':'rgba(226,59,50,.06)')+'">'+o.lab+'</span>';
   return '<div class="fsw">'
    +'<div class="fsw-cap">Dentro del equipo</div>'
-   +'<div class="fsw-r"><span class="fsw-h" style="color:#177a4c">Fuerte</span>'
+   +'<div class="fsw-r"><span class="fsw-h" style="color:var(--ok-text)">Fuerte</span>'
      +s2.slice(0,3).map(o=>chip(o,1)).join('')+'</div>'
-   +'<div class="fsw-r"><span class="fsw-h" style="color:#b02d26">A mejorar</span>'
+   +'<div class="fsw-r"><span class="fsw-h" style="color:var(--bad-text)">A mejorar</span>'
      +s2.slice(-3).reverse().map(o=>chip(o,0)).join('')+'</div></div>';
 }
 function fichaChampionsHtml(name){
@@ -29322,7 +29327,7 @@ function calDayBody(dk){
   const AFL={no:['No afecta','#1ea863'],parcial:['Entrena parcial','#e08a00'],pierde:['Pierde el entreno','#7c9cbf']};
   const citasBox=citasDia.length?`<div class="cal-citasbox"><div class="cal-cb-h"><span class="cal-cb-ic">🩺</span> Citas médicas este día · ${citasDia.length}</div><div class="cal-cb-list">${citasDia.map(c=>{const af=AFL[c.e.afecta]||AFL.no;const ti=(window.medLogTypeLab?medLogTypeLab(c.e.type):'')||'Cita';return `<div class="cal-cb-row" onclick="openPlayer('${String(c.name).replace(/'/g,"\\'")}')"><span class="cal-cb-h2">${c.e.time?c.e.time:'—'}</span><span class="cal-cb-nm">${c.name}</span><span class="cal-cb-tx">${ti}${c.e.title?' · '+String(c.e.title).replace(/</g,'&lt;'):''}${c.e.who?' · '+String(c.e.who).replace(/</g,'&lt;'):''}</span><span class="cal-cb-af" style="color:${colTexto(af[1])};border-color:${af[1]}">${af[0]}</span></div>`;}).join('')}</div></div>`:'';
   let hi=0,lo=0;if(indiv)indiv.arr.forEach(a=>{if(a.tier==='hi')hi++;else if(a.tier==='lo')lo++;});
-  const indivBox=indiv&&indiv.arr.length>1?`<div class="cal-indiv"><div class="cal-iv-h">Carga real por jugador <span class="muted">· media ${indiv.mean} UA · <span style="color:#e23b32;font-weight:700">${hi} acusaron más</span> · <span style="color:#1ea863;font-weight:700">${lo} menos</span></span></div><div class="cal-iv-list">${indiv.arr.map(a=>{const c=a.tier==='hi'?'#e23b32':a.tier==='lo'?'#1ea863':'#e6a700';const mx=Math.max(...indiv.arr.map(x=>x.ua),1);return `<div class="cal-iv-row"><span class="cal-iv-dot" style="background:${c}"></span><span class="cal-iv-nm">${a.name}</span><div class="cal-iv-bar"><div style="width:${Math.max(6,Math.round(a.ua/mx*100))}%;background:${c}"></div></div><span class="cal-iv-val">${a.ua}</span></div>`;}).join('')}</div></div>`:'';
+  const indivBox=indiv&&indiv.arr.length>1?`<div class="cal-indiv"><div class="cal-iv-h">Carga real por jugador <span class="muted">· media ${indiv.mean} UA · <span style="color:var(--bad-text);font-weight:700">${hi} acusaron más</span> · <span style="color:var(--ok-text);font-weight:700">${lo} menos</span></span></div><div class="cal-iv-list">${indiv.arr.map(a=>{const c=a.tier==='hi'?'#e23b32':a.tier==='lo'?'#1ea863':'#e6a700';const mx=Math.max(...indiv.arr.map(x=>x.ua),1);return `<div class="cal-iv-row"><span class="cal-iv-dot" style="background:${c}"></span><span class="cal-iv-nm">${a.name}</span><div class="cal-iv-bar"><div style="width:${Math.max(6,Math.round(a.ua/mx*100))}%;background:${c}"></div></div><span class="cal-iv-val">${a.ua}</span></div>`;}).join('')}</div></div>`:'';
   const ed=CAL_EDIT?evs.find(e=>e.id===CAL_EDIT):null;
   const typeOpts=Object.entries(CAL_TYPES).map(([k,v])=>`<option value="${k}"${ed&&ed.type===k?' selected':''}>${v.lab}</option>`).join('');
   const curI=ed?evIntens(ed):CAL_FORM.intens, curD=ed?evDur(ed):CAL_FORM.dur, curC=ed?evContacto(ed):(CAL_FORM.contacto!=null?CAL_FORM.contacto:3);
@@ -37380,8 +37385,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-30.11*/
-const VER_ACTUAL='2026-10-30.11';
+/*BUILD:2026-10-30.12*/
+const VER_ACTUAL='2026-10-30.12';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
