@@ -9239,7 +9239,7 @@ const LS_VISTO={};
    copia antigua perdona las tumbas de lo que restaura: eso sí es resucitar a
    propósito. */
 const LS_TUMBAS='bmnava_tumbas';
-const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri)$/;
+const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos)$/;
 /* v371 · Las sesiones de Polar se quedaban fuera del sistema de tumbas, así que
    borrar una no dejaba rastro: la fusión la conservaba desde la copia del
    servidor y volvía en cada actualización, una y otra vez. Sus registros no
@@ -9249,15 +9249,27 @@ const LS_HR='bmnava_hr';
 function lsHrId(o){
   return (o&&o.dk&&o.name)?(o.dk+'|'+(o.session||'Sesión')+'|'+o.name):null;
 }
+/* v485 · Los partidos medidos (`bmnava_partidos`) tenían botón de borrar y no
+   tenían tumbas, así que lo borrado volvía del servidor en la siguiente bajada
+   — exactamente lo que le pasaba a Polar antes del 22/09. Tampoco llevan `id`,
+   y §2.3.1 avisa de que no se les puede añadir uno: cambiaría la clave de
+   fusión y duplicaría todo lo que ya está subido sin él. Se identifican por
+   `fecha|jugador`, igual que Polar por `fecha|etiqueta|jugador`. */
+const LS_PT='bmnava_partidos';
+function lsPtId(o){ return (o&&o.dk&&o.name)?(o.dk+'|'+o.name):null; }
+function lsIdPosicional(clave){
+  return clave===LS_HR?lsHrId:(clave===LS_PT?lsPtId:null);
+}
 /* Solo se anotan tumbas de Polar desde el borrado explícito, nunca por
    diferencia: hrPersist reescribe el archivo entero con lo que haya en memoria,
    y si la memoria viniera incompleta el diff anotaría como borrado algo que
    simplemente no se había cargado. Una tumba errónea borra para todos. */
-const LS_TUMBAS_NO_DIFF=[LS_HR];
+const LS_TUMBAS_NO_DIFF=[LS_HR,LS_PT];   /* ptPersist reescribe el array entero desde memoria, igual que hrPersist */
 function lsIdsClave(clave,x){
-  if(clave!==LS_HR)return lsIds(x);
+  const idDe=lsIdPosicional(clave);
+  if(!idDe)return lsIds(x);
   const s=new Set();
-  (Array.isArray(x)?x:[]).forEach(o=>{const id=lsHrId(o);if(id)s.add(id);});
+  (Array.isArray(x)?x:[]).forEach(o=>{const id=idDe(o);if(id)s.add(id);});
   return s;
 }
 /* Anota tumbas directamente, para cuando el borrado es una acción confirmada por
@@ -9286,9 +9298,10 @@ function lsAplicarTumbas(clave,x){
      que pasó el 22/09, cuando la tumba de la sesión equivocada se llevó por
      delante la buena al volver a subirla. El perdón local no bastaba, porque las
      tumbas se fusionan por unión y el servidor devolvía la suya en cada bajada. */
-  if(clave===LS_HR)return Array.isArray(x)
+  const idDe=lsIdPosicional(clave);
+  if(idDe)return Array.isArray(x)
     ? x.filter(o=>{
-        const id=lsHrId(o);if(!id)return true;
+        const id=idDe(o);if(!id)return true;
         const muerta=t[pref+id];if(muerta==null)return true;
         return +((o&&o.upd)||0)>+muerta;
       })
@@ -29925,7 +29938,7 @@ document.getElementById('seg-adj').addEventListener('click',e=>{if(e.target.data
    AJUSTES. La banda NO es una desviación típica: con 4 partidos una desviación
    no es fiable, así que se usa una banda fija que refleja esa incertidumbre.
    Se estrecha cuando hay muestra suficiente. */
-const PT_LS='bmnava_partidos';
+const PT_LS=LS_PT;   /* la misma clave que conoce el sistema de tumbas; un literal repetido se desincroniza */
 const PT_COL_Z4='#dd8500';   /* colores de zona del proyecto, no se tocan */
 const PT_COL_Z5='#e23b32';
 const PT_BANDA_POCOS=0.25;     /* ±25% mientras haya menos de PT_N_FIABLE partidos */
@@ -30049,8 +30062,12 @@ function ptImport(){
     try{can=(typeof canonicalName==='function')?canonicalName(nom):null;}catch(e){}
     if(!can){desconocidos.push(nom);return;}
     const z=[4,5,6,7,8].map(i=>num(c[i])*60);
+    /* v485 · El sello `upd` es lo que hace que una tumba mate el registro que
+       HABÍA y no el que llegue después: si se borra un partido y luego se
+       vuelve a subir, el nuevo gana. Sin sello, volver a subirlo sería como el
+       22/09 con Polar, cuando la tumba se llevó por delante la sesión buena. */
     recs.push({dk,name:can,hrAvg:Math.round(num(c[1])),hrMax:Math.round(num(c[2])),
-      kcal:Math.round(num(c[3])),z});
+      kcal:Math.round(num(c[3])),z,upd:Date.now()});
   });
   if(!recs.length){
     set('<span style="color:var(--bad-text)">No pude leer ninguna fila válida'+
@@ -30070,9 +30087,15 @@ function ptImport(){
 window.ptImport=ptImport;
 function ptBorrar(dk){
   ptLoad();
-  const n=ptFilas().filter(r=>r.dk===dk).length;
-  if(!n)return;
-  if(!confirm('¿Borrar los datos de pulsómetro del partido del '+dk.split('-').reverse().join('/')+'?\n\nSe eliminan '+n+' jugadores. No se puede deshacer.'))return;
+  const fuera=ptFilas().filter(r=>r.dk===dk);
+  if(!fuera.length)return;
+  if(!confirm('¿Borrar los datos de pulsómetro del partido del '+dk.split('-').reverse().join('/')+'?\n\nSe eliminan '+fuera.length+' jugadores. No se puede deshacer.'))return;
+  /* v485 · La tumba se anota ANTES de guardar y sólo desde este borrado, que es
+     una acción confirmada: sin ella la fusión devolvía el partido entero en la
+     siguiente bajada. Por diferencia no se anota nunca (LS_TUMBAS_NO_DIFF),
+     porque ptPersist reescribe el array completo desde memoria y una memoria a
+     medias marcaría como borrado lo que sólo faltaba por cargar. */
+  try{lsTumbarIds(LS_PT,fuera.map(lsPtId).filter(Boolean));}catch(e){}
   PT_MEM=ptFilas().filter(r=>r.dk!==dk);
   ptPersist();
   renderPartidos();
@@ -37385,8 +37408,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-30.12*/
-const VER_ACTUAL='2026-10-30.12';
+/*BUILD:2026-10-30.13*/
+const VER_ACTUAL='2026-10-30.13';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
