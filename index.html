@@ -9047,7 +9047,7 @@ window.evReturnsHtml=function(){
     const col=d==null?C_MUT:(d<0?C_BAD:d<=7?C_WARN:C_ACC);
     const txt=d==null?'—':(d<0?('lleva '+(-d)+'d de retraso'):(d===0?'vuelve hoy':'en '+d+' día'+(d===1?'':'s')));
     const w=Math.max(4,Math.min(100,Math.round(Math.abs(d||0)/max*100)));
-    return '<div class="ev-rtp" onclick="medOpenEpisode&&medOpenEpisode(\''+x.id+'\')">'
+    return '<div class="ev-rtp" onclick="estadoGoMedico(\''+x.id+'\')">'
       +'<div class="ev-rtp-nm">'+x.name+'<span class="muted small"> · '+(x.zona||x.title)+'</span></div>'
       +'<div class="ev-rtp-bar"><i style="width:'+w+'%;background:'+col+'"></i></div>'
       +'<div class="ev-rtp-d" style="color:'+col+'">'+txt+'<span class="muted small"> · '+x.rtp+'</span></div>'
@@ -11412,7 +11412,7 @@ function pbBloque(inj,abierto){
         +'<button class="med-chipbtn" onclick="medInjuryEdit&&medInjuryEdit(\''+q+'\')">✎ Editar</button>'
         +'<button class="med-chipbtn" onclick="pbNotas&&pbNotas(\''+q+'\')">≡ Notas</button>'
         +'<button class="med-chipbtn" onclick="pbDolor&&pbDolor(\''+q+'\')">Dolor</button>'
-        +'<button class="med-chipbtn" onclick="medOpenEpisode&&medOpenEpisode(\''+q+'\')">Abrir en Médico</button>'
+        +'<button class="med-chipbtn" onclick="estadoGoMedico(\''+q+'\')">Abrir en Médico</button>'
         /* v291 · mientras no hay alta, el botón la da; una vez dada, lo que
            queda es cerrar el caso, que es una decisión aparte. */
         +(inj.open&&!pbGrupo(inj).alta
@@ -19741,7 +19741,30 @@ function renderAvail(){
   </div>`;
 }
 function medOpenEpisodeOf(name){const arr=(STATE.physioUser||{})[name]||[];return arr.find(x=>String(x._id||'').indexOf('med_')===0&&!x.to)||null;}
-function estadoGoMedico(injId){try{estadoTab('medico');}catch(e){}try{if(injId){MED_SEL=injId;renderMedico();}}catch(e){}}
+function estadoGoMedico(injId){
+ /* v485 · Hacía sólo `estadoTab('medico')`, que cambia de PESTAÑA pero no de
+    VISTA: funcionaba desde Disponibilidad —que ya vive en `v-estado`— y no
+    hacía nada desde la portada ni desde la ficha. Con `go` además se escribe
+    la dirección, así que al recargar se vuelve al episodio y no a la pestaña
+    anterior.
+    Y antes de ir hay que asegurarse de que el episodio se va a VER:
+    `renderMedico` descarta lo que no pasa el filtro de jugador o la casilla de
+    «ver cerradas» y acto seguido se queda con el PRIMERO de la lista, así que
+    pedir un episodio concreto podía acabar enseñando el de otro. */
+ try{if(typeof medDbLoad==='function')medDbLoad();}catch(e){}
+ try{
+   const ep=injId?(((STATE.med||{}).inj)||[]).find(x=>x&&x.id===injId):null;
+   if(ep){
+     const f=document.getElementById('med-fplayer');
+     if(f&&f.value&&f.value!==ep.name)f.value='';
+     const c=document.getElementById('med-showclosed');
+     if(c&&!ep.open&&!c.checked)c.checked=true;
+   }
+   if(injId)MED_SEL=injId;
+ }catch(e){}
+ try{go('medico');}catch(e){try{estadoTab('medico');}catch(e2){}}
+ try{renderMedico();}catch(e){}
+}
 function availMark(){const g=id=>(document.getElementById(id)||{}).value;const n=g('est-player');if(!n)return;if(medOpenEpisodeOf(n)){toast('Ese jugador tiene una lesión abierta · gestiona su estado en Médico');return;}physioOpenEpisode(n,g('est-status'),g('est-zone'),g('est-side'),'');renderAvail();}
 /* v216 · con un motivo no físico la zona y el lado no pintan nada: el campo pasa
    a pedir el motivo concreto («revisión mutua», «asuntos propios») y se avisa de
@@ -37341,8 +37364,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-30.9*/
-const VER_ACTUAL='2026-10-30.9';
+/*BUILD:2026-10-30.10*/
+const VER_ACTUAL='2026-10-30.10';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
