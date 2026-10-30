@@ -5226,15 +5226,28 @@ body.modal-open #sidebar{overflow:hidden}
    las alertas: un parte normal no es una alerta.
    Se conservan los NOMBRES de clase y se reestilan, para no dejar reglas
    huérfanas ni romper la variante de móvil que hay más abajo. */
-.pt-head{background:var(--panel);color:var(--ink);padding:14px 20px 13px;border-bottom:1px solid var(--hair);display:block}
-.pt-head-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-.pt-chip{background:transparent;border-radius:0;padding:0;display:flex;align-items:center;height:24px;box-shadow:none;flex:none}
-.pt-chip img{height:24px;width:auto;max-width:130px;object-fit:contain;display:block}
-.pt-kicker{flex:1;text-align:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.16em;
-  text-transform:uppercase;color:var(--muted)}
-.pt-head-c{text-align:left;color:var(--ink);flex:none}
+/* v493 · Daniel, 30/10/2026: «el encabezado queda muy mal distribuido, el logo
+   de BM Nava y Handball Performance súper pequeño». La v492 puso los dos logos
+   y un rótulo centrado en una fila de 24px y la fecha debajo: tres cosas
+   repartidas a lo ancho sin que ninguna mandara. Ahora es UNA fila con la marca
+   a los lados y el contenido en el medio —escudo, «Wellness», la fecha y el
+   titular—, que es la jerarquía de un documento.
+   **Los dos logos son ANCHOS, no altos**: la misma lección de la lámina A4. El
+   del club tiene relación 3,2:1 y el de Handball Performance 3:1, así que el
+   alto se fija pensando en el ancho que se llevan y el `max-width` es el tope
+   de verdad. */
+.pt-head{background:var(--panel);color:var(--ink);padding:17px 22px 16px;border-bottom:1px solid var(--hair);
+  display:flex;align-items:center;justify-content:space-between;gap:18px}
+.pt-head-l{display:flex;align-items:center;gap:16px;min-width:0}
+.pt-chip{background:transparent;border-radius:0;padding:0;display:flex;align-items:center;box-shadow:none;flex:none}
+.pt-chip img{width:auto;object-fit:contain;display:block}
+.pt-chip--club img{height:46px;max-width:152px}
+.pt-chip--hp img{height:38px;max-width:118px}
+.pt-kicker{font-size:var(--fs-xs);font-weight:700;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--muted2);margin-bottom:3px;text-align:left}
+.pt-head-c{text-align:left;color:var(--ink);min-width:0}
 /* La fecha es lo que identifica el parte, así que se lleva el escalón grande. */
-.pt-title{font-size:var(--fs-h1);font-weight:650;letter-spacing:-.022em;line-height:1.08}
+.pt-title{font-size:var(--fs-hero);font-weight:650;letter-spacing:-.026em;line-height:1.04}
 /* `capitalize` era lo que escribía «30 De Octubre».
    Y `.pt-sub` está declarada DOS veces en la hoja para componentes distintos:
    la otra la pone como rejilla de tres columnas con filete superior, así que
@@ -21006,7 +21019,7 @@ window.ojoMarcar=function(name){
   const roster=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
   const ov=ensureInfoOverlay();
   const t=document.getElementById('info-mtitle'),b=document.getElementById('info-mbody');
-  if(t)t.textContent='Ojo para mañana';
+  if(t)t.textContent='Ojo hoy';
   const head=ov.querySelector('.info-mhead > div');
   if(!roster.length){
     if(b)b.innerHTML='<p class="hint">Aún no hay jugadores cargados. Conecta desde <b>Conexión</b> y vuelve a intentarlo.</p>';
@@ -21089,7 +21102,7 @@ function ojoTarjeta(o){
 function ojoPanelHTML(){
   const ab=ojoAbiertos();
   if(!ab.length)return '';
-  return '<div class="fh-sec">Ojo para mañana · '+ab.length+'</div>'
+  return '<div class="fh-sec">Ojo hoy · '+ab.length+'</div>'
    +'<div class="ojo-grid">'+ab.map(ojoTarjeta).join('')+'</div>';
 }
 /* Y el bloque de la portada, que es donde Daniel pidió verlo. */
@@ -21098,7 +21111,7 @@ function renderOjoResumen(){
   if(!box)return;
   const ab=ojoAbiertos();
   if(!ab.length){box.innerHTML='';return;}
-  box.innerHTML='<div class="panel"><h2>Ojo para mañana <span class="r muted">'+ab.length
+  box.innerHTML='<div class="panel"><h2>Ojo hoy <span class="r muted">'+ab.length
     +' · lo marcó fisioterapia</span></h2>'
     +'<p class="small muted" style="margin:0 0 12px">Entrenan con normalidad; hay que valorarlos antes de la sesión.</p>'
     +'<div class="ojo-grid">'+ab.map(ojoTarjeta).join('')+'</div></div>';
@@ -22715,7 +22728,7 @@ function renderParte(){
   const ptOjo=(()=>{
     let ab=[];try{ab=(typeof ojoAbiertos==='function')?ojoAbiertos():[];}catch(e){}
     if(!ab.length)return '';
-    return '<div class="card-pro pt-mod"><div class="mini-h">Ojo para mañana · '+ab.length+'</div>'
+    return '<div class="card-pro pt-mod"><div class="mini-h">Ojo hoy · '+ab.length+'</div>'
       +ab.slice(0,4).map(o=>'<div class="pt-mr"><b>'+ojoEsc(String(o.name).split(' ')[0])+'</b>'
         +'<span>'+ojoEsc(ojoLab(o.e))+'</span></div>').join('')
       +(ab.length>4?'<div class="pt-mmas">y '+(ab.length-4)+' más</div>':'')
@@ -22743,7 +22756,10 @@ function renderParte(){
       +(faltan.length>10?'<span class="pt-mmas">+'+(faltan.length-10)+'</span>':'')+'</div>'
       +'<div class="pt-mpie">De estos no hay dato hoy</div></div>';
   })();
-  const ptMods=(ptOjo||ptEsperar||ptSinResp)?('<div class="pt-mods">'+ptOjo+ptEsperar+ptSinResp+'</div>'):'';
+  /* v493 · «Qué esperar mañana» fuera del parte, por decisión de Daniel el
+     30/10/2026. `ptEsperar` se sigue calculando y basta con volver a
+     concatenarlo aquí; el bloque sigue entero en el día del calendario. */
+  const ptMods=(ptOjo||ptSinResp)?('<div class="pt-mods">'+ptOjo+ptSinResp+'</div>'):'';
   /* v492 · El bloque por puesto ocupaba 342 px —más de un cuarto del parte—
      para dibujar círculos de iniciales. Daniel pidió encogerlo, no quitarlo:
      una fila por puesto con su media y quién se sale, que es lo que se mira. */
@@ -22778,15 +22794,15 @@ function renderParte(){
   }
   wrap.innerHTML=`<div class="parte-card" id="parte-card">
     <div class="pt-head">
-      <div class="pt-head-top">
-        <div class="pt-chip">${clubLogo}</div>
-        <div class="pt-kicker">Parte de wellness</div>
-        <div class="pt-chip">${hpLogo}</div>
+      <div class="pt-head-l">
+        <div class="pt-chip pt-chip--club">${clubLogo}</div>
+        <div class="pt-head-c">
+          <div class="pt-kicker">Wellness</div>
+          <div class="pt-title">${ptFecha}</div>
+          <div class="pt-sub">${ptTitular}</div>
+        </div>
       </div>
-      <div class="pt-head-c">
-        <div class="pt-title">${ptFecha}</div>
-        <div class="pt-sub">${ptTitular}</div>
-      </div>
+      <div class="pt-chip pt-chip--hp">${hpLogo}</div>
     </div>
     <div class="pt-body">
       <div class="kpi-grid">${headCells}</div>
@@ -22806,7 +22822,11 @@ function renderParte(){
       </div>
       ${painsBar}
       ${ptMods}
-      <div class="card-pro pt-stripb"><div class="mini-h">Plantilla · readiness por puesto</div><div class="pt-prs">${stripC}</div></div>
+      <!-- v493 · Daniel, 30/10/2026: «vuelve a lo anterior, quiero el individual,
+           agrupados por puestos como estaban». Se vuelve a strip, que pinta un
+           anillo por jugador dentro de su puesto. stripC —la fila compacta de la
+           v492— se queda en el código: basta con volver a ponerla aquí. -->
+      <div class="card-pro pt-stripb"><div class="mini-h">Plantilla · readiness por puesto</div><div class="pt-strip">${strip}</div></div>
     </div>
     <div class="pt-foot"><span>Generado automáticamente</span><span>BM Nava · Control de cargas</span></div>
   </div>`;
@@ -31479,7 +31499,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 <div id="med-overlay" class="med-overlay"><div class="med-modal" id="med-modal-body"></div></div>
 <script>
 (function(){
- const TY={lesion:{l:'Lesión',c:'#e23b32'},cita:{l:'Cita médica',c:'#2563eb'},recon:{l:'Reconocimiento',c:'#7c3aed'},prueba:{l:'Prueba diagnóstica',c:'#0e7490'},trat:{l:'Tratamiento/fisio',c:'#1ea863'},ojo:{l:'Ojo para mañana',c:'var(--warn)'}};
+ const TY={lesion:{l:'Lesión',c:'#e23b32'},cita:{l:'Cita médica',c:'#2563eb'},recon:{l:'Reconocimiento',c:'#7c3aed'},prueba:{l:'Prueba diagnóstica',c:'#0e7490'},trat:{l:'Tratamiento/fisio',c:'#1ea863'},ojo:{l:'Ojo hoy',c:'var(--warn)'}};
  const TY_ICON={lesion:'🩹',cita:'📅',recon:'🩺',prueba:'🧪',trat:'👐',ojo:'⚠'};
  function miDateShort(dk){if(!dk)return '';const a=dk.split('-').map(Number);const m=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][a[1]-1];return a[2]+' '+m;}
  /* v218 · Cómo afecta la cita al entrenamiento de ese día. Una cita por la mañana
@@ -34536,10 +34556,20 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
      ancho. Con `height:auto;max-width:100%` —lo que pedía la cabecera vieja,
      de placas blancas— la imagen volvía a su tamaño natural (381px) dentro de
      una fila flex y se salía 524px por la derecha. */
-  .pt-head{padding:12px 14px}
-  .pt-chip{height:20px}
-  .pt-chip img{height:20px;max-width:96px}
-  .pt-kicker{letter-spacing:.1em}
+  /* v493 · La cabecera sigue siendo UNA fila en el móvil, pero el título baja
+     un escalón: a 34px «Viernes 30 de octubre» partía en tres líneas y la
+     cabecera se iba a 211px de los 812 de la pantalla. Los logos se encogen
+     pero conservan su tope de ancho —sin él vuelven a su tamaño natural, que
+     es lo que ya pasó en la v492—. */
+  .pt-head{padding:13px 15px;gap:11px;align-items:flex-start}
+  /* A 375px, con los dos logos a los lados al texto le quedaban 160px y
+     «Viernes 30 de octubre» partía en tres líneas. El escudo sube y el texto
+     pasa debajo, a lo ancho que queda. */
+  .pt-head-l{flex-direction:column;align-items:flex-start;gap:9px;flex:1;min-width:0}
+  .pt-chip--club img{height:30px;max-width:98px}
+  .pt-chip--hp img{height:24px;max-width:76px}
+  .pt-title{font-size:var(--fs-h1);letter-spacing:-.02em}
+  .pt-kicker{letter-spacing:.14em;margin-bottom:1px}
   /* Texto legible: la auditoría encontró etiquetas a 7,5 y 8,5px (FAT, DOMS,
      MOOD, ACWR de las tarjetas de A vigilar; los rótulos del anillo). A esos
      tamaños no se leen en un teléfono. Solo se suben en móvil. */
@@ -38098,8 +38128,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.11*/
-const VER_ACTUAL='2026-10-31.11';
+/*BUILD:2026-10-31.12*/
+const VER_ACTUAL='2026-10-31.12';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
