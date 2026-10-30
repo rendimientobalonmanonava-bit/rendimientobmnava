@@ -9484,7 +9484,11 @@ const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava
   bmnava_hr:'Sesiones de Polar',bmnava_photos:'Fotos',bmnava_reuniones:'Reuniones',
   bmnava_fisiotpl:'Plantillas de fisioterapia',bmnava_fisiovisto:'Revisados del día',
   bmnava_sesniv:'Correcciones de nivel de sesión',
-  bmnava_vendajes:'Vendajes funcionales',bmnava_nutri:'Nutrición · pedidos y cobros'};
+  bmnava_vendajes:'Vendajes funcionales',bmnava_nutri:'Nutrición · pedidos y cobros',
+  bmnava_iso:'Pruebas isocinéticas',bmnava_isoref:'Referencias isocinéticas',
+  bmnava_partidos:'Zonas por partido',bmnava_vhfases:'Fase de cada valoración',
+  bmnava_quadrants:'Cuadrantes',bmnava_sespec:'Umbrales de sesión calibrados',
+  bmnava_vhurl:'Hoja de valoraciones',bmnava_wmset:'Ajuste de wellness ausente'};
 /* v321 · Estas no son datos del equipo: son las copias y apuntes que lleva la
    propia app. Salen en el desglose de Conexión, así que necesitan un nombre que
    se entienda. */
@@ -9505,6 +9509,29 @@ const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur'
      mandan por encima del cálculo (§2.1.1) y no se pueden recalcular: se escriben
      a mano. Llevaban fuera de la copia de seguridad desde siempre — el mismo
      olvido que §9 ya tiene escrito para `bmnava_nutri`. */
+  /* v485 · Ocho almacenes más que llevaban fuera de la copia y fuera del
+     inventario de Conexión. Es la TERCERA vez que aparece este olvido (§9:
+     `bmnava_nutri` y `bmnava_sesniv`), y la causa es siempre la misma: la
+     sincronización entra sola por el prefijo `bmnava_`, así que un almacén
+     nuevo funciona desde el primer día y nadie nota que no se está copiando.
+       · iso / isoref  pruebas isocinéticas y las referencias del club. Las
+         teclea el preparador desde el informe del laboratorio y NO se pueden
+         recalcular; las referencias, además, reescriben todos los informes.
+       · partidos      las zonas de cada jugador en cada partido, transcritas
+         a mano desde el Polar (§6.4). Es la exigencia contra la que se mide
+         «¿Llegan a ritmo de partido?».
+       · vhfases       qué fase era cada día de valoración.
+       · quadrants     Cuadrantes está retirado de la navegación, pero §4.3.1
+         dice que no se ha borrado nada: entonces tampoco se pierde.
+       · sespec        la calibración se recalcula sola, pero su `hist` es el
+         registro de cuándo cambió cada umbral, y eso no se recalcula (§2.1.1).
+       · vhurl         sin ella Perfil físico deja de cargar las valoraciones.
+       · wmset         es `CONFIG.wellnessMissing`: perderla cambia números sin
+         decirlo.
+     La copia lee con `getItem` en crudo, así que `vhurl`, que guarda una
+     cadena y no JSON, entra igual que las demás. */
+  'bmnava_iso','bmnava_isoref','bmnava_partidos','bmnava_vhfases',
+  'bmnava_quadrants','bmnava_sespec','bmnava_vhurl','bmnava_wmset',
   'bmnava_sesniv','bmnava_tumbas'];
 /* ═══ v315 · Copia automática diaria ═══
    La copia de seguridad de v255 es buena, pero hay que acordarse de pulsarla.
@@ -37314,8 +37341,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-30.8*/
-const VER_ACTUAL='2026-10-30.8';
+/*BUILD:2026-10-30.9*/
+const VER_ACTUAL='2026-10-30.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
