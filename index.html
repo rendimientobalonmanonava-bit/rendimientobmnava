@@ -29799,11 +29799,28 @@ function toggleAddData(e){if(e){e.stopPropagation();}const m=document.getElement
 function closeAddData(){const m=document.getElementById('add-menu'),b=document.getElementById('btn-adddata');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');}
 document.addEventListener('click',e=>{if(!(e.target.closest&&e.target.closest('.add-wrap')))closeAddData();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAddData();});
-function scrollFocus(id){const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>{try{el.focus({preventScroll:true});}catch(_){}el.classList.add('flash-focus');setTimeout(()=>el.classList.remove('flash-focus'),1400);},340);}
+/* v487 · El salto va SIN animar. Con `behavior:'smooth'` no se movía nada:
+   `go` y `estadoTab` hacen `window.scrollTo(0,0)` justo antes y los paneles
+   se recolocan después, así que la animación arranca contra un desplazamiento
+   que ya está en marcha y se cancela sola. *Medido: con 'auto' el scroll pasa
+   de 0 a 609 y el campo queda centrado; con 'smooth' se queda en 0.* El campo
+   acababa enfocado y resaltado fuera de la pantalla, o sea invisible.
+   §9 ya lo tenía escrito para el botón de buscar y se volvió a hacer. */
+function scrollFocus(id){const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:'auto',block:'center'});setTimeout(()=>{try{el.focus({preventScroll:true});}catch(_){}el.classList.add('flash-focus');setTimeout(()=>el.classList.remove('flash-focus'),1400);},340);}
 function addDataGoHR(){closeAddData();go('hr');setTimeout(()=>scrollFocus('hr-paste'),80);}
 function addDataGoTests(){closeAddData();openQuickTest();}
 function addDataGoReunion(){closeAddData();if(window.openReunion)openReunion();}
-function addDataGoAvailPlan(){closeAddData();go('avail');setTimeout(()=>scrollFocus('avail-plan-player'),80);}
+/* v487 · Iba a `go('avail')` y esa vista NO EXISTE: las que hay son
+   v-equipo, v-cal, v-carga, v-hr, v-estado, v-jugador(es), v-tests,
+   v-nutri, v-alertas y v-config. `go` no encuentra `#v-avail`, avisa por
+   consola y abre el Resumen — es la trampa que §3 ya tiene escrita para
+   `go('tsa')`—, así que el botón «Previsión de mañana» del menú ＋ te
+   dejaba en la portada y el foco fallaba después en silencio, porque el
+   campo vive en Disponibilidad y estaba oculto. Desde la propia portada no
+   se notaba nada en absoluto. Disponibilidad es una PESTAÑA de Estado:
+   `dispo` está en el ESUB de `go`, que abre `v-estado` y llama a
+   `estadoTab('dispo')`, que es quien pinta el formulario. */
+function addDataGoAvailPlan(){closeAddData();go('dispo');setTimeout(()=>scrollFocus('avail-plan-player'),80);}
 function addDataGoConfig(){closeAddData();go('config');}
 /* v216 · el menú ＋ ahora abre el selector único de fisioterapia. Las funciones
    específicas se conservan porque las usan otros botones dentro de la app. */
@@ -37424,8 +37441,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-30.21*/
-const VER_ACTUAL='2026-10-30.21';
+/*BUILD:2026-10-30.22*/
+const VER_ACTUAL='2026-10-30.22';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
