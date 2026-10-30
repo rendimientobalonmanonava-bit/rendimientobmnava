@@ -6423,27 +6423,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div class="panel" id="pt-semana"></div>
       <div class="panel" id="pt-perfiles"></div>
       <div class="panel" id="pt-estimador"></div>
-      <details class="panel" style="padding:14px 18px">
-        <summary style="cursor:pointer;font-weight:700">Cargar partido medido · Z1–Z5 desde Polar</summary>
-        <div style="margin-top:12px">
-          <p class="hint">Pega el resumen de Polar Team del partido, <b>una línea por jugador</b>, con el mismo formato que en Pulsómetros. Se guardan todas las zonas pero el perfil trabaja con <b>Z4 y Z5</b>.<br>
-          Formato: <span class="mono">Nombre; FC media %; FC máx %; kcal; Z1 min; Z2 min; Z3 min; Z4 min; Z5 min</span></p>
-          <div class="grid g2">
-            <div><label>Partido</label><select id="pt-dk"></select></div>
-            <div><label>&nbsp;</label><div class="small muted" id="pt-dk-info" style="padding-top:8px"></div></div>
-          </div>
-          <label>Filas (una por jugador)</label><textarea id="pt-paste" rows="6" placeholder="Nombre; media; max; kcal; z1; z2; z3; z4; z5"></textarea>
-          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
-            <button class="btn" onclick="ptImport()">Añadir partido</button>
-          </div>
-          <p id="pt-msg" class="hint" style="margin-top:10px"></p>
-          <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
-            <h2 style="font-size:14px;margin:0 0 8px">Partidos medidos cargados</h2>
-            <div id="pt-lista"></div>
-          </div>
-        </div>
-      </details>
-    </div>
+      </div>
     <div class="carga-pane" id="carga-posicion" style="display:none">
       <!-- v410 · primero la comparación entre puestos, que es la pregunta de
            esta pestaña; el detalle de un puesto suelto queda debajo -->
@@ -6735,6 +6715,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     <div class="seg hrp-seg" id="tsa-modo">
       <button data-m="equipo" class="on" onclick="tsaModo('equipo')">Equipo</button>
       <button data-m="jugador" onclick="tsaModo('jugador')">Jugador</button>
+      <button data-m="analisis" onclick="tsaModo('analisis')">Análisis</button>
     </div>
     <div id="tsa-pane-equipo">
     <!-- ═══ 1 · EQUIPO ═══ v252 · El estado del grupo iba repartido entre el
@@ -6745,11 +6726,12 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     <div class="panel" id="tsa-baremo"></div>
     <div class="panel" id="tsa-team-sum"></div>
     <div class="panel" id="vh-fases"></div>
-    <div class="grid g2">
-      <div class="panel"><h2>Ranking TSA del equipo <span class="r muted">tercios: verde/ámbar/rojo</span></h2><div style="height:420px"><canvas id="ch-tsa-rank"></canvas></div></div>
-      <div class="panel"><h2>Ranking por puesto <span class="r muted">cada uno contra los suyos</span></h2><div id="tsa-rank-pos"></div></div>
-      <div class="panel"><h2>Mapa de calor · jugadores × tests <span class="r muted">z (rojo↓ verde↑)</span></h2><div class="wrap-x"><div id="tsa-heat"></div></div></div>
-    </div>
+    <!-- v491 · Una sola tabla en lugar de cuatro listas de los mismos 18
+         jugadores. Se retiran los CONTENEDORES, no el código: `ch-tsa-rank`,
+         `tsa-rank-pos` y `tsa-tbl` siguen enteros y basta con devolverles su
+         <div> — mismo patrón que Cuadrantes y Cargas›RPE. -->
+    <div class="panel" id="tsa-tabla"></div>
+    <div class="panel"><h2>Mapa de calor · jugadores × tests <span class="r muted">z (rojo↓ verde↑)</span></h2><div class="wrap-x"><div id="tsa-heat"></div></div></div>
     <details class="panel" style="padding:14px 18px">
       <summary style="cursor:pointer;font-weight:700">Tabla de perfiles · TSA jugador por jugador</summary>
       <div style="margin-top:12px">
@@ -6794,26 +6776,6 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div id="anthro-comment" class="small" style="margin-top:12px"></div>
     </div>
 
-    <!-- ═══ 3 · METODOLOGÍA ═══ Lo que no habla de un jugador ni del equipo,
-         sino de los propios tests: fiabilidad, correlaciones y efecto por
-         posición. Sigue plegado. -->
-    <details class="adv-wrap" ontoggle="if(this.open){setTimeout(()=>{try{Object.values(charts).forEach(c=>c&&c.resize&&c.resize());}catch(e){}},60);}">
-      <summary class="adv-sum">Metodología y fiabilidad · CV, SWC, correlaciones y tamaño del efecto <span class="small muted">(Turner 2015)</span></summary>
-    <div class="panel"><h2>Fiabilidad y cambio mínimo · CV y SWC</h2><div id="cvswc-tbl"></div>
-      <p class="small muted" style="margin-top:10px;line-height:1.55">El <b>CV %</b> mostrado es la dispersión de la plantilla (DT/media). El <b>SWC</b> (cambio mínimo que merece la pena) = DT × 0.2; también 0.6 (moderado) y 1.2 (grande). Para fijar objetivos individuales realistas, el cambio debe superar el SWC. <i>La fiabilidad real (CV intra-jugador) requiere 2–5 intentos por test; lo añadimos cuando cargues ensayos repetidos.</i></p>
-    </div>
-    <div class="grid g2">
-      <div class="panel"><h2>Matriz de correlaciones <span class="r muted">entre tests (z)</span></h2><div class="wrap-x"><div id="corr-matrix"></div></div></div>
-      <div class="panel"><h2>Relación entre dos tests</h2>
-        <div class="ctrlrow"><select id="sc-x" onchange="renderTestScatter()"></select><span class="small muted">vs</span><select id="sc-y" onchange="renderTestScatter()"></select></div>
-        <div style="height:210px"><canvas id="ch-scatter"></canvas></div>
-        <div class="small" id="sc-info" style="margin-top:8px"></div>
-      </div>
-    </div>
-    <div class="panel"><h2>Tamaño del efecto por posición <span class="r muted">Cohen's d</span></h2><div id="es-tbl"></div>
-      <p class="small muted" style="margin-top:10px;line-height:1.55">Magnitud del efecto (Hopkins): &lt;0.2 trivial · 0.2–0.6 pequeño · 0.6–1.2 moderado · 1.2–2 grande · &gt;2 muy grande.</p>
-    </div>
-    </details>
 
     <!-- ═══ 4 · DATOS ═══ Los cargadores, al final: se tocan una vez cada
          valoración, no cada vez que se abre la vista. -->
@@ -6852,6 +6814,32 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       </div>
     </details>
     </div><!-- /tsa-pane-jugador -->
+
+    <!-- ═══ 3 · ANÁLISIS ═══ v491 · Lo que no habla de un jugador ni del equipo,
+         sino de los propios tests: fiabilidad, correlaciones y efecto por
+         posición. Vivía dentro de un <details> plegado al final del panel de
+         Jugador, o sea enterrado detrás de ocho paneles; Daniel pidió el
+         30/10/2026 que tuviera pestaña propia. La pestaña YA es la divulgación
+         progresiva, así que aquí el <details> sobra y los paneles van sueltos.
+         No se ha tocado una línea de lo que hay dentro. -->
+    <div id="tsa-pane-analisis" style="display:none">
+    <div class="sec-tit">Metodología y fiabilidad <span>CV, SWC, correlaciones y tamaño del efecto · Turner 2015</span></div>
+
+    <div class="panel"><h2>Fiabilidad y cambio mínimo · CV y SWC</h2><div id="cvswc-tbl"></div>
+      <p class="small muted" style="margin-top:10px;line-height:1.55">El <b>CV %</b> mostrado es la dispersión de la plantilla (DT/media). El <b>SWC</b> (cambio mínimo que merece la pena) = DT × 0.2; también 0.6 (moderado) y 1.2 (grande). Para fijar objetivos individuales realistas, el cambio debe superar el SWC. <i>La fiabilidad real (CV intra-jugador) requiere 2–5 intentos por test; lo añadimos cuando cargues ensayos repetidos.</i></p>
+    </div>
+    <div class="grid g2">
+      <div class="panel"><h2>Matriz de correlaciones <span class="r muted">entre tests (z)</span></h2><div class="wrap-x"><div id="corr-matrix"></div></div></div>
+      <div class="panel"><h2>Relación entre dos tests</h2>
+        <div class="ctrlrow"><select id="sc-x" onchange="renderTestScatter()"></select><span class="small muted">vs</span><select id="sc-y" onchange="renderTestScatter()"></select></div>
+        <div style="height:210px"><canvas id="ch-scatter"></canvas></div>
+        <div class="small" id="sc-info" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="panel"><h2>Tamaño del efecto por posición <span class="r muted">Cohen's d</span></h2><div id="es-tbl"></div>
+      <p class="small muted" style="margin-top:10px;line-height:1.55">Magnitud del efecto (Hopkins): &lt;0.2 trivial · 0.2–0.6 pequeño · 0.6–1.2 moderado · 1.2–2 grande · &gt;2 muy grande.</p>
+    </div>
+    </div><!-- /tsa-pane-analisis -->
   </section>
 
   <!-- v411 · Visor del informe isocinético. Hoja aparte, no dentro de la ficha. -->
@@ -17043,25 +17031,35 @@ function tsaProgresoNorma(st){
 function tsaProgInvalidar(){TSA_PROG_CACHE=null;}
 window.tsaProgresoZ=tsaProgresoZ;window.tsaProgresoPct=tsaProgresoPct;
 window.tsaProgresoNorma=tsaProgresoNorma;window.tsaProgInvalidar=tsaProgInvalidar;
-function testZ(name,st){
-  st=st||testStats();
-  const o={z:{}};const rec=(STATE.tests||{})[name]||{};
+/* v491 · El núcleo de `testZ` —z por test, media por capacidad y nota base—
+   extraído para poder calcularlo sobre los valores de una valoración PASADA.
+   Se extrae en vez de copiarse: dos cálculos de la misma nota se desincronizan
+   al primer ajuste de pesos, que es justo lo que se documentó del ACWR
+   proyectado. `testZ` sigue siendo el único sitio que añade el progreso. */
+function testZBase(rec,st){
+  st=st||testStats();rec=rec||{};
+  const z={};
   TESTS.forEach(t=>{
     const v=rec[t.k];
-    if(v==null||isNaN(v)||!(st[t.k]&&st[t.k].s>0)){o.z[t.k]=null;return;}
-    let z=(v-st[t.k].m)/st[t.k].s;
-    if(t.lowerBetter)z=-z;
-    o.z[t.k]=z;
+    if(v==null||isNaN(v)||!(st[t.k]&&st[t.k].s>0)){z[t.k]=null;return;}
+    let x=(v-st[t.k].m)/st[t.k].s;
+    if(t.lowerBetter)x=-x;
+    z[t.k]=x;
   });
   /* nota base: media ponderada de las tres capacidades. Antes era la media de
      todos los tests y mandaba quien más pruebas tenía. */
-  let acc=0,pw=0;o.cap={};
+  let acc=0,pw=0;const cap={};
   Object.keys(TSA_W).forEach(c=>{
-    const a=TESTS.filter(t=>t.cat===c&&tsaEnNota(t)&&o.z[t.k]!=null).map(t=>o.z[t.k]);
-    if(!a.length){o.cap[c]=null;return;}
-    const m=mean(a);o.cap[c]=m;acc+=m*TSA_W[c];pw+=TSA_W[c];
+    const a=TESTS.filter(t=>t.cat===c&&tsaEnNota(t)&&z[t.k]!=null).map(t=>z[t.k]);
+    if(!a.length){cap[c]=null;return;}
+    const m=mean(a);cap[c]=m;acc+=m*TSA_W[c];pw+=TSA_W[c];
   });
-  o.base=pw?acc/pw:NaN;
+  return {z,cap,base:pw?acc/pw:NaN};
+}
+function testZ(name,st){
+  st=st||testStats();
+  const b=testZBase((STATE.tests||{})[name],st);
+  const o={z:b.z,cap:b.cap,base:b.base};
   /* progreso, normalizado contra el del grupo */
   const pr=tsaProgresoZ(name,st);
   const nm=tsaProgresoNorma(st);
@@ -17084,6 +17082,67 @@ function tsaEscala(x){
   if(x==null||isNaN(x))return null;
   return Math.round(40+55/(1+Math.exp(-2.6*x)));
 }
+/* ===== Cuánto ha mejorado, con DOS referencias (v491) =====
+   Daniel, 30/10/2026, eligió ver el avance contra la primera valoración de la
+   temporada y contra la anterior, en columnas distintas.
+
+   Tres reglas, ninguna nueva:
+   (1) Las instantáneas de `testHist` son PARCIALES —cada una trae sólo los
+       tests medidos ese día—, así que la foto de un momento se acumula desde
+       el principio. Sin eso, la diferencia sería del juego de pruebas y no del
+       jugador, que es la misma razón por la que `capPerfilDe` exige los mismos
+       ejes en las dos fotos del radar.
+   (2) Sólo entran los tests que existen en las DOS fotos, por lo mismo; es lo
+       que ya hace `vhComparaFases` con quien no tiene medición en las dos.
+   (3) Se compara la nota BASE, no el TSA completo: el TSA lleva dentro un
+       componente de progreso (`TSA_W_PROG`), y restarle su propio pasado
+       contaría el avance dos veces.
+   El cambio va en PUNTOS de la nota, no en %: la nota vive entre 40 y 95 y su
+   cero no significa nada, así que un porcentaje sobre ella no es una razón.
+   El % por prueba, que sí tiene unidad, sigue en «Histórico por fechas». */
+function tsaFotosReales(name){
+  return ((STATE.testHist||{})[name]||[])
+    .filter(s=>s&&s.real===true&&(s.date||'')>=TEMP_INICIO)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+}
+function tsaValsHasta(fotos,i){
+  const vals={};
+  for(let k=0;k<=i&&k<fotos.length;k++)Object.assign(vals,(fotos[k]&&fotos[k].vals)||{});
+  return vals;
+}
+function tsaDelta(name,st){
+  st=st||testStats();
+  const f=tsaFotosReales(name);
+  const vacio={julio:null,previa:null,n:f.length};
+  if(f.length<2)return vacio;
+  const hoy=tsaValsHasta(f,f.length-1);
+  const cmp=function(vals){
+    const comunes=[];
+    TESTS.forEach(t=>{if(vals[t.k]!=null&&hoy[t.k]!=null)comunes.push(t.k);});
+    if(!comunes.length)return null;
+    const filtra=function(src){const o={};comunes.forEach(k=>{o[k]=src[k];});return o;};
+    const A=testZBase(filtra(vals),st), B=testZBase(filtra(hoy),st);
+    if(isNaN(A.base)||isNaN(B.base))return null;
+    /* La nota es la media ponderada de TRES capacidades (`TSA_W`). Si las dos
+       fotos no cubren las mismas, cada una es una mezcla distinta y la resta
+       no habla del jugador sino de qué se midió ese día. Medido con los datos
+       del club: a Maiko, con 3 tests comunes de una sola capacidad, le salían
+       +28 puntos. Es la misma trampa de la base pequeña ya escrita para el
+       progreso del TSA y para el tiempo en zonas. */
+    const caps=function(o){return Object.keys(TSA_W).filter(c=>o.cap[c]!=null);};
+    const ca=caps(A), cb=caps(B);
+    if(ca.length!==cb.length||ca.some(c=>cb.indexOf(c)<0))return null;
+    if(!ca.length)return null;
+    const na=tsaEscala(A.base), nb=tsaEscala(B.base);
+    if(na==null||nb==null)return null;
+    /* Con menos de las tres capacidades el dato vale, pero es parcial: se
+       devuelve y se atenúa al pintarlo, la regla de `calRefMD`. */
+    return {d:nb-na,n:comunes.length,caps:ca.length,parcial:ca.length<Object.keys(TSA_W).length};
+  };
+  return {julio:cmp(tsaValsHasta(f,0)),previa:cmp(tsaValsHasta(f,f.length-2)),
+          n:f.length,dkJulio:f[0].date,dkPrevia:f[f.length-2].date};
+}
+window.tsaDelta=tsaDelta;
 function pctile(name,t){const vals=Object.keys(STATE.tests||{}).map(n=>(STATE.tests[n]||{})[t.k]).filter(v=>v!=null&&!isNaN(v));const v=(STATE.tests[name]||{})[t.k];if(v==null||vals.length<2)return null;const below=vals.filter(x=>t.lowerBetter?x>v:x<v).length;return Math.round(below/(vals.length-1)*100);}
 /* v363 · Usaba `incTSA!==false` mientras el TSA ya usaba `tsaEnNota`, que además
    incluye los kg de masa muscular. Resultado: el podio por capacidad, la tabla de
@@ -17345,13 +17404,21 @@ function tempVigente(k){
 function tempInvalidar(){TEMP_CACHE=null;}
 window.tempVigente=tempVigente;window.tempTestsVigentes=tempTestsVigentes;window.tempInvalidar=tempInvalidar;
 function tsaModo(m){
-  const eq=document.getElementById('tsa-pane-equipo'),jg=document.getElementById('tsa-pane-jugador');
-  if(!eq||!jg)return;
-  const esJug=(m==='jugador');
-  eq.style.display=esJug?'none':'';
-  jg.style.display=esJug?'':'none';
+  /* v491 · Tres paneles desde que Análisis tiene pestaña propia. Un modo
+     guardado que ya no existe cae en Equipo en vez de dejar la vista en
+     blanco: `bmnava_tsamodo` lleva meses guardado en cada navegador. */
+  const paneles={equipo:document.getElementById('tsa-pane-equipo'),
+                 jugador:document.getElementById('tsa-pane-jugador'),
+                 analisis:document.getElementById('tsa-pane-analisis')};
+  if(!paneles.equipo||!paneles.jugador)return;
+  if(!paneles[m])m='equipo';
+  Object.keys(paneles).forEach(k=>{if(paneles[k])paneles[k].style.display=(k===m)?'':'none';});
   document.querySelectorAll('#tsa-modo button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   try{localStorage.setItem('bmnava_tsamodo',m);}catch(e){}
+  /* Chart.js mide el contenedor al crear el gráfico, así que uno nacido en una
+     pestaña oculta sale de tamaño cero — misma regla que la ficha del jugador.
+     Lo hacía el `ontoggle` del <details> que ya no existe. */
+  setTimeout(()=>{try{Object.values(charts).forEach(c=>c&&c.resize&&c.resize());}catch(e){}},60);
 }
 window.tsaModo=tsaModo;
 function refEquipoDatos(){
@@ -17598,10 +17665,148 @@ function renderTestsTeam(){
   box.innerHTML='<h2 style="margin-top:0">Cómo está el equipo <span class="r muted">TSA sobre 100 · el 50 es la media de la propia plantilla</span></h2>'
     +kpis
     +'<div class="tsum-sub">Podio del equipo <span>TSA global</span></div>'+podioTSA
-    +'<div class="tsum-sub">Ranking completo <span>pulsa a un jugador para ver su perfil</span></div>'+ranking
+    /* v491 · El ranking completo sale ahora en «Plantilla, prueba a prueba»,
+       con sus columnas y su filtro por puesto. Aquí se quedaban las mismas 18
+       filas una segunda vez. `ranking` se sigue calculando y basta con volver a
+       concatenarlo para recuperarlo. */
     +'<div class="tsum-sub">Por capacidad <span>podio y reparto de la plantilla</span></div>'
     +(cats?'<div class="tsum-cats">'+cats+'</div>':'');
 }
+/* ===== La tabla \u00fanica del equipo (v491) =====================================
+   Daniel, 30/10/2026: "muchos m\u00f3dulos, muchas columnas, que sea visual y haya
+   fotos de los jugadores, rankings, % de mejora".
+
+   Medido antes de tocar nada: la lista de los 18 jugadores ordenada por TSA
+   sal\u00eda TRES veces a la vista \u2014dentro de "C\u00f3mo est\u00e1 el equipo", en "Ranking TSA
+   del equipo" y en "Ranking por puesto"\u2014 y una cuarta plegada en "Tabla de
+   perfiles". Daniel eligi\u00f3 una sola tabla con columnas que las sustituya.
+   Es la regla ya escrita: si una cifra se ve dos veces, la segunda no aporta.
+
+   Cuatro decisiones, ninguna inventa un umbral:
+   (1) El color del TSA sale de `tsaTier`, los tercios del ranking que ya
+       exist\u00edan; no se estrena una escala.
+   (2) Las capacidades van en la misma escala que las tarjetas "Por capacidad"
+       de esta misma vista (z\u00d710+50, 50 = media de la plantilla). Usar otra
+       har\u00eda que el mismo jugador tuviera dos n\u00fameros distintos en la misma
+       pantalla.
+   (3) El avance va en PUNTOS de la nota y no en %: la nota vive entre 40 y 95
+       y su cero no significa nada, as\u00ed que un porcentaje sobre ella no es una
+       raz\u00f3n. Ver `tsaDelta`.
+   (4) Filtrar por puesto es lo que sustituye al "Ranking por puesto": el orden
+       se recalcula dentro del grupo, que era la pregunta de aquel panel. */
+let TSA_TBL={ord:'tsa',dir:-1,pos:''};
+function tsaTablaDatos(){
+  const st=testStats();
+  const rows=tsaRows().filter(r=>r.t100!=null);
+  return rows.map(r=>{
+    const d=tsaDelta(r.name,st);
+    const cap={};
+    CATS.forEach(c=>{const z=catScore(r.z,c);cap[c]=isNaN(z)?null:clamp(Math.round(z*10+50),0,100);});
+    return {name:r.name,pos:r.pos||'',t100:r.t100,cap,
+            ju:d.julio,pr:d.previa,fotos:d.n};
+  });
+}
+function tsaTablaOrdenar(rows){
+  const k=TSA_TBL.ord,dir=TSA_TBL.dir;
+  const val=r=>{
+    if(k==='nombre')return r.name.toLowerCase();
+    if(k==='pos')return (r.pos||'zzz').toLowerCase();
+    if(k==='tsa')return r.t100==null?-1e9:r.t100;
+    if(k==='ju')return r.ju?r.ju.d:-1e9;
+    if(k==='pr')return r.pr?r.pr.d:-1e9;
+    return r.cap[k]==null?-1e9:r.cap[k];
+  };
+  return rows.slice().sort((a,b)=>{
+    const x=val(a),y=val(b);
+    if(typeof x==='string')return dir*x.localeCompare(y);
+    return dir*(x-y);
+  });
+}
+window.tsaTablaOrden=function(k){
+  if(TSA_TBL.ord===k)TSA_TBL.dir*=-1;
+  else{TSA_TBL.ord=k;TSA_TBL.dir=(k==='nombre'||k==='pos')?1:-1;}
+  renderTsaTabla();
+};
+window.tsaTablaPuesto=function(p){TSA_TBL.pos=(TSA_TBL.pos===p)?'':p;renderTsaTabla();};
+function tsaDeltaCelda(o){
+  /* `esc` es local en cada función de este archivo (unas 70 copias), no global:
+     usarlo sin declararlo deja el panel vacío y sólo lo delata la consola. */
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  if(!o)return '<span class="tsat-d tsat-d--na" title="Hace falta una valoraci\u00f3n anterior que cubra las mismas capacidades">\u2014</span>';
+  const s=o.d>0?'+':'';
+  const cls=o.d>0?'tsat-d--up':(o.d<0?'tsat-d--dn':'tsat-d--eq');
+  const tit=o.n+' pruebas comunes'+(o.parcial?' \u00b7 s\u00f3lo '+o.caps+' de las 3 capacidades: parcial':'');
+  return '<span class="tsat-d '+cls+(o.parcial?' tsat-d--parc':'')+'" title="'+esc(tit)+'">'+s+o.d+(o.parcial?'<i>*</i>':'')+'</span>';
+}
+function renderTsaTabla(){
+  const box=document.getElementById('tsa-tabla');if(!box)return;
+  /* `esc` es local en cada función de este archivo (unas 70 copias), no global:
+     usarlo sin declararlo deja el panel vacío y sólo lo delata la consola. */
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  /* Mismo recorte de nombre que usa el resumen del equipo, con los mismos
+     valores: allí también es local. */
+  const corto=nm=>{const p=String(nm).split(' ');return p.length>2?p[0]+' '+p[1]:nm;};
+  let rows=tsaTablaDatos();
+  if(!rows.length){box.innerHTML='<h2 style="margin-top:0">Plantilla, prueba a prueba</h2><div class="small muted">Sin valoraciones cargadas.</div>';return;}
+  const puestos=[];
+  rows.forEach(r=>{if(r.pos&&puestos.indexOf(r.pos)<0)puestos.push(r.pos);});
+  puestos.sort();
+  const base=rows;
+  if(TSA_TBL.pos)rows=rows.filter(r=>r.pos===TSA_TBL.pos);
+  rows=tsaTablaOrdenar(rows);
+  const n=rows.length;
+  const parciales=rows.filter(r=>(r.ju&&r.ju.parcial)||(r.pr&&r.pr.parcial)).length;
+
+  const chips='<button class="tsat-chip'+(TSA_TBL.pos?'':' on')+'" onclick="tsaTablaPuesto(\'\')">Toda la plantilla <b>'+base.length+'</b></button>'
+    +puestos.map(p=>'<button class="tsat-chip'+(TSA_TBL.pos===p?' on':'')+'" onclick="tsaTablaPuesto(\''+esc(p).replace(/'/g,"\\'")+'\')">'+esc(p)+' <b>'+base.filter(r=>r.pos===p).length+'</b></button>').join('');
+
+  const fl=k=>TSA_TBL.ord===k?('<i class="tsat-ar">'+(TSA_TBL.dir>0?'\u25b2':'\u25bc')+'</i>'):'';
+  const th=(k,lab,sub,cls)=>'<button class="tsat-th'+(cls?' '+cls:'')+(TSA_TBL.ord===k?' on':'')+'" onclick="tsaTablaOrden(\''+k+'\')"><span>'+lab+fl(k)+'</span>'+(sub?'<em>'+sub+'</em>':'')+'</button>';
+
+  const cab='<div class="tsat-row tsat-row--h">'
+    +'<span class="tsat-n"></span>'
+    +th('nombre','Jugador','puesto y foto','tsat-j')
+    +th('tsa','TSA','nota 0\u2013100','tsat-c')
+    +CATS.map(c=>th(c,c,'50 = media','tsat-c')).join('')
+    +th('ju','Desde julio','puntos de nota','tsat-c')
+    +th('pr','Desde la anterior','puntos de nota','tsat-c')
+    +'</div>';
+
+  const todos=tsaRows().filter(r=>r.t100!=null);
+  const maxN=todos.length;
+  const rank={};todos.forEach((r,i)=>rank[r.name]=i+1);
+
+  const filas=rows.map(r=>{
+    const t=tsaTier(rank[r.name]||maxN,maxN);
+    const col='var(--'+t+')';
+    const pct=clamp(Math.round((r.t100-40)/55*100),2,100);
+    const foto=(window.photoFor&&photoFor(r.name))||window.__AVATAR__||'';
+    const av=foto?'<img src="'+foto+'" alt="">':'<span>'+esc((r.name.split(' ')[0]||'?')[0]+(r.name.split(' ')[1]||' ')[0])+'</span>';
+    const caps=CATS.map(c=>{const v=r.cap[c];
+      return '<span class="tsat-c tsat-cap">'+(v==null?'<em class="muted">\u2014</em>':'<b>'+v+'</b><i style="width:'+clamp(v,2,100)+'%"></i>')+'</span>';}).join('');
+    return '<div class="tsat-row" onclick="tsaVerJugador(\''+esc(r.name).replace(/'/g,"\\'")+'\')" title="Ver su perfil">'
+      +'<span class="tsat-n">'+(rank[r.name]||'')+'</span>'
+      +'<span class="tsat-j"><span class="tsat-av">'+av+'</span>'
+        +'<span class="tsat-nm"><b>'+esc(corto(r.name))+'</b><em>'+esc(r.pos||'\u2014')+'</em></span></span>'
+      +'<span class="tsat-c tsat-tsa"><b style="color:'+colTexto(col)+'">'+r.t100+'</b>'
+        +'<i class="tsat-bar"><u style="width:'+pct+'%;background:'+col+'"></u></i></span>'
+      +caps
+      +'<span class="tsat-c">'+tsaDeltaCelda(r.ju)+'</span>'
+      +'<span class="tsat-c">'+tsaDeltaCelda(r.pr)+'</span>'
+    +'</div>';
+  }).join('');
+
+  box.innerHTML='<h2 style="margin-top:0">Plantilla, prueba a prueba <span class="r muted">pulsa una columna para ordenar \u00b7 un jugador para ver su perfil</span></h2>'
+    +'<div class="tsat-chips">'+chips+'</div>'
+    +'<div class="wrap-x"><div class="tsat">'+cab+filas+'</div></div>'
+    +'<p class="small muted tsat-pie">'+n+' jugador'+(n===1?'':'es')+' \u00b7 <b>TSA</b> es la nota 0\u2013100 del perfil f\u00edsico; el color son los tercios del equipo. '
+    +'<b>Condici\u00f3n, Fuerza y Explosividad</b> van en la escala de la plantilla, donde 50 es su media. '
+    +'<b>Desde julio</b> compara con la primera valoraci\u00f3n de la temporada y <b>desde la anterior</b> con la penúltima, '
+    +'siempre sobre las pruebas que existen en las dos y en puntos de nota, no en porcentaje.'
+    +(parciales?' <b>*</b> marca a los '+parciales+' que no tienen medidas las tres capacidades en las dos fechas: el avance es parcial.':'')
+    +'</p>';
+}
+window.renderTsaTabla=renderTsaTabla;
 /* Pulsar un jugador del resumen lo selecciona abajo y baja hasta su perfil. */
 window.tsaVerJugador=function(name){
   const sel=document.getElementById('tests-player');
@@ -17629,6 +17834,7 @@ function renderTests(){
     const body=rows.map(r=>{const cs=CATS.map(c=>catScore(r.z,c));return `<tr><td class="mono">${r.rank}</td><td>${r.name}</td><td class="small muted">${r.pos||''}</td>${cs.map(z=>`<td class="mono" style="color:${colTexto('var(--'+(isNaN(z)?'muted':z>=0?'ok':'bad')+')')}">${isNaN(z)?'—':(z>=0?'+':'')+fmt(z,2)}</td>`).join('')}<td class="mono" style="font-weight:700">${isNaN(r.tsa)?'—':(r.tsa>=0?'+':'')+fmt(r.tsa,2)}</td><td class="mono">${r.t100==null?'—':r.t100}</td><td><span class="dot ${tsaTier(r.rank,n)}"></span>${tsaTier(r.rank,n)==='ok'?'Alto':tsaTier(r.rank,n)==='warn'?'Medio':'Bajo'}</td></tr>`;}).join('');
     box.innerHTML=`<div class="wrap-x"><table class="tbl sortable"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;}
   try{renderTestsTeam();}catch(e){console.error('tsa-team',e);}
+  try{renderTsaTabla();}catch(e){console.error('tsa-tabla',e);}
   try{renderVhFases();}catch(e){console.error('vh-fases',e);}
   renderTestsExtra();
   buildManualGrid();
@@ -34367,6 +34573,77 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
   #hr-sess-list th,#hr-sess-list td{padding:6px 6px}
   #hr-sess-list .med-chipbtn{padding:8px 9px;white-space:nowrap}
 }
+
+/* ===== v491 · La tabla única de Perfil físico =================================
+   Bloque ADITIVO y acotado a `#v-tests`, como la capa Apple y como los bloques
+   de escala tipográfica de la v472 y la v484: no borra ni modifica ninguna
+   regla anterior, así que quitándolo la vista vuelve exacta.
+   Los tamaños salen de los seis escalones `--fs-*`; ni un hexadecimal a mano. */
+#v-tests .tsat-chips{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 14px}
+#v-tests .tsat-chip{appearance:none;border:.5px solid var(--hair);background:var(--panel2);
+  color:var(--muted);border-radius:999px;padding:6px 13px;font-size:var(--fs-sm);font-weight:500;
+  cursor:pointer;transition:background .2s cubic-bezier(.32,.72,0,1),color .2s}
+#v-tests .tsat-chip b{font-weight:600;color:var(--muted2);margin-left:3px}
+#v-tests .tsat-chip:hover{background:var(--panel)}
+#v-tests .tsat-chip.on{background:var(--accent);border-color:transparent;color:#fff}
+#v-tests .tsat-chip.on b{color:rgba(255,255,255,.72)}
+#v-tests .tsat{min-width:760px}
+#v-tests .tsat-row{display:grid;
+  grid-template-columns:30px minmax(150px,1.5fr) 104px repeat(3,minmax(66px,.8fr)) 84px 92px;
+  align-items:center;gap:8px;padding:7px 8px;border-radius:10px;cursor:pointer;
+  border-bottom:.5px solid var(--hair);transition:background .18s cubic-bezier(.32,.72,0,1)}
+#v-tests .tsat-row:hover{background:var(--panel2)}
+#v-tests .tsat-row--h{position:sticky;top:0;z-index:2;background:var(--panel);
+  cursor:default;border-bottom:1px solid var(--hair);padding-bottom:9px}
+#v-tests .tsat-row--h:hover{background:var(--panel)}
+#v-tests .tsat-th{appearance:none;background:none;border:0;padding:0;text-align:right;
+  display:flex;flex-direction:column;align-items:flex-end;gap:1px;cursor:pointer;color:var(--muted)}
+#v-tests .tsat-th.tsat-j{text-align:left;align-items:flex-start}
+#v-tests .tsat-th span{font-size:var(--fs-sm);font-weight:600;color:var(--txt);display:flex;align-items:center;gap:4px}
+#v-tests .tsat-th em{font-size:var(--fs-xs);font-style:normal;color:var(--muted2);line-height:1.2}
+#v-tests .tsat-th.on span{color:var(--accent)}
+#v-tests .tsat-ar{font-size:9px;font-style:normal}
+#v-tests .tsat-n{font-size:var(--fs-sm);color:var(--muted2);text-align:center;
+  font-variant-numeric:tabular-nums}
+#v-tests .tsat-j{display:flex;align-items:center;gap:9px;min-width:0}
+#v-tests .tsat-av{width:34px;height:34px;flex:none;border-radius:50%;overflow:hidden;
+  background:var(--panel2);display:flex;align-items:center;justify-content:center}
+#v-tests .tsat-av img{width:100%;height:100%;object-fit:cover;display:block}
+#v-tests .tsat-av span{font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
+#v-tests .tsat-nm{min-width:0;display:flex;flex-direction:column;line-height:1.2}
+#v-tests .tsat-nm b{font-size:var(--fs-body);font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+#v-tests .tsat-nm em{font-size:var(--fs-xs);font-style:normal;color:var(--muted2)}
+#v-tests .tsat-c{text-align:right;font-variant-numeric:tabular-nums}
+#v-tests .tsat-tsa{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+#v-tests .tsat-tsa b{font-size:var(--fs-h2);font-weight:650;line-height:1}
+#v-tests .tsat-bar{display:block;width:100%;height:4px;border-radius:999px;background:var(--panel2);overflow:hidden}
+#v-tests .tsat-bar u{display:block;height:100%;border-radius:999px;text-decoration:none}
+#v-tests .tsat-cap{display:flex;flex-direction:column;align-items:flex-end;gap:3px;position:relative}
+#v-tests .tsat-cap b{font-size:var(--fs-body);font-weight:600;line-height:1;color:var(--txt)}
+#v-tests .tsat-cap i{display:block;height:3px;border-radius:999px;background:var(--c-data,#3f5572);opacity:.45}
+#v-tests .tsat-d{display:inline-block;font-size:var(--fs-body);font-weight:600;
+  padding:3px 9px;border-radius:999px;background:var(--panel2)}
+/* El avance usa las variantes de TEXTO del semáforo: aquí el color pinta una
+   cifra, no un punto ni una barra (regla de la v476). */
+#v-tests .tsat-d--up{color:var(--ok-text)}
+#v-tests .tsat-d--dn{color:var(--warn-text)}
+#v-tests .tsat-d--eq{color:var(--muted)}
+#v-tests .tsat-d--na{color:var(--muted2);background:none;font-weight:400}
+#v-tests .tsat-d--parc{opacity:.6}
+#v-tests .tsat-d i{font-style:normal;font-size:var(--fs-xs);vertical-align:super;margin-left:1px}
+#v-tests .tsat-pie{margin-top:12px;line-height:1.55}
+@media(max-width:860px){
+  /* En el móvil la tabla se arrastra de lado, así que la columna del nombre se
+     queda fija: necesita apilarse por encima Y ocupar la fila entera, que es lo
+     que ya está escrito para la rejilla de vendajes. */
+  #v-tests .tsat-row{grid-template-columns:26px minmax(132px,1.2fr) 86px repeat(3,62px) 72px 80px;gap:6px}
+  #v-tests .tsat-j{position:sticky;left:0;z-index:1;background:var(--panel);
+    align-self:stretch;padding-right:6px}
+  #v-tests .tsat-row:hover .tsat-j{background:var(--panel2)}
+  #v-tests .tsat-row--h .tsat-j{background:var(--panel)}
+  #v-tests .tsat-av{width:28px;height:28px}
+}
 </style>
 <script>
 /* ============================================================
@@ -37821,8 +38098,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.10*/
-const VER_ACTUAL='2026-10-31.10';
+/*BUILD:2026-10-31.11*/
+const VER_ACTUAL='2026-10-31.11';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
