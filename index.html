@@ -20055,7 +20055,7 @@ function renderTeamCitas(){
   const out=[];
   Object.keys(STATE.medLog||{}).forEach(n=>{(STATE.medLog[n]||[]).forEach(m=>{
     if(!m)return;
-    if(m.dk&&m.dk>=hoy&&m.dk<=hasta)out.push({dk:m.dk,n,t:m.title||m.type||'Consulta',
+    if(medEsCita(m)&&m.dk<=hasta&&m.dk>=hoy)out.push({dk:m.dk,n,t:m.title||m.type||'Consulta',
       who:m.who||'',af:m.afecta||'',hora:m.time||''});
     if(m.next&&m.next>=hoy&&m.next<=hasta)out.push({dk:m.next,n,t:'Próxima · '+(m.title||m.type||'consulta'),
       who:m.who||'',af:'',hora:''});});});
@@ -20239,7 +20239,7 @@ function fisEventos(desdeDk,hastaDk){
   /* citas, pruebas, reconocimientos · y la próxima cita que dejen apuntada */
   Object.keys(STATE.medLog||{}).forEach(name=>{
     (STATE.medLog[name]||[]).forEach(m=>{
-      if(!m||!m.dk)return;
+      if(!medEsCita(m))return;
       mete(m.dk,{tipo:'cita',id:m.id,name,hora:m.time||'',
         txt:m.title||m.type||'Consulta',
         meta:[m.type||'',m.who||'',m.status||''].filter(Boolean).join(' · '),afecta:m.afecta||''});
@@ -20656,6 +20656,16 @@ window.fisCandidatos=fisCandidatos;
 
    Va en ámbar, no en rojo: §2.3 reserva el rojo para las alertas y esto no
    impide entrenar. */
+/* Un registro de medLog cuenta como CITA para las agendas, el calendario y los
+   contadores de «citas en 7 días». Los tratamientos nunca contaron, y un aviso
+   de fisioterapia tampoco debe: está en medLog para quedar en el historial, no
+   para aparecer como una consulta.
+   La comprobación estaba repetida a mano en SEIS sitios con criterios distintos
+   —uno no excluía ni los tratamientos— y por eso el primer intento dejó el
+   aviso contando en «Citas en 7 días» de Fisioterapia. Una regla, un sitio: la
+   misma lección que `lbEsDe` con los bloques del día. */
+function medEsCita(e){return !!(e&&e.dk&&e.type!=='trat'&&e.type!=='ojo');}
+window.medEsCita=medEsCita;
 const OJO_CL=[['golpe','Golpe'],['molestia','Molestia'],['dolor','Dolor']];
 function ojoLoad(){if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});return STATE.medLog;}
 function ojoPersist(){ojoLoad();return lsGuardar('bmnava_medlog',STATE.medLog||{});}
@@ -21419,7 +21429,7 @@ function fisPanelDatos(){
   const prox=[];
   Object.keys(STATE.medLog||{}).forEach(n=>{(STATE.medLog[n]||[]).forEach(m=>{
     if(!m)return;
-    if(m.dk&&m.dk>=hoy)prox.push({dk:m.dk,n,txt:m.title||m.type||'Consulta',who:m.who||'',id:m.id});
+    if(medEsCita(m)&&m.dk>=hoy)prox.push({dk:m.dk,n,txt:m.title||m.type||'Consulta',who:m.who||'',id:m.id});
     if(m.next&&m.next>=hoy)prox.push({dk:m.next,n,txt:'Próxima · '+(m.title||m.type||'consulta'),who:m.who||'',id:m.id});
   });});
   prox.sort((a,b)=>a.dk.localeCompare(b.dk));
@@ -21551,7 +21561,7 @@ function fisKpiFila(){
   let citas=0;
   Object.keys(STATE.medLog||{}).forEach(n=>{(STATE.medLog[n]||[]).forEach(m=>{
     if(!m)return;
-    if(m.dk&&m.dk>=hoy&&m.dk<=d(7))citas++;
+    if(medEsCita(m)&&m.dk>=hoy&&m.dk<=d(7))citas++;
     if(m.next&&m.next>=hoy&&m.next<=d(7))citas++;});});
   const abiertos=((STATE.med||{}).inj||[]).filter(x=>x&&x.open&&!x.mergedInto);
   /* v308 · una línea de siete días bajo cada cifra: dice si sube o baja sin
@@ -21798,7 +21808,7 @@ function fisBarraTabs(){
   const hoy=dkey(new Date());
   const citas=(function(){let n=0;
     try{Object.keys(STATE.medLog||{}).forEach(x=>{(STATE.medLog[x]||[]).forEach(m=>{
-      if(m&&m.dk&&m.dk>=hoy&&m.dk<=fisDkSuma(hoy,7))n++;});});}catch(e){}
+      if(medEsCita(m)&&m.dk>=hoy&&m.dk<=fisDkSuma(hoy,7))n++;});});}catch(e){}
     return n;})();
   const b=(k,l,n)=>'<button class="'+(FIS_TAB===k?'on':'')+'" onclick="fisTab(\''+k+'\')">'+l
     +(n?'<i>'+n+'</i>':'')+'</button>';
@@ -31182,7 +31192,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
  function agRows(){
    var out=[],ML=(STATE.medLog||{});
    Object.keys(ML).forEach(function(nm){(ML[nm]||[]).forEach(function(e){
-     if(e&&e.dk&&e.type!=='trat')out.push({nm:nm,e:e});
+     if(window.medEsCita?medEsCita(e):(e&&e.dk&&e.type!=='trat'&&e.type!=='ojo'))out.push({nm:nm,e:e});
    });});
    return out;
  }
@@ -37590,8 +37600,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.1*/
-const VER_ACTUAL='2026-10-31.1';
+/*BUILD:2026-10-31.2*/
+const VER_ACTUAL='2026-10-31.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
