@@ -17229,13 +17229,13 @@ function renderTestsBaremo(){
      +'</div></details>';
 }
 window.renderTestsBaremo=renderTestsBaremo;
-window.tsaVerJugador=function(n){
-  const sel=document.getElementById('tests-player');
-  if(sel){sel.value=n;}
-  tsaModo('jugador');
-  try{renderTestsProfile();}catch(e){}
-  try{window.scrollTo(0,0);}catch(e){}
-};
+/* v481 · `tsaVerJugador` estaba declarada DOS veces en este mismo bloque y la
+   segunda pisaba a esta — la trampa que §2.5 tiene escrita para `medPersist`.
+   Esta primera era la única que llamaba a `tsaModo('jugador')`, o sea la única
+   que de verdad cambiaba a la vista individual; al quedar muerta, pulsar un
+   jugador del ranking lo seleccionaba en el desplegable y te dejaba en el
+   panel de equipo, con su perfil recién pintado dentro del panel ESCONDIDO.
+   Se funden las dos en la de abajo. */
 
 /* v363 · Ranking dentro del puesto. El TSA compara a cada jugador contra los 19,
    y eso castiga estructuralmente al portero: se le puntúa con pruebas de jugador
@@ -17376,7 +17376,10 @@ function renderTestsTeam(){
 window.tsaVerJugador=function(name){
   const sel=document.getElementById('tests-player');
   if(sel){sel.value=name;try{renderTestsProfile();}catch(e){}}
-  const d=document.getElementById('coach-panel');
+  /* v481 · sin esto el perfil se pintaba en un panel oculto: `tsaModo`
+     enseña `tsa-pane-jugador` y esconde `tsa-pane-equipo`. */
+  try{tsaModo('jugador');}catch(e){}
+  const d=document.getElementById('tsa-pane-jugador')||document.getElementById('coach-panel');
   if(d)d.scrollIntoView({behavior:'smooth',block:'start'});
 };
 function renderTests(){
@@ -21106,14 +21109,18 @@ window.fisExportar=function(){
   document.body.appendChild(cap);
   cap.querySelectorAll('button,select,.fc-fil,.fis-kpis .kpi-s').forEach(x=>x.remove());
   cap.querySelectorAll('details').forEach(d=>{d.open=true;});
-  html2canvas(cap,{scale:2,useCORS:true,backgroundColor:cssVar('--bg')||'#eef1f6',logging:false})
-    .then(function(cv){
-      cap.remove();
-      const a=document.createElement('a');
-      a.download='fisioterapia_'+dkey(hoy)+'.png';
-      a.href=cv.toDataURL('image/png');a.click();
-      if(window.toast)toast('Imagen guardada');
-    }).catch(function(){cap.remove();if(window.toast)toast('No se ha podido exportar');});
+  /* v481 · por `exportNodePNG` y no llamando a html2canvas a pelo. Llamando
+     directo se saltaba todo lo que esa función acumula —el emparejado por
+     `data-x2p`, la retirada del `box-shadow: inset` y la conversión de
+     `color()`/`oklch()`/`color-mix()`—. Medido en este panel: 0 sombras
+     interiores, pero SÍ 2 elementos con color moderno (`.pillT`), que
+     html2canvas 1.4.1 no sabe leer. Es el mismo arreglo que la ficha del
+     jugador en la v477; aquel se midió por píxel y este hereda la corrección. */
+  cap.id='fis-cap-png';
+  Promise.resolve(exportNodePNG('fis-cap-png','fisioterapia_'+dkey(hoy)+'.png',
+      {bg:cssVar('--bg')||'#eef1f6'}))
+    .then(function(){cap.remove();if(window.toast)toast('Imagen guardada');},
+          function(){cap.remove();if(window.toast)toast('No se ha podido exportar');});
 };
 /* ── los datos que le sirven a Virginia para trabajar ── */
 function fisPanelDatos(){
@@ -37165,8 +37172,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-30.2*/
-const VER_ACTUAL='2026-10-30.2';
+/*BUILD:2026-10-30.3*/
+const VER_ACTUAL='2026-10-30.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
