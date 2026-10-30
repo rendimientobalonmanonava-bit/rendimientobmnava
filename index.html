@@ -3335,6 +3335,17 @@ html[data-theme="dark"] .hq-ct button.on{border-color:#4bb8cf;background:rgba(75
   letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .fn-c b{display:block;font-size:23px;font-weight:700;line-height:1.15;margin-top:2px}
 .fn-c u{display:block;text-decoration:none;font-size:11.5px;color:var(--muted);margin-top:1px}
+.ojo-list{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
+.ojo-it{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 10px;border-radius:11px;
+  background:color-mix(in srgb,var(--warn) 9%,transparent);border:1px solid color-mix(in srgb,var(--warn) 28%,transparent)}
+.ojo-it b{font-size:var(--fs-sm);font-weight:700;cursor:pointer}
+.ojo-it>span{font-size:var(--fs-xs);font-weight:700;color:var(--warn-text)}
+.ojo-it em{font-style:normal;font-size:var(--fs-xs);color:var(--muted);min-width:0;flex:1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ojo-d{font-style:normal;font-size:var(--fs-xs);color:var(--muted);margin-left:auto}
+.ojo-x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 4px;line-height:1}
+.ojo-x:hover{color:var(--txt)}
+@media(max-width:560px){.ojo-it em{flex-basis:100%;white-space:normal}.ojo-d{margin-left:0}}
 .fh-avs{display:flex;flex-direction:column;margin:0 0 4px}
 /* Fila de aviso: el nombre no se encoge y el mensaje sí, con min-width:0 para
    que no empuje nada fuera en el móvil. */
@@ -5977,6 +5988,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <span class="tag">Día seleccionado</span>
       <div id="day-ctx" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
     </div>
+    <div id="team-ojo"></div>
     <!-- v231 · Tira de titulares: los seis números que deciden la sesión de hoy.
          Antes había que leer el anillo, el donut y bajar hasta la tabla. -->
     <div id="team-strip"></div>
@@ -13254,6 +13266,7 @@ function renderTeam(){
   else{if(cards)cards.style.display='none';if(tw)tw.style.display='';
     document.querySelector('#team-tbl tbody').innerHTML=ps.map(p=>teamRow(p,matchDks)).join('')||`<tr><td colspan="9" class="muted">Sin datos. Ve a Conexión.</td></tr>`;}
   drawTeam7();drawAvail();renderTeamHR();renderTeamMeters();renderTeamIntensity();
+  try{renderOjoResumen();}catch(e){}
   renderPosBand();
 }
 function teamRow(p,matchDks){
@@ -20617,6 +20630,138 @@ window.fisCandidatos=fisCandidatos;
 /* ── v299 · Lo de hoy, arriba y con un clic para registrar ──
    Virginia entra por la mañana y lo que necesita es la lista de a quién toca.
    Antes había que buscar el día en la rejilla y abrirlo. */
+/* ═══ v488 · «Ojo para mañana» ═══
+   Virginia, 31/10/2026 (vía Daniel): ve a alguien después de entrenar que se
+   ha llevado un golpe o que queda en duda para el día siguiente, y quiere que
+   a Daniel y a Carlos les salte un aviso. **No es un cambio de
+   disponibilidad**: el jugador entrena, sólo hay que valorarlo.
+
+   Auditado antes de construirlo, que en esta app ya se ha propuesto tres veces
+   algo que estaba hecho. Lo que había NO cubre esto:
+     · `fisCandidatos` sale del cuestionario que rellena el JUGADOR por la
+       mañana, no de lo que ve ella por la tarde.
+     · `medPhysioAlerts` exige un tratamiento registrado, que es justo el
+       trabajo que ella quería ahorrarse (v447).
+     · Los estados de `PHYSTAT` deciden si entrena o cómo, y marcan al jugador
+       en Disponibilidad, calendario y ficha: más pesado de lo que se pide.
+
+   Dónde vive: en `STATE.medLog`, con `type:'ojo'`. Daniel pidió que «ese golpe
+   o incidente quede reflejado en fisio/médico y que no se pierda», y
+   `bmnava_medlog` ya está en la copia de seguridad, en las tumbas, en la
+   sincronización y en la cronología de la ficha. Un almacén nuevo habrían sido
+   cuatro listas que registrar (§9) y un segundo sitio donde vive lo mismo.
+
+   Se CIERRA, no se borra: la ✕ pone `vis` y el registro se queda en el
+   historial del jugador para siempre, que es lo que se pidió.
+
+   Va en ámbar, no en rojo: §2.3 reserva el rojo para las alertas y esto no
+   impide entrenar. */
+const OJO_CL=[['golpe','Golpe'],['molestia','Molestia'],['dolor','Dolor']];
+function ojoLoad(){if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});return STATE.medLog;}
+function ojoPersist(){ojoLoad();return lsGuardar('bmnava_medlog',STATE.medLog||{});}
+function ojoAbiertos(){
+  const ML=ojoLoad(),out=[];
+  Object.keys(ML).forEach(n=>{(ML[n]||[]).forEach(e=>{
+    if(e&&e.type==='ojo'&&!e.vis)out.push({name:n,e:e});});});
+  return out.sort((a,b)=>String(b.e.dk||'').localeCompare(String(a.e.dk||'')));
+}
+function ojoLab(e){
+  const c=(OJO_CL.find(x=>x[0]===e.clase)||[0,'Aviso'])[1];
+  return c+(e.zona?' · '+e.zona:'');
+}
+function ojoEsc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function ojoQ(v){return String(v==null?'':v).replace(/'/g,"\\'");}
+function ojoFecha(dk){const a=String(dk||'').split('-');return a.length===3?(a[2]+'/'+a[1]):'';}
+window.ojoMarcar=function(name){
+  const roster=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const ov=ensureInfoOverlay();
+  const t=document.getElementById('info-mtitle'),b=document.getElementById('info-mbody');
+  if(t)t.textContent='Ojo para mañana';
+  const head=ov.querySelector('.info-mhead > div');
+  if(!roster.length){
+    if(b)b.innerHTML='<p class="hint">Aún no hay jugadores cargados. Conecta desde <b>Conexión</b> y vuelve a intentarlo.</p>';
+    if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
+    ov.style.display='flex';return;}
+  if(b)b.innerHTML='<p class="hint">Sale como aviso en el <b>Resumen</b> para Daniel y Carlos. '
+    +'<b>No cambia su disponibilidad</b>: el jugador entrena, sólo hay que valorarlo. '
+    +'Se queda hasta que alguien lo dé por pasado, y el registro se guarda en su historial médico.</p>'
+    +'<div class="add-modal-grid">'
+    +'<label class="wide">Jugador<select id="ojo-player">'
+      +roster.map(n=>'<option'+(n===name?' selected':'')+'>'+ojoEsc(n)+'</option>').join('')+'</select></label>'
+    +'<label>Qué ha pasado<select id="ojo-clase">'
+      +OJO_CL.map(c=>'<option value="'+c[0]+'">'+c[1]+'</option>').join('')+'</select></label>'
+    +'<label>Zona<input id="ojo-zona" placeholder="tobillo D, gemelo…"></label>'
+    +'<label class="wide">Nota (opcional)<input id="ojo-nota" placeholder="se lo hizo en el 2x2, acabó el entrenamiento"></label>'
+    +'</div>';
+  if(head)head.innerHTML='<button class="btn" onclick="ojoGuardar()">Marcar</button> '
+    +'<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
+  ov.style.display='flex';
+  setTimeout(()=>{const p=document.getElementById('ojo-player');if(p)p.focus();},60);
+};
+window.ojoGuardar=function(){
+  const g=id=>(document.getElementById(id)||{}).value;
+  const n=g('ojo-player');
+  if(!n){try{toast('Selecciona un jugador');}catch(e){}return;}
+  const clase=g('ojo-clase')||'molestia',zona=(g('ojo-zona')||'').trim(),nota=(g('ojo-nota')||'').trim();
+  ojoLoad();
+  const lab=(OJO_CL.find(x=>x[0]===clase)||[0,'Aviso'])[1];
+  const e={id:'ojo_'+Date.now(),type:'ojo',dk:dkey(new Date()),clase:clase,zona:zona,
+           note:nota,title:lab+(zona?' · '+zona:''),vis:false};
+  (STATE.medLog[n]=STATE.medLog[n]||[]).push(e);
+  ojoPersist();
+  try{closeInfoEdit();}catch(err){}
+  try{toast(String(n).split(' ')[0]+' · marcado para valorar mañana');}catch(err){}
+  ojoRepintar(n);
+};
+window.ojoResolver=function(name,id){
+  ojoLoad();
+  const e=(STATE.medLog[name]||[]).find(x=>x&&x.id===id);
+  if(!e)return;
+  e.vis=true;e.visDk=dkey(new Date());
+  ojoPersist();
+  try{toast(String(name).split(' ')[0]+' · aviso retirado · queda en su historial');}catch(err){}
+  ojoRepintar(name);
+};
+function ojoRepintar(name){
+  try{if(typeof renderFisio==='function'&&document.getElementById('estado-fisio'))renderFisio();}catch(e){}
+  try{renderOjoResumen();}catch(e){}
+  try{if(name&&typeof medRenderPlayer==='function'&&document.getElementById('player-medical'))medRenderPlayer(name);}catch(e){}
+}
+/* La lista para Fisioterapia · Hoy. Cadena vacía si no hay ninguno: una sección
+   fija diciendo «no hay avisos» es ruido, misma regla que la tarjeta del tape. */
+function ojoPanelHTML(){
+  const ab=ojoAbiertos();
+  if(!ab.length)return '';
+  return '<div class="fh-sec">Ojo para mañana · '+ab.length+'</div>'
+   +'<div class="ojo-list">'+ab.map(o=>
+      '<div class="ojo-it">'
+      +'<b onclick="openPlayer(\''+ojoQ(o.name)+'\')">'+ojoEsc(o.name)+'</b>'
+      +'<span>'+ojoEsc(ojoLab(o.e))+'</span>'
+      +(o.e.note?'<em>'+ojoEsc(o.e.note)+'</em>':'')
+      +'<i class="ojo-d">'+ojoFecha(o.e.dk)+'</i>'
+      +'<button class="ojo-x" title="Ya ha pasado · retira el aviso y queda en su historial" '
+        +'onclick="ojoResolver(\''+ojoQ(o.name)+'\',\''+ojoQ(o.e.id)+'\')">✕</button>'
+      +'</div>').join('')+'</div>';
+}
+/* Y el bloque de la portada, que es donde Daniel pidió verlo. */
+function renderOjoResumen(){
+  const box=document.getElementById('team-ojo');
+  if(!box)return;
+  const ab=ojoAbiertos();
+  if(!ab.length){box.innerHTML='';return;}
+  box.innerHTML='<div class="panel"><h2>Ojo para mañana <span class="r muted">'+ab.length
+    +' · lo marcó fisioterapia</span></h2>'
+    +'<p class="small muted" style="margin:0 0 10px">Entrenan con normalidad; hay que valorarlos antes de la sesión.</p>'
+    +'<div class="ojo-list">'+ab.map(o=>
+      '<div class="ojo-it">'
+      +'<b onclick="openPlayer(\''+ojoQ(o.name)+'\')">'+ojoEsc(o.name)+'</b>'
+      +'<span>'+ojoEsc(ojoLab(o.e))+'</span>'
+      +(o.e.note?'<em>'+ojoEsc(o.e.note)+'</em>':'')
+      +'<i class="ojo-d">'+ojoFecha(o.e.dk)+'</i>'
+      +'<button class="ojo-x" title="Ya ha pasado · retira el aviso y queda en su historial" '
+        +'onclick="ojoResolver(\''+ojoQ(o.name)+'\',\''+ojoQ(o.e.id)+'\')">✕</button>'
+      +'</div>').join('')+'</div></div>';
+}
 function fisHoyPanel(){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
@@ -20722,12 +20867,13 @@ function fisHoyPanel(){
         +'<button class="btn" onclick="fisTratarA(\'\')">＋ Tratamiento</button>'
         +'<button class="btn ghost" onclick="fisAddCita(\''+hoy+'\')">＋ Cita</button>'
         +'<button class="btn ghost" onclick="fisSerie(\'\',\''+hoy+'\')">＋ Serie</button>'
+        +'<button class="btn ghost" onclick="ojoMarcar(\'\')" title="Marcar a alguien a valorar mañana · no cambia su disponibilidad">⚠ Ojo mañana</button>'
         +'<button class="btn ghost" onclick="fisPase(0)" title="Ir uno a uno por los pendientes">▶ Pase de camilla</button>'
       +'</span></div>'
     +'<div class="fb-wrap"><input class="fb-in" placeholder="Buscar jugador, lesión o tratamiento…" '
       +'oninput="fisBuscar(this.value)" onfocus="fisBuscar(this.value)">'
       +'<div class="fb-res" id="fis-bres" style="display:none"></div></div>'
-    +avisos+cuerpo+pend
+    +ojoPanelHTML()+avisos+cuerpo+pend
   +'</div>';
 }
 /* ═══ v301 · Series de sesiones ═══
@@ -30904,8 +31050,8 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
 <div id="med-overlay" class="med-overlay"><div class="med-modal" id="med-modal-body"></div></div>
 <script>
 (function(){
- const TY={lesion:{l:'Lesión',c:'#e23b32'},cita:{l:'Cita médica',c:'#2563eb'},recon:{l:'Reconocimiento',c:'#7c3aed'},prueba:{l:'Prueba diagnóstica',c:'#0e7490'},trat:{l:'Tratamiento/fisio',c:'#1ea863'}};
- const TY_ICON={lesion:'🩹',cita:'📅',recon:'🩺',prueba:'🧪',trat:'👐'};
+ const TY={lesion:{l:'Lesión',c:'#e23b32'},cita:{l:'Cita médica',c:'#2563eb'},recon:{l:'Reconocimiento',c:'#7c3aed'},prueba:{l:'Prueba diagnóstica',c:'#0e7490'},trat:{l:'Tratamiento/fisio',c:'#1ea863'},ojo:{l:'Ojo para mañana',c:'var(--warn)'}};
+ const TY_ICON={lesion:'🩹',cita:'📅',recon:'🩺',prueba:'🧪',trat:'👐',ojo:'⚠'};
  function miDateShort(dk){if(!dk)return '';const a=dk.split('-').map(Number);const m=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][a[1]-1];return a[2]+' '+m;}
  /* v218 · Cómo afecta la cita al entrenamiento de ese día. Una cita por la mañana
     con entreno por la tarde no debe hacer perder la sesión, así que no basta con
@@ -30953,14 +31099,17 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
  window.citasOfPlayer=function(name,fromDk,toDk){
    load();                       /* v221 · sin esto, entrar directo a Médico dejaba STATE.medLog vacío */
    return ((STATE.medLog||{})[name]||[])
-     .filter(e=>e&&e.dk&&e.type!=='trat'&&(!fromDk||e.dk>=fromDk)&&(!toDk||e.dk<=toDk))
+     /* v488 · 'ojo' es un aviso de Virginia, no una cita: no entra en la
+       agenda médica ni en el calendario, aunque viva en medLog para quedar
+       en el historial del jugador. */
+    .filter(e=>e&&e.dk&&e.type!=='trat'&&e.type!=='ojo'&&(!fromDk||e.dk>=fromDk)&&(!toDk||e.dk<=toDk))
      .slice().sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
  };
  window.citasOfDay=function(dk){
    load();                       /* idem: el calendario también se abre sin pasar por Médico */
    const out=[];const ML=(STATE.medLog||{});
    Object.keys(ML).forEach(nm=>{(ML[nm]||[]).forEach(e=>{
-     if(e&&e.dk===dk&&e.type!=='trat')out.push({name:nm,e:e});
+     if(e&&e.dk===dk&&e.type!=='trat'&&e.type!=='ojo')out.push({name:nm,e:e});
    });});
    return out.sort((a,b)=>String(a.e.time||'99:99').localeCompare(String(b.e.time||'99:99')));
  };
@@ -37441,8 +37590,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-30.22*/
-const VER_ACTUAL='2026-10-30.22';
+/*BUILD:2026-10-31.1*/
+const VER_ACTUAL='2026-10-31.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
