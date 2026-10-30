@@ -557,6 +557,25 @@ main{padding:20px 18px 80px}
 @media(min-width:1400px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
 /* ===== Dashboard superior a 2 columnas (equipo) ===== */
 /* ===== v231 · Resumen del equipo en filas temáticas ===== */
+.eq-top{display:grid;gap:14px;align-items:start}
+.eq-top>#team-ojo:empty{display:none}
+/* v490 · Daniel, 31/10/2026: «ocupa muchísimo, fíjate en todo el espacio vacío
+   dentro de ese módulo» — un panel a todo lo ancho para una tarjeta de 205 px,
+   la misma pega que puso al microciclo. Con avisos, dos columnas: la tira a la
+   izquierda en 2×3 y los avisos a la derecha. El selector mira si `#team-ojo`
+   tiene panel dentro, así que el reparto lo decide el contenido. */
+.eq-top:has(#team-ojo .panel){grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);margin:14px 0}
+.eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(2,minmax(0,1fr));margin:0}
+.eq-top:has(#team-ojo .panel) #team-ojo>.panel{margin:0}
+/* Por debajo de 1100 px no caben dos columnas con contenido dentro: se apila y
+   la tira vuelve a repartirse como siempre. */
+@media(max-width:1100px){
+  .eq-top:has(#team-ojo .panel){grid-template-columns:minmax(0,1fr)}
+  .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:860px){
+  .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 .eq-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:14px 0}
 .eq-tile{background:var(--glass);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:14px;padding:13px 15px;min-width:0}
 .eq-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
@@ -6014,10 +6033,16 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <span class="tag">Día seleccionado</span>
       <div id="day-ctx" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
     </div>
-    <div id="team-ojo"></div>
-    <!-- v231 · Tira de titulares: los seis números que deciden la sesión de hoy.
-         Antes había que leer el anillo, el donut y bajar hasta la tabla. -->
-    <div id="team-strip"></div>
+    <!-- v490 · Cuando hay avisos de fisioterapia, la tira de titulares se queda
+         a la IZQUIERDA en dos columnas y los avisos a la derecha. Sin avisos,
+         `#team-ojo` queda vacío y la tira recupera sus seis columnas: lo decide
+         el CSS con `:has`, así que el JS no tiene que avisar de nada. -->
+    <div class="eq-top">
+      <!-- v231 · Tira de titulares: los seis números que deciden la sesión de hoy.
+           Antes había que leer el anillo, el donut y bajar hasta la tabla. -->
+      <div id="team-strip"></div>
+      <div id="team-ojo"></div>
+    </div>
     <!-- v231 · Filas temáticas en vez de dos columnas genéricas. -->
     <div class="eq-r3">
       <div class="eq-col">
@@ -37637,8 +37662,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.4*/
-const VER_ACTUAL='2026-10-31.4';
+/*BUILD:2026-10-31.5*/
+const VER_ACTUAL='2026-10-31.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
