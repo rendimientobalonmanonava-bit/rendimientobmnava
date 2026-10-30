@@ -6436,7 +6436,27 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div class="panel" id="pt-semana"></div>
       <div class="panel" id="pt-perfiles"></div>
       <div class="panel" id="pt-estimador"></div>
-      </div>
+      <details class="panel" style="padding:14px 18px">
+        <summary style="cursor:pointer;font-weight:700">Cargar partido medido · Z1–Z5 desde Polar</summary>
+        <div style="margin-top:12px">
+          <p class="hint">Pega el resumen de Polar Team del partido, <b>una línea por jugador</b>, con el mismo formato que en Pulsómetros. Se guardan todas las zonas pero el perfil trabaja con <b>Z4 y Z5</b>.<br>
+          Formato: <span class="mono">Nombre; FC media %; FC máx %; kcal; Z1 min; Z2 min; Z3 min; Z4 min; Z5 min</span></p>
+          <div class="grid g2">
+            <div><label>Partido</label><select id="pt-dk"></select></div>
+            <div><label>&nbsp;</label><div class="small muted" id="pt-dk-info" style="padding-top:8px"></div></div>
+          </div>
+          <label>Filas (una por jugador)</label><textarea id="pt-paste" rows="6" placeholder="Nombre; media; max; kcal; z1; z2; z3; z4; z5"></textarea>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn" onclick="ptImport()">Añadir partido</button>
+          </div>
+          <p id="pt-msg" class="hint" style="margin-top:10px"></p>
+          <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+            <h2 style="font-size:14px;margin:0 0 8px">Partidos medidos cargados</h2>
+            <div id="pt-lista"></div>
+          </div>
+        </div>
+      </details>
+    </div>
     <div class="carga-pane" id="carga-posicion" style="display:none">
       <!-- v410 · primero la comparación entre puestos, que es la pregunta de
            esta pestaña; el detalle de un puesto suelto queda debajo -->
@@ -6736,23 +6756,16 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
          saber cómo está el equipo había que abrir un desplegable y bajar. Ahora
          abre la vista. -->
     <div class="sec-tit">Estado de forma del equipo <span>todos los jugadores con valoraciones</span></div>
-    <div class="panel" id="tsa-baremo"></div>
+    <!-- v494 · Orden pedido por Daniel el 31/10/2026: primero cómo está el
+         grupo, justo debajo cómo está cada uno —que es lo que usa— y el
+         baremo al final. Los paneles conservan su id: sólo cambia dónde están
+         escritos, así que ninguna función se entera. -->
     <div class="panel" id="tsa-team-sum"></div>
-    <div class="panel" id="vh-fases"></div>
-    <!-- v491 · Una sola tabla en lugar de cuatro listas de los mismos 18
-         jugadores. Se retiran los CONTENEDORES, no el código: `ch-tsa-rank`,
-         `tsa-rank-pos` y `tsa-tbl` siguen enteros y basta con devolverles su
-         <div> — mismo patrón que Cuadrantes y Cargas›RPE. -->
     <div class="panel" id="tsa-tabla"></div>
+    <div class="panel" id="vh-fases"></div>
     <div class="panel"><h2>Mapa de calor · jugadores × tests <span class="r muted">z (rojo↓ verde↑)</span></h2><div class="wrap-x"><div id="tsa-heat"></div></div></div>
-    <details class="panel" style="padding:14px 18px">
-      <summary style="cursor:pointer;font-weight:700">Tabla de perfiles · TSA jugador por jugador</summary>
-      <div style="margin-top:12px">
-      <div class="panel"><h2>Tabla de perfiles · TSA por jugador</h2><div id="tsa-tbl"></div>
-        <p class="small muted" style="margin-top:10px;line-height:1.45">z = (valor − media)/DT; tiempos invertidos (arriba = mejor). <b>TSA</b> = media de z (Turner 2019); 0–100 = t = z×10+50 (orientativo, plantilla &lt;30).</p>
-      </div>
-      </div>
-    </details>
+
+    <div class="panel" id="tsa-baremo"></div>
 
     </div><!-- /tsa-pane-equipo -->
 
@@ -17760,7 +17773,7 @@ function renderTsaTabla(){
      valores: allí también es local. */
   const corto=nm=>{const p=String(nm).split(' ');return p.length>2?p[0]+' '+p[1]:nm;};
   let rows=tsaTablaDatos();
-  if(!rows.length){box.innerHTML='<h2 style="margin-top:0">Plantilla, prueba a prueba</h2><div class="small muted">Sin valoraciones cargadas.</div>';return;}
+  if(!rows.length){box.innerHTML='<h2 style="margin-top:0">Cómo está cada jugador</h2><div class="small muted">Sin valoraciones cargadas.</div>';return;}
   const puestos=[];
   rows.forEach(r=>{if(r.pos&&puestos.indexOf(r.pos)<0)puestos.push(r.pos);});
   puestos.sort();
@@ -17809,7 +17822,7 @@ function renderTsaTabla(){
     +'</div>';
   }).join('');
 
-  box.innerHTML='<h2 style="margin-top:0">Plantilla, prueba a prueba <span class="r muted">pulsa una columna para ordenar \u00b7 un jugador para ver su perfil</span></h2>'
+  box.innerHTML='<h2 style="margin-top:0">Cómo está cada jugador <span class="r muted">pulsa una columna para ordenar \u00b7 un jugador para ver su perfil</span></h2>'
     +'<div class="tsat-chips">'+chips+'</div>'
     +'<div class="wrap-x"><div class="tsat">'+cab+filas+'</div></div>'
     +'<p class="small muted tsat-pie">'+n+' jugador'+(n===1?'':'es')+' \u00b7 <b>TSA</b> es la nota 0\u2013100 del perfil f\u00edsico; el color son los tercios del equipo. '
@@ -38128,8 +38141,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.12*/
-const VER_ACTUAL='2026-10-31.12';
+/*BUILD:2026-10-31.13*/
+const VER_ACTUAL='2026-10-31.13';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
