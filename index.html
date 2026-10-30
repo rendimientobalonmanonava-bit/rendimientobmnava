@@ -17508,48 +17508,78 @@ function tsaDesgloseHtml(name,r){
    +'<div class="ts-caps">'+caps+'</div>'+prog+'</div>';
 }
 window.tsaDesgloseHtml=tsaDesgloseHtml;
+/* ===== El baremo del equipo, reelaborado (v494) ===============================
+   Daniel, 31/10/2026: "el baremo, quiero que lo re-elabores de una manera
+   distinta, y ponlo m\u00e1s abajo".
+
+   Lo que ten\u00eda, medido: **cuatro indicadores grandes con el reparto por nivel
+   y, justo debajo, la misma barra apilada con el mismo reparto** \u2014la cifra
+   dos veces, que es lo que esta app evita\u2014; dos listas recortadas a 5 y a 3
+   pruebas; y **la mitad del cat\u00e1logo escondido tras un desplegable**, cuando
+   la pregunta del panel es precisamente en qu\u00e9 pruebas estamos lejos.
+
+   Ahora: un titular con UNA cifra \u2014cu\u00e1nto del total llega a verde o Champions\u2014
+   y, debajo, **las pruebas enteras ordenadas de peor a mejor** y **todos los
+   jugadores**, cada uno con su barra de cuatro niveles. Sin recortes y sin
+   desplegable: cabe porque las dos columnas van en paralelo.
+
+   Ni un c\u00e1lculo ni un umbral nuevo: `refEquipoDatos` ya daba el reparto por
+   prueba y por jugador, y las bandas son las de `REF_NIV`. */
 function renderTestsBaremo(){
   const box=document.getElementById('tsa-baremo');if(!box)return;
+  const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
   const d=refEquipoDatos();
-  if(!d.conRef){box.innerHTML='<h2>Baremo del equipo</h2><p class="hint">Todavía no hay valoraciones que cruzar con la referencia por puesto.</p>';return;}
-  const pct=i=>Math.round(d.tot[i]/d.conRef*100);
-  /* jugadores ordenados por cuántos tests tienen ya en Champions */
-  const rank=d.nombres.filter(n=>d.porJug[n]).map(n=>({n,c:d.porJug[n],
-      tot:d.porJug[n].reduce((a,b)=>a+b,0)}))
-    .sort((a,b)=>(b.c[3]/b.tot)-(a.c[3]/a.tot)||(a.c[0]/a.tot)-(b.c[0]/b.tot));
-  const flojos=d.porTest.slice(0,5);
-  const fuertes=d.porTest.slice().sort((a,b)=>(b.c[3]+b.c[2])/b.n-(a.c[3]+a.c[2])/a.n).slice(0,3);
+  if(!d.conRef){box.innerHTML='<h2>Baremo del equipo</h2><p class="hint">Todav\u00eda no hay valoraciones que cruzar con la referencia por puesto.</p>';return;}
+
+  /* La cifra del titular: qu\u00e9 parte de lo medido llega al nivel bueno. No es
+     una banda nueva, es la suma de los dos niveles altos de REF_NIV. */
+  const alto=d.tot[2]+d.tot[3];
+  const pctAlto=Math.round(alto/d.conRef*100);
+
+  /* Pruebas: de peor a mejor, que es el orden en el que se mira. */
+  const pruebas=d.porTest.slice().sort((a,b)=>
+    ((a.c[2]+a.c[3])/a.n)-((b.c[2]+b.c[3])/b.n) || a.t.name.localeCompare(b.t.name,'es'));
+  const filaT=o=>{
+    const ok=Math.round((o.c[2]+o.c[3])/o.n*100);
+    return '<div class="tb2-r">'
+      +'<span class="tb2-nm">'+esc(o.t.name)+'</span>'
+      +refBarraNiveles(o.c,o.n)
+      +'<span class="tb2-pc">'+ok+'%</span>'
+      +'<span class="tb2-n">'+o.n+'</span></div>';
+  };
+
+  /* Jugadores: los mismos datos, ordenados por lo que ya tienen en nivel alto. */
+  const jugs=d.nombres.filter(n=>d.porJug[n]).map(n=>{
+    const c=d.porJug[n], tot=c.reduce((a,b)=>a+b,0);
+    return {n,c,tot,ok:(c[2]+c[3])/tot,ch:c[3]};
+  }).sort((a,b)=>b.ok-a.ok||b.ch-a.ch);
+  const filaJ=o=>'<div class="tb2-r tb2-r--j" onclick="tsaVerJugador(\''+esc(o.n).replace(/'/g,"\\'")+'\')" title="Ver su perfil">'
+    +'<span class="tb2-nm">'+esc(o.n)+'</span>'
+    +refBarraNiveles(o.c,o.tot)
+    +'<span class="tb2-pc">'+Math.round(o.ok*100)+'%</span>'
+    +'<span class="tb2-ch">'+(o.ch?refInsignia(11)+o.ch:'<em class="muted">\u2014</em>')+'</span></div>';
+
+  /* Leyenda: los cuatro niveles con su color y cu\u00e1ntas medidas hay en cada uno.
+     Sustituye a los cuatro indicadores grandes, que dec\u00edan esto mismo. */
+  const leyenda=[0,1,2,3].map(i=>'<span class="tb2-lg">'
+    +'<i style="background:'+REF_NIV[i][1]+'"></i>'+esc(REF_NIV[i][2])
+    +' <b>'+d.tot[i]+'</b></span>').join('');
+
   box.innerHTML='<h2>Baremo del equipo <span class="r muted">cada jugador contra las bandas de su puesto</span></h2>'
-   +'<div class="tb-kpis">'+[0,1,2,3].map(i=>
-      /* v391 · el nivel Champions usa el azul marino, que en oscuro queda por
-         debajo del fondo: para el texto manda --champ-tx, como en el resto */
-      '<div class="tb-k" style="--c:'+REF_NIV[i][1]+';--ct:'+(i===3?'var(--champ-tx)':colTexto(REF_NIV[i][1]))+'">'
-       +(i===3?refInsignia(13):'<i></i>')
-       +'<b>'+d.tot[i]+'</b><span>'+REF_NIV[i][2]+'</span><em>'+pct(i)+'% de las medidas</em></div>').join('')
-    +'</div>'
-   +'<div class="tb-glob">'+refBarraNiveles(d.tot,d.conRef,20)
-     +'<span class="tb-glob-n">'+d.conRef+' medidas con referencia · '+d.porTest.length+' tests · '+rank.length+' jugadores'
-       +(d.fuera?' · <b>'+d.fuera+'</b> pruebas fuera por no medirse esta temporada':'')+'</span></div>'
-   +'<div class="grid g2" style="margin-top:16px">'
-     +'<div><div class="tb-sec">Dónde flojea el grupo</div>'
-       +flojos.map(o=>'<div class="tb-row"><span class="tb-nm">'+o.t.name+'</span>'+refBarraNiveles(o.c,o.n)
-          +'<span class="tb-pc" style="color:var(--bad-text)">'+Math.round(o.c[0]/o.n*100)+'% rojo</span></div>').join('')
-       +'<div class="tb-sec" style="margin-top:15px">Donde el grupo está mejor</div>'
-       +fuertes.map(o=>'<div class="tb-row"><span class="tb-nm">'+o.t.name+'</span>'+refBarraNiveles(o.c,o.n)
-          +'<span class="tb-pc" style="color:var(--ok-text)">'+Math.round((o.c[2]+o.c[3])/o.n*100)+'% ok</span></div>').join('')
-     +'</div>'
-     +'<div><div class="tb-sec">Quién está más cerca del nivel Champions</div>'
-       +rank.slice(0,8).map((o,i)=>'<div class="tb-row tb-row--j" onclick="tsaVerJugador(\''+String(o.n).replace(/'/g,"\\'")+'\')">'
-          +'<span class="tb-pos">'+(i+1)+'</span>'
-          +'<span class="tb-nm">'+o.n+'</span>'+refBarraNiveles(o.c,o.tot)
-          +'<span class="tb-ch">'+(o.c[3]?refInsignia(11)+o.c[3]:'<span class="muted">—</span>')+'</span></div>').join('')
-     +'</div>'
+   +'<div class="tb2-top">'
+     +'<div class="tb2-big"><b>'+pctAlto+'%</b><span>de las medidas llega a verde o Champions</span></div>'
+     +'<div class="tb2-topb">'+refBarraNiveles(d.tot,d.conRef,20)
+       +'<div class="tb2-lgs">'+leyenda+'</div></div>'
    +'</div>'
-   +'<details class="tb-det"><summary>Ver los '+d.porTest.length+' tests uno a uno</summary>'
-     +'<div class="tb-all">'+d.porTest.slice().sort((a,b)=>a.t.cat.localeCompare(b.t.cat)||a.t.name.localeCompare(b.t.name))
-        .map(o=>'<div class="tb-row"><span class="tb-nm">'+o.t.name+' <em>'+o.t.unit+'</em></span>'
-          +refBarraNiveles(o.c,o.n)+'<span class="tb-pc">'+o.n+'</span></div>').join('')
-     +'</div></details>';
+   +'<p class="hint tb2-sub">'+d.conRef+' medidas con referencia \u00b7 '+d.porTest.length+' pruebas \u00b7 '+jugs.length+' jugadores'
+     +(d.fuera?' \u00b7 <b>'+d.fuera+'</b> pruebas fuera por no medirse esta temporada':'')+'</p>'
+   +'<div class="vhf-cols"><div>'
+     +'<div class="vhf-sub">Por prueba <span class="muted">de peor a mejor \u00b7 % que llega a verde o Champions</span></div>'
+     +pruebas.map(filaT).join('')
+   +'</div><div>'
+     +'<div class="vhf-sub">Por jugador <span class="muted">qu\u00e9 parte de sus pruebas est\u00e1 en nivel alto</span></div>'
+     +jugs.map(filaJ).join('')
+   +'</div></div>';
 }
 window.renderTestsBaremo=renderTestsBaremo;
 /* v481 · `tsaVerJugador` estaba declarada DOS veces en este mismo bloque y la
@@ -34676,6 +34706,70 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
 #v-tests .tsat-d--parc{opacity:.6}
 #v-tests .tsat-d i{font-style:normal;font-size:var(--fs-xs);vertical-align:super;margin-left:1px}
 #v-tests .tsat-pie{margin-top:12px;line-height:1.55}
+/* ===== v494 · «Qué ha dejado la fase», dibujado ========================== */
+#v-tests .vhg-sum{display:flex;align-items:center;gap:12px;margin:2px 0 16px}
+/* El rótulo de sección va en versalitas, pero su aclaración no: hereda el
+   `text-transform` de `.vhf-sub` y salía «BARRA EN DESVIACIONES TÍPICAS». */
+#v-tests .vhf-sub .muted{text-transform:none;letter-spacing:0;font-weight:400;font-size:var(--fs-xs)}
+/* La barra se acota: estirada a todo lo ancho para decir «9 contra 3» el
+   dibujo no añade nada y el texto se iba al otro extremo de la tarjeta. */
+#v-tests .vhg-sum-b{flex:0 0 auto;width:min(300px,40%);display:flex;height:8px;border-radius:999px;overflow:hidden;background:var(--panel2)}
+#v-tests .vhg-sum-b i{display:block;height:100%}
+#v-tests .vhg-sum-t{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap}
+#v-tests .vhg-cat{font-size:var(--fs-xs);font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted2);margin:14px 0 6px}
+#v-tests .vhg-cat:first-child{margin-top:2px}
+#v-tests .vhg-r{display:grid;grid-template-columns:minmax(84px,1.1fr) minmax(76px,1.4fr) 86px 34px 54px;
+  align-items:center;gap:9px;padding:5px 0;border-bottom:.5px solid var(--hair)}
+#v-tests .vhg-r--flojo{opacity:.55}
+#v-tests .vhg-t{font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#v-tests .vhg-d{font-size:var(--fs-sm);font-weight:600;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#v-tests .vhg-n{font-size:var(--fs-xs);color:var(--muted2);text-align:right;font-variant-numeric:tabular-nums}
+/* El eje: una pista con el cero marcado en el centro y la barra saliendo de él. */
+#v-tests .vhg-ax{position:relative;display:block;height:13px;border-radius:4px;background:var(--panel2)}
+#v-tests .vhg-ax .vhg-bar{position:absolute;top:2px;bottom:2px;border-radius:3px;min-width:2px}
+#v-tests .vhg-zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--hair);
+  transform:translateX(-.5px);text-decoration:none}
+#v-tests .vhg-bar--ok{background:var(--ok)}
+#v-tests .vhg-bar--bad{background:var(--bad)}
+#v-tests .vhg-bar--n{background:var(--muted2);opacity:.5}
+/* Proporción de jugadores a mejor: fina a propósito, es el apoyo del dato. */
+#v-tests .vhg-prop{display:block;height:4px;border-radius:999px;background:var(--panel2);overflow:hidden}
+#v-tests .vhg-prop i{display:block;height:100%;background:var(--ok);opacity:.55}
+#v-tests .vhg-j{display:grid;grid-template-columns:minmax(92px,1fr) minmax(70px,1.2fr) 34px;
+  align-items:center;gap:9px;padding:5px 0;border-bottom:.5px solid var(--hair);cursor:pointer}
+#v-tests .vhg-j:hover{background:var(--panel2)}
+#v-tests .vhg-j-n{font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#v-tests .vhg-j-v{font-size:var(--fs-sm);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+#v-tests .vhg-pie{margin-top:14px;line-height:1.55}
+/* ===== v494 · El baremo reelaborado ======================================= */
+#v-tests .tb2-top{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin:4px 0 6px}
+#v-tests .tb2-big{display:flex;align-items:baseline;gap:9px;flex:none}
+#v-tests .tb2-big b{font-size:var(--fs-hero);font-weight:650;letter-spacing:-.025em;line-height:1}
+#v-tests .tb2-big span{font-size:var(--fs-sm);color:var(--muted);max-width:190px;line-height:1.3}
+#v-tests .tb2-topb{flex:1;min-width:220px}
+#v-tests .tb2-lgs{display:flex;flex-wrap:wrap;gap:13px;margin-top:9px}
+#v-tests .tb2-lg{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--muted)}
+#v-tests .tb2-lg i{width:9px;height:9px;border-radius:3px;display:block;flex:none}
+#v-tests .tb2-lg b{color:var(--txt);font-weight:600}
+#v-tests .tb2-sub{margin:2px 0 16px}
+#v-tests .tb2-r{display:grid;grid-template-columns:minmax(92px,1.2fr) minmax(90px,1.6fr) 42px 34px;
+  align-items:center;gap:9px;padding:5px 0;border-bottom:.5px solid var(--hair)}
+#v-tests .tb2-r--j{cursor:pointer}
+#v-tests .tb2-r--j:hover{background:var(--panel2)}
+#v-tests .tb2-nm{font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#v-tests .tb2-pc{font-size:var(--fs-sm);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+#v-tests .tb2-n{font-size:var(--fs-xs);color:var(--muted2);text-align:right;font-variant-numeric:tabular-nums}
+#v-tests .tb2-ch{font-size:var(--fs-xs);color:var(--muted);text-align:right;display:flex;
+  align-items:center;justify-content:flex-end;gap:3px}
+@media(max-width:860px){
+  #v-tests .tb2-r{grid-template-columns:minmax(78px,1fr) minmax(72px,1.3fr) 38px;gap:7px}
+  #v-tests .tb2-n{display:none}
+}
+@media(max-width:860px){
+  #v-tests .vhg-r{grid-template-columns:minmax(70px,1fr) minmax(56px,1fr) 74px 46px;gap:7px}
+  #v-tests .vhg-r .vhg-prop{display:none}
+}
 @media(max-width:860px){
   /* En el móvil la tabla se arrastra de lado, así que la columna del nombre se
      queda fija: necesita apilarse por encima Y ocupar la fila entera, que es lo
@@ -36870,41 +36964,104 @@ function renderVhFases(){
   }
   const fmtv=(v,u)=>(Math.round(v*100)/100).toString().replace('.',',')+(u?' '+u:'');
   const fmtd=(d,u)=>(d>0?'+':'')+fmtv(d,u);
-  const filas=C.tests.map(o=>{
-    const t=o.t, mejor=t.lowerBetter?o.med<0:o.med>0;
-    const nulo=Math.abs(o.med)<1e-9;
-    /* flecha = hacia dónde se ha movido el dato · color = si eso es a mejor */
-    const fl=nulo?'▬':(o.med>0?'▲':'▼');
+  /* ===== v494 \u00b7 El mismo c\u00e1lculo, dibujado =====================================
+     Daniel, 31/10/2026: "me gusta pero es poco atractivo visualmente, mucho
+     texto y poca gr\u00e1fica". Eran 13 filas de texto y 2.525 px sin un solo
+     gr\u00e1fico. **No se a\u00f1ade ning\u00fan c\u00e1lculo**: `vhComparaFases` ya daba la
+     mediana del cambio, cu\u00e1ntos suben y cu\u00e1ntos bajan.
+
+     El eje com\u00fan va en **desviaciones t\u00edpicas de la plantilla** (`testStats`),
+     que es la unidad con la que compara el resto de Perfil f\u00edsico: sin eso no
+     se pueden poner kg, cm y % en la misma barra. La cifra seguida conserva la
+     unidad del test, que es lo que se entiende.
+
+     Y la barra va **a la derecha si es a mejor**, no si el n\u00famero sube: eso lo
+     dice la flecha. Es la separaci\u00f3n ya escrita \u2014la flecha dice la direcci\u00f3n
+     del dato y el color si es a mejor\u2014, aqu\u00ed con el lado haciendo de color. */
+  const st=(typeof testStats==='function')?testStats():{};
+  const enDT=o=>{const s=(st[o.t.k]||{}).s; return (s&&s>0)?o.med/s:null;};
+  let tope=0; C.tests.forEach(o=>{const z=enDT(o); if(z!=null)tope=Math.max(tope,Math.abs(z));});
+  tope=Math.max(0.25,Math.ceil(tope*4)/4);
+
+  const fila=o=>{
+    const t=o.t, nulo=Math.abs(o.med)<1e-9;
+    const mejor=t.lowerBetter?o.med<0:o.med>0;
+    const fl=nulo?'\u25ac':(o.med>0?'\u25b2':'\u25bc');
     const col=(nulo||o.neutro)?'var(--muted2)':(mejor?'var(--ok)':'var(--bad)');
-    const flojo=o.n<3;   /* misma regla que calRefMD: con menos de 3 se atenúa y se dice */
-    return '<div class="vhf-r'+(flojo?' vhf-r--flojo':'')+'">'
-      +'<span class="vhf-t">'+esc(t.name)+'<em>'+esc(t.cat||'')+'</em></span>'
-      +'<span class="vhf-d" style="color:'+colTexto(col)+'">'+fl+' '+esc(fmtd(o.med,t.unit))+'</span>'
-      +'<span class="vhf-b">'+(o.neutro?'':'<i class="vhf-up" style="width:'+Math.round(o.suben/o.n*100)+'%"></i>'
-        +'<i class="vhf-dn" style="width:'+Math.round(o.bajan/o.n*100)+'%"></i>')+'</span>'
-      +'<span class="vhf-n">'+(o.neutro?('n='+o.n):(o.suben+'/'+o.n))+(flojo?' ·pocos':'')+'</span>'
+    const flojo=o.n<3;                 /* regla de calRefMD: se at\u00ebn\u00faa y se dice */
+    const z=enDT(o);
+    /* El largo es la magnitud; el LADO es \u00aba mejor\u00bb o \u00aba peor\u00bb. En los neutros
+       \u2014peso y talla\u2014 no hay lado bueno, as\u00ed que va con el signo del dato. */
+    const der=o.neutro?(o.med>0):mejor;
+    const w=(z==null||nulo)?0:Math.min(50,Math.abs(z)/tope*50);
+    const barra='<span class="vhg-ax">'
+      +'<i class="vhg-bar'+(o.neutro?' vhg-bar--n':(mejor?' vhg-bar--ok':' vhg-bar--bad'))+'"'
+      +' style="'+(der?'left:50%':'right:50%')+';width:'+w.toFixed(1)+'%"></i>'
+      +'<u class="vhg-zero"></u></span>';
+    const prop=o.neutro?'':'<span class="vhg-prop" title="'+o.suben+' a mejor \u00b7 '+o.bajan+' a peor">'
+      +'<i style="width:'+Math.round(o.suben/o.n*100)+'%"></i></span>';
+    return '<div class="vhg-r'+(flojo?' vhg-r--flojo':'')+'">'
+      +'<span class="vhg-t">'+esc(t.name)+'</span>'
+      +barra
+      +'<span class="vhg-d" style="color:'+colTexto(col)+'">'+fl+' '+esc(fmtd(o.med,t.unit))+'</span>'
+      +prop
+      +'<span class="vhg-n">'+(o.neutro?('n='+o.n):(o.suben+'/'+o.n))+(flojo?' \u00b7 pocos':'')+'</span>'
       +'</div>';
-  }).join('');
+  };
+
+  /* Agrupadas por capacidad, que es como est\u00e1 organizada toda la vista. */
+  const cats=(typeof CATS!=='undefined'?CATS:[]);
+  const porCat=[];
+  cats.forEach(c=>{const ls=C.tests.filter(o=>(o.t.cat||'')===c); if(ls.length)porCat.push([c,ls]);});
+  const resto=C.tests.filter(o=>cats.indexOf(o.t.cat||'')<0);
+  if(resto.length)porCat.push(['Otras',resto]);
+  const filas=porCat.map(([c,ls])=>'<div class="vhg-cat">'+esc(c)+'</div>'+ls.map(fila).join('')).join('');
+
+  /* Titular: cu\u00e1ntas pruebas se han movido a mejor y cu\u00e1ntas a peor. Los
+     neutros no cuentan en ninguno de los dos lados, igual que en el recuento
+     por jugador que ya hac\u00eda `vhComparaFases`. */
+  const reales=C.tests.filter(o=>!o.neutro&&Math.abs(o.med)>1e-9);
+  const nMej=reales.filter(o=>o.t.lowerBetter?o.med<0:o.med>0).length;
+  const nPeo=reales.length-nMej;
+  const tot=reales.length||1;
+  const resumen='<div class="vhg-sum">'
+    +'<span class="vhg-sum-b">'
+      +'<i class="vhg-bar--ok" style="width:'+Math.round(nMej/tot*100)+'%"></i>'
+      +'<i class="vhg-bar--bad" style="width:'+Math.round(nPeo/tot*100)+'%"></i></span>'
+    +'<span class="vhg-sum-t"><b style="color:var(--ok-text)">'+nMej+'</b> pruebas a mejor \u00b7 '
+      +'<b style="color:var(--bad-text)">'+nPeo+'</b> a peor</span></div>';
+
+  /* Por jugador: el mismo recuento, pero dibujado a los dos lados del cero. */
+  const topJ=Math.max(1,...C.jug.map(j=>Math.abs(j.mejor-j.peor)));
   const jug=C.jug.map(j=>{
     const net=j.mejor-j.peor;
     const col=net>0?'var(--ok)':net<0?'var(--bad)':'var(--muted2)';
-    return '<div class="vhf-j" onclick="openPlayer(\''+esc(j.name).replace(/'/g,"\\'")+'\')">'
-      +'<span>'+esc(j.name)+'</span>'
-      +'<b style="color:'+colTexto(col)+'">'+(net>0?'+':'')+net+'</b>'
-      +'<u>'+j.mejor+' a mejor · '+j.peor+' a peor</u></div>';
+    const w=Math.abs(net)/topJ*50;
+    return '<div class="vhg-j" onclick="openPlayer(\''+esc(j.name).replace(/'/g,"\\'")+'\')" title="'
+      +j.mejor+' a mejor \u00b7 '+j.peor+' a peor">'
+      +'<span class="vhg-j-n">'+esc(j.name)+'</span>'
+      +'<span class="vhg-ax"><i class="vhg-bar'+(net>0?' vhg-bar--ok':net<0?' vhg-bar--bad':' vhg-bar--n')+'"'
+        +' style="'+(net>=0?'left:50%':'right:50%')+';width:'+w.toFixed(1)+'%"></i><u class="vhg-zero"></u></span>'
+      +'<b class="vhg-j-v" style="color:'+colTexto(col)+'">'+(net>0?'+':'')+net+'</b></div>';
   }).join('');
+
   const fecha=d=>d.split('-').reverse().slice(0,2).join('/');
-  box.innerHTML='<h2>Qué ha dejado la fase '
-    +'<span class="r muted">'+esc(C.A.fase)+' → '+esc(C.B.fase)+'</span></h2>'
-    +'<p class="hint" style="margin:-2px 0 14px">Se compara el <b>último valor de cada fase</b> de quien tiene medición en las dos. '
-    +esc(C.A.fase)+' cerró el '+fecha(C.A.hasta)+' y '+esc(C.B.fase)+' el '+fecha(C.B.hasta)+'. '
-    +'La flecha dice hacia dónde se ha movido el dato; el color, si eso es a mejor o a peor.</p>'
+  box.innerHTML='<h2>Qu\u00e9 ha dejado la fase '
+    +'<span class="r muted">'+esc(C.A.fase)+' \u2192 '+esc(C.B.fase)+'</span></h2>'
+    +resumen
     +'<div class="vhf-cols"><div>'
-      +'<div class="vhf-sub">Por prueba · mediana del cambio</div>'+(filas||'<p class="hint">Ninguna prueba se midió en las dos fases.</p>')
+      +'<div class="vhf-sub">Por prueba <span class="muted">mediana del cambio \u00b7 barra en desviaciones t\u00edpicas</span></div>'
+      +(filas||'<p class="hint">Ninguna prueba se midi\u00f3 en las dos fases.</p>')
     +'</div><div>'
-      +'<div class="vhf-sub">Por jugador · pruebas a mejor menos a peor</div>'+(jug||'')
-    +'</div></div>';
+      +'<div class="vhf-sub">Por jugador <span class="muted">pruebas a mejor menos a peor</span></div>'+(jug||'')
+    +'</div></div>'
+    +'<p class="hint vhg-pie">Se compara el <b>\u00faltimo valor de cada fase</b> de quien tiene medici\u00f3n en las dos: '
+    +esc(C.A.fase)+' cerr\u00f3 el '+fecha(C.A.hasta)+' y '+esc(C.B.fase)+' el '+fecha(C.B.hasta)+'. '
+    +'La barra se va a la <b>derecha cuando el cambio es a mejor</b> y su largo es la magnitud en desviaciones t\u00edpicas de la plantilla, '
+    +'para que kg, cm y % se puedan comparar; la cifra va en la unidad de cada prueba y la flecha dice hacia d\u00f3nde se movi\u00f3 el dato. '
+    +'La barrita fina es la proporci\u00f3n de jugadores a mejor. Peso y talla van en <b>neutro</b>: no tienen direcci\u00f3n buena.</p>';
 }
+
 window.renderVhFases=renderVhFases;
 function vhIngestLong(rows){
   const res={rows:0,ok:0,players:0,tests:0,unknownTests:{},unknownPlayers:{},noDate:0,noPlayer:0,noValue:0,zeros:0,errs:0,dates:[]};
@@ -38141,8 +38298,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.13*/
-const VER_ACTUAL='2026-10-31.13';
+/*BUILD:2026-10-31.15*/
+const VER_ACTUAL='2026-10-31.15';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
