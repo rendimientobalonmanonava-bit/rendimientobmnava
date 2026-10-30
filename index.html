@@ -3335,17 +3335,43 @@ html[data-theme="dark"] .hq-ct button.on{border-color:#4bb8cf;background:rgba(75
   letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .fn-c b{display:block;font-size:23px;font-weight:700;line-height:1.15;margin-top:2px}
 .fn-c u{display:block;text-decoration:none;font-size:11.5px;color:var(--muted);margin-top:1px}
-.ojo-list{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
-.ojo-it{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 10px;border-radius:11px;
-  background:color-mix(in srgb,var(--warn) 9%,transparent);border:1px solid color-mix(in srgb,var(--warn) 28%,transparent)}
-.ojo-it b{font-size:var(--fs-sm);font-weight:700;cursor:pointer}
-.ojo-it>span{font-size:var(--fs-xs);font-weight:700;color:var(--warn-text)}
-.ojo-it em{font-style:normal;font-size:var(--fs-xs);color:var(--muted);min-width:0;flex:1;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ojo-d{font-style:normal;font-size:var(--fs-xs);color:var(--muted);margin-left:auto}
-.ojo-x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 4px;line-height:1}
-.ojo-x:hover{color:var(--txt)}
-@media(max-width:560px){.ojo-it em{flex-basis:100%;white-space:normal}.ojo-d{margin-left:0}}
+/* v489 · Daniel, 31/10/2026: «en vez de con texto, foto del jugador y un bloque
+   algo más atractivo». Es la misma tarjeta que «A quién mirar hoy» —`fh-avw`,
+   `fh-av`, `fh-silw`, `fh-n`, `fh-m`— para que se lea como algo de la casa y no
+   como un bloque aparte; lo único propio es el fondo ámbar y el pie. */
+.ojo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(202px,1fr));gap:10px;margin:0 0 4px}
+.ojo-c{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:13px;min-width:0;
+  border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);
+  border-top:3px solid var(--warn);
+  background:color-mix(in srgb,var(--warn) 7%,var(--panel))}
+.ojo-c-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ojo-c .fh-av{width:46px;height:46px}
+.ojo-c .fis-sil{width:34px;height:48px}
+.ojo-c .fh-n{font-size:var(--fs-sm);font-weight:700;white-space:normal;line-height:1.25;cursor:pointer}
+.ojo-c .fh-mot{margin-top:1px}
+.ojo-nota{font-size:var(--fs-xs);color:var(--muted);line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ojo-pie{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:9px;
+  border-top:1px solid color-mix(in srgb,var(--warn) 22%,transparent)}
+.ojo-f{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.ojo-ok{margin-left:auto;border:1px solid var(--line);background:var(--panel);color:var(--muted);
+  border-radius:999px;padding:5px 11px;font:inherit;font-size:var(--fs-xs);font-weight:700;cursor:pointer}
+.ojo-ok:hover{color:var(--ok-text);border-color:var(--ok)}
+/* En el teléfono la tarjeta se tumba: en columna, tres avisos ocupaban 660 px
+   de los 812 de la pantalla, y este bloque va ARRIBA del Resumen. Carlos lo
+   mira desde el móvil, así que la foto y la silueta se quedan —que es lo que
+   se pidió— y lo que cambia es la dirección. */
+@media(max-width:620px){
+  .ojo-grid{grid-template-columns:1fr;gap:8px}
+  .ojo-c{flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:11px;row-gap:4px;padding:11px 12px}
+  .ojo-c-top{flex:none;justify-content:flex-start;gap:7px}
+  .ojo-c .fh-av{width:40px;height:40px}
+  .ojo-c .fis-sil{width:26px;height:37px}
+  .ojo-c .fh-n{flex:1;min-width:0;font-size:var(--fs-sm)}
+  .ojo-c .fh-mot{flex-basis:100%;margin-top:0}
+  .ojo-nota{flex-basis:100%;-webkit-line-clamp:1}
+  .ojo-pie{flex-basis:100%;margin-top:2px;padding-top:7px}
+}
 .fh-avs{display:flex;flex-direction:column;margin:0 0 4px}
 /* Fila de aviso: el nombre no se encoge y el mensaje sí, con min-width:0 para
    que no empuje nada fuera en el móvil. */
@@ -20737,21 +20763,40 @@ function ojoRepintar(name){
   try{renderOjoResumen();}catch(e){}
   try{if(name&&typeof medRenderPlayer==='function'&&document.getElementById('player-medical'))medRenderPlayer(name);}catch(e){}
 }
+/* Una sola tarjeta, usada por Fisioterapia y por el Resumen: con el marcado
+   duplicado, el día que se toque una se queda la otra como estaba.
+   La foto y la silueta salen de los helpers que ya existen (`photoFor`,
+   `fisSilueta` con `fisZonas`), así que la zona que escriba Virginia a mano se
+   resuelve por el MISMO camino que el mapa corporal del cuestionario. */
+function ojoFoto(n){
+  try{return (window.photoFor?photoFor(n):null)||((STATE.players||{})[n]||{}).avatar||window.__AVATAR__||'';}
+  catch(e){return window.__AVATAR__||'';}
+}
+function ojoTarjeta(o){
+  const zs=(typeof fisZonas==='function'&&o.e.zona)?fisZonas(o.e.zona):[];
+  let sil='';
+  try{if(zs.length&&typeof fisSilueta==='function')sil=fisSilueta(zs,'var(--warn)');}catch(e){}
+  return '<div class="ojo-c">'
+    +'<div class="ojo-c-top">'
+      +'<span class="fh-avw" style="--uc:var(--warn)"><img class="fh-av" src="'+ojoFoto(o.name)+'" alt=""></span>'
+      +(sil?'<span class="fh-silw">'+sil+'</span>':'')
+    +'</div>'
+    +'<div class="fh-n" onclick="openPlayer(\''+ojoQ(o.name)+'\')">'+ojoEsc(o.name)+'</div>'
+    +'<div class="fh-mot"><span class="fh-m" style="color:'+colTexto('var(--warn)')
+      +';border-color:var(--warn)">'+ojoEsc(ojoLab(o.e))+'</span></div>'
+    +(o.e.note?'<div class="ojo-nota">'+ojoEsc(o.e.note)+'</div>':'')
+    +'<div class="ojo-pie"><span class="ojo-f">'+ojoFecha(o.e.dk)+'</span>'
+      +'<button class="ojo-ok" title="Retira el aviso · el registro queda en su historial" '
+        +'onclick="ojoResolver(\''+ojoQ(o.name)+'\',\''+ojoQ(o.e.id)+'\')">✓ Ya pasó</button>'
+    +'</div></div>';
+}
 /* La lista para Fisioterapia · Hoy. Cadena vacía si no hay ninguno: una sección
    fija diciendo «no hay avisos» es ruido, misma regla que la tarjeta del tape. */
 function ojoPanelHTML(){
   const ab=ojoAbiertos();
   if(!ab.length)return '';
   return '<div class="fh-sec">Ojo para mañana · '+ab.length+'</div>'
-   +'<div class="ojo-list">'+ab.map(o=>
-      '<div class="ojo-it">'
-      +'<b onclick="openPlayer(\''+ojoQ(o.name)+'\')">'+ojoEsc(o.name)+'</b>'
-      +'<span>'+ojoEsc(ojoLab(o.e))+'</span>'
-      +(o.e.note?'<em>'+ojoEsc(o.e.note)+'</em>':'')
-      +'<i class="ojo-d">'+ojoFecha(o.e.dk)+'</i>'
-      +'<button class="ojo-x" title="Ya ha pasado · retira el aviso y queda en su historial" '
-        +'onclick="ojoResolver(\''+ojoQ(o.name)+'\',\''+ojoQ(o.e.id)+'\')">✕</button>'
-      +'</div>').join('')+'</div>';
+   +'<div class="ojo-grid">'+ab.map(ojoTarjeta).join('')+'</div>';
 }
 /* Y el bloque de la portada, que es donde Daniel pidió verlo. */
 function renderOjoResumen(){
@@ -20761,16 +20806,8 @@ function renderOjoResumen(){
   if(!ab.length){box.innerHTML='';return;}
   box.innerHTML='<div class="panel"><h2>Ojo para mañana <span class="r muted">'+ab.length
     +' · lo marcó fisioterapia</span></h2>'
-    +'<p class="small muted" style="margin:0 0 10px">Entrenan con normalidad; hay que valorarlos antes de la sesión.</p>'
-    +'<div class="ojo-list">'+ab.map(o=>
-      '<div class="ojo-it">'
-      +'<b onclick="openPlayer(\''+ojoQ(o.name)+'\')">'+ojoEsc(o.name)+'</b>'
-      +'<span>'+ojoEsc(ojoLab(o.e))+'</span>'
-      +(o.e.note?'<em>'+ojoEsc(o.e.note)+'</em>':'')
-      +'<i class="ojo-d">'+ojoFecha(o.e.dk)+'</i>'
-      +'<button class="ojo-x" title="Ya ha pasado · retira el aviso y queda en su historial" '
-        +'onclick="ojoResolver(\''+ojoQ(o.name)+'\',\''+ojoQ(o.e.id)+'\')">✕</button>'
-      +'</div>').join('')+'</div></div>';
+    +'<p class="small muted" style="margin:0 0 12px">Entrenan con normalidad; hay que valorarlos antes de la sesión.</p>'
+    +'<div class="ojo-grid">'+ab.map(ojoTarjeta).join('')+'</div></div>';
 }
 function fisHoyPanel(){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
@@ -37600,8 +37637,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.2*/
-const VER_ACTUAL='2026-10-31.2';
+/*BUILD:2026-10-31.4*/
+const VER_ACTUAL='2026-10-31.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
