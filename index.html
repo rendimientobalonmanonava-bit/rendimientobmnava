@@ -29081,6 +29081,126 @@ function renderCalWeek(box){
   if(hoja){try{calSemanaA4({inline:true,host:'cal-wk-a4',id:'sa-page-wk'});calA4Fit();}catch(e){console.error('bmnava · hoja semanal',e);}}
   try{renderCalMicro();}catch(e){console.error('bmnava · microciclo',e);}
 }
+/* ══ v480 · «Qué podéis esperar mañana» ═════════════════════════════════════
+   Daniel, 30/10/2026: en el día del calendario, un mensaje grupal con lo que
+   cabe esperar al día siguiente.
+
+   MEDIDO ANTES, y el resultado cambió el diseño. Sobre 92 días de equipo
+   reales (25/26, que es donde los minutos vienen en la hoja):
+
+   · Predecir con la CARGA no funciona, tampoco en grupal. Partición temporal
+     60/32: la media del equipo da RMSE 0,37 en fatiga y añadir la UA del día
+     la deja en 0,375. Agregar a 16 jugadores baja el ruido a la mitad, pero
+     la señal de la carga no sobrevive.
+   · El motivo salta al mirar los partidos: un día de partido registra 431 UA
+     de media y uno de entrenamiento 965. **La UA está invertida justo en los
+     días más duros**, porque el partido casi no entra por el cuestionario.
+   · Lo que SÍ ordena es el TIPO de día, y de forma monótona:
+
+        RPE 5–6,5  →  fatiga 2,27 al día siguiente   (n=20)
+        RPE 6,5–8  →         2,58                    (n=51)
+        PARTIDO    →         3,16                    (n=17)
+
+     De la sesión suave al partido hay 0,89 puntos, contra un error diario de
+     0,37: eso sí se lee.
+
+   Así que esto NO es una regresión: es **la mediana observada de los días
+   parecidos**, que es el contraste sin modelo que `hreqModelo` ya enseña al
+   lado de sus rangos. Ni un umbral nuevo: las bandas son las anclas de
+   `HREQ_RPE_INT` (4,5 · 6,5 · 8,2), las mismas con las que el calendario
+   traduce intensidad a RPE, y cada día histórico cae en la más cercana.
+   Por debajo de `ESP_MIN` días comparables se atenúa y se dice, que es la
+   regla de `calRefMD`. */
+const ESP_MIN=3;
+function espBanda(rpe){
+  let k=2,best=Infinity;
+  [1,2,3].forEach(i=>{const d=Math.abs(rpe-HREQ_RPE_INT[i]);if(d<best){best=d;k=i;}});
+  return k;
+}
+let ESP_REF=null,ESP_REF_K=null;
+function calEsperarRef(){
+  const k=((STATE.rpe||[]).length)+'|'+((STATE.wellness||[]).length);
+  if(ESP_REF&&ESP_REF_K===k)return ESP_REF;
+  /* wellness del equipo por día: la media de los que contestaron */
+  const wd={};
+  (STATE.wellness||[]).forEach(w=>{if(!w||!w.dk)return;
+    const o=(wd[w.dk]=wd[w.dk]||{f:0,nf:0,d:0,nd:0});
+    if(+w.fatiga>=1&&+w.fatiga<=5){o.f+=+w.fatiga;o.nf++;}
+    if(+w.doms>=1&&+w.doms<=5){o.d+=+w.doms;o.nd++;}});
+  /* qué fue cada día, según lo que declararon los jugadores */
+  const dd={};
+  (STATE.rpe||[]).forEach(r=>{if(!r||!r.dk)return;
+    const o=(dd[r.dk]=dd[r.dk]||{s:0,n:0,part:0});
+    if(+r.rpe>=1){o.s+=+r.rpe;o.n++;}
+    if(/partido/i.test(String(r.tipo||'')))o.part++;});
+  const buckets={};const todos={f:[],d:[]};
+  Object.keys(dd).forEach(dk=>{
+    const o=dd[dk];if(o.n<6)return;                 /* un día lo describe el equipo, no dos respuestas */
+    const sig=dkey(new Date(dkToDate(dk).getTime()+86400000));
+    const w=wd[sig];if(!w||w.nf<6)return;
+    const esPart=(o.part/Math.max(1,o.n))>=0.5;
+    const key=esPart?'P':('R'+espBanda(o.s/o.n));
+    const b=(buckets[key]=buckets[key]||{f:[],d:[]});
+    b.f.push(w.f/w.nf);todos.f.push(w.f/w.nf);
+    if(w.nd>=6){b.d.push(w.d/w.nd);todos.d.push(w.d/w.nd);}
+  });
+  ESP_REF_K=k;ESP_REF={buckets,todos};
+  return ESP_REF;
+}
+function espStats(a){
+  if(!a||!a.length)return null;
+  const s=a.slice().sort((x,y)=>x-y);
+  const q=p=>s[Math.min(s.length-1,Math.floor(s.length*p))];
+  const med=s.length%2?s[(s.length-1)/2]:(s[s.length/2-1]+s[s.length/2])/2;
+  return {n:s.length,med,p25:q(0.25),p75:q(0.75)};
+}
+/* Qué clase de día es el que hay PLANIFICADO: partido, o la banda de su RPE
+   objetivo — `evRpe`, que ya hereda de la intensidad cuando no se ha tocado. */
+function calEsperar(dk){
+  const evs=(STATE.calendar&&STATE.calendar[dk])||[];
+  if(!evs.length)return null;
+  const esPart=evs.some(e=>e&&e.type==='partido');
+  let key,lab;
+  if(esPart){key='P';lab='un partido';}
+  else{
+    const rs=evs.filter(e=>e&&e.type!=='descanso').map(e=>evRpe(e)).filter(v=>isFinite(v));
+    if(!rs.length)return null;
+    const rpe=Math.max.apply(null,rs);
+    const b=espBanda(rpe);key='R'+b;
+    lab='una sesión '+(b===1?'suave':b===2?'media':'dura')+' (RPE '+(Math.round(rpe*10)/10).toString().replace('.',',')+')';
+  }
+  const R=calEsperarRef();
+  const b=R.buckets[key];
+  return {key,lab,fatiga:espStats(b&&b.f),doms:espStats(b&&b.d),
+    baseF:espStats(R.todos.f),baseD:espStats(R.todos.d)};
+}
+function calEsperarHTML(dk){
+  let e=null;try{e=calEsperar(dk);}catch(x){}
+  if(!e||!e.fatiga)return '';
+  const n1=v=>v==null?'—':(Math.round(v*10)/10).toString().replace('.',',');
+  const flojo=e.fatiga.n<ESP_MIN;
+  const linea=(rot,s,base)=>{
+    if(!s)return '';
+    const d=base?s.med-base.med:null;
+    const dTxt=d==null?'':(Math.abs(d)<0.05?'como de costumbre'
+      :((d>0?'+':'−')+n1(Math.abs(d))+' sobre su normal'));
+    return '<div class="esp-r"><span class="esp-l">'+rot+'</span>'
+      +'<b class="esp-v">'+n1(s.med)+'</b>'
+      +'<span class="esp-rg">'+n1(s.p25)+'–'+n1(s.p75)+'</span>'
+      +'<span class="esp-d">'+dTxt+'</span></div>';
+  };
+  return '<div class="cal-esp'+(flojo?' esp-flojo':'')+'">'
+    +'<div class="esp-h">Qué podéis esperar mañana <span class="esp-n">tras '+e.lab
+      +' · '+e.fatiga.n+' día'+(e.fatiga.n===1?'':'s')+' así</span></div>'
+    +linea('Fatiga',e.fatiga,e.baseF)+linea('DOMS',e.doms,e.baseD)
+    +'<div class="esp-p">'
+      +(flojo?'<b>Con menos de '+ESP_MIN+' días parecidos esto es orientativo.</b> '
+             :'')
+      +'Es la <b>mediana de lo que amaneció el equipo</b> después de días así, con su rango '
+      +'habitual al lado — no es un modelo ni una predicción individual. '
+      +'En la escala del cuestionario 1 es óptimo y 5 lo peor.</div>'
+  +'</div>';
+}
 function calDayBody(dk){
   const evs=(STATE.calendar[dk]||[]);const real=calRealMap()[dk];const pl=calDayPlan(dk);const dev=pl.n?calDev(pl.planUA,real):null;
   const list=evs.length?evs.map(e=>{const t=calTipo(e.type),ci=calIntens(evIntens(e)),du=evDur(e),ct=evContacto(e),os=evObjs(e);const sp=evSP(e);
@@ -29220,7 +29340,8 @@ function calDayBody(dk){
        `<button type="button" class="cal-qbtn" style="--qc:${v.col}" onclick="calQuickAdd('${dk}','${k}')">
           <span class="cal-qdot" style="background:${v.col}"></span>${v.lab}</button>`).join('')}</div>
    </div>`;
-  return `${panel}${avisoSP}${bajasBox}${citasBox}${indivBox}${durBox}<div class="cal-evlist">${list}</div>
+  const espBox=(typeof calEsperarHTML==='function')?calEsperarHTML(dk):'';
+  return `${panel}${espBox}${avisoSP}${bajasBox}${citasBox}${indivBox}${durBox}<div class="cal-evlist">${list}</div>
    ${ed?'':rapida}
    <div class="cal-addform"><div class="cm-lab" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">${ed?'Editar sesión':'Planificar sesión'}${ed?`<button class="btn ghost" style="padding:3px 8px;font-size:12px" onclick="calCancelEdit()">Cancelar edición</button>`:''}</div>
      <div class="cal-form-grid">
@@ -33409,6 +33530,26 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
    `--muted` (5,98), igual que se hizo con «sin pulsómetro» en la v476. */
 #pl-dolor .fis-zq{font-size:var(--fs-xs);color:var(--muted)}
 
+/* v480 · «Qué podéis esperar mañana», en el día del calendario. **Sin rojo y
+   sin semáforo**: no es una alerta ni un veredicto, es lo que el equipo suele
+   amanecer tras un día así; el color de acción en el filete de la izquierda y
+   todo lo demás en neutro, que es la regla de `calRefMD`. Atenuado entero
+   cuando hay menos de `ESP_MIN` días parecidos. */
+.cal-esp{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:var(--panel2);
+  border-left:3px solid var(--accent)}
+.cal-esp.esp-flojo{opacity:.72}
+.esp-h{font-size:var(--fs-sm);font-weight:650;margin-bottom:7px}
+.esp-n{font-weight:400;color:var(--muted)}
+.esp-r{display:grid;grid-template-columns:62px 46px 72px minmax(0,1fr);gap:8px;
+  align-items:baseline;padding:3px 0}
+.esp-l{font-size:var(--fs-sm);color:var(--muted)}
+.esp-v{font-size:var(--fs-h2);font-weight:650;font-variant-numeric:tabular-nums}
+.esp-rg{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.esp-d{font-size:var(--fs-xs);color:var(--muted)}
+.esp-p{font-size:var(--fs-xs);color:var(--muted);line-height:1.5;margin-top:7px}
+@media(max-width:620px){.esp-r{grid-template-columns:58px 44px minmax(0,1fr);row-gap:2px}
+  .esp-d{grid-column:2/-1}}
+
 /* v479 · «Cómo responde a la carga». El plano va de −1 a +1 punto de la escala
    del cuestionario con el cero marcado, así que la barra se lee por el LADO al
    que cae: a la derecha, un día duro le pasa factura; a la izquierda, no. La
@@ -37024,8 +37165,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-30.1*/
-const VER_ACTUAL='2026-10-30.1';
+/*BUILD:2026-10-30.2*/
+const VER_ACTUAL='2026-10-30.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
