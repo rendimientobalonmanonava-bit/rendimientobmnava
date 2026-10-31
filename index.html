@@ -17913,6 +17913,11 @@ function renderTestsProfile(){
   const pcs=TT.map(t=>({t,p:pctile(name,t)})).filter(o=>o.p!=null);
   const strong=[...pcs].sort((a,b)=>b.p-a.p).slice(0,2);const weak=[...pcs].sort((a,b)=>a.p-b.p).slice(0,2);
   const av=(STATE.players[name]&&STATE.players[name].avatar)||'';
+  /* v495 · El nivel contra el baremo del puesto entra en la misma tarjeta que
+     la nota contra el equipo: son las dos lecturas del mismo eje y hasta ahora
+     vivían en dos bloques distintos. Sale de `capNivelBaremo`, el mismo cálculo
+     que el semáforo. */
+  const BAR=capNivelBaremo(name);
   const catData=CATS.map(c=>{
     const myZ=catScore(r.z,c);
     const note=isNaN(myZ)?null:clamp(Math.round(myZ*10+50),0,100);
@@ -17921,7 +17926,8 @@ function renderTestsProfile(){
     const teamAvg=all.length?clamp(Math.round(mean(all.map(o=>o.z))*10+50),0,100):null;
     const t=note==null?'muted':note>=60?'ok':note>=45?'warn':'bad';
     const l=note==null?'—':note>=60?'Fuerte':note>=45?'En la media':'A mejorar';
-    return {cat:c,note,rank,total:all.length,teamAvg,tier:t,lab:l};
+    const nb=BAR?capNivelDe(BAR.cats,c):null;
+    return {cat:c,note,rank,total:all.length,teamAvg,tier:t,lab:l,nb};
   });
   const asyms=[];[['cmja','CMJ'],['toba','Tobillo']].forEach(([k,lbl])=>{const v=(STATE.tests[name]||{})[k];if(v!=null&&v>10)asyms.push(lbl+' '+fmt(v,0)+'%');});
   const asymHTML=asyms.length?`<div class="asym-chip">⚠ Asimetría a vigilar: ${asyms.join(' · ')} (objetivo &lt;10%)</div>`:'';
@@ -17943,6 +17949,10 @@ function renderTestsProfile(){
         <div class="cc-lab" style="color:${colTexto('var(--'+(c.tier)+')')}">${c.lab}${c.rank?` · ${c.rank}º de ${c.total}`:''}</div>
         <div class="cap-bar"><div class="fill" style="width:${c.note||0}%;background:var(--${c.tier})"></div>${c.teamAvg!=null?`<div class="avg" style="left:${c.teamAvg}%"></div>`:''}</div>
         <div class="cap-bar-cap">línea = media del equipo${c.teamAvg==null?'':' ('+c.teamAvg+')'}</div>
+        ${c.nb?`<div class="cc-bar" title="Nivel frente al baremo de ${BAR.puesto}, no frente al equipo · ${c.nb.n} prueba${c.nb.n===1?'':'s'}">
+          <i style="background:${REF_NIV[c.nb.lv][1]}"></i>
+          <b style="color:${c.nb.lv===3?'var(--champ-tx)':colTexto(REF_NIV[c.nb.lv][1])}">${c.nb.lv===3?refInsignia(11)+' ':''}${REF_NIV[c.nb.lv][2]}</b>
+          <span>en su puesto · ${c.nb.n} prueba${c.nb.n===1?'':'s'}</span></div>`:''}
       </div>`).join('')}
     </div>
     <div class="sw-row">
@@ -18049,8 +18059,15 @@ function renderTestsGraphs(name){
   const box=document.getElementById('tsa-graphs');if(!box||!name)return;
   try{buildTestHist();}catch(e){}
   box.innerHTML=`<h2>Gráficos del perfil físico <span class="r muted">${name}</span></h2>
-    ${fichaSemaforo(name)}
-    ${fichaPercentiles(name)}
+    <!-- v495 · Daniel, 31/10/2026. El semáforo de capacidades sube a la
+         cabecera del jugador, junto a la nota de cada capacidad: eran las
+         mismas tres capacidades en dos sitios, una contra el equipo y otra
+         contra el baremo, y se leen juntas. Y el percentil de cinco pruebas
+         sueltas se va porque la tabla «Detalle por categoría» ya trae el de
+         TODAS, con su valor, su nivel y lo que le falta para Champions.
+         Las dos funciones siguen enteras: fichaSemaforo la usan la ficha del
+         jugador y la exportable, y fichaPercentiles basta con volver a
+         llamarla aquí. -->
     <div class="fband-h"><span class="t">Comparativa vs equipo y evolución</span><span class="l"></span></div>
     <div class="grid g2" style="padding-top:6px">
       <div><div class="fsec">Diferencia vs media del equipo (z-score)</div><div style="height:240px"><canvas id="ch-tsa-div"></canvas></div></div>
@@ -18441,11 +18458,17 @@ function swCard(name){
    nivel sale del baremo de su puesto (rojo, ámbar, verde, Champions) y no
    depende de nadie más. Si no hay ningún valor con baremo utilizable se cae a
    la versión por z, que es lo único que queda. */
-function fichaSemaforo(name,col){
+/* v495 · El nivel por capacidad contra el baremo del puesto, extraído de
+   `fichaSemaforo` para que la CABECERA del jugador y el semáforo digan lo
+   mismo. Se extrae en vez de copiarse: dos cálculos del mismo nivel se
+   desincronizan al primer ajuste, que es lo ya escrito del ACWR proyectado y
+   de `testZBase`. Devuelve null si el jugador no tiene baremo de su puesto. */
+function capNivelBaremo(name){
   const puesto=(window.refPuesto?refPuesto(name):null);
+  if(!puesto)return null;
   const vals=(STATE.tests||{})[name]||{};
   const cats={};
-  if(puesto)TESTS.forEach(t=>{
+  TESTS.forEach(t=>{
     if(!tsaEnNota(t))return;
     if(!fichaVigente(t.k))return;
     if(typeof tempVigente==='function'&&!tempVigente(t.k))return;
@@ -18453,12 +18476,24 @@ function fichaSemaforo(name,col){
     const nv=refNivel(t.k,v,puesto);if(!nv)return;
     (cats[t.cat]=cats[t.cat]||[]).push({t,v,lv:nv.lv});
   });
+  return {puesto,cats};
+}
+/* Nivel redondeado de una capacidad, 0 rojo … 3 Champions. */
+function capNivelDe(cats,c){
+  const arr=cats&&cats[c];
+  if(!arr||!arr.length)return null;
+  return {lv:Math.max(0,Math.min(3,Math.round(mean(arr.map(o=>o.lv))))),n:arr.length};
+}
+window.capNivelBaremo=capNivelBaremo;
+function fichaSemaforo(name,col){
+  const R=capNivelBaremo(name);
+  const puesto=R&&R.puesto, cats=(R&&R.cats)||{};
   const order=['Condición','Fuerza','Explosividad'];
   if(!order.some(c=>cats[c]&&cats[c].length))return fichaSemaforoZ(name,col);
   const dec=x=>Math.abs(x)<1?2:(Math.abs(x)<10?1:0);
   const cells=order.filter(c=>cats[c]&&cats[c].length).map(c=>{
     const arr=cats[c];
-    const lv=Math.max(0,Math.min(3,Math.round(mean(arr.map(o=>o.lv)))));
+    const lv=capNivelDe(cats,c).lv;
     const cl=REF_NIV[lv][1],lab=REF_NIV[lv][2];
     /* el semáforo dibujado solo tiene tres luces: Champions enciende la verde y
        se distingue por la estrella */
@@ -34753,6 +34788,13 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
 #v-tests .tb2-lg i{width:9px;height:9px;border-radius:3px;display:block;flex:none}
 #v-tests .tb2-lg b{color:var(--txt);font-weight:600}
 #v-tests .tb2-sub{margin:2px 0 16px}
+/* v495 · El nivel de baremo dentro de la tarjeta de capacidad. */
+#v-tests .cc-bar{display:flex;align-items:center;gap:6px;margin-top:8px;
+  padding-top:8px;border-top:.5px solid var(--hair)}
+#v-tests .cc-bar i{width:9px;height:9px;border-radius:3px;display:block;flex:none}
+#v-tests .cc-bar b{font-size:var(--fs-sm);font-weight:600;white-space:nowrap}
+#v-tests .cc-bar span{font-size:var(--fs-xs);color:var(--muted2);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
 #v-tests .tb2-r{display:grid;grid-template-columns:minmax(92px,1.2fr) minmax(90px,1.6fr) 42px 34px;
   align-items:center;gap:9px;padding:5px 0;border-bottom:.5px solid var(--hair)}
 #v-tests .tb2-r--j{cursor:pointer}
@@ -38298,8 +38340,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.15*/
-const VER_ACTUAL='2026-10-31.15';
+/*BUILD:2026-10-31.16*/
+const VER_ACTUAL='2026-10-31.16';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
