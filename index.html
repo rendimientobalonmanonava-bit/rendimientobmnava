@@ -5236,15 +5236,41 @@ body.modal-open #sidebar{overflow:hidden}
    del club tiene relación 3,2:1 y el de Handball Performance 3:1, así que el
    alto se fija pensando en el ancho que se llevan y el `max-width` es el tope
    de verdad. */
-.pt-head{background:var(--panel);color:var(--ink);padding:17px 22px 16px;border-bottom:1px solid var(--hair);
-  display:flex;align-items:center;justify-content:space-between;gap:18px}
-.pt-head-l{display:flex;align-items:center;gap:16px;min-width:0}
+/* v496 · Daniel, 31/10/2026: «mejorame el encabezado, que sigue siendo bastante
+   cutre para ser estética Apple». Revisado contra la guía, y falla en lo mismo
+   que ya estaba escrito en este archivo:
+
+   ① Era UNA fila con `align-items:center` y `space-between`: escudo, texto y
+     logo del patrocinador compartiendo línea óptica y aire, o sea tres objetos
+     en una repisa sin que ninguno mande. HIG · Layout: "place items to convey
+     their relative importance... the most important near the top and leading
+     side". La jerarquía era horizontal y plana.
+   ② El escudo iba DENTRO del grupo del texto, a 16px del título, así que hacía
+     de viñeta. HIG · Branding: "ensure branding always defers to content" — no
+     por el tamaño, sino porque estaba pegado al dato.
+   ③ El rótulo iba en VERSALITAS con tracking .2em, y este proyecto ya las quitó
+     de la tarjeta del jugador (v463) y de la ficha (v472) por leerse como una
+     tarjeta de videojuego.
+   ④ El filete de 1px sobraba: `.pt-head` es --panel y `.pt-body` es --panel2,
+     o sea que el cambio de superficie YA separa. §3: "Cabecera de panel: sin
+     raya debajo. El aire separa mejor que una línea".
+   ⑤ Los dos logos pesaban igual (46 y 38) y el del patrocinador se atenúaba con
+     `opacity`, que además es un riesgo con html2canvas. Se atenúa con TAMAÑO.
+
+   Ahora son dos franjas: membrete arriba —los dos logos a los extremos y nada
+   en medio— y debajo el contenido a todo lo ancho, en orden de lectura. */
+.pt-head{background:var(--panel);color:var(--ink);padding:20px 22px 18px;display:block}
+.pt-brand{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:17px}
 .pt-chip{background:transparent;border-radius:0;padding:0;display:flex;align-items:center;box-shadow:none;flex:none}
 .pt-chip img{width:auto;object-fit:contain;display:block}
-.pt-chip--club img{height:46px;max-width:152px}
-.pt-chip--hp img{height:38px;max-width:118px}
-.pt-kicker{font-size:var(--fs-xs);font-weight:700;letter-spacing:.2em;text-transform:uppercase;
-  color:var(--muted2);margin-bottom:3px;text-align:left}
+/* Los dos son ANCHOS, no altos (3,2:1 y 3:1): el alto se fija pensando en el
+   ancho que se llevan, y el max-width es el tope de verdad. El del club manda
+   —es su documento— y el del patrocinador acompaña. */
+.pt-chip--club img{height:31px;max-width:104px}
+.pt-chip--hp img{height:24px;max-width:76px}
+/* En frase y en el escalón secundario: es el rótulo del documento, no un grito. */
+.pt-kicker{font-size:var(--fs-sm);font-weight:500;letter-spacing:0;text-transform:none;
+  color:var(--muted);margin-bottom:1px;text-align:left}
 .pt-head-c{text-align:left;color:var(--ink);min-width:0}
 /* La fecha es lo que identifica el parte, así que se lleva el escalón grande. */
 .pt-title{font-size:var(--fs-hero);font-weight:650;letter-spacing:-.026em;line-height:1.04}
@@ -22872,15 +22898,15 @@ function renderParte(){
   }
   wrap.innerHTML=`<div class="parte-card" id="parte-card">
     <div class="pt-head">
-      <div class="pt-head-l">
+      <div class="pt-brand">
         <div class="pt-chip pt-chip--club">${clubLogo}</div>
-        <div class="pt-head-c">
-          <div class="pt-kicker">Wellness</div>
-          <div class="pt-title">${ptFecha}</div>
-          <div class="pt-sub">${ptTitular}</div>
-        </div>
+        <div class="pt-chip pt-chip--hp">${hpLogo}</div>
       </div>
-      <div class="pt-chip pt-chip--hp">${hpLogo}</div>
+      <div class="pt-head-c">
+        <div class="pt-kicker">Wellness</div>
+        <div class="pt-title">${ptFecha}</div>
+        <div class="pt-sub">${ptTitular}</div>
+      </div>
     </div>
     <div class="pt-body">
       <div class="kpi-grid">${headCells}</div>
@@ -34634,20 +34660,13 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
      ancho. Con `height:auto;max-width:100%` —lo que pedía la cabecera vieja,
      de placas blancas— la imagen volvía a su tamaño natural (381px) dentro de
      una fila flex y se salía 524px por la derecha. */
-  /* v493 · La cabecera sigue siendo UNA fila en el móvil, pero el título baja
-     un escalón: a 34px «Viernes 30 de octubre» partía en tres líneas y la
-     cabecera se iba a 211px de los 812 de la pantalla. Los logos se encogen
-     pero conservan su tope de ancho —sin él vuelven a su tamaño natural, que
-     es lo que ya pasó en la v492—. */
-  .pt-head{padding:13px 15px;gap:11px;align-items:flex-start}
-  /* A 375px, con los dos logos a los lados al texto le quedaban 160px y
-     «Viernes 30 de octubre» partía en tres líneas. El escudo sube y el texto
-     pasa debajo, a lo ancho que queda. */
-  .pt-head-l{flex-direction:column;align-items:flex-start;gap:9px;flex:1;min-width:0}
-  .pt-chip--club img{height:30px;max-width:98px}
-  .pt-chip--hp img{height:24px;max-width:76px}
+  /* v496 · La cabecera ya está apilada de serie —membrete arriba, contenido
+     debajo—, así que en el móvil no hay que recolocar nada: sólo encoger. */
+  .pt-head{padding:16px 15px 15px}
+  .pt-brand{margin-bottom:13px}
+  .pt-chip--club img{height:26px;max-width:88px}
+  .pt-chip--hp img{height:21px;max-width:66px}
   .pt-title{font-size:var(--fs-h1);letter-spacing:-.02em}
-  .pt-kicker{letter-spacing:.14em;margin-bottom:1px}
   /* Texto legible: la auditoría encontró etiquetas a 7,5 y 8,5px (FAT, DOMS,
      MOOD, ACWR de las tarjetas de A vigilar; los rótulos del anillo). A esos
      tamaños no se leen en un teléfono. Solo se suben en móvil. */
@@ -38340,8 +38359,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.16*/
-const VER_ACTUAL='2026-10-31.16';
+/*BUILD:2026-10-31.17*/
+const VER_ACTUAL='2026-10-31.17';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
