@@ -22925,24 +22925,34 @@ function renderParte(){
       nSin?'<span class="pt-mk"><i style="background:var(--muted2)"></i><b>'+nSin+'</b> sin parte</span>':''
     ].filter(Boolean).join('');
 
-    const corto=nm=>{const p=String(nm).split(' ');return p.length>2?p[0]+' '+p[1]:nm;};
-    const cuerpo=filas.slice(0,9).map(o=>{
+    const corto=nm=>{const p=String(nm).split(' ');return p.length>1?(p[0]+' '+p[1].charAt(0)+'.'):nm;};
+    /* v499 · Daniel: "es un bloque super grande con mucho espacio vacío sin usar".
+       Lo era: una fila por jugador con el motivo alineado a la derecha deja el
+       70% del ancho en blanco, y ocho filas eran 376 px para decir ocho cosas
+       cortas. Pasa a REJILLA: cada jugador es una pastilla que se reparte el
+       ancho, y el punto de gravedad deja de ser un objeto aparte —**el aro de
+       la foto ES el color**, que es la regla ya escrita para la tarjeta del
+       jugador (v465): un objeto en vez de dos. */
+    const cuerpo=filas.slice(0,12).map(o=>{
       const p=(STATE.players||{})[o.name]||{name:o.name};
-      const foto=av(p);
+      const it=o.items[0];
       const ava=avReal(p)
-        ? '<span class="pt-mi-av"><img src="'+foto+'" alt=""></span>'
-        : '<span class="pt-mi-av pt-mi-av--ini">'+ojoEsc(String(o.name).trim().charAt(0))+'</span>';
-      const chips=o.items.slice(0,2).map(it=>'<span class="pt-mi-c'+(it.gris?' pt-mi-c--g':'')+'" style="--mc:'+it.col+'">'
-        +'<i></i>'+ojoEsc(it.lab)+'</span>').join('');
-      return '<div class="pt-mi"><span class="pt-mi-dot" style="background:'+o.items[0].col+'"></span>'
-        +ava+'<span class="pt-mi-n">'+ojoEsc(corto(o.name))+'</span>'
-        +'<span class="pt-mi-cs">'+chips+'</span></div>';
+        ? '<img src="'+av(p)+'" alt="">'
+        : '<span class="pt-mg-ini">'+ojoEsc(String(o.name).trim().charAt(0))+'</span>';
+      const extra=o.items.length>1
+        ? '<i class="pt-mg-x" style="background:'+o.items[1].col+'"></i>' : '';
+      const todos=o.items.map(x=>x.lab).join(' · ');
+      return '<div class="pt-mg-c" title="'+ojoEsc(o.name+' — '+todos)+'">'
+        +'<span class="pt-mg-av" style="border-color:'+it.col+'">'+ava+'</span>'
+        +'<span class="pt-mg-t"><b>'+ojoEsc(corto(o.name))+extra+'</b>'
+          +'<em style="color:'+(it.gris?'var(--muted2)':'var(--ink)')+'">'+ojoEsc(it.lab)+'</em></span>'
+      +'</div>';
     }).join('');
-    const mas=filas.length>9?'<div class="pt-mi-mas">y '+(filas.length-9)+' más</div>':'';
+    const mas=filas.length>12?'<div class="pt-mi-mas">y '+(filas.length-12)+' más</div>':'';
     return '<div class="card-pro pt-mirar">'
       +'<div class="pt-mirar-h"><span class="mini-h">A quién mirar hoy</span>'
         +'<span class="pt-mks">'+resumen+'</span></div>'
-      +cuerpo+mas
+      +'<div class="pt-mg">'+cuerpo+'</div>'+mas
       +'<div class="pt-mpie">Los avisos los marca fisioterapia · entrenan con normalidad, hay que valorarlos</div>'
     +'</div>';
   })();
@@ -34914,26 +34924,33 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
 .pt-mk{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--muted)}
 .pt-mk i{width:8px;height:8px;border-radius:50%;display:block;flex:none}
 .pt-mk b{color:var(--ink);font-weight:650}
-.pt-mi{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:.5px solid var(--hair)}
-.pt-mi:last-of-type{border-bottom:0}
-.pt-mi-dot{width:7px;height:7px;border-radius:50%;flex:none}
-.pt-mi-av{width:26px;height:26px;border-radius:50%;overflow:hidden;flex:none;
-  background:var(--panel2);display:flex;align-items:center;justify-content:center}
-.pt-mi-av img{width:100%;height:100%;object-fit:cover;display:block}
-.pt-mi-av--ini{font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
-.pt-mi-n{font-size:var(--fs-body);font-weight:600;white-space:nowrap;flex:none}
-.pt-mi-cs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:1;min-width:0}
-.pt-mi-c{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sm);
-  color:var(--ink);white-space:nowrap}
-.pt-mi-c i{width:7px;height:7px;border-radius:2px;background:var(--mc);display:block;flex:none}
-.pt-mi-c--g{color:var(--muted)}
-.pt-mi-mas{font-size:var(--fs-xs);color:var(--muted2);padding:6px 0 0}
+/* Rejilla: las pastillas se reparten el ancho y el alto cae a la mitad. El
+   aro de la foto lleva el color de la gravedad —un objeto en vez de dos— y va
+   con `border`, no con `box-shadow`: html2canvas rellena las sombras interiores
+   y con un aro el riesgo no compensa. */
+.pt-mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(192px,1fr));gap:7px 10px}
+.pt-mg-c{display:flex;align-items:center;gap:9px;min-width:0;padding:4px 2px}
+.pt-mg-av{width:34px;height:34px;flex:none;border-radius:50%;overflow:hidden;
+  border:2.5px solid var(--muted2);background:var(--panel2);
+  display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+.pt-mg-av img{width:100%;height:100%;object-fit:cover;display:block}
+.pt-mg-ini{font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
+.pt-mg-t{min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.pt-mg-t b{font-size:var(--fs-sm);font-weight:650;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.pt-mg-t em{font-size:var(--fs-xs);font-style:normal;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+/* Un segundo motivo no cabe escrito: se marca con su color y se dice en el title. */
+.pt-mg-x{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
 .pt-mirar-ok{font-size:var(--fs-sm);color:var(--muted);padding:2px 0 4px}
 @media(max-width:620px){
-  /* En el móvil el nombre y los motivos no caben en la misma línea: el motivo
-     baja y queda alineado con el nombre. */
-  .pt-mi{flex-wrap:wrap}
-  .pt-mi-cs{flex-basis:100%;justify-content:flex-start;padding-left:42px;margin-top:2px}
+  /* A 375 px la tarjeta deja unos 300 px útiles: con 146 de mínimo sólo cabía
+     UNA pastilla por fila y el bloque se iba a 466 px. Con 132 entran dos y lo
+     que se recorta es el motivo, que sigue entero en el title. */
+  .pt-mg{grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:6px 7px}
+  .pt-mg-av{width:28px;height:28px;border-width:2px}
+  .pt-mg-c{gap:6px;padding:3px 0}
+  .pt-mirar{padding:12px 12px 11px}
 }
 #v-tests .tb2-r{display:grid;grid-template-columns:minmax(92px,1.2fr) minmax(90px,1.6fr) 42px 34px;
   align-items:center;gap:9px;padding:5px 0;border-bottom:.5px solid var(--hair)}
@@ -38480,8 +38497,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.19*/
-const VER_ACTUAL='2026-10-31.19';
+/*BUILD:2026-10-31.20*/
+const VER_ACTUAL='2026-10-31.20';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
