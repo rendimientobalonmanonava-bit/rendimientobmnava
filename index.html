@@ -22869,6 +22869,83 @@ function renderParte(){
   /* v493 · «Qué esperar mañana» fuera del parte, por decisión de Daniel el
      30/10/2026. `ptEsperar` se sigue calculando y basta con volver a
      concatenarlo aquí; el bloque sigue entero en el día del calendario. */
+  /* ===== v498 · «A quién mirar hoy» ==========================================
+     Daniel, 31/10/2026: "re-elaborame esta parte, no me cuadra nada y es super
+     poco visual; necesito que sea más sencilla, con colores o semáforos o
+     gráficas, fácil de interpretar para mis entrenadores".
+
+     Eran TRES bloques con tres formatos distintos —una barra de chips rojos
+     «No pasarnos con», una tarjeta «Ojo hoy» y otra «Sin responder»— que
+     contestan la MISMA pregunta: de quién hay que acordarse hoy. Y además se
+     pisaban: Alex salía en los dolores y otra vez en los que no han respondido,
+     como si fueran dos personas.
+
+     Ahora es una lista, una fila por jugador, con foto, un punto de color por
+     gravedad y el motivo escrito. Ni un umbral ni un color nuevos: la etiqueta
+     y el color de cada estado salen de `PHYSTAT`, que es de donde los coge el
+     resto de la app, y el aviso de fisioterapia conserva su ámbar —§2.3 reserva
+     el rojo para las alertas y esto no impide entrenar—. */
+  const MIRAR_R={baja:1,noentto:2,aviso:3,trat:4,dolor:5,nodato:9};
+  const ptMirar=(()=>{
+    const m={};
+    const add=(n,o)=>{(m[n]=m[n]||{name:n,items:[]}).items.push(o);};
+    /* 1 · lo que marca fisioterapia al acabar de entrenar */
+    let ab=[];try{ab=(typeof ojoAbiertos==='function')?ojoAbiertos():[];}catch(e){}
+    ab.forEach(o=>{try{add(o.name,{r:MIRAR_R.aviso,lab:ojoLab(o.e),col:'var(--warn)'});}catch(e){}});
+    /* 2 · el estado del día: baja, no entrena, tratamiento o dolor */
+    Object.keys(STATE.players||{}).forEach(n=>{
+      let ev=null;try{ev=effectiveStatus(n,dkEstado());}catch(e){}
+      if(!ev||['dolor','baja','trat','noentto'].indexOf(ev.status)<0)return;
+      const st=(typeof PHYSTAT!=='undefined'&&PHYSTAT[ev.status])||{lab:ev.status,c:'var(--muted)'};
+      const z=ev.zone?(' · '+ev.zone+(ev.side?' '+ev.side:'')):'';
+      add(n,{r:MIRAR_R[ev.status]||6,lab:st.lab+z,col:st.c});
+    });
+    /* 3 · de quién no sabemos nada hoy. No es una alerta: es un dato que falta,
+       así que va en gris y al final. */
+    Object.keys(STATE.players||{}).forEach(n=>{
+      if(!respHoy.has(n))add(n,{r:MIRAR_R.nodato,lab:'Sin parte hoy',col:'var(--muted2)',gris:true});
+    });
+
+    const filas=Object.values(m).map(o=>{
+      o.items.sort((a,b)=>a.r-b.r);
+      o.r=o.items[0].r;
+      return o;
+    }).sort((a,b)=>a.r-b.r||a.name.localeCompare(b.name,'es'));
+    if(!filas.length){
+      return '<div class="card-pro pt-mirar"><div class="mini-h">A quién mirar hoy</div>'
+        +'<div class="pt-mirar-ok">Nadie con dolor, sin avisos y con el parte completo.</div></div>';
+    }
+    /* Titular: cuántos hay de cada cosa. Es el vistazo de un segundo. */
+    const cuenta=(f)=>filas.filter(f).length;
+    const nAviso=cuenta(o=>o.r===MIRAR_R.aviso), nMal=cuenta(o=>o.r<=MIRAR_R.dolor&&o.r!==MIRAR_R.aviso),
+          nSin=cuenta(o=>o.r===MIRAR_R.nodato);
+    const resumen=[
+      nAviso?'<span class="pt-mk"><i style="background:var(--warn)"></i><b>'+nAviso+'</b> por valorar</span>':'',
+      nMal?'<span class="pt-mk"><i style="background:var(--bad)"></i><b>'+nMal+'</b> con molestia</span>':'',
+      nSin?'<span class="pt-mk"><i style="background:var(--muted2)"></i><b>'+nSin+'</b> sin parte</span>':''
+    ].filter(Boolean).join('');
+
+    const corto=nm=>{const p=String(nm).split(' ');return p.length>2?p[0]+' '+p[1]:nm;};
+    const cuerpo=filas.slice(0,9).map(o=>{
+      const p=(STATE.players||{})[o.name]||{name:o.name};
+      const foto=av(p);
+      const ava=avReal(p)
+        ? '<span class="pt-mi-av"><img src="'+foto+'" alt=""></span>'
+        : '<span class="pt-mi-av pt-mi-av--ini">'+ojoEsc(String(o.name).trim().charAt(0))+'</span>';
+      const chips=o.items.slice(0,2).map(it=>'<span class="pt-mi-c'+(it.gris?' pt-mi-c--g':'')+'" style="--mc:'+it.col+'">'
+        +'<i></i>'+ojoEsc(it.lab)+'</span>').join('');
+      return '<div class="pt-mi"><span class="pt-mi-dot" style="background:'+o.items[0].col+'"></span>'
+        +ava+'<span class="pt-mi-n">'+ojoEsc(corto(o.name))+'</span>'
+        +'<span class="pt-mi-cs">'+chips+'</span></div>';
+    }).join('');
+    const mas=filas.length>9?'<div class="pt-mi-mas">y '+(filas.length-9)+' más</div>':'';
+    return '<div class="card-pro pt-mirar">'
+      +'<div class="pt-mirar-h"><span class="mini-h">A quién mirar hoy</span>'
+        +'<span class="pt-mks">'+resumen+'</span></div>'
+      +cuerpo+mas
+      +'<div class="pt-mpie">Los avisos los marca fisioterapia · entrenan con normalidad, hay que valorarlos</div>'
+    +'</div>';
+  })();
   const ptMods=(ptOjo||ptSinResp)?('<div class="pt-mods">'+ptOjo+ptSinResp+'</div>'):'';
   /* v492 · El bloque por puesto ocupaba 342 px —más de un cuarto del parte—
      para dibujar círculos de iniciales. Daniel pidió encogerlo, no quitarlo:
@@ -22930,8 +23007,12 @@ function renderParte(){
           </div>
         </div>
       </div>
-      ${painsBar}
-      ${ptMods}
+      <!-- v498 · Un solo bloque en lugar de la barra «No pasarnos con», «Ojo hoy»
+           y «Sin responder»: los tres contestaban de quién hay que acordarse hoy,
+           con tres formatos distintos, y se pisaban —un jugador con dolor que
+           además no había respondido salía dos veces—. painsBar, ptOjo y
+           ptSinResp se siguen calculando y basta con volver a ponerlos aquí. -->
+      ${ptMirar}
       <!-- v493 · Daniel, 30/10/2026: «vuelve a lo anterior, quiero el individual,
            agrupados por puestos como estaban». Se vuelve a strip, que pinta un
            anillo por jugador dentro de su puesto. stripC —la fila compacta de la
@@ -34823,6 +34904,37 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
 #v-tests .cc-bar b{font-size:var(--fs-sm);font-weight:600;white-space:nowrap}
 #v-tests .cc-bar span{font-size:var(--fs-xs);color:var(--muted2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
+/* ===== v498 · «A quién mirar hoy» del parte =================================
+   Vive en el parte, que es un documento fijado a claro y que se exporta con
+   html2canvas: nada de color-mix() ni de sombras interiores. */
+.pt-mirar{padding:13px 15px 12px}
+.pt-mirar-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:9px}
+.pt-mks{display:flex;gap:13px;flex-wrap:wrap}
+.pt-mk{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--muted)}
+.pt-mk i{width:8px;height:8px;border-radius:50%;display:block;flex:none}
+.pt-mk b{color:var(--ink);font-weight:650}
+.pt-mi{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:.5px solid var(--hair)}
+.pt-mi:last-of-type{border-bottom:0}
+.pt-mi-dot{width:7px;height:7px;border-radius:50%;flex:none}
+.pt-mi-av{width:26px;height:26px;border-radius:50%;overflow:hidden;flex:none;
+  background:var(--panel2);display:flex;align-items:center;justify-content:center}
+.pt-mi-av img{width:100%;height:100%;object-fit:cover;display:block}
+.pt-mi-av--ini{font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
+.pt-mi-n{font-size:var(--fs-body);font-weight:600;white-space:nowrap;flex:none}
+.pt-mi-cs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:1;min-width:0}
+.pt-mi-c{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sm);
+  color:var(--ink);white-space:nowrap}
+.pt-mi-c i{width:7px;height:7px;border-radius:2px;background:var(--mc);display:block;flex:none}
+.pt-mi-c--g{color:var(--muted)}
+.pt-mi-mas{font-size:var(--fs-xs);color:var(--muted2);padding:6px 0 0}
+.pt-mirar-ok{font-size:var(--fs-sm);color:var(--muted);padding:2px 0 4px}
+@media(max-width:620px){
+  /* En el móvil el nombre y los motivos no caben en la misma línea: el motivo
+     baja y queda alineado con el nombre. */
+  .pt-mi{flex-wrap:wrap}
+  .pt-mi-cs{flex-basis:100%;justify-content:flex-start;padding-left:42px;margin-top:2px}
+}
 #v-tests .tb2-r{display:grid;grid-template-columns:minmax(92px,1.2fr) minmax(90px,1.6fr) 42px 34px;
   align-items:center;gap:9px;padding:5px 0;border-bottom:.5px solid var(--hair)}
 #v-tests .tb2-r--j{cursor:pointer}
@@ -38368,8 +38480,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.18*/
-const VER_ACTUAL='2026-10-31.18';
+/*BUILD:2026-10-31.19*/
+const VER_ACTUAL='2026-10-31.19';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
