@@ -611,6 +611,22 @@ Daniel, 31/10/2026, viendo la v491 funcionando. **Cuatro peticiones y las cuatro
 
 ---
 
+### 6.10 Parón internacional · quién cuenta para el equipo (v500–v501)
+
+Daniel, 3/11/2026: *«a esos jugadores les he pedido que me sigan completando el RPE de sus sesiones para seguir teniendo un registro de ellos, pero me gustaría que no nos afecte a la media grupal, porque hoy hemos hecho 3 sesiones y ellos no han hecho 3 con sus selecciones. No quiero poner que estén lesionados, porque no lo están»*.
+
+| Elemento | Regla |
+|---|---|
+| Lo que YA existía, y se verificó antes de tocar nada | El estado **«Selección» ya estaba en `PHYSTAT`**, ya estaba entre los motivos de «Ausencia de varios» (`AUS_MOTIVOS`) y **ya salía de la carga media del equipo**, porque `lbEntrenaConGrupo` excluye todo `NOAV_ST` y ahí está `seleccion`. *Comprobado en vivo antes de escribir una línea: marcarlo baja el grupo de `teamDayAgg` de 16 a 14.* Lo que faltaba era que **los demás agregados lo miraran** y que se pudiera marcar **por rango** |
+| La regla, en una frase | **Entra en lo individual, no entra en ningún agregado de equipo** — la misma que ya gobierna la tecnificación. Su ficha, su carga, su ACWR y su historial no se tocan: siguen contando para él, que es justo para lo que se le pide que rellene el cuestionario. *Comprobado: la carga de Alex sigue en sus 73 días con el parón puesto* |
+| `conLaSeleccion(name,dk)` es el punto ÚNICO | Igual que `lbEsDe` con los bloques. **Es estrecha a propósito y sólo mira `seleccion`, no todo `NOAV_ST`**: sacar también a los lesionados o a los enfermos del readiness medio y de las medias del parte sería un cambio que nadie ha pedido |
+| Los cuatro sitios que pasan a preguntarle | El **nivel de sesión** con el RPE y el contacto del equipo (`sessMeta`), el **readiness medio** del Resumen, **las dos series de 14 días** —la síncrona y la asíncrona tienen la misma línea, y cambiar sólo una deja el gráfico discrepando del número— y las **medias del parte**, filtradas por DÍA porque el parón tiene principio y fin. `calRefMD` ya estaba cubierto: lee `lbTeamDay` |
+| El recuento del parte | Pasa de «16 de 18 han respondido» a **«13 de 15 · 3 con la selección»**. Con cinco de parón, «13 de 18» hace parecer que faltan cinco partes por rellenar cuando lo que faltan son cinco jugadores. **Se dicen aparte en vez de callarlos**: que no cuenten no es lo mismo que esconderlos. Y salen de «A quién mirar hoy», donde aparecían como «sin parte» — el titular ya los nombra, y repetirlos sería la misma cifra dos veces |
+| El rango de fechas (v501) | El diálogo de «＋ Ausencia de varios» **ya tenía lista de jugadores, tics, Todos/Ninguno y el motivo**: era de UN día, así que una semana con cinco jugadores eran 35 marcas. Se añade **«Hasta», opcional**: vacío deja el comportamiento de siempre, así que quien lo usa para una cita no nota nada. Tres guardas: no duplica, rechaza fin anterior a inicio, y **`AUS_MAX_DIAS`=31** — un rango mal tecleado crearía miles de registros que luego hay que borrar a mano, y eso **se sincroniza a todos los equipos** |
+| Lo que NO se hizo | **Ni un almacén nuevo ni un botón nuevo.** Se usa `STATE.physioUser`, que ya está en la copia, en las tumbas, en la sincronización y en la ficha — un almacén propio habrían sido cuatro listas que registrar (§9). *El patrón de siempre en esta app: lo que parecía una función que faltaba eran dos campos que faltaban* |
+
+---
+
 ### 6.4 Polar / pulsómetros
 
 **Polar no exporta directamente.** El flujo es: Daniel comparte capturas del iPad → transcripción manual (dorsal, nombre, FC media %, FC máx %, kcal, Z1–Z5 en hh:mm:ss) → canonicalización de nombres → verificación de que las zonas suman la duración de sesión → salida como bloque de texto delimitado por punto y coma para subir.
