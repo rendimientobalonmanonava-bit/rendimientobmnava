@@ -20575,6 +20575,7 @@ window.renderTeamCitas=renderTeamCitas;
    Los estados que ofrece son solo los NO físicos: desde aquí es imposible
    marcar una baja por error. */
 const AUS_MOTIVOS=['extranjeria','tramite','cita','personal','seleccion','sancion','filial'];
+const AUS_MAX_DIAS=31;   /* un parón son días, no meses: tope de seguridad */
 window.openAusenciaGrupo=function(dk){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;').replace(/"/g,'&quot;');
   const hoy=dk||dkey(new Date());
@@ -20592,10 +20593,16 @@ window.openAusenciaGrupo=function(dk){
   };
   const h='<h2 style="margin-top:0">Ausencia de varios jugadores'
       +' <span class="r"><button class="btn ghost" onclick="closeHeroForm()">Cerrar ✕</button></span></h2>'
-    +'<p class="small muted" style="margin:-6px 0 12px">Para lo que no es una lesión: extranjería, una gestión, una cita. '
-      +'No cuenta como problema físico ni suma días perdidos por lesión.</p>'
+    +'<p class="small muted" style="margin:-6px 0 12px">Para lo que no es una lesión: un parón internacional, extranjería, una gestión, una cita. '
+      +'No cuenta como problema físico ni suma días perdidos por lesión. '
+      +'<b>Con la selección</b>, además, el jugador sale de las medias del equipo mientras dure, pero su carga sigue contándole a él.</p>'
     +'<div class="ph-f"><div class="parte-grid">'
-      +'<label>Fecha<input type="date" id="aus-dk" value="'+hoy+'"></label>'
+      +'<label>Desde<input type="date" id="aus-dk" value="'+hoy+'"></label>'
+      /* v501 · El diálogo era de UN día: una semana de parón con cinco jugadores
+         eran 35 marcas a mano. «Hasta» vacío deja el comportamiento de siempre
+         —un solo día—, así que quien lo usa para una cita no nota nada. */
+      +'<label>Hasta <span class="muted" style="font-weight:400">(opcional)</span>'
+        +'<input type="date" id="aus-hasta" placeholder="mismo día"></label>'
       +'<label>Motivo<select id="aus-st">'+ops+'</select></label>'
       +'<label class="parte-wide">Detalle <span class="muted" style="font-weight:400">(opcional)</span>'
         +'<input id="aus-note" placeholder="cita en Segovia, renovación de tarjeta…"></label>'
@@ -20617,20 +20624,31 @@ window.ausMarcarTodos=function(v){
 window.ausGrupoSave=function(){
   const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
   const dk=g('aus-dk'),st=g('aus-st')||'extranjeria',nota=(g('aus-note')||'').trim();
+  const hasta=g('aus-hasta')||dk;
   const msg=document.getElementById('aus-msg');
-  if(!dk){if(msg)msg.textContent='Indica la fecha.';return;}
+  if(!dk){if(msg)msg.textContent='Indica la fecha de inicio.';return;}
+  if(hasta<dk){if(msg)msg.textContent='La fecha de fin es anterior a la de inicio.';return;}
+  /* Los días del rango, los dos extremos incluidos. Con tope: un rango mal
+     tecleado —un año— crearía miles de registros que luego hay que borrar a
+     mano, y eso se sincroniza a todos los equipos. */
+  const dias=[];
+  for(let d=dk;d<=hasta&&dias.length<=AUS_MAX_DIAS;d=plDkSuma(d,1))dias.push(d);
+  if(dias.length>AUS_MAX_DIAS){
+    if(msg)msg.textContent='Son más de '+AUS_MAX_DIAS+' días: revisa las fechas.';return;}
   const quien=Array.from(document.querySelectorAll('.aus-ck:checked')).map(x=>x.value);
   if(!quien.length){if(msg)msg.textContent='No has marcado a nadie.';return;}
   physioEnsure();
   const lab=(PHYSTAT[st]||{}).lab||st;
-  let n=0;
+  let n=0,ya=0;
   quien.forEach((nm,i)=>{
     const arr=(STATE.physioUser[nm]=STATE.physioUser[nm]||[]);
-    /* sin duplicar: si ya está registrado ese mismo motivo ese día, se deja */
-    if(arr.some(x=>x&&x.dk===dk&&x.status===st))return;
-    arr.push({_id:'u_'+Date.now()+'_'+i,dk,status:st,zone:'',side:'',sev:'',treat:'',
-      note:nota||lab,grupo:true});
-    n++;
+    dias.forEach((d,j)=>{
+      /* sin duplicar: si ya está registrado ese mismo motivo ese día, se deja */
+      if(arr.some(x=>x&&x.dk===d&&x.status===st)){ya++;return;}
+      arr.push({_id:'u_'+Date.now()+'_'+i+'_'+j,dk:d,status:st,zone:'',side:'',sev:'',treat:'',
+        note:nota||lab,grupo:true});
+      n++;
+    });
   });
   physioPersist();
   STATE.physioEx=null;try{buildPhysio();}catch(e){}
@@ -20638,7 +20656,12 @@ window.ausGrupoSave=function(){
   try{renderAvail();}catch(e){}
   try{renderCalendar&&renderCalendar();}catch(e){}
   try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(e){}
-  if(window.toast)toast(lab+' · '+n+' jugador'+(n===1?'':'es')+' · '+dk.split('-').reverse().join('/'));
+  if(window.toast){
+    const f=x=>x.split('-').reverse().slice(0,2).join('/');
+    const cuando=dias.length>1?(f(dk)+' a '+f(hasta)+' · '+dias.length+' días'):f(dk);
+    toast(lab+' · '+quien.length+' jugador'+(quien.length===1?'':'es')+' · '+cuando
+      +' · '+n+' registro'+(n===1?'':'s')+(ya?' ('+ya+' ya estaban)':''));
+  }
 };
 function availAddPlan(){const g=id=>(document.getElementById(id)||{}).value;const n=g('avail-plan-player'),dk=g('avail-plan-date'),stt=g('avail-plan-status')||'noentto',note=(g('avail-plan-note')||'').trim();if(!n||!dk)return;physioEnsure();(STATE.physioUser[n]=STATE.physioUser[n]||[]).push({_id:'u_'+Date.now(),dk,status:stt,zone:note,side:'',sev:'',treat:'',note:note?('Previsión · '+note):'Previsión'});physioPersist();renderAvail();}
 function availDelPlan(name,id){const arr=(STATE.physioUser||{})[name]||[];const i=arr.findIndex(e=>e._id===id);if(i>=0){arr.splice(i,1);physioPersist();renderAvail();}}
@@ -38558,8 +38581,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-03.1*/
-const VER_ACTUAL='2026-11-03.1';
+/*BUILD:2026-11-03.2*/
+const VER_ACTUAL='2026-11-03.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
