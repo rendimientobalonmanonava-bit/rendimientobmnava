@@ -8424,6 +8424,35 @@ function lbEntrenaConGrupo(name,dk){
   return true;
 }
 window.lbEntrenaConGrupo=lbEntrenaConGrupo;
+/* v500 · ¿Está este jugador con su selección ese día? ========================
+   Daniel, 3/11/2026, semana de parón internacional: *«a esos jugadores les he
+   pedido que me sigan completando el RPE de sus sesiones para seguir teniendo
+   un registro de ellos, pero me gustaría que no nos afecte a la media grupal,
+   porque hoy hemos hecho 3 sesiones y ellos no han hecho 3 con sus selecciones.
+   No quiero poner que estén lesionados, porque no lo están»*.
+
+   **La regla entera cabe en una frase: entra en lo individual, no entra en
+   ningún agregado de equipo** — la misma que ya gobierna la tecnificación.
+   Su ficha, su carga, su ACWR y su historial no se tocan: siguen contando para
+   él, que es justo para lo que se le pide que rellene el cuestionario.
+
+   El estado `seleccion` **ya existía** en `PHYSTAT` y ya salía de la carga media
+   del equipo, porque `lbEntrenaConGrupo` excluye todo `NOAV_ST`. Lo que faltaba
+   es que lo miraran los demás agregados. Punto **ÚNICO** de lectura, igual que
+   `lbEsDe` con los bloques.
+
+   **Es estrecha a propósito y sólo mira `seleccion`, no todo `NOAV_ST`**: sacar
+   también a los lesionados o a los enfermos del readiness medio y de las medias
+   del parte sería un cambio que nadie ha pedido. */
+function conLaSeleccion(name,dk){
+  try{const ev=effectiveStatus(name,dk);return !!(ev&&ev.status==='seleccion');}
+  catch(e){return false;}
+}
+function sinSeleccion(nombres,dk){
+  return Array.isArray(nombres)?nombres.filter(n=>!conLaSeleccion(n,dk)):[];
+}
+window.conLaSeleccion=conLaSeleccion;
+window.sinSeleccion=sinSeleccion;
 /* v268 · MEDIA, no mediana, y sobre la misma población en los tres números.
    Antes devolvía la mediana de pista y la mediana de gimnasio por separado, y
    quien las sumaba —el gráfico de la semana— se inventaba un jugador que no
@@ -13172,7 +13201,10 @@ function teamReadinessSeries(n){
     dks.forEach(dk=>{
       STATE.refDate=dkToDate(dk);
       buildPlayers();
-      const v=Object.values(STATE.players).map(p=>p.readiness).filter(x=>x!=null);
+      /* v500 · cada día de la serie se mide con quien estaba ese día. */
+      const v=Object.values(STATE.players)
+        .filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dk)))
+        .map(p=>p.readiness).filter(x=>x!=null);
       out.push({dk,rd:v.length?Math.round(mean(v)):null,n:v.length});
     });
   }catch(e){console.error('bmnava · serie de readiness',e);}
@@ -13227,7 +13259,10 @@ function teamReadinessSerieAsync(n){
       for(const dk of dks){
         STATE.refDate=dkToDate(dk);
         buildPlayers();
-        const v=Object.values(STATE.players).map(p=>p.readiness).filter(x=>x!=null);
+        /* v500 · cada día de la serie se mide con quien estaba ese día. */
+      const v=Object.values(STATE.players)
+        .filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dk)))
+        .map(p=>p.readiness).filter(x=>x!=null);
         out.push({dk,rd:v.length?Math.round(mean(v)):null,n:v.length});
         await respira();
       }
@@ -13390,7 +13425,12 @@ function teamFiltered(){
 function renderTeam(){
   /* v273 · si quedan bloques de carga puestos, se retiran antes de pintar. */
   try{if(Object.keys(STATE.players||{}).length)skelFuera();}catch(e){}
-  const all=Object.values(STATE.players);const withR=all.filter(p=>p.readiness!=null);
+  /* v500 · el readiness medio describe a los que están; los que viajan con su
+     selección salen de la media y se cuentan aparte. */
+  const dkSel=(typeof dkEstado==='function')?dkEstado():dkey(REF());
+  const all=Object.values(STATE.players)
+    .filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dkSel)));
+  const withR=all.filter(p=>p.readiness!=null);
   const avg=mean(withR.map(p=>p.readiness));
   const reds=STATE.alerts.filter(a=>a.sev==="bad").length,warns=STATE.alerts.filter(a=>a.sev==="warn").length;
   const teamA=mean(all.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
@@ -22764,7 +22804,12 @@ function renderParte(){
   const byDay={};(STATE.wellness||[]).forEach(w=>{if(!w.dk)return;(byDay[w.dk]=byDay[w.dk]||[]).push(w);});
   const days=Object.keys(byDay).sort();
   if(!days.length){wrap.innerHTML='<div class="panel"><p class="muted">Sin datos de wellness cargados.</p></div>';return;}
-  const dayTeam=days.map(dk=>{const rs=byDay[dk];const o={dk};VARS.forEach(([k])=>{o[k]=mean(rs.map(r=>r[k]).filter(x=>x!=null&&!isNaN(x)));});return o;});
+  /* v500 · las medias del día son de quien estaba ese día: el que viaja con su
+     selección puede seguir rellenando el cuestionario —se le pide— pero su
+     fatiga no describe lo que ha hecho el grupo. Se filtra por DÍA, no de una
+     vez, porque el parón tiene principio y fin. */
+  const sinSel=(dk,rs)=>rs.filter(r=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(r.name,dk)));
+  const dayTeam=days.map(dk=>{const rs=sinSel(dk,byDay[dk]);const o={dk};VARS.forEach(([k])=>{o[k]=mean(rs.map(r=>r[k]).filter(x=>x!=null&&!isNaN(x)));});return o;});
   const hist={};VARS.forEach(([k])=>{const arr=dayTeam.map(d=>d[k]).filter(x=>!isNaN(x));hist[k]={m:mean(arr),s:sd(arr)};});
   let todayT=dayTeam.find(d=>d.dk===refdk)||dayTeam[dayTeam.length-1];
   const md=(byDay[todayT.dk]||[]).map(r=>r.mdx).find(x=>x)||'—';
@@ -22819,9 +22864,17 @@ function renderParte(){
   const ptFecha=ptCapi(wd)+' '+dlabel;
   const ptTitular=(()=>{
     const NOM={fatiga:'la fatiga',sueno:'el descanso',doms:'las agujetas',stress:'el estrés',mood:'el ánimo'};
-    const total=Object.keys(STATE.players||{}).length;
+    /* v500 · el total es de los que están. Con cinco jugadores de parón, «13 de
+       18» hacía parecer que faltan cinco partes por rellenar, cuando lo que
+       pasa es que faltan cinco jugadores. Se dicen aparte en vez de callarlos:
+       que no cuenten no es lo mismo que esconderlos. */
+    const nombresT=Object.keys(STATE.players||{});
+    const fueraSel=nombresT.filter(n=>(typeof conLaSeleccion==='function')&&conLaSeleccion(n,refdk));
+    const total=nombresT.length-fueraSel.length;
+    const respT=[...respHoy].filter(n=>fueraSel.indexOf(n)<0).length;
     const partes=[];
-    if(total)partes.push(respHoy.size+' de '+total+(respHoy.size===1?' ha respondido':' han respondido'));
+    if(total)partes.push(respT+' de '+total+(respT===1?' ha respondido':' han respondido'));
+    if(fueraSel.length)partes.push(fueraSel.length+(fueraSel.length===1?' con la selección':' con la selección'));
     let k=null,za=0;
     Object.keys(NOM).forEach(x=>{const z=zOf(x);if(isFinite(z)&&Math.abs(z)>Math.abs(za)){za=z;k=x;}});
     if(k&&Math.abs(za)>=0.6)partes.push(NOM[k]+(za<0?', mejor de lo normal':', peor de lo normal'));
@@ -22903,6 +22956,10 @@ function renderParte(){
     /* 3 · de quién no sabemos nada hoy. No es una alerta: es un dato que falta,
        así que va en gris y al final. */
     Object.keys(STATE.players||{}).forEach(n=>{
+      /* v500 · el que está con su selección no es un parte que falta: no está.
+         Y el titular del parte ya dice cuántos son, así que repetirlos aquí
+         sería la misma cifra dos veces. */
+      if(typeof conLaSeleccion==='function'&&conLaSeleccion(n,refdk))return;
       if(!respHoy.has(n))add(n,{r:MIRAR_R.nodato,lab:'Sin parte hoy',col:'var(--muted2)',gris:true});
     });
 
@@ -23852,7 +23909,11 @@ window.zOf=zOf;
    bloque de otra naturaleza estropea las dos cosas a la vez. */
 function sessMeta(key,dk){
   if(STATE.hrMeta&&STATE.hrMeta[key])return STATE.hrMeta[key];
-  const rp=STATE.rpe.filter(x=>x.dk===dk&&lbBucket(x.tipo)!=='tec');if(!rp.length)return null;
+  /* v500 · quien está con su selección no entra en el nivel de la sesión, ni en
+     el RPE ni en el contacto del equipo: no ha hecho esta sesión. */
+  const rp=STATE.rpe.filter(x=>x.dk===dk&&lbBucket(x.tipo)!=='tec'
+    &&!(typeof conLaSeleccion==='function'&&conLaSeleccion(x.name,dk)));
+  if(!rp.length)return null;
   const byp={};rp.forEach(x=>{const o=byp[x.name]=byp[x.name]||{name:x.name,pos:x.pos,ua:0,rpe:[],c:[]};o.ua+=x.ua||0;if(x.rpe)o.rpe.push(x.rpe);if(x.contacto&&contactoDePista(x))o.c.push(x.contacto);});
   const arr=Object.values(byp);const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   /* v225 · el contacto medio de la sesión sigue el mismo criterio que el
@@ -38497,8 +38558,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-10-31.20*/
-const VER_ACTUAL='2026-10-31.20';
+/*BUILD:2026-11-03.1*/
+const VER_ACTUAL='2026-11-03.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
