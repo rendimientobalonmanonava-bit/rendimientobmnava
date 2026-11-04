@@ -6726,7 +6726,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     </div>
     <div id="estado-parte" class="estado-pane" style="display:none">
       <div class="med-sec">Parte de wellness del día</div>
-      <div class="ctrlrow" style="margin-bottom:10px"><button class="btn ghost" onclick="exportParte()">Exportar PNG</button><button class="btn ghost" onclick="window.print()">Imprimir</button></div>
+      <div class="ctrlrow" style="margin-bottom:10px"><button class="btn ghost" id="pt-export" onclick="exportParte()">Exportar PNG</button><button class="btn ghost" onclick="window.print()">Imprimir</button></div>
       <div id="parte-wrap"></div>
     </div>
     <div id="estado-medico" class="estado-pane" style="display:none">
@@ -23154,6 +23154,22 @@ function exportNodePNG(id,filename,opts){
      Ya se intentó arreglar una vez (v222) moviendo el borrado de imágenes al
      final; eso quitó UNA causa, pero la de fondo es el índice. Ahora cada
      elemento lleva una marca y la copia se busca por ella. */
+  /* v503 · Chart.js pinta por `requestAnimationFrame`, no al crear el grafico.
+     Un grafico recien creado —o uno de una pestana que el navegador no estaba
+     pintando— llega aqui con el lienzo EN BLANCO, y html2canvas copia el
+     bitmap del canvas tal y como este: lo que sale es un recuadro vacio.
+     *Medido en el parte: el canvas tenia **cero pixeles opacos** —ni siquiera
+     los ejes— y una sola llamada a `draw()` lo dejaba entero.* Se fuerza el
+     fotograma final de todos los graficos que haya DENTRO del nodo que se
+     exporta, justo antes de capturar: `update('none')` recalcula el modelo sin
+     animacion y `draw()` lo pinta de forma sincrona —`update` solo lo encola—.
+     Va aqui y no en cada llamante porque hay un solo sitio por donde se
+     exporta, que es la leccion ya escrita en §9. */
+  try{Object.keys(charts||{}).forEach(k=>{const ch=charts[k];
+    if(!ch||!ch.canvas||!el.contains(ch.canvas))return;
+    try{ch.options.animation=false;ch.update('none');}catch(e){}
+    try{ch.draw();}catch(e){}
+  });}catch(e){}
   const marcados=[el].concat(Array.prototype.slice.call(el.querySelectorAll('*')));
   marcados.forEach((nd,i)=>{try{nd.setAttribute('data-x2p',i);}catch(e){}});
   const desmarcar=()=>marcados.forEach(nd=>{try{nd.removeAttribute('data-x2p');}catch(e){}});
@@ -23230,7 +23246,42 @@ function exportNodePNG(id,filename,opts){
   }).then(cv=>{desmarcar();const a=document.createElement('a');a.download=filename;a.href=cv.toDataURL('image/png');a.click();})
    .catch(e=>{desmarcar();alert('No se pudo generar el PNG ('+((e&&e.message)||e)+'). Como alternativa, usa Imprimir → Guardar como PDF.');});
 }
-function exportParte(){exportNodePNG('parte-card','wellness_parte_'+dkey(REF())+'.png');}
+/* v503 · Quien exporta tiene que esperar a que el parte este ENTERO.
+   Daniel, 4/11/2026, con el PNG delante: el grafico de readiness salia en
+   blanco —870 px de hoja vacia— y la cabecera del bloque lo decia con todas
+   las letras, «calculando 14 dias...». Es el patron que §9 ya tiene escrito
+   para la lamina A4 —quien exporta ESPERA— con otra cara: alli lo que faltaba
+   era el PNG y aqui lo que falta es el DATO.
+   La serie de 14 dias se calcula troceada y aparte A PROPOSITO (v311), para no
+   congelar la pantalla segundo y medio; el parte se pinta antes con el hueco y
+   se repinta solo cuando llega. **Exportar dentro de ese hueco se lleva el
+   hueco**, y es justo lo que pasa al abrir el parte y pulsar el boton.
+   Dos esperas, y las dos hacen falta:
+   · la SERIE, si todavia no esta en la cache — se pide, se repinta y entonces
+     se exporta, diciendolo en el boton para que no parezca que no responde;
+   · la ANIMACION de Chart.js, que por defecto tarda un segundo en hacer crecer
+     las barras. html2canvas copia el bitmap del canvas tal y como este, asi
+     que exportar recien pintado daba barras a medio crecer. `update('none')`
+     lo deja en su fotograma final de inmediato, sin tocar nada mas. */
+async function exportParte(){
+  const btn=document.getElementById('pt-export');
+  const txt=btn?btn.textContent:'';
+  const falta=(typeof teamReadinessSerieCache==='function')&&!teamReadinessSerieCache(14)
+    &&(typeof teamReadinessSerieAsync==='function');
+  if(falta){
+    if(btn){btn.disabled=true;btn.textContent='Preparando\u2026';}
+    try{await teamReadinessSerieAsync(14);}catch(e){console.error('bmnava · serie para el parte',e);}
+    try{renderParte();}catch(e){console.error('bmnava · repintar parte',e);}
+    await new Promise(r=>setTimeout(r,60));
+  }
+  /* el grafico lo deja en su fotograma final `exportNodePNG`, que es quien
+     captura: aqui solo se espera al DATO. */
+  try{
+    return await exportNodePNG('parte-card','wellness_parte_'+dkey(REF())+'.png');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=txt;}
+  }
+}
 
 function rcRingSVG(numTxt,fillPct,color,size,sub){
   const sw=Math.round(size*0.11),r=(size-sw)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,fillPct))/100);
@@ -38651,8 +38702,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-04.1*/
-const VER_ACTUAL='2026-11-04.1';
+/*BUILD:2026-11-04.3*/
+const VER_ACTUAL='2026-11-04.3';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
