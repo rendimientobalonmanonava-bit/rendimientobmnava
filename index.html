@@ -4346,6 +4346,12 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 .cal-iv-bar{flex:1;height:7px;background:var(--panel2);border-radius:99px;overflow:hidden}
 .cal-iv-bar>div{height:100%;border-radius:99px}
 .cal-iv-val{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;width:42px;text-align:right;flex:none}
+/* v502 · quien no hizo la sesión del equipo: se dice, no se esconde */
+.cal-iv-fuera{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.cal-iv-fh{font-size:11px;font-weight:700;color:var(--muted)}
+.cal-iv-mot{flex:1;min-width:0;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-iv-row--off .cal-iv-nm{color:var(--muted);font-weight:500}
+.cal-iv-row--off .cal-iv-val{color:var(--muted);font-weight:700}
 /* datos manuales del día */
 .cal-manual{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
 .cal-manual-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -15069,11 +15075,21 @@ window.renderPlayerDaily=renderPlayerDaily;
    menos. */
 function teamDayAgg(){
   const ref=REF();const byDay={};
-  STATE.rpe.filter(x=>x.date<=ref).forEach(x=>{const o=byDay[x.dk]=byDay[x.dk]||{dur:[],rpe:[],uaByP:{},date:x.date,mdx:x.mdx,tipo:x.tipo};o.dur.push(x.dur);o.rpe.push(x.rpe);o.uaByP[x.name]=(o.uaByP[x.name]||0)+x.ua;});
+  STATE.rpe.filter(x=>x.date<=ref).forEach(x=>{const o=byDay[x.dk]=byDay[x.dk]||{dur:[],rpe:[],uaByP:{},date:x.date,mdx:x.mdx,tipo:x.tipo};o.dur.push({n:x.name,v:x.dur});o.rpe.push({n:x.name,v:x.rpe});o.uaByP[x.name]=(o.uaByP[x.name]||0)+x.ua;});
   return Object.keys(byDay).sort().map(dk=>{const o=byDay[dk];
-    const nombres=Object.keys(o.uaByP).filter(n=>(typeof lbEntrenaConGrupo==='function')?lbEntrenaConGrupo(n,dk):true);
+    /* v502 · la MISMA poblacion en los tres numeros. La UA ya salia solo del
+       grupo que entrena —`lbEntrenaConGrupo` deja fuera seleccion, baja,
+       enfermedad y readaptacion—, pero la duracion y el RPE se promediaban
+       sobre TODOS los registros del dia, asi que la fila del dashboard mezclaba
+       dos poblaciones: en semana de paron, el RPE de quien entrenaba con su
+       seleccion entraba en el RPE del equipo. Es la regla que `lbTeamDay` ya
+       tenia escrita y que esta funcion se habia dejado a medias. */
+    const memo={};
+    const ok=n=>{if(memo[n]===undefined)memo[n]=(typeof lbEntrenaConGrupo==='function')?lbEntrenaConGrupo(n,dk):true;return memo[n];};
+    const nombres=Object.keys(o.uaByP).filter(ok);
     const uas=nombres.map(n=>o.uaByP[n]);
-    return{dk,date:o.date,dur:mean(o.dur),rpe:mean(o.rpe),
+    const soloG=a=>mean(a.filter(r=>ok(r.n)).map(r=>r.v));
+    return{dk,date:o.date,dur:soloG(o.dur),rpe:soloG(o.rpe),
       ua:uas.length?mean(uas):0,nGrupo:uas.length,mdx:o.mdx,tipo:o.tipo};});
 }
 function renderLoadReport(){
@@ -20973,7 +20989,11 @@ function fisCargaDolor(dias){
   for(let i=0;i<dias;i++){
     const dk=fisDkSuma(desde,i);
     let ua=0,n=0;
-    (STATE.rpe||[]).forEach(r=>{if(r&&r.dk===dk&&r.ua>0){ua+=r.ua;n++;}});
+    /* v502 · la carga media del dia es del grupo que entrena, misma regla que
+       `lbTeamDay`: quien esta con su seleccion, de baja o enfermo no la hizo. */
+    const memoF={};
+    const okF=nm=>{if(memoF[nm]===undefined)memoF[nm]=(typeof lbEntrenaConGrupo==='function')?lbEntrenaConGrupo(nm,dk):true;return memoF[nm];};
+    (STATE.rpe||[]).forEach(r=>{if(r&&r.dk===dk&&r.ua>0&&okF(r.name)){ua+=r.ua;n++;}});
     const dol=(STATE.wellness||[]).filter(w=>w&&w.dk===dk&&w.dolor).length;
     const partes=(STATE.wellness||[]).filter(w=>w&&w.dk===dk).length;
     out.push({dk,ua:n?Math.round(ua/n):0,total:Math.round(ua),dolor:dol,partes});
@@ -27816,16 +27836,28 @@ function renderTeamStrip(){
   const box=document.getElementById('team-strip');if(!box)return;
   const ps=Object.values(STATE.players);if(!ps.length){box.innerHTML='';return;}
   const dk=dkey(REF());const dkSt=dkEstado();
-  const rdyM=mean(ps.map(p=>p.readiness).filter(x=>x!=null));
-  const acM=mean(ps.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
+  /* v502 · las dos medias salen de la MISMA poblacion que el bloque de debajo
+     (`renderTeam`, v500): quien esta con su seleccion no cuenta para el equipo.
+     Sin esto, la tira y el panel daban dos readiness medios distintos en la
+     misma pantalla. Los recuentos de disponibles/molestia/fuera siguen siendo
+     de toda la plantilla: eso es un censo, no una media. */
+  const psEq=ps.filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dkSt)));
+  const rdyM=mean(psEq.map(p=>p.readiness).filter(x=>x!=null));
+  const acM=mean(psEq.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
   let disp=0,care=0,fisico=0,otro=0;
   ps.forEach(p=>{let st=null;try{const ev=effectiveStatus(p.name,dkSt);st=ev&&ev.status;}catch(e){}
     if(!st||st==='disp'||st==='partido')disp++;
     else if(NOAV_FIS_ST.indexOf(st)>=0)fisico++;
     else if(NOFIS_ST.indexOf(st)>=0)otro++;
     else care++;});
-  const respHoy=new Set((STATE.wellness||[]).filter(w=>w.dk===dk).map(w=>w.name)).size;
-  const pctW=ps.length?Math.round(respHoy/ps.length*100):0;
+  /* v502 · el recuento del parte ya descuenta a los de seleccion (v500) y aqui
+     seguia diciendo «16 de 18»: las dos pantallas se contradecian. Con cinco de
+     paron, «de 18» hace parecer que faltan cinco partes por rellenar, cuando lo
+     que faltan son cinco jugadores. Se dicen aparte en vez de callarlos. */
+  const selHoy=ps.filter(p=>(typeof conLaSeleccion==='function')&&conLaSeleccion(p.name,dk)).map(p=>p.name);
+  const nEq=ps.length-selHoy.length;
+  const respHoy=new Set((STATE.wellness||[]).filter(w=>w.dk===dk&&selHoy.indexOf(w.name)<0).map(w=>w.name)).size;
+  const pctW=nEq?Math.round(respHoy/nEq*100):0;
   const riesgo=ps.filter(p=>p.acwr&&!isNaN(p.acwr.ratio)&&p.acwr.ratio>=1.5).length;
   /* v381 · Los seis recuadros eran cifra y texto. La función sparkline() y la
      animación de conteo ya estaban escritas en el archivo desde hace versiones,
@@ -27851,7 +27883,7 @@ function renderTeamStrip(){
     ${t('Con molestia',care,care?'siguen entrenando':'ninguno',care?'warn':'ok',ser.care)}
     ${t('Fuera · físico',fisico,otro?otro+' fuera por otro motivo':'sin bajas',fisico?'bad':'ok',ser.fis)}
     ${t('ACWR medio',isNaN(acM)?'—':acM.toFixed(2).replace('.',','),riesgo?riesgo+' por encima de 1,5':'ninguno en pico',isNaN(acM)?'muted':(acM>1.5||acM<0.8?'bad':acM>1.3?'warn':'ok'),ser.acwr)}
-    ${t('Wellness hoy',pctW+'<small>%</small>',respHoy+' de '+ps.length+' han respondido',pctW>=80?'ok':pctW>=50?'warn':'bad',ser.well)}
+    ${t('Wellness hoy',pctW+'<small>%</small>',respHoy+' de '+nEq+' han respondido'+(selHoy.length?' · '+selHoy.length+' con la selección':''),pctW>=80?'ok':pctW>=50?'warn':'bad',ser.well)}
   </div>`;
   try{animateKPIs(box);}catch(e){}
 }
@@ -28097,9 +28129,14 @@ function renderTeamIntensity(){
   const keys=[...new Set(STATE.hr.map(hrKey))].sort();const key=hrKeyForRef(keys);
   const rows=STATE.hr.filter(r=>hrKey(r)===key);const i=key.indexOf('|');const dk=key.slice(0,i),lab=key.slice(i+1);
   const trimp=mean(rows.map(trimpOf));
-  const byp={};STATE.rpe.filter(x=>x.dk===dk).forEach(x=>{byp[x.name]=(byp[x.name]||0)+(x.ua||0);});
+  /* v502 · la carga del equipo sale del grupo que hizo la sesion, igual que
+     `lbTeamDay`; y el ACWR medio, de la misma poblacion que el Resumen. */
+  const memoI={};
+  const okI=n=>{if(memoI[n]===undefined)memoI[n]=(typeof lbEntrenaConGrupo==='function')?lbEntrenaConGrupo(n,dk):true;return memoI[n];};
+  const byp={};STATE.rpe.filter(x=>x.dk===dk&&okI(x.name)).forEach(x=>{byp[x.name]=(byp[x.name]||0)+(x.ua||0);});
   const ua=Object.values(byp);let srpe=ua.length?mean(ua):null;if(srpe==null){const m=sessMeta(key,dk);srpe=m&&m.ua!=null?m.ua:null;}
-  const teamA=mean(Object.values(STATE.players).map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
+  const dkEqI=(typeof dkEstado==='function')?dkEstado():dkey(REF());
+  const teamA=mean(Object.values(STATE.players).filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dkEqI))).map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
   const tn=norm(lab);let contact=1,clab='Bajo';
   if(tn.includes('partido')||/\bmd\b/.test(tn)){contact=3;clab='Alto';}
   else if(tn.includes('tactic')||tn.includes('oposic')||tn.includes('especif')){contact=2;clab='Medio';}
@@ -28245,7 +28282,10 @@ function renderTeamHR(){
   const whenEl=document.getElementById('team-hr-when');if(whenEl)whenEl.textContent=dd[2]+'/'+dd[1]+'/'+dd[0]+' · '+lab+'  ›';
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
   const ztot=[0,0,0,0,0];rows.forEach(r=>r.z.forEach((s,zi)=>ztot[zi]+=s));const tot=ztot.reduce((x,y)=>x+y,0)||1;
-  const byp={};STATE.rpe.filter(x=>x.dk===dk).forEach(x=>{byp[x.name]=(byp[x.name]||0)+(x.ua||0);});
+  /* v502 · el sRPE de la sesion es del grupo que la hizo (regla de lbTeamDay) */
+  const memoT={};
+  const okT=n=>{if(memoT[n]===undefined)memoT[n]=(typeof lbEntrenaConGrupo==='function')?lbEntrenaConGrupo(n,dk):true;return memoT[n];};
+  const byp={};STATE.rpe.filter(x=>x.dk===dk&&okT(x.name)).forEach(x=>{byp[x.name]=(byp[x.name]||0)+(x.ua||0);});
   const ua=Object.values(byp);const srpe=ua.length?Math.round(avg(ua)):null;
   const z45=(ztot[3]+ztot[4])/tot*100;
   renderHRClass(rows,key,dk,'team-hr-class');
@@ -28285,10 +28325,14 @@ function renderTeamHR(){
 
 function renderTeamMeters(){
   const box=document.getElementById('team-meters');if(!box)return;
-  const ps=Object.values(STATE.players);const withR=ps.filter(p=>p.readiness!=null);
+  const ps=Object.values(STATE.players);
+  /* v502 · misma poblacion que el readiness medio del Resumen y que la tira. */
+  const dkEq=(typeof dkEstado==='function')?dkEstado():dkey(REF());
+  const psEq=ps.filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dkEq)));
+  const withR=psEq.filter(p=>p.readiness!=null);
   if(!ps.length){box.innerHTML='<p class="hint">Sin datos de equipo cargados.</p>';return;}
   const rd=mean(withR.map(p=>p.readiness));
-  const teamA=mean(ps.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
+  const teamA=mean(psEq.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
   const badNames=new Set(STATE.alerts.filter(a=>a.sev==='bad').map(a=>a.name));
   const avail=(ps.length-badNames.size)/ps.length*100;
   const okc='var(--ok)',wc='var(--warn)',bc='var(--bad)';
@@ -28766,7 +28810,31 @@ function calDkLabel(dk){const a=dk.split('-').map(Number);return a[2]+' '+CAL_ME
 function calTraffic(intens,h,cls){h=h||46;const w=Math.round(h*0.46);const cols={3:'#e23b32',2:'#e6a700',1:'#1ea863'};const order=[3,2,1];const pad=w*0.17,r=(w-2*pad)*0.42;const span=h-2*pad,step=span/3;let g='';order.forEach((lv,i)=>{const cy=pad+step*(i+0.5);const on=lv===intens;if(on)g+=`<circle cx="${w/2}" cy="${cy}" r="${(r*1.5).toFixed(1)}" fill="${cols[lv]}" opacity="0.24"/>`;g+=`<circle cx="${w/2}" cy="${cy}" r="${r.toFixed(1)}" fill="${on?cols[lv]:'var(--tl-off,#39414f)'}" opacity="${on?1:0.5}"/>`;});return `<svg class="${cls||''}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;flex:none"><rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="${(w*0.28).toFixed(1)}" fill="var(--tl-body,#1d222c)" stroke="var(--tl-edge,#10141b)" stroke-width="1"/>${g}</svg>`;}
 function calPlanPanel(dk,pl,real,dev){if(!pl.n)return '';const grado=pl.lab.toUpperCase();let vcol='#8a93a3',vtx='Sin carga real todavía',vsub='Se completará al cargar el RPE de este día';if(dev){vcol=dev.col;vtx=dev.tier==='ok'?'Bien programado':dev.tier==='warn'?'Ligero desajuste':'Desajuste — revisar';vsub=`${dev.arrow} ${dev.pct>0?'+':''}${dev.pct}% real vs plan · ${dev.lab}`;}const realStr=real!=null?`${real} UA`:'—';return `<div class="cal-panel" style="--pc:${pl.col}"><div class="cal-panel-tl">${calTraffic(pl.peak,82)}</div><div class="cal-panel-main"><div class="cal-panel-lab">Intensidad programada</div><div class="cal-panel-grade" style="color:${colTexto(pl.col)}">${grado}</div><div class="cal-panel-dur"><span class="cal-clock">◷</span> <b>${pl.totMin}′</b> <span class="muted">duración total${pl.n>1?` · ${pl.n} sesiones`:''}</span></div></div><div class="cal-panel-cmp"><div class="cal-cmp-row"><span>Programado</span><b>${pl.planUA} UA</b></div><div class="cal-cmp-row"><span>Real (RPE)</span><b style="color:var(--c-data,#3f5572)">${realStr}</b></div><div class="cal-cmp-verdict" style="--vc:${vcol}"><span class="cal-cmp-dot"></span><div class="cal-cmp-vtx"><b>${vtx}</b><span>${vsub}</span></div></div></div></div>`;}
 function calBajas(dk){const out=[];try{buildPhysio();}catch(e){}for(const name in (STATE.players||{})){let cs=null;try{cs=effectiveStatus(name,dk);}catch(e){}if(cs&&(cs.status==='baja'||cs.status==='noentto'))out.push({name,status:cs.status,zone:cs.zone||'',side:cs.side||''});}return out.sort((a,b)=>physioSev(b.status)-physioSev(a.status));}
-function calDayIndiv(dk){const recs=(STATE.rpe||[]).filter(x=>x.dk===dk);if(!recs.length)return null;const byp={};recs.forEach(x=>{byp[x.name]=(byp[x.name]||0)+x.ua;});const arr=Object.keys(byp).map(n=>({name:n,ua:Math.round(byp[n])}));if(arr.length<2)return {arr:arr.map(a=>({...a,tier:'mid'})),mean:arr[0]?arr[0].ua:0};const m=mean(arr.map(a=>a.ua)),s=sd(arr.map(a=>a.ua));arr.forEach(a=>{const z=s>0?(a.ua-m)/s:0;a.tier=z>=0.6?'hi':z<=-0.6?'lo':'mid';});arr.sort((a,b)=>b.ua-a.ua);return {arr,mean:Math.round(m)};}
+/* v502 · La media de este panel es del EQUIPO, asi que sale de la MISMA
+   poblacion que la carga real de arriba: `lbEntrenaConGrupo`, que deja fuera a
+   quien no hizo esta sesion —con su seleccion, de baja, enfermo o en
+   readaptacion—. Daniel, 4/11/2026, en semana de paron internacional: «aqui me
+   tiene en cuenta la media de todos, incluso de los que estan en la seleccion».
+   Con las dos cifras sobre poblaciones distintas, el panel se contradecia solo:
+   «Real 973 UA» arriba y «media 852 UA» tres lineas mas abajo.
+   **No se les esconde: se dicen aparte**, con su carga y su motivo, igual que
+   el recuento del parte. Su UA sigue siendo suya y sigue contando en su ficha,
+   su ACWR y su historial — entra en lo individual, no en el agregado. */
+function calDayIndiv(dk){
+  const recs=(STATE.rpe||[]).filter(x=>x.dk===dk);if(!recs.length)return null;
+  const byp={};recs.forEach(x=>{byp[x.name]=(byp[x.name]||0)+x.ua;});
+  const memo={};
+  const ok=n=>{if(memo[n]===undefined)memo[n]=(typeof lbEntrenaConGrupo==='function')?lbEntrenaConGrupo(n,dk):true;return memo[n];};
+  const motivo=n=>{try{const ev=effectiveStatus(n,dk);const st=ev&&ev.status;return (st&&PHYSTAT[st]&&PHYSTAT[st].lab)||'Fuera del grupo';}catch(e){return 'Fuera del grupo';}};
+  const todos=Object.keys(byp);
+  const fuera=todos.filter(n=>!ok(n)).map(n=>({name:n,ua:Math.round(byp[n]),motivo:motivo(n)})).sort((a,b)=>b.ua-a.ua);
+  const arr=todos.filter(ok).map(n=>({name:n,ua:Math.round(byp[n])}));
+  if(arr.length<2)return {arr:arr.map(a=>({...a,tier:'mid'})),mean:arr[0]?arr[0].ua:0,fuera};
+  const m=mean(arr.map(a=>a.ua)),s=sd(arr.map(a=>a.ua));
+  arr.forEach(a=>{const z=s>0?(a.ua-m)/s:0;a.tier=z>=0.6?'hi':z<=-0.6?'lo':'mid';});
+  arr.sort((a,b)=>b.ua-a.ua);
+  return {arr,mean:Math.round(m),fuera};
+}
 function calRisk(dk){const pl=calDayPlan(dk);if(!pl.n||!pl.planUA)return null;const d=dkToDate(dk);const prev=[];for(let i=1;i<=6;i++){const pd=new Date(d);pd.setDate(pd.getDate()-i);const p=calDayPlan(dkey(pd));if(p.n)prev.push(p.planUA);}if(prev.length<2)return null;const avg=mean(prev);if(avg>0&&pl.planUA>avg*1.5)return {msg:`Pico de carga planificada: ${pl.planUA} UA, +${Math.round((pl.planUA/avg-1)*100)}% sobre la media reciente`};return null;}
 /* ═══════════════ v392 · Microciclo ═══════════════
    El calendario sabía qué días hay entreno pero no sabía CUÁNDO es el partido,
@@ -30236,7 +30304,9 @@ function calDayBody(dk){
   const AFL={no:['No afecta','#1ea863'],parcial:['Entrena parcial','#e08a00'],pierde:['Pierde el entreno','#7c9cbf']};
   const citasBox=citasDia.length?`<div class="cal-citasbox"><div class="cal-cb-h"><span class="cal-cb-ic">🩺</span> Citas médicas este día · ${citasDia.length}</div><div class="cal-cb-list">${citasDia.map(c=>{const af=AFL[c.e.afecta]||AFL.no;const ti=(window.medLogTypeLab?medLogTypeLab(c.e.type):'')||'Cita';return `<div class="cal-cb-row" onclick="openPlayer('${String(c.name).replace(/'/g,"\\'")}')"><span class="cal-cb-h2">${c.e.time?c.e.time:'—'}</span><span class="cal-cb-nm">${c.name}</span><span class="cal-cb-tx">${ti}${c.e.title?' · '+String(c.e.title).replace(/</g,'&lt;'):''}${c.e.who?' · '+String(c.e.who).replace(/</g,'&lt;'):''}</span><span class="cal-cb-af" style="color:${colTexto(af[1])};border-color:${af[1]}">${af[0]}</span></div>`;}).join('')}</div></div>`:'';
   let hi=0,lo=0;if(indiv)indiv.arr.forEach(a=>{if(a.tier==='hi')hi++;else if(a.tier==='lo')lo++;});
-  const indivBox=indiv&&indiv.arr.length>1?`<div class="cal-indiv"><div class="cal-iv-h">Carga real por jugador <span class="muted">· media ${indiv.mean} UA · <span style="color:var(--bad-text);font-weight:700">${hi} acusaron más</span> · <span style="color:var(--ok-text);font-weight:700">${lo} menos</span></span></div><div class="cal-iv-list">${indiv.arr.map(a=>{const c=a.tier==='hi'?'#e23b32':a.tier==='lo'?'#1ea863':'#e6a700';const mx=Math.max(...indiv.arr.map(x=>x.ua),1);return `<div class="cal-iv-row"><span class="cal-iv-dot" style="background:${c}"></span><span class="cal-iv-nm">${a.name}</span><div class="cal-iv-bar"><div style="width:${Math.max(6,Math.round(a.ua/mx*100))}%;background:${c}"></div></div><span class="cal-iv-val">${a.ua}</span></div>`;}).join('')}</div></div>`:'';
+  const ivFuera=(indiv&&indiv.fuera&&indiv.fuera.length)?indiv.fuera:[];
+  const ivFueraBox=ivFuera.length?`<div class="cal-iv-fuera"><div class="cal-iv-fh">Fuera de la media del equipo · ${ivFuera.length} · <span style="font-weight:600">no hicieron esta sesión; su carga sigue contando para ellos</span></div>${ivFuera.map(a=>`<div class="cal-iv-row cal-iv-row--off"><span class="cal-iv-dot" style="background:var(--muted2)"></span><span class="cal-iv-nm">${a.name}</span><span class="cal-iv-mot">${a.motivo}</span><span class="cal-iv-val">${a.ua}</span></div>`).join('')}</div>`:'';
+  const indivBox=indiv&&indiv.arr.length>1?`<div class="cal-indiv"><div class="cal-iv-h">Carga real por jugador <span class="muted">· media ${indiv.mean} UA de ${indiv.arr.length} · <span style="color:var(--bad-text);font-weight:700">${hi} ${hi===1?'acusó':'acusaron'} más</span> · <span style="color:var(--ok-text);font-weight:700">${lo} menos</span></span></div><div class="cal-iv-list">${indiv.arr.map(a=>{const c=a.tier==='hi'?'#e23b32':a.tier==='lo'?'#1ea863':'#e6a700';const mx=Math.max(...indiv.arr.map(x=>x.ua),1);return `<div class="cal-iv-row"><span class="cal-iv-dot" style="background:${c}"></span><span class="cal-iv-nm">${a.name}</span><div class="cal-iv-bar"><div style="width:${Math.max(6,Math.round(a.ua/mx*100))}%;background:${c}"></div></div><span class="cal-iv-val">${a.ua}</span></div>`;}).join('')}</div>${ivFueraBox}</div>`:'';
   const ed=CAL_EDIT?evs.find(e=>e.id===CAL_EDIT):null;
   const typeOpts=Object.entries(CAL_TYPES).map(([k,v])=>`<option value="${k}"${ed&&ed.type===k?' selected':''}>${v.lab}</option>`).join('');
   const curI=ed?evIntens(ed):CAL_FORM.intens, curD=ed?evDur(ed):CAL_FORM.dur, curC=ed?evContacto(ed):(CAL_FORM.contacto!=null?CAL_FORM.contacto:3);
@@ -38581,8 +38651,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-03.2*/
-const VER_ACTUAL='2026-11-03.2';
+/*BUILD:2026-11-04.1*/
+const VER_ACTUAL='2026-11-04.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
