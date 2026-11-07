@@ -4379,6 +4379,9 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 .gv-d--alto{color:var(--warn-text);font-weight:700}
 .gv-sep{grid-column:1/-1;height:1px;background:var(--line);opacity:.55}
 .gv-pie{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:12px}
+.gv-h em{font-style:normal;font-weight:500;color:var(--muted2);display:block;font-size:10px}
+.gv-cob{font-style:normal;font-size:10px;color:var(--muted2);margin-left:4px}
+.gv-ojo{font-style:normal;color:var(--warn-text);font-weight:700;margin-left:3px}
 /* panel de la ficha del jugador */
 .plg2{display:flex;flex-direction:column;gap:11px}
 .plg2-r{display:grid;grid-template-columns:58px 1fr;gap:4px 10px;align-items:center}
@@ -15219,8 +15222,25 @@ function gymLoad(){
     STATE.gym={reg:Array.isArray(d.reg)?d.reg:[],
                alias:(d.alias&&typeof d.alias==='object')?d.alias:{}};
     try{gymSyncNombres();}catch(e){}
+    try{gymPurgaUA();}catch(e){}
   }
   return STATE.gym;
+}
+/* v505 · La primera tanda traía un campo `ua` que estaba INVENTADO. Medido
+   sobre sus 138 filas: ajustaba a 7,28 × series con r²=0,93, el coeficiente de
+   las repeticiones era cero, ninguna fila cuadraba exacta y el cociente
+   ua/series tomaba 53 valores distintos entre 6,00 y 10,00 — o sea, las series
+   por un RPE estimado a ojo rutina a rutina. Se retira al leer, no se vuelve a
+   escribir, y quien tenga filas viejas las verá sin carga hasta que vuelva a
+   importar con el lector (`builderpro-gimnasio.js`), que sí la calcula con el
+   RPE que está escrito en la propia rutina. */
+function gymPurgaUA(){
+  const G=STATE.gym;if(!G)return;
+  let n=0;
+  G.reg.forEach(r=>{if(r&&r.ua!==undefined){delete r.ua;n++;}
+    if(r&&r.carga===undefined)r.carga=null;
+    if(r&&r.serRpe===undefined)r.serRpe=0;});
+  if(n){try{lsGuardar(GYM_LS,G);}catch(e){}}
 }
 function gymPersist(){try{return lsGuardar(GYM_LS,gymLoad());}catch(e){return false;}}
 function gymId(dk,raw){return 'g|'+dk+'|'+String(raw==null?'':raw).trim();}
@@ -15262,15 +15282,25 @@ function gymImportar(texto){
     if(!o||typeof o!=='object'){malas++;return;}
     const dk=gymDk(o.fecha), raw=String(o.jugador==null?'':o.jugador).trim();
     if(!dk||!raw){malas++;return;}
+    /* `carga` es RPE·serie, NO la UA del cuestionario (RPE × minutos): son
+       unidades distintas y no se suman. `serRpe` dice sobre cuántas series se
+       ha podido calcular, porque sólo llevan RPE escrito una parte. */
     const v={ses:Math.max(0,+o.sesiones||0),series:Math.max(0,+o.series||0),
-             reps:Math.max(0,+o.repeticiones||0),ua:Math.max(0,+o.ua_gimnasio||0)};
+             reps:Math.max(0,+o.repeticiones||0),
+             carga:(o.carga_rpe==null?null:Math.max(0,+o.carga_rpe||0)),
+             serRpe:Math.max(0,+o.series_con_rpe||0),
+             sinNom:Math.max(0,+o.bloques_sin_nombre||0)};
     if(!Object.prototype.hasOwnProperty.call(G.alias,raw))rawsNuevos.push(raw);
     const id=gymId(dk,raw), prev=idx[id];
     if(prev){
-      if(prev.ses===v.ses&&prev.series===v.series&&prev.reps===v.reps&&prev.ua===v.ua){igual++;return;}
-      prev.ses=v.ses;prev.series=v.series;prev.reps=v.reps;prev.ua=v.ua;prev.upd=ahora;act++;
+      if(prev.ses===v.ses&&prev.series===v.series&&prev.reps===v.reps
+        &&prev.carga===v.carga&&prev.serRpe===v.serRpe){igual++;return;}
+      prev.ses=v.ses;prev.series=v.series;prev.reps=v.reps;
+      prev.carga=v.carga;prev.serRpe=v.serRpe;prev.sinNom=v.sinNom;
+      delete prev.ua;prev.upd=ahora;act++;
     }else{
-      const fila={id,dk,jugador:raw,nombre:'',ses:v.ses,series:v.series,reps:v.reps,ua:v.ua,upd:ahora};
+      const fila={id,dk,jugador:raw,nombre:'',ses:v.ses,series:v.series,reps:v.reps,
+                  carga:v.carga,serRpe:v.serRpe,sinNom:v.sinNom,upd:ahora};
       G.reg.push(fila);idx[id]=fila;nuevas++;
     }
   });
@@ -15319,8 +15349,9 @@ function gymAgg(wk){
   G.reg.forEach(r=>{
     if(!r||!r.dk||!r.nombre)return;
     if(weekKey(dkToDate(r.dk))!==wk)return;
-    const o=out[r.nombre]=out[r.nombre]||{name:r.nombre,ses:0,series:0,reps:0,ua:0,dias:{}};
-    o.ses+=r.ses||0;o.series+=r.series||0;o.reps+=r.reps||0;o.ua+=r.ua||0;o.dias[r.dk]=1;
+    const o=out[r.nombre]=out[r.nombre]||{name:r.nombre,ses:0,series:0,reps:0,carga:0,serRpe:0,sinNom:0,dias:{}};
+    o.ses+=r.ses||0;o.series+=r.series||0;o.reps+=r.reps||0;
+    o.carga+=r.carga||0;o.serRpe+=r.serRpe||0;o.sinNom+=r.sinNom||0;o.dias[r.dk]=1;
   });
   Object.keys(out).forEach(k=>{out[k].nd=Object.keys(out[k].dias).length;});
   return out;
@@ -15349,20 +15380,26 @@ function gymTabla(wk){
   Object.keys(cur).forEach(n=>nombres[n]=1);
   if(prev)Object.keys(prev).forEach(n=>nombres[n]=1);
   bases.forEach(a=>Object.keys(a).forEach(n=>nombres[n]=1));
+  /* v505 · La comparación va sobre las SERIES, no sobre la carga. La carga
+     sale del RPE escrito en la rutina y sólo lo lleva una parte de las series
+     (32% en noviembre de 2026), así que compararla mediría **cuánto RPE se
+     escribió esa semana**, no cuánto trabajo se hizo — la misma trampa de la
+     base pequeña que §9 tiene escrita. Las series están medidas al 100%. */
   const filas=Object.keys(nombres).map(n=>{
-    const c=cur[n]||{name:n,ses:0,series:0,reps:0,ua:0,nd:0};
-    const f={name:n,ses:c.ses,series:c.series,reps:c.reps,ua:c.ua,nd:c.nd,
+    const c=cur[n]||{name:n,ses:0,series:0,reps:0,carga:0,serRpe:0,sinNom:0,nd:0};
+    const f={name:n,ses:c.ses,series:c.series,reps:c.reps,carga:c.carga,
+             serRpe:c.serRpe,sinNom:c.sinNom,nd:c.nd,
              dPrev:null,dBase:null,prevWk,nBase:baseWks.length};
     if(!enCurso){
-      if(prev){const p=(prev[n]||{ua:0}).ua;f.dPrev={de:p,abs:c.ua-p,pct:p>0?(c.ua-p)/p:null};}
+      if(prev){const p=(prev[n]||{series:0}).series;f.dPrev={de:p,abs:c.series-p,pct:p>0?(c.series-p)/p:null};}
       if(bases.length){
-        const m=bases.reduce((s,a)=>s+((a[n]||{ua:0}).ua),0)/bases.length;
-        f.dBase={media:m,abs:c.ua-m,pct:m>0?(c.ua-m)/m:null};
+        const m=bases.reduce((s,a)=>s+((a[n]||{series:0}).series),0)/bases.length;
+        f.dBase={media:m,abs:c.series-m,pct:m>0?(c.series-m)/m:null};
       }
     }
     return f;
   });
-  filas.sort((a,b)=>b.ua-a.ua||a.name.localeCompare(b.name,'es'));
+  filas.sort((a,b)=>b.series-a.series||a.name.localeCompare(b.name,'es'));
   return {wk,sems,i,filas,enCurso,prevWk,nBase:baseWks.length};
 }
 
@@ -15430,7 +15467,8 @@ function renderGym(){
     +'</div>'
     +GYM_MSG
     +'<p class="gv-meta">Una fila por jugador y sesión. Se fusiona por <b>fecha + jugador</b>: volver a importar el mismo archivo no duplica nada, y una fila que haya cambiado se actualiza en su sitio.'
-    +'<br><b>Esta UA no se suma a la carga del cuestionario.</b> El bloque de gimnasio del parte de RPE es otra medida del mismo entrenamiento, así que se enseña aparte y no entra en el ACWR, la monotonía ni el readiness.</p>'
+    +'<br>El archivo lo genera <b>builderpro-gimnasio.js</b> leyendo las rutinas de BuilderPro con una regla fija: fuera el usuario «Prueba», fuera los bloques de movilidad y los tests, y las repeticiones sólo de los valores que de verdad lo son.'
+    +'<br><b>La carga es RPE·serie y no se suma a la del cuestionario</b>, que es RPE × minutos: son unidades distintas. Nada de esto entra en el ACWR, la monotonía ni el readiness.</p>'
   +'</div>';
 
   /* ② emparejar nombres */
@@ -15460,43 +15498,51 @@ function renderGym(){
       +'<p class="hint">Todavía no hay nada importado. Pulsa «Importar JSON» con el archivo de BuilderPro.</p></div>';
   }else{
     const wk=gymSemActual(), T=gymTabla(wk), lim=CONFIG.load.weekJump;
-    const uas=T.filas.map(f=>f.ua).filter(v=>v>0).sort((a,b)=>a-b);
+    const uas=T.filas.map(f=>f.series).filter(v=>v>0).sort((a,b)=>a-b);
     const med=uas.length?(uas.length%2?uas[(uas.length-1)/2]:(uas[uas.length/2-1]+uas[uas.length/2])/2):0;
     const dCell=(d,lab)=>{
       if(!d)return '<span class="gv-d">—</span>';
-      if(d.pct==null)return '<span class="gv-d" title="'+atr(lab)+'">'+(d.abs>0?'+':'')+n0(d.abs)+' UA<em>desde 0</em></span>';
+      if(d.pct==null)return '<span class="gv-d" title="'+atr(lab)+'">'+(d.abs>0?'+':'')+n0(d.abs)+'<em>desde 0</em></span>';
       const alto=Math.abs(d.pct)>lim;
       return '<span class="gv-d'+(alto?' gv-d--alto':'')+'" title="'+atr(lab)+'">'
-        +(d.pct>0?'+':'')+Math.round(d.pct*100)+'%<em>'+(d.abs>0?'+':'')+n0(d.abs)+' UA</em></span>';
+        +(d.pct>0?'+':'')+Math.round(d.pct*100)+'%<em>'+(d.abs>0?'+':'')+n0(d.abs)+' ser.</em></span>';
     };
     const head='<span class="gv-h">Jugador</span>'
-      +'<span class="gv-h gv-h--r">Ses.</span><span class="gv-h gv-h--r">Series</span>'
-      +'<span class="gv-h gv-h--r">Reps</span><span class="gv-h gv-h--r">UA</span>'
-      +'<span class="gv-h gv-h--r">vs sem. anterior</span>'
-      +'<span class="gv-h gv-h--r">vs media '+(T.nBase||4)+' sem.</span>';
-    const cuerpo=T.filas.map(f=>''
-      +'<span class="gv-nm" title="'+atr(f.name)+(f.nd?' · '+f.nd+(f.nd===1?' día':' días')+' de gimnasio':'')+'">'+esc(f.name)+'</span>'
-      +'<span class="gv-v">'+(f.ses||'0')+'</span>'
-      +'<span class="gv-v">'+(f.series?n0(f.series):'0')+'</span>'
+      +'<span class="gv-h gv-h--r" title="Días con gimnasio">Días</span>'
+      +'<span class="gv-h gv-h--r">Series</span>'
+      +'<span class="gv-h gv-h--r">Reps</span>'
+      +'<span class="gv-h gv-h--r" title="Suma del RPE escrito en cada serie. NO es la UA del cuestionario, que es RPE × minutos: son unidades distintas y no se suman.">Carga <em>RPE·serie</em></span>'
+      +'<span class="gv-h gv-h--r">Series vs sem. ant.</span>'
+      +'<span class="gv-h gv-h--r">Series vs media '+(T.nBase||4)+' sem.</span>';
+    const cuerpo=T.filas.map(f=>{
+      const cob=f.series?Math.round(f.serRpe/f.series*100):0;
+      return ''
+      +'<span class="gv-nm" title="'+atr(f.name)+(f.sinNom?' · atención: '+f.sinNom+(f.sinNom===1?' bloque sin nombre, así que su movilidad no se ha podido descontar':' bloques sin nombre, así que su movilidad no se ha podido descontar'):'')+'">'
+        +esc(f.name)+(f.sinNom?'<i class="gv-ojo" title="Tiene bloques sin nombre: la movilidad no se ha podido descontar y las series salen altas">*</i>':'')+'</span>'
+      +'<span class="gv-v">'+(f.nd||'0')+'</span>'
+      +'<span class="gv-v gv-v--ua">'+(f.series?n0(f.series):'0')+'</span>'
       +'<span class="gv-v">'+(f.reps?n0(f.reps):'0')+'</span>'
-      +'<span class="gv-v gv-v--ua">'+n0(f.ua)+'</span>'
-      +dCell(f.dPrev,f.dPrev?('Semana anterior: '+n0(f.dPrev.de)+' UA'):'')
-      +dCell(f.dBase,f.dBase?('Media de las '+T.nBase+' semanas anteriores: '+n0(f.dBase.media)+' UA'):'')
-      +'<span class="gv-sep"></span>').join('');
+      +'<span class="gv-v" title="'+(f.serRpe?('calculada sobre '+f.serRpe+' de '+f.series+' series ('+cob+'%)'):'ninguna serie lleva RPE escrito')+'">'
+        +(f.carga>0?n0(f.carga)+'<em class="gv-cob">· '+cob+'%</em>':'<span class="muted">—</span>')+'</span>'
+      +dCell(f.dPrev,f.dPrev?('Semana anterior: '+n0(f.dPrev.de)+' series'):'')
+      +dCell(f.dBase,f.dBase?('Media de las '+T.nBase+' semanas anteriores: '+n0(f.dBase.media)+' series'):'')
+      +'<span class="gv-sep"></span>';}).join('');
     const nav='<div class="gv-wk">'
       +'<button class="btn ghost" style="padding:5px 11px"'+(T.i<=0?' disabled':'')+' onclick="gymSemMover(-1)">‹</button>'
       +'<b>'+gymSemLab(wk)+'</b>'
       +'<button class="btn ghost" style="padding:5px 11px"'+(T.i>=sems.length-1?' disabled':'')+' onclick="gymSemMover(1)">›</button>'
       +(T.enCurso?'<span class="gv-tag">semana en curso</span>':'')
-      +'<span class="gv-meta" style="margin:0">'+uas.length+' con gimnasio · mediana '+n0(med)+' UA</span>'
+      +'<span class="gv-meta" style="margin:0">'+uas.length+' con gimnasio · mediana '+n0(med)+' series</span>'
     +'</div>';
     const pie='<p class="gv-pie">'
       +(T.enCurso
         ? '<b>La semana está a medias y por eso no se compara.</b> El salto de una semana incompleta contra una entera no existe — es la misma regla que el dashboard de cargas ya aplica a la monotonía y al salto semanal.'
         : (T.nBase
-            ? 'Las comparaciones van sobre la <b>UA</b>: contra la semana anterior y contra la media de '+(T.nBase===1?'la semana anterior':('las '+T.nBase+' semanas anteriores'))+' que hay importadas. En ámbar, los cambios de más del '+Math.round(lim*100)+'%, que es el listón de salto semanal que la app ya usa.'
+            ? 'Las comparaciones van sobre las <b>series</b>: contra la semana anterior y contra la media de '+(T.nBase===1?'la semana anterior':('las '+T.nBase+' semanas anteriores'))+' que hay importadas. En ámbar, los cambios de más del '+Math.round(lim*100)+'%, que es el listón de salto semanal que la app ya usa.'
             : 'Es la primera semana importada, así que todavía no hay contra qué compararla.'))
-      +'<br>Una semana importada en la que un jugador no aparece cuenta <b>0 UA</b>: esa semana está medida y lo que dice es que no pisó el gimnasio. Una semana que no se ha importado no existe y no entra en la media.</p>';
+      +'<br><b>Se comparan las series y no la carga a propósito:</b> la carga sale del RPE escrito en cada serie y sólo lo lleva una parte de ellas, así que compararla mediría cuánto RPE se escribió esa semana y no cuánto se entrenó. El porcentaje pequeño al lado de la carga es sobre cuántas series se ha podido calcular.'
+      +'<br>Una semana importada en la que un jugador no aparece cuenta <b>0 series</b>: esa semana está medida y lo que dice es que no pisó el gimnasio. Una semana que no se ha importado no existe y no entra en la media.'
+      +'<br>Un <b>*</b> junto al nombre avisa de que esa semana tiene rutinas con bloques sin nombre: ahí la movilidad no se puede descontar y las series salen altas.</p>';
     tab='<div class="panel"><h2>Semana a semana <span class="r muted">por jugador</span></h2>'
       +nav+'<div class="wrap-x"><div class="gv-grid">'+head+cuerpo+'</div></div>'+pie+'</div>';
   }
@@ -15523,30 +15569,36 @@ function renderPlGym(name){
       if(p){if(p.pista)pista+=p.pista.ua||0;if(p.gym)gymQ+=p.gym.ua||0;}
       d.setDate(d.getDate()+1);
     }
-    return {wk,pista,gymQ,gym:g?g.ua:0,nd:g?g.nd:0};
+    return {wk,pista,gymQ,gym:g?g.series:0,carga:g?g.carga:0,nd:g?g.nd:0};
   });
   if(!filas.some(f=>f.gym>0||f.pista>0)){
     box.innerHTML='<h2>Gimnasio y pista <span class="r muted">UA por semana</span></h2>'
       +'<p class="hint">Sin volumen de gimnasio ni carga de pista en las semanas importadas.</p>';
     return;
   }
-  const mx=Math.max.apply(null,filas.map(f=>Math.max(f.pista,f.gym)).concat([1]));
-  const pc=v=>(v>0?Math.max(3,Math.round(v/mx*100)):0);
+  /* v505 · Cada barra se escala contra SU PROPIO máximo, no contra uno común:
+     la de pista son UA (RPE × minutos) y la de gimnasio son series. Son
+     unidades distintas y ponerlas en la misma escala invitaría a compararlas
+     o a sumarlas, que es justo lo que no se puede hacer. */
+  const mxP=Math.max.apply(null,filas.map(f=>f.pista).concat([1]));
+  const mxG=Math.max.apply(null,filas.map(f=>f.gym).concat([1]));
+  const pc=(v,m)=>(v>0?Math.max(3,Math.round(v/m*100)):0);
   const cuerpo=filas.map(f=>'<div class="plg2-r">'
     +'<span class="plg2-wk" title="Semana del '+gymSemLab(f.wk)+'">'+gymFechaCorta(f.wk)+'</span>'
     +'<div class="plg2-l"><span class="plg2-k">Pista</span>'
-      +'<span class="plg2-b"><i style="width:'+pc(f.pista)+'%;background:var(--c-data)"></i></span>'
+      +'<span class="plg2-b"><i style="width:'+pc(f.pista,mxP)+'%;background:var(--c-data)"></i></span>'
       +'<span class="plg2-n">'+(f.pista>0?n0(f.pista):'—')+'<em>UA</em></span></div>'
     +'<div class="plg2-l"><span class="plg2-k">Gimnasio</span>'
-      +'<span class="plg2-b"><i style="width:'+pc(f.gym)+'%;background:var(--accent)"></i></span>'
-      +'<span class="plg2-n">'+(f.gym>0?n0(f.gym):'—')+'<em>UA</em></span></div>'
+      +'<span class="plg2-b"><i style="width:'+pc(f.gym,mxG)+'%;background:var(--accent)"></i></span>'
+      +'<span class="plg2-n">'+(f.gym>0?n0(f.gym):'—')+'<em>series</em></span></div>'
   +'</div>').join('');
   const qt=filas.reduce((a,f)=>a+f.gymQ,0);
-  box.innerHTML='<h2>Gimnasio y pista <span class="r muted">UA por semana · últimas '+filas.length+'</span></h2>'
+  const cg=filas.reduce((a,f)=>a+(f.carga||0),0);
+  box.innerHTML='<h2>Gimnasio y pista <span class="r muted">por semana · últimas '+filas.length+'</span></h2>'
     +'<div class="plg2">'+cuerpo+'</div>'
-    +'<p class="gv-pie"><b>Pista</b> sale del cuestionario de RPE (RPE × minutos) y es la que alimenta su ACWR. '
-    +'<b>Gimnasio</b> es el volumen de BuilderPro y <b>no se suma</b> a esa carga: se enseña al lado, no dentro.'
-    +(qt>0?('<br>En estas semanas declaró además <b>'+n0(qt)+' UA</b> de gimnasio en el cuestionario: es el mismo trabajo contado por el otro camino, el suyo.'):'')
+    +'<p class="gv-pie"><b>Son dos unidades distintas y cada barra va a su propia escala:</b> la de pista son <b>UA</b> (RPE × minutos del cuestionario) y es la que alimenta su ACWR; la de gimnasio son <b>series</b> programadas en BuilderPro. No se comparan entre sí ni se suman.'
+    +(cg>0?('<br>De gimnasio acumula además <b>'+n0(cg)+'</b> de carga RPE·serie en estas semanas, calculada sólo sobre las series que llevan RPE escrito.'):'')
+    +(qt>0?('<br>Y en el cuestionario declaró <b>'+n0(qt)+' UA</b> de gimnasio: es el mismo trabajo contado por el otro camino, el suyo.'):'')
     +'</p>';
 }
 window.renderGym=renderGym;window.renderPlGym=renderPlGym;
@@ -39128,8 +39180,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-07.1*/
-const VER_ACTUAL='2026-11-07.1';
+/*BUILD:2026-11-07.2*/
+const VER_ACTUAL='2026-11-07.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
