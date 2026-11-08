@@ -4379,6 +4379,17 @@ html[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparen
 .gv-d--alto{color:var(--warn-text);font-weight:700}
 .gv-sep{grid-column:1/-1;height:1px;background:var(--line);opacity:.55}
 .gv-pie{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:12px}
+/* v506 · El interruptor de «contar en la carga». Sin colores escritos a mano:
+   el estado va con los tokens semánticos, igual que el resto del archivo. */
+.gv-sw{display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:12px 14px;
+  border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.gv-sw input{margin:2px 0 0;width:16px;height:16px;accent-color:var(--accent);flex:none;cursor:pointer}
+.gv-sw-t{font-size:14px;font-weight:600;color:var(--txt)}
+.gv-sw-d{font-size:12px;color:var(--muted);line-height:1.6;margin-top:3px}
+.gv-sw-n{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
+.gv-sw-n i{font-style:normal;font-size:11px;color:var(--muted2);text-transform:none}
+.gv-sw-n b{font-size:14px;display:block;color:var(--txt)}
+.gv-sw-n .w b{color:var(--warn-text)}
 .gv-h em{font-style:normal;font-weight:500;color:var(--muted2);display:block;font-size:10px}
 .gv-cob{font-style:normal;font-size:10px;color:var(--muted2);margin-left:4px}
 .gv-ojo{font-style:normal;color:var(--warn-text);font-weight:700;margin-left:3px}
@@ -15220,7 +15231,12 @@ function gymLoad(){
   if(!STATE.gym){
     const d=lsLeer(GYM_LS,null)||{};
     STATE.gym={reg:Array.isArray(d.reg)?d.reg:[],
-               alias:(d.alias&&typeof d.alias==='object')?d.alias:{}};
+               alias:(d.alias&&typeof d.alias==='object')?d.alias:{},
+               /* `carga` decide si una rutina de BuilderPro vale como
+                  convocatoria del bloque de gimnasio (v506). Nace en true
+                  porque es lo que Daniel pidió, y se puede quitar sin tocar
+                  nada más: es la misma reversibilidad que `sesCalQuitar`. */
+               cfg:{carga:(d.cfg&&d.cfg.carga===false)?false:true}};
     try{gymSyncNombres();}catch(e){}
     try{gymPurgaUA();}catch(e){}
   }
@@ -15242,7 +15258,7 @@ function gymPurgaUA(){
     if(r&&r.serRpe===undefined)r.serRpe=0;});
   if(n){try{lsGuardar(GYM_LS,G);}catch(e){}}
 }
-function gymPersist(){try{return lsGuardar(GYM_LS,gymLoad());}catch(e){return false;}}
+function gymPersist(){gymCacheBump();try{return lsGuardar(GYM_LS,gymLoad());}catch(e){return false;}}
 function gymId(dk,raw){return 'g|'+dk+'|'+String(raw==null?'':raw).trim();}
 
 /* `nombre` es el de la PLANTILLA y se reescribe desde el alias cada vez que
@@ -15253,6 +15269,133 @@ function gymSyncNombres(){
   const G=STATE.gym;if(!G)return;
   G.reg.forEach(r=>{if(r)r.nombre=G.alias[r.jugador]||'';});
 }
+
+/* ═══ v506 · Una rutina de BuilderPro ES la convocatoria del gimnasio ═══
+   Daniel, 8/11/2026: que el gimnasio que programa cuente en la carga, y
+   «mantén siempre el RPE que ellos dan».
+
+   NO se calcula ninguna carga nueva, NO se inventa ningún umbral y NO se usa
+   el RPE que él programa. Lo único que cambia es UNA PUERTA. El engranaje ya
+   estaba entero desde la v203: `lbDayAll` estima el RPE del jugador que no
+   rellenó el cuestionario a partir de la MEDIA DECLARADA POR EL EQUIPO en ese
+   bloque ese día, corregida por su sesgo histórico, y lo marca `est`;
+   `sessDurApply` lo materializa como registro, así que llega al ACWR, a la
+   monotonía y al readiness, y se ve marcado como estimado en toda la app. Lo
+   que lo frenaba era `asistHas`, que exige pulsar «Convocar» a mano, jugador
+   por jugador. Una rutina programada en BuilderPro es esa misma declaración
+   —y mejor: la escribió él al programar, no después de acordarse—.
+
+   MEDIDO sobre las 138 rutinas del 12/10 al 8/11 cruzadas con el cuestionario:
+   89 ya tienen cuestionario y NO se tocan · 13 se rellenan · 36 no se pueden
+   rellenar porque nadie declaró gimnasio ese día, y se DICEN en vez de
+   inventarles un RPE.
+
+   TRES GUARDAS, y las tres importan:
+
+   · **El RPE que él programa no entra.** Medido: pone 8,5 de mediana y ellos
+     declaran 7,0, con una correlación de 0,23 — o sea, no se parecen. Usarlo
+     inflaría la carga de gimnasio un 30 % con números que nadie ha vivido.
+     Lo que entra es siempre lo que declaran los jugadores.
+
+   · **Hacen falta 3 declaraciones reales ese día.** No es un umbral nuevo: es
+     el mínimo que `lbBias` ya aplica unas líneas más arriba («con menos de 3 la
+     media no representa al equipo»). Sin él, el 26/10 Óscar heredaba el RPE de
+     UNA persona y el 21/10 Brais el de dos.
+
+   · **Lo que se desconvoca a mano manda.** Si alguien quita a un jugador que
+     BuilderPro dice que entrenó, se guarda un `false` EXPLÍCITO: §9 tiene
+     escrito lo que cuesta que algo fije un estado sin poder deshacerlo. */
+const GYM_TEAM_MIN=3;         /* el mismo mínimo de `lbBias`, no uno nuevo */
+let GYM_CC=0;                 /* sello de caché: sube con cada escritura */
+let GYM_IDX=null, GYM_DEC=null;
+
+/* Toda escritura pasa por `gymPersist`, así que basta con subirlo ahí: cubre el
+   import, el cambio de alias y el interruptor. Y tira además las cachés de
+   carga, porque la convocatoria cambia lo que devuelve `lbDayAll`. */
+function gymCacheBump(){
+  GYM_CC++;GYM_IDX=null;GYM_DEC=null;
+  if(window.lbResetBias)lbResetBias();
+}
+
+/* día → nombres de PLANTILLA con rutina ese día. Sólo los emparejados: un raw
+   sin alias no sabemos de quién es y no puede convocar a nadie. */
+/* Un alias puede apuntar a un nombre que ya no está en la plantilla: la hoja
+   manda y su grafía puede cambiar —§9: la hoja dice «Pancho Ahumada Collado»,
+   no «Pancho Ahumada»—. Si no se comprueba, `lbDayAll` no tiene a ese jugador
+   entre los suyos y el panel promete un relleno que nunca ocurre. */
+function gymEnPlantilla(n){return !!(n&&STATE.players&&STATE.players[n]);}
+function gymIdxDia(){
+  const G=gymLoad();
+  const sello=GYM_CC+'|'+Object.keys(STATE.players||{}).length;
+  if(GYM_IDX&&GYM_IDX.c===sello)return GYM_IDX.m;
+  const m={};
+  G.reg.forEach(r=>{
+    if(!r||!r.dk||!gymEnPlantilla(r.nombre))return;
+    (m[r.dk]=m[r.dk]||{})[r.nombre]=true;
+  });
+  GYM_IDX={c:sello,m};return m;
+}
+
+/* Cuántos jugadores DECLARARON de verdad el bloque de gimnasio ese día. Se
+   filtra igual que `teamOf` en `lbDayAll` —fuera `bloqueConvocado` y
+   `sinRegistro`—, porque si no, en la segunda pasada se contarían los
+   registros que la propia app acaba de crear y la guarda se abriría sola. */
+function gymDeclararon(dk){
+  const sello=GYM_CC+'|'+((STATE.rpe||[]).length);
+  if(!GYM_DEC||GYM_DEC.s!==sello)GYM_DEC={s:sello,m:{}};
+  if(GYM_DEC.m[dk]!=null)return GYM_DEC.m[dk];
+  const v={};
+  (STATE.rpe||[]).forEach(r=>{
+    if(!r||r.dk!==dk||r.bloqueConvocado||r.sinRegistro)return;
+    if(!(r.rpe>0))return;
+    if(!(window.lbEsDe&&lbEsDe(r.tipo,'gym')))return;
+    v[r.name]=true;
+  });
+  const n=Object.keys(v).length;
+  GYM_DEC.m[dk]=n;return n;
+}
+
+/* ¿Vale la rutina de BuilderPro como convocatoria de gimnasio de este jugador
+   este día? Es lo único que lee `asistHas`. */
+function gymConvocado(dk,name){
+  const G=gymLoad();
+  if(!G.cfg||G.cfg.carga===false)return false;
+  if(!dk||!name)return false;
+  if(!(gymIdxDia()[dk]||{})[name])return false;
+  return gymDeclararon(dk)>=GYM_TEAM_MIN;
+}
+
+/* Para el panel: qué está haciendo el interruptor, dicho con números. Tres
+   cubos, y el tercero es el que hay que decir en voz alta — es trabajo que
+   existe y que la app NO puede valorar porque no hay RPE del que tirar. */
+function gymCargaEstado(){
+  const G=gymLoad();
+  const on=!(!G.cfg||G.cfg.carga===false);
+  let conCuest=0,rellena=0,sinEquipo=0,sinAlias=0;
+  const vistos={};
+  G.reg.forEach(r=>{
+    if(!r||!r.dk)return;
+    if(!gymEnPlantilla(r.nombre)){sinAlias++;return;}
+    const k=r.dk+'|'+r.nombre;if(vistos[k])return;vistos[k]=true;
+    const declaro=(STATE.rpe||[]).some(x=>x&&x.dk===r.dk&&x.name===r.nombre
+      &&!x.bloqueConvocado&&!x.sinRegistro&&x.rpe>0
+      &&window.lbEsDe&&lbEsDe(x.tipo,'gym'));
+    if(declaro){conCuest++;return;}
+    if(gymDeclararon(r.dk)>=GYM_TEAM_MIN)rellena++;else sinEquipo++;
+  });
+  return {on,conCuest,rellena,sinEquipo,sinAlias};
+}
+
+function gymCargaSet(v){
+  const G=gymLoad();
+  G.cfg=G.cfg||{};G.cfg.carga=!!v;
+  gymPersist();
+  try{if(window.buildPlayers)buildPlayers();}catch(e){}
+  try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}
+  try{if(window.renderAll)renderAll();}catch(e){}
+}
+window.gymConvocado=gymConvocado;window.gymCargaEstado=gymCargaEstado;
+window.gymCargaSet=gymCargaSet;
 
 /* La fecha llega ya como AAAA-MM-DD, pero se normaliza igualmente: una hoja
    exportada con otro formato entraría como texto y rompería el agrupado. */
@@ -15447,6 +15590,32 @@ function gymPintaMsg(r){
 }
 window.gymSemMover=gymSemMover;window.gymArchivo=gymArchivo;
 
+/* v506 · Lo que el interruptor hace, dicho con números y en la pantalla donde
+   se decide. Es el patrón del panel de calibración de umbrales: se enseña el
+   antes y el después, y se puede volver atrás sin tocar nada. */
+function gymSwHTML(){
+  const e=gymCargaEstado();
+  const cel=(n,t,w)=>'<i class="'+(w?'w':'')+'"><b>'+n+'</b>'+t+'</i>';
+  return '<label class="gv-sw">'
+    +'<input type="checkbox"'+(e.on?' checked':'')+' onchange="gymCargaSet(this.checked)">'
+    +'<span><span class="gv-sw-t">Contar este gimnasio en la carga del jugador</span>'
+    +'<span class="gv-sw-d">Una rutina programada aquí vale como haber entrenado ese bloque, '
+    +'aunque el jugador no rellenase el cuestionario. <b>El RPE sigue siendo el que declaran ellos</b>: '
+    +'se usa la media del equipo de ese día corregida por el sesgo del jugador, nunca el RPE que se '
+    +'programó. La carga sale marcada como estimada y se puede quitar jugador a jugador desde el día '
+    +'del calendario, con la etiqueta <b>est</b>.</span>'
+    +'<span class="gv-sw-n">'
+      +cel(e.conCuest,' ya tienen cuestionario')
+      +cel(e.rellena,' se rellenan')
+      +cel(e.sinEquipo,' sin RPE del equipo ese día',true)
+      +(e.sinAlias?cel(e.sinAlias,' sin emparejar',true):'')
+    +'</span>'
+    +'<span class="gv-sw-d">Las de la tercera columna <b>no se rellenan a propósito</b>: si nadie '
+    +'declaró gimnasio ese día no hay RPE del que tirar, y hacen falta al menos '+GYM_TEAM_MIN
+    +' respuestas para que la media represente al equipo. En cuanto alguien rellene el cuestionario '
+    +'de ese día, se rellenan solas.</span>'
+    +'</span></label>';
+}
 function renderGym(){
   const box=document.getElementById('carga-gym');if(!box)return;
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
@@ -15468,7 +15637,8 @@ function renderGym(){
     +GYM_MSG
     +'<p class="gv-meta">Una fila por jugador y sesión. Se fusiona por <b>fecha + jugador</b>: volver a importar el mismo archivo no duplica nada, y una fila que haya cambiado se actualiza en su sitio.'
     +'<br>El archivo lo genera <b>builderpro-gimnasio.js</b> leyendo las rutinas de BuilderPro con una regla fija: fuera el usuario «Prueba», fuera los bloques de movilidad y los tests, y las repeticiones sólo de los valores que de verdad lo son.'
-    +'<br><b>La carga es RPE·serie y no se suma a la del cuestionario</b>, que es RPE × minutos: son unidades distintas. Nada de esto entra en el ACWR, la monotonía ni el readiness.</p>'
+    +'<br><b>La carga es RPE·serie y no se suma a la del cuestionario</b>, que es RPE × minutos: son unidades distintas, así que las series y la carga de aquí no entran en el ACWR ni en la monotonía.</p>'
+    +gymSwHTML()
   +'</div>';
 
   /* ② emparejar nombres */
@@ -29042,11 +29212,26 @@ function sessDurForName(dk,name){const m=sessDurGet()[dk];if(!m)return null;if(m
 function asistGet(){if(!STATE.asist)STATE.asist=lsLeer('bmnava_asist',{});return STATE.asist;}
 function asistPersist(){return lsGuardar('bmnava_asist',asistGet());}
 function asistKey(name,block){return name+'::'+block;}
-function asistHas(dk,block,name){const m=asistGet()[dk];return !!(m&&m[asistKey(name,block)]);}
+function asistHas(dk,block,name){
+  const m=asistGet()[dk],k=asistKey(name,block);
+  /* Lo marcado a mano manda SIEMPRE, y por eso se distingue «no hay nada» de un
+     `false` explícito: desconvocar a quien BuilderPro dice que entrenó tiene que
+     poder deshacerse, y §9 tiene escrito lo que cuesta que no se pueda. */
+  if(m&&m[k]!==undefined)return !!m[k];
+  /* v506 · Sin marca a mano, una rutina programada en BuilderPro vale como
+     convocatoria del bloque de GIMNASIO. No toca pista ni tecnificación: la
+     pista la declara el equipo entero y la tecnificación se convoca a mano a
+     propósito (§2.1), porque el grupo cambia cada semana. */
+  return block==='gym'&&!!(window.gymConvocado&&gymConvocado(dk,name));
+}
 function asistToggle(dk,block,name,val){
   const A=asistGet();A[dk]=A[dk]||{};
   const k=asistKey(name,block);
-  if(val)A[dk][k]=true;else delete A[dk][k];
+  if(val)A[dk][k]=true;
+  /* Borrar la marca basta cuando nada más la pone. Si BuilderPro la pondría de
+     todas formas, hay que GUARDAR el «no» para que se respete (v506). */
+  else if(block==='gym'&&window.gymConvocado&&gymConvocado(dk,name))A[dk][k]=false;
+  else delete A[dk][k];
   if(!Object.keys(A[dk]).length)delete A[dk];
   asistPersist();sessDurRecalc(dk);
 }
@@ -39180,8 +39365,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-07.2*/
-const VER_ACTUAL='2026-11-07.2';
+/*BUILD:2026-11-08.1*/
+const VER_ACTUAL='2026-11-08.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
