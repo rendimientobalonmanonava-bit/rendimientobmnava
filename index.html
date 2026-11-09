@@ -2998,9 +2998,9 @@ main{padding:20px 18px 80px}
 .cg-d14-list{display:flex;flex-direction:column}
 .cg-d14{display:grid;
   grid-template-columns:142px minmax(96px,160px) minmax(0,1fr) 74px 58px;
-  grid-template-areas:"d s b u a" "d t t t t";
-  column-gap:12px;row-gap:6px;align-items:center;position:relative;
-  padding:11px 8px 12px}
+  grid-template-areas:"d s b u a" "d k k k k" "d t t t t";
+  column-gap:12px;row-gap:5px;align-items:center;position:relative;
+  padding:10px 8px 11px}
 /* Separador con sangrado, como una lista de Apple. */
 .cg-d14::after{content:'';position:absolute;left:8px;right:8px;bottom:0;
   height:.5px;background:var(--hair)}
@@ -3031,6 +3031,25 @@ main{padding:20px 18px 80px}
 .cg-d14-bar--n2>i{background:var(--bad)}
 .cg-d14-bar>u{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;
   border-radius:1px;background:var(--txt);opacity:.42}
+/* Los bloques del día. Repiten las columnas 2 a 5 del padre, así que cada
+   sub-barra cae justo debajo de la barra del día y se leen como partes de
+   ella. En neutro: el bloque se identifica por su nombre, y la fila ya tiene
+   dos usos del color. */
+.cg-d14-sub{grid-area:k;display:flex;flex-direction:column;gap:3px;margin:0}
+.cg-d14-sb{display:grid;grid-template-columns:minmax(96px,160px) minmax(0,1fr) 144px;
+  column-gap:12px;align-items:center}
+.cg-d14-sb-n{font-size:11px;font-weight:600;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cg-d14-sb-n em{font-style:normal;font-weight:500;color:var(--muted2);margin-left:5px}
+.cg-d14-sb-b{position:relative;height:6px;border-radius:999px}
+.cg-d14-sb-b::before{content:'';position:absolute;inset:0;border-radius:999px;
+  background:var(--c-line2);opacity:.22}
+.cg-d14-sb-b>i{position:absolute;left:0;top:0;bottom:0;min-width:3px;
+  border-radius:999px;background:var(--c-data);opacity:.72}
+.cg-d14-sb-v{font-size:11px;color:var(--muted2);text-align:right;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.cg-d14-sb-v b{color:var(--muted);font-weight:700}
+
 .cg-d14-ua,.cg-d14-ac{display:flex;flex-direction:column;line-height:1.1;text-align:right}
 .cg-d14-ua{grid-area:u}
 .cg-d14-ac{grid-area:a}
@@ -3067,7 +3086,14 @@ main{padding:20px 18px 80px}
    lo que hacía la rejilla de diez columnas con scroll lateral. */
 @media(max-width:720px){
   .cg-d14{grid-template-columns:minmax(0,1fr) auto auto;
-    grid-template-areas:"d u a" "s s s" "b b b" "t t t";row-gap:7px;column-gap:10px;padding:10px 6px 11px}
+    grid-template-areas:"d u a" "s s s" "b b b" "k k k" "t t t";row-gap:7px;column-gap:10px;padding:10px 6px 11px}
+  /* En el móvil el sub-bloque es UNA línea y sin barra: con barra ocupaba dos
+     y dos bloques se llevaban 70 px de los 812 de la pantalla, en un bloque
+     que ya es largo. La barra del día, que es la que se mira de un vistazo,
+     sigue entera arriba; aquí lo que hace falta es el reparto en cifras. */
+  .cg-d14-sb{grid-template-columns:minmax(0,1fr) auto;column-gap:10px}
+  .cg-d14-sb-b{display:none}
+  .cg-d14-sb-v{text-align:right}
   .cg-d14-det{gap:2px 8px}
   .cg-d14-det>span+span::before{margin-right:8px}
   .cg-d14-leg-r{margin-left:0;width:100%}
@@ -17485,6 +17511,30 @@ function renderCargaResumen(){
   catch(e){console.error('bmnava · nivel de sesión',e);}
   const nivTxt=n=>{const l=(LV[n]||[])[0]; return l?l.charAt(0)+l.slice(1).toLowerCase():'';};
 
+  /* v513 · Los bloques del día, como sub-apartados. Daniel, 9/11/2026: *«dentro
+     de cada día, si se hacen 2 sesiones (gym y pista), que aparezcan como
+     sub-apartados y la gráfica general»*. Sale de `lbTeamDay`, que ya daba la
+     carga, la duración y el RPE de cada bloque — **ni un cálculo nuevo**, y
+     1 ms para los catorce días—. Tres reglas:
+     · **Solo con dos bloques o más.** Con uno, el día ES ese bloque y repetir
+       su cifra debajo sería verla dos veces.
+     · **Misma escala que la barra del día**, así que las sub-barras suman
+       visualmente lo que mide la de arriba. *Comprobado: la suma de los
+       bloques cuadra exacta con la UA del día (920 = 561 + 359).*
+     · **En neutro, sin color propio.** El bloque se identifica por su nombre:
+       la fila ya usa color para el nivel de la sesión y para el ACWR, y una
+       tercera escala cromática es justo lo que la guía desaconseja.
+     De paso resuelve algo que engañaba: `teamDayAgg` etiqueta el día con UNA
+     sesión, así que el 27/10 ponía «Gimnasio» cuando hubo pista (561 UA) y
+     gimnasio (359). Ahora se ve. */
+  const BLQ=[['pista','Pista'],['gym','Gimnasio'],['tec','Tecnificación']];
+  const bloquesDe=dk=>{
+    let t=null;try{t=lbTeamDay(dk);}catch(e){return [];}
+    if(!t)return [];
+    return BLQ.map(([k,lab])=>{const b=t[k];
+      return (b&&b.ua>0)?{lab,ua:b.ua,dur:b.dur,rpe:b.rpe,n:b.n}:null;}).filter(Boolean);
+  };
+
   const uaEsc=(isFinite(uaMax)&&uaMax>0)?uaMax:mxCol(dias.map(d=>d.ua));
   const uaRef=(isFinite(uaProm)&&uaEsc>0)?uaProm/uaEsc:null;
   const f1=dias.slice().reverse().map(d=>{
@@ -17507,6 +17557,15 @@ function renderCargaResumen(){
       </span>
       <span class="cg-d14-ua"><b>${n0(d.ua)}</b><em>UA</em></span>
       <span class="cg-d14-ac" style="color:${colTexto(acCol(d.acwr))}"><b>${n2(d.acwr)}</b><em>ACWR</em></span>
+      ${(()=>{const bs=bloquesDe(d.dk);
+        if(bs.length<2)return '';
+        return `<span class="cg-d14-sub">`+bs.map(b=>{
+          const bv=uaEsc>0?Math.max(0,Math.min(1,b.ua/uaEsc)):0;
+          return `<span class="cg-d14-sb">
+            <span class="cg-d14-sb-n">${b.lab}${b.n?`<em>${b.n} jug.</em>`:''}</span>
+            <span class="cg-d14-sb-b"><i style="width:${(bv*100).toFixed(1)}%"></i></span>
+            <span class="cg-d14-sb-v"><b>${n0(b.ua)}</b> UA${b.dur>0?` · ${n0(b.dur)}′`:''}${b.rpe>0?` · RPE ${n1(b.rpe)}`:''}</span>
+          </span>`;}).join('')+`</span>`;})()}
       <span class="cg-d14-det">
         <span><em>Duración</em>${n0(d.dur)}′</span>
         <span><em>RPE</em>${n1(d.rpe)}</span>
@@ -39655,8 +39714,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-09.6*/
-const VER_ACTUAL='2026-11-09.6';
+/*BUILD:2026-11-09.7*/
+const VER_ACTUAL='2026-11-09.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
