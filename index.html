@@ -2894,10 +2894,15 @@ main{padding:20px 18px 80px}
    El sombreado de celda lo pone el JS: es el «mapa de calor» del PDF, en un
    solo tono y sin rojo, porque aquí «más alto» no quiere decir «peligro». */
 .cg-wrap{overflow-x:auto;margin:0 -4px;padding:0 4px}
+/* v508 · El ancho sobrante va a las COLUMNAS NUMÉRICAS, no al hueco de la
+   sesión. Antes «Sesión» era `1.4fr` y se llevaba 450 px de 1.140 —el 39 % de
+   la tabla— para decir «Gimnasio · 14 jug.», mientras el ACWR se quedaba en
+   58. Ahora es fija y las ocho columnas de cifra crecen con la ventana, que es
+   donde vive la barra: al ensanchar la pantalla crece el dato, no el aire. */
 .cg-head,.cg-r{display:grid;
-  grid-template-columns:118px minmax(130px,1.4fr) 52px 46px 62px 72px 72px 66px 70px 58px;
+  grid-template-columns:118px minmax(118px,178px) repeat(8,minmax(54px,1fr));
   align-items:center;gap:6px;min-width:780px}
-.cg-head2,.cg-r2{grid-template-columns:150px 78px 66px 70px 76px 78px 68px 72px 60px;min-width:720px}
+.cg-head2,.cg-r2{grid-template-columns:150px repeat(8,minmax(58px,1fr));min-width:720px}
 .cg-head{padding:0 6px 9px;border-bottom:1px solid var(--line);font-size:10px;font-weight:700;
   letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);text-align:right}
 .cg-head em{display:block;font-style:normal;font-weight:500;letter-spacing:0;text-transform:none;
@@ -2905,7 +2910,7 @@ main{padding:20px 18px 80px}
 .cg-head .cg-d,.cg-head .cg-ses{text-align:left}
 .cg-r{padding:0;font-size:12.5px;font-variant-numeric:tabular-nums;text-align:right;
   border-bottom:.5px solid var(--hair)}
-.cg-r>span{padding:7px 6px;border-radius:5px}
+.cg-r>span{padding:7px 6px;border-radius:5px;position:relative}
 .cg-r:last-of-type{border-bottom:0}
 .cg-r b{font-weight:700}
 .cg-d{text-align:left;display:flex;flex-direction:column;gap:1px;line-height:1.2}
@@ -2922,6 +2927,25 @@ main{padding:20px 18px 80px}
 .cg-r--act .cg-d b{color:var(--ok-text)}
 .cg-r--off{color:var(--muted2)}
 .cg-r--off .cg-ses{font-style:italic;color:var(--muted2)}
+
+/* ── v508 · La barra sustituye al mapa de calor ──
+   Medido el 9/11/2026: el sombreado iba de 0,08 a 0,22 de opacidad del MISMO
+   tono, o sea que la celda más alta y la más baja se parecían y la única ayuda
+   visual de la tabla no estaba funcionando. La longitud sí se lee sin pensar.
+   El tono es el de antes (`--c-data`) y no entra ningún color nuevo: es un
+   gráfico, no una palabra, así que lleva el color vivo.
+   La barra va AL PIE y anclada al mismo borde derecho que la cifra, dentro del
+   relleno que la celda ya tenía: así no toca el contraste del texto ni sube la
+   altura de la fila. */
+.cg-b::after{content:'';position:absolute;right:6px;bottom:2px;height:3px;border-radius:2px;
+  width:calc(var(--v,0) * (100% - 12px));background:var(--c-data);opacity:.55}
+/* La marca del listón de monotonía (`CONFIG.load.monoHi`), el mismo que el
+   gráfico de abajo dibuja como línea discontinua. No es un umbral nuevo. */
+/* La marca tiene que leerse sobre el fondo del panel Y sobre la propia barra
+   —cuando la aguda pasa a la crónica queda dentro—, así que va en el color de
+   texto y sobresale por arriba y por abajo de los 3 px de la barra. */
+.cg-b--mk::before{content:'';position:absolute;bottom:-1px;height:9px;width:2px;border-radius:1px;
+  right:calc(6px + var(--mk,0) * (100% - 12px));background:var(--txt);opacity:.8}
 
 .cg-ref{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;padding-top:11px;
   border-top:.5px solid var(--hair);font-size:11.5px;font-weight:500;color:var(--muted)}
@@ -17227,55 +17251,85 @@ function renderCargaResumen(){
   const semsV=sems.slice(-CG_SEMS).reverse();   // la actual arriba, como el PDF
   const hoy=serie[serie.length-1];
 
-  /* Mapa de calor: un solo tono, más opaco cuanto más alto. **No se usa el
-     rojo**, que en esta app es solo de alertas: el PDF lo usaba para «más
-     alto», y aquí «más alto» no quiere decir «peligro». */
-  const calor=(v,vals)=>{
-    const ok=vals.filter(x=>x!=null&&isFinite(x));
-    if(v==null||!isFinite(v)||ok.length<2)return '';
-    const mn=Math.min.apply(null,ok),mx=Math.max.apply(null,ok);
-    if(mx<=mn)return '';
-    const t=Math.max(0,Math.min(1,(v-mn)/(mx-mn)));
-    return 'background:color-mix(in srgb,var(--c-data) '+(t*22).toFixed(1)+'%,transparent)';
+  /* v508 · Barra en la celda, en lugar del mapa de calor.
+     El sombreado iba de 0,08 a 0,22 de opacidad del mismo tono —medido el
+     9/11/2026—, así que la celda más alta y la más baja se parecían: era un
+     mapa de calor que no se veía. La longitud sí se lee de un vistazo.
+     **Desde CERO, no entre el mínimo y el máximo de la columna**: normalizando
+     por el rango, el valor más bajo queda a longitud cero y se lee como «no hay
+     dato», cuando 2.708 de fatiga contra un máximo de 6.796 es el 40 %.
+     **Las columnas de la misma unidad comparten escala** —aguda con crónica,
+     promedio con desvío—: repartidas en dos escalas no se podían comparar.
+     Y en la celda de la aguda va **la crónica de ese día como marca**, porque
+     la crónica es una media de 21 días y apenas se mueve —medido el 9/11/2026,
+     su valor más bajo es el 85 % del más alto, 18 px de diferencia en toda la
+     columna—, así que su barra sola no dice nada. Contra ella sí: cuando la
+     barra de la aguda pasa la marca, el ACWR pasa de 1. Es el ACWR dibujado
+     con lo que la tabla ya tenía, sin columna nueva y sin umbral nuevo.
+     **El ACWR no lleva barra a propósito**: es un ratio centrado en 1 y una
+     barra desde cero no distingue 0,89 de 1,03. Conserva su color, que sale de
+     la banda de `CONFIG`. Sin rojo decorativo: el tono es `--c-data`, el mismo
+     que ya usaba el sombreado, y aquí es un gráfico, no una palabra. */
+  const barra=(v,max,mk)=>{
+    if(v==null||!isFinite(v)||!(max>0))return '';
+    const t=Math.max(0,Math.min(1,v/max));
+    return ' class="cg-b'+(mk?' cg-b--mk':'')+'" style="--v:'+t.toFixed(3)
+      +(mk?';--mk:'+Math.max(0,Math.min(1,mk)).toFixed(3):'')+'"';
   };
+  const mxCol=a=>{const ok=(a||[]).filter(x=>x!=null&&isFinite(x)&&x>0);
+    return ok.length?Math.max.apply(null,ok):0;};
   const acCol=v=>(v==null||!isFinite(v))?'var(--muted2)'
     :(v>=CONFIG.load.acwrRedHi?'var(--bad)':(v>CONFIG.load.acwrYellowHi||v<CONFIG.load.acwrYellowLo?'var(--warn)':'var(--ok)'));
 
   /* ── ① día a día ── */
-  const cols1=['ua','mono','strain','aguda','cronica'];
-  const vals1={};cols1.forEach(c=>{vals1[c]=dias.map(d=>d[c]);});
+  /* Escalas de la barra. El RPE va contra su escala declarada (0–10) y no
+     contra el máximo de la columna: es una escala cerrada y conocida, así que
+     un 7,1 tiene que verse como un 7,1 y no como «el más alto de la semana».
+     La monotonía va contra el máximo o contra `CONFIG.load.monoHi`, el listón
+     que el gráfico de abajo ya dibuja — no es un umbral nuevo — y lleva su
+     marca. Aguda y crónica comparten techo. */
+  const mHi=(CONFIG.load&&CONFIG.load.monoHi)||2;
+  const e1={dur:mxCol(dias.map(d=>d.dur)), ua:mxCol(dias.map(d=>d.ua)),
+    strain:mxCol(dias.map(d=>d.strain)),
+    mono:Math.max(mxCol(dias.map(d=>d.mono)),mHi),
+    ac:Math.max(mxCol(dias.map(d=>d.aguda)),mxCol(dias.map(d=>d.cronica)))};
   const f1=dias.slice().reverse().map(d=>{
     const part=/partido|competi/i.test(d.tipo||'');
     if(d.vacio)return `<div class="cg-r cg-r--off"><span class="cg-d"><b>${DIA[d.date.getDay()]} ${dmy(d.date)}</b></span>`
       +`<span class="cg-ses">Libre o sin registro</span>`
-      +'<span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>';
+      +'<span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>';
     return `<div class="cg-r${part?' cg-r--p':''}">
       <span class="cg-d"><b>${DIA[d.date.getDay()]} ${dmy(d.date)}</b>${d.mdx?`<em>${esc(d.mdx)}</em>`:''}</span>
       <span class="cg-ses">${esc(d.tipo||'Sesión')}${d.n?`<em>${d.n} jug.</em>`:''}</span>
-      <span>${n0(d.dur)}</span>
-      <span>${n1(d.rpe)}</span>
-      <span style="${calor(d.ua,vals1.ua)}"><b>${n0(d.ua)}</b></span>
-      <span style="${calor(d.mono,vals1.mono)}">${n2(d.mono)}</span>
-      <span style="${calor(d.strain,vals1.strain)}">${n0(d.strain)}</span>
-      <span style="${calor(d.aguda,vals1.aguda)}">${n0(d.aguda)}</span>
-      <span style="${calor(d.cronica,vals1.cronica)}">${n0(d.cronica)}</span>
+      <span${barra(d.dur,e1.dur)}>${n0(d.dur)}</span>
+      <span${barra(d.rpe,10)}>${n1(d.rpe)}</span>
+      <span${barra(d.ua,e1.ua)}><b>${n0(d.ua)}</b></span>
+      <span${barra(d.mono,e1.mono,mHi/e1.mono)}>${n2(d.mono)}</span>
+      <span${barra(d.strain,e1.strain)}>${n0(d.strain)}</span>
+      <span${barra(d.aguda,e1.ac,d.cronica/e1.ac)}>${n0(d.aguda)}</span>
+      <span${barra(d.cronica,e1.ac)}>${n0(d.cronica)}</span>
       <span style="color:${colTexto(acCol(d.acwr))};font-weight:700">${n2(d.acwr)}</span>
     </div>`;}).join('');
 
   /* ── ② semana a semana ── */
-  const cols2=['ua','prom','desvio','mono','strain','aguda','cronica'];
-  const vals2={};cols2.forEach(c=>{vals2[c]=semsV.map(w=>w[c]);});
+  /* Promedio y desvío son los dos UA/día y comparten techo: con escalas
+     distintas no se vería que una semana muy plana tiene el desvío corto al
+     lado de un promedio largo, que es exactamente lo que la monotonía mide. */
+  const e2={pd:Math.max(mxCol(semsV.map(w=>w.prom)),mxCol(semsV.map(w=>w.desvio))),
+    ua:mxCol(semsV.map(w=>w.ua)), strain:mxCol(semsV.map(w=>w.strain)),
+    mono:Math.max(mxCol(semsV.map(w=>w.mono)),mHi),
+    ac:Math.max(mxCol(semsV.map(w=>w.aguda)),mxCol(semsV.map(w=>w.cronica)))};
   const f2=semsV.map((w,i)=>{
     const act=(i===0);
     return `<div class="cg-r cg-r2${act?' cg-r--act':''}">
       <span class="cg-d"><b>${dmy(w.ini)} – ${dmy(w.fin)}</b><em>${act?'semana actual':'semana cerrada'}${w.parcial&&act?' · '+w.dias+'/7 d':''}</em></span>
-      <span style="${calor(w.prom,vals2.prom)}">${n0(w.prom)}</span>
-      <span style="${calor(w.desvio,vals2.desvio)}">${n0(w.desvio)}</span>
-      <span style="${calor(w.ua,vals2.ua)}"><b>${n0(w.ua)}</b></span>
-      <span style="${calor(w.mono,vals2.mono)}">${n2(w.mono)}</span>
-      <span style="${calor(w.strain,vals2.strain)}">${n0(w.strain)}</span>
-      <span style="${calor(w.aguda,vals2.aguda)}">${n0(w.aguda)}</span>
-      <span style="${calor(w.cronica,vals2.cronica)}">${n0(w.cronica)}</span>
+      <span${barra(w.prom,e2.pd)}>${n0(w.prom)}</span>
+      <span${barra(w.desvio,e2.pd)}>${n0(w.desvio)}</span>
+      <span${barra(w.ua,e2.ua)}><b>${n0(w.ua)}</b></span>
+      <span${barra(w.mono,e2.mono,mHi/e2.mono)}>${n2(w.mono)}</span>
+      <span${barra(w.strain,e2.strain)}>${n0(w.strain)}</span>
+      <span${barra(w.aguda,e2.ac,w.cronica/e2.ac)}>${n0(w.aguda)}</span>
+      <span${barra(w.cronica,e2.ac)}>${n0(w.cronica)}</span>
       <span style="color:${colTexto(acCol(w.acwr))};font-weight:700">${n2(w.acwr)}</span>
     </div>`;}).join('');
 
@@ -17313,7 +17367,7 @@ function renderCargaResumen(){
           <span>Monotonía</span><span>Fatiga</span><span>Aguda</span><span>Crónica</span><span>ACWR</span>
         </div>${f1}
       </div>
-      <p class="hint">Los días de partido van marcados en verde y los días sin cuestionarios se dicen, no se cuentan como sesión. <b>Monotonía, fatiga, aguda y crónica</b> son ventanas móviles de los últimos ${CONFIG.load.acute} y ${CONFIG.load.chronic} días. El sombreado de cada columna marca los valores más altos de esa columna.</p>
+      <p class="hint">Los días de partido van marcados en verde y los días sin cuestionarios se dicen, no se cuentan como sesión. <b>Monotonía, fatiga, aguda y crónica</b> son ventanas móviles de los últimos ${CONFIG.load.acute} y ${CONFIG.load.chronic} días. La <b>barra de cada celda</b> va desde cero hasta el valor más alto de su columna, así que la longitud es la cifra: la más corta no es «sin dato». El RPE va contra su escala, de 0 a 10, y <b>aguda y crónica comparten escala</b> para que se vea cuál pasa a cuál — ese cruce es el ACWR. El ACWR no lleva barra: es un ratio alrededor de 1 y desde cero no se distinguiría 0,89 de 1,03; lo que lleva es el color de su banda. <b>En la celda de la aguda, la marca fina es la crónica de ese día</b>: cuando la barra la pasa, el ACWR pasa de 1. La marca de la monotonía es el listón de ${n2(mHi)}.</p>
     </section>`;
 
   const tabla2=`<section class="cgr-card" style="margin-top:20px">
@@ -17325,11 +17379,18 @@ function renderCargaResumen(){
           <span>Monotonía</span><span>Fatiga</span><span>Aguda</span><span>Crónica</span><span>ACWR</span>
         </div>${f2}
       </div>
-      <p class="hint">Es la tabla de arriba agrupada por semanas naturales, así que las dos no pueden contradecirse. La semana en curso tiene los días que lleva, no siete: su UA acumulada todavía va a subir, y por eso <b>su monotonía y su índice de fatiga no se calculan</b> —con tres días parecidos la desviación se va a cero y el cociente se dispara—. La carga aguda, la crónica y el ACWR sí valen: son ventanas móviles y no dependen de dónde caiga el lunes.</p>
+      <p class="hint">Es la tabla de arriba agrupada por semanas naturales, así que las dos no pueden contradecirse. La semana en curso tiene los días que lleva, no siete: su UA acumulada todavía va a subir, y por eso <b>su monotonía y su índice de fatiga no se calculan</b> —con tres días parecidos la desviación se va a cero y el cociente se dispara—. La carga aguda, la crónica y el ACWR sí valen: son ventanas móviles y no dependen de dónde caiga el lunes. <b>Promedio y desvío comparten escala</b>, los dos en UA/día: un desvío corto al lado de un promedio largo es una semana plana, que es lo que la monotonía mide con un número.</p>
     </section>`;
 
-  /* ── ③ a ⑥ · los cuatro gráficos del PDF ── */
-  const graficos=`
+  /* ── ③ a ⑥ · los cuatro gráficos del PDF ──
+     v508 · Cada pareja va ahora PEGADA a la tabla que dibuja, no las cuatro al
+     final. De las ocho columnas de cifra de la tabla de días, cinco estaban ya
+     graficadas mil píxeles más abajo —UA y RPE en ③, ACWR, aguda y crónica en
+     ④—, y lo mismo la monotonía y la fatiga de la tabla de semanas en ⑤. Se
+     miraba el número y su dibujo quedaba fuera de pantalla. El orden de los
+     siete bloques del PDF se conserva; lo que cambia es dónde se corta.
+     Decisión de Daniel el 9/11/2026. */
+  const graficos1=`
     <div class="cgr-duo" style="margin-top:20px">
       <section class="cgr-card">
         <div class="cgr-card-h"><h3>UA y RPE, día a día</h3><span>últimos 28 días</span></div>
@@ -17351,7 +17412,8 @@ function renderCargaResumen(){
         </div>
         <p class="hint">El ACWR es el ratio entre la carga aguda y la crónica. <b>Son valores de referencia</b>: con el tiempo hay que crear el criterio de este equipo, no heredarlo.</p>
       </section>
-    </div>
+    </div>`;
+  const graficos2=`
     <div class="cgr-duo" style="margin-top:20px">
       <section class="cgr-card">
         <div class="cgr-card-h"><h3>Monotonía e índice de fatiga</h3><span>semana a semana</span></div>
@@ -17387,7 +17449,7 @@ function renderCargaResumen(){
     }
   }catch(e){console.error('bmnava · refmd',e);}
 
-  box.innerHTML=hero+tabla1+tabla2+graficos+refmd;
+  box.innerHTML=hero+tabla1+graficos1+tabla2+graficos2+refmd;
 
   /* ── los gráficos, después del innerHTML ── */
   try{
@@ -39377,8 +39439,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-09.1*/
-const VER_ACTUAL='2026-11-09.1';
+/*BUILD:2026-11-09.2*/
+const VER_ACTUAL='2026-11-09.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
