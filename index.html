@@ -8384,9 +8384,13 @@ function lbDayAll(dk){
     if(b==='both'){decl[r.name].pista.push(r);decl[r.name].gym.push(r);}
     else decl[r.name][b].push(r);
   });
+  /* v507 · `dur0` son los minutos DECLARADOS y `dur` es el resultado del
+     cálculo: `sessDurApply` lo escribe de vuelta sobre el registro. Leer `dur`
+     aquí era leer la salida como si fuera la entrada, así que cada pasada se
+     sumaba a la anterior. Solo `dur0`. */
   const wavg=arr=>{
     if(!arr.length)return null;
-    let w=arr.map(x=>x.dur0>0?x.dur0:(x.dur>0?x.dur:0));
+    let w=arr.map(x=>x.dur0>0?x.dur0:0);
     let sw=w.reduce((a,b)=>a+b,0);
     if(!(sw>0)){w=arr.map(()=>1);sw=arr.length;}
     return arr.reduce((s,x,i)=>s+(x.rpe||0)*w[i],0)/sw;
@@ -8446,8 +8450,16 @@ function lbDayAll(dk){
       }
       if(dur==null){
         /* Sin minutos por bloque: repliegue a lo que traiga el cuestionario, y si
-           tampoco, al total antiguo repartido entre los bloques presentes. */
-        const dd=d[b].reduce((s,x)=>s+(x.dur0>0?x.dur0:(x.dur>0?x.dur:0)),0);
+           tampoco, al total antiguo repartido entre los bloques presentes.
+           v507 · Solo `dur0`, igual que el `dd0` de tres líneas arriba. Con el
+           repliegue a `dur` un registro de «pista y gimnasio» traía de vuelta la
+           SUMA de los dos bloques como si fuera el minutaje declarado de uno,
+           y la duración crecía 60 min en cada `buildPlayers()` sin tope:
+           medido el 9/11/2026 sobre el 12/10, 150 → 210 → 270 → 330 → 390 y la
+           carga de Pablo de 1.680 a 3.600 UA en cuatro pasadas. Un día sin
+           minutos vale 0 y lo dice `durFaltantes`; no se rellena con el
+           resultado del cálculo anterior. */
+        const dd=d[b].reduce((s,x)=>s+(x.dur0>0?x.dur0:0),0);
         if(dd>0)dur=dd;
         else if(legacy!=null)dur=legacy/((hayP?1:0)+(hayG?1:0)+(hayT?1:0)||1);
         else dur=0;
@@ -39365,8 +39377,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-08.1*/
-const VER_ACTUAL='2026-11-08.1';
+/*BUILD:2026-11-09.1*/
+const VER_ACTUAL='2026-11-09.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
