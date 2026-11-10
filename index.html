@@ -19854,7 +19854,7 @@ function renderTestsExtra(){
     html+=`</div>`;heat.innerHTML=html;}
   // CV + SWC
   const cv=document.getElementById('cvswc-tbl');
-  if(cv){const rr=reliabilityRows();cv.innerHTML=`<div class="wrap-x"><table class="tbl"><thead><tr><th>Test</th><th>Media</th><th>DT</th><th>CV %</th><th>SWC (0.2)</th><th>Moderado (0.6)</th><th>Grande (1.2)</th></tr></thead><tbody>${rr.map(r=>`<tr><td>${r.name} <span class="small muted">${r.unit}</span></td><td class="mono">${fmt(r.m,2)}</td><td class="mono">${fmt(r.s,2)}</td><td class="mono">${fmt(r.cv,1)}</td><td class="mono">${fmt(r.swc,2)}</td><td class="mono">${fmt(r.mod,2)}</td><td class="mono">${fmt(r.lrg,2)}</td></tr>`).join('')}</tbody></table></div>`;}
+  if(cv){const rr=reliabilityRows();cv.innerHTML=`<div class="wrap-x"><table class="tbl"><thead><tr><th>Test</th><th>Media</th><th>DT</th><th>CV %</th><th>SWC (0,2)</th><th>Moderado (0,6)</th><th>Grande (1,2)</th></tr></thead><tbody>${rr.map(r=>`<tr><td>${r.name} <span class="small muted">${r.unit}</span></td><td class="mono">${fmt(r.m,2)}</td><td class="mono">${fmt(r.s,2)}</td><td class="mono">${fmt(r.cv,1)}</td><td class="mono">${fmt(r.swc,2)}</td><td class="mono">${fmt(r.mod,2)}</td><td class="mono">${fmt(r.lrg,2)}</td></tr>`).join('')}</tbody></table></div>`;}
   // Matriz de correlaciones (sobre z, dirección normalizada)
   const cm=document.getElementById('corr-matrix');
   if(cm){const names=Object.keys(STATE.tests||{});const st=testStats();const zv={};TT.forEach(t=>zv[t.k]=names.map(nm=>{const v=(STATE.tests[nm]||{})[t.k];if(v==null||!(st[t.k].s>0))return null;let z=(v-st[t.k].m)/st[t.k].s;return t.lowerBetter?-z:z;}));
@@ -26136,8 +26136,8 @@ function renderHRPZonas(name,d){
          +(pz?'<u class="pos" style="left:'+pz[i].toFixed(1)+'%" title="media de su posición: '+pz[i].toFixed(1).replace('.',',')+'%"></u>':'')
        +'</div>'
        +'<span class="hrp-zv">'+fmtHM(z[i])+'</span>'
-       +'<span class="hrp-zp">'+pct.toFixed(1)+'%</span>'
-       +'<span class="hrp-zd" style="color:'+(Math.abs(dEq)<1?'var(--muted2)':(dEq>0?'var(--warn-text)':'var(--muted)'))+'">'+(dEq>0?'+':'')+dEq.toFixed(1)+'</span>'
+       +'<span class="hrp-zp">'+pct.toFixed(1).replace('.',',')+'%</span>'
+       +'<span class="hrp-zd" style="color:'+(Math.abs(dEq)<1?'var(--muted2)':(dEq>0?'var(--warn-text)':'var(--muted)'))+'">'+(dEq>0?'+':'')+dEq.toFixed(1).replace('.',',')+'</span>'
       +'</div>';}).join('')+'</div>'
    +'<div class="hrp-zleg"><span><i class="lg-eq"></i>media del equipo</span>'+(pz?'<span><i class="lg-pos"></i>su posición</span>':'')+'</div>'
    +(porNivel?'<div class="hrp-nsec">Su huella según cómo acabó la sesión</div>'+porNivel:'');
@@ -26433,11 +26433,11 @@ function renderHRPPred(name,d,mod){
     const tip=mod.pred((mod.zMin+mod.zMax)/2,k);
     return '<div class="hrx-pc" style="--c:'+sem[0]+'">'
      +'<div class="hrx-pc-t"><i style="background:'+hrpModCol(k)+'"></i>Contacto '+k+'<em>'+nc+'</em></div>'
-     +'<div class="hrx-pc-v" style="color:'+colTexto(sem[0])+'">'+(dz>0?'+':'')+dz.toFixed(2)+'</div>'
+     +'<div class="hrx-pc-v" style="color:'+colTexto(sem[0])+'">'+(dz>0?'+':'')+dz.toFixed(2).replace('.',',')+'</div>'
      +'<div class="hrx-pc-s">de RPE por cada +10% de Z4+Z5</div>'
      +'<div class="hrx-pc-b"><i style="width:'+Math.min(100,a/.9*100).toFixed(0)+'%;background:'+sem[0]+'"></i></div>'
      +'<div class="hrx-pc-l">'+hrpSem(sem[0],sem[1])+'</div>'
-     +'<div class="hrx-pc-r">RPE típica <b style="color:'+colTinta(hrpColRpe(tip))+'">'+tip.toFixed(1)+'</b></div>'
+     +'<div class="hrx-pc-r">RPE típica <b style="color:'+colTinta(hrpColRpe(tip))+'">'+tip.toFixed(1).replace('.',',')+'</b></div>'
     +'</div>';
   }).join(''):'';
   box.innerHTML=cab
@@ -26445,7 +26445,7 @@ function renderHRPPred(name,d,mod){
      +'<div class="hrp-mod-kpi"><span>Ajuste</span><b style="color:'+colTexto(g[0])+'">'+(mod.r2*100).toFixed(0)+'%</b>'
        +'<div class="hrp-r2"><i style="width:'+Math.max(2,Math.min(100,mod.r2*100)).toFixed(0)+'%;background:'+g[0]+'"></i></div>'
        +'<em>'+hrpSem(g[0],g[1])+'</em></div>'
-     +'<div class="hrp-mod-kpi"><span>Error típico</span><b>±'+(mod.rmse!=null?mod.rmse.toFixed(2):'—')+'</b><em>puntos de RPE · '+g[2]+'</em></div>'
+     +'<div class="hrp-mod-kpi"><span>Error típico</span><b>±'+(mod.rmse!=null?mod.rmse.toFixed(2).replace('.',','):'—')+'</b><em>puntos de RPE · '+g[2]+'</em></div>'
      +'<div class="hrp-mod-kpi"><span>Base</span><b>'+mod.n+'</b><em>sesiones con pulso, RPE y contacto</em></div>'
    +'</div>'
    +aviso
@@ -26491,7 +26491,7 @@ function hrpSimular(){
   out.innerHTML='<div class="hrp-sim-lab">RPE estimada</div>'
    +'<div class="hrp-sim-val" style="color:'+colTinta(col)+'">'+p.toFixed(1)+'<span>± '+e.toFixed(1)+'</span></div>'
    +'<div class="hrp-sim-tag" style="--c:'+col+';--ct:'+colTinta(col)+'">'+hrpRpeLab(p)+'</div>'
-   +'<div class="hrp-sim-rng">entre <b>'+Math.max(1,p-e).toFixed(1)+'</b> y <b>'+Math.min(10,p+e).toFixed(1)+'</b></div>'
+   +'<div class="hrp-sim-rng">entre <b>'+Math.max(1,p-e).toFixed(1).replace('.',',')+'</b> y <b>'+Math.min(10,p+e).toFixed(1).replace('.',',')+'</b></div>'
    +(fuera?'<p class="hrp-extra">Fuera de su rango observado ('+HRP_MOD.zMin.toFixed(0)+'–'+HRP_MOD.zMax.toFixed(0)+'%): es una extrapolación.</p>':'')
    +(pocas?'<p class="hrp-extra">Solo '+(HRP_MOD.nivCount[c]||0)+' sesiones suyas con contacto '+c+'.</p>':'');
 }
@@ -29445,7 +29445,7 @@ function teamRingItem(p,col,tag,reason){
   const real=photoFor(nm);const ph=real||window.__AVATAR__||'';const isReal=!!real;
   const size=80,stroke=6,rr=(size-stroke)/2,c=2*Math.PI*rr,off=c*(1-Math.max(0,Math.min(100,rd!=null?rd:100))/100);
   const ring=`<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${rr}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${rr}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" style="--arc-c:${c.toFixed(1)}" class="arc-in" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;
-  const w=lastWell(nm)||{};const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio.toFixed(2):'—';
+  const w=lastWell(nm)||{};const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio.toFixed(2).replace('.',','):'—';
   const acCol=p.acwr&&!isNaN(p.acwr.ratio)?((p.acwr.ratio>1.3||p.acwr.ratio<0.8)?'var(--warn)':'var(--ok)'):'var(--muted)';
   const v=x=>(x==null||isNaN(x))?'—':x;
   const st=(l,val,c2)=>`<div class="ath-st"><span>${l}</span><b${c2?` style="color:${colTexto(c2)}"`:''}>${val}</b></div>`;
@@ -38481,9 +38481,9 @@ function vhZ(name,k){
 function vhFmtZ(z){
   if(z==null)return '—';
   const cap=VH_CFG.zCap;
-  if(z>cap)return '>+'+cap.toFixed(1);
-  if(z<-cap)return '<−'+cap.toFixed(1);
-  return (z>=0?'+':'')+(Math.round(z*100)/100).toFixed(2);
+  if(z>cap)return '>+'+cap.toFixed(1).replace('.',',');
+  if(z<-cap)return '<−'+cap.toFixed(1).replace('.',',');
+  return (z>=0?'+':'')+(Math.round(z*100)/100).toFixed(2).replace('.',',');
 }
 function vhTier(z){
   if(z==null)return 'na';
@@ -39446,7 +39446,7 @@ window.vhExportLong=function(){
    semanas, el 30-15 una o dos veces por temporada— así que limitarse a lo medido
    en la última fecha dejaría la ficha casi vacía. Aquí conviven datos de fechas
    distintas, cada uno con su antigüedad a la vista. */
-function vhFmt(v,d){return v==null||isNaN(v)?'—':(Math.round(v*Math.pow(10,d==null?2:d))/Math.pow(10,d==null?2:d)).toString();}
+function vhFmt(v,d){return v==null||isNaN(v)?'—':(Math.round(v*Math.pow(10,d==null?2:d))/Math.pow(10,d==null?2:d)).toString().replace('.',',');}
 function vhDaysAgo(dk){
   if(!dk)return null;
   const p=String(dk).split('-');if(p.length<3)return null;
@@ -40460,8 +40460,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.19*/
-const VER_ACTUAL='2026-11-10.19';
+/*BUILD:2026-11-10.20*/
+const VER_ACTUAL='2026-11-10.20';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
