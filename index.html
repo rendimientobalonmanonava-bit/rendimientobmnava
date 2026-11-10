@@ -22527,7 +22527,7 @@ window.fisMarcarVisto=function(name){
     if(el&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
       el.classList.add('fh-c--fuera');
       const v0=fisVistos();
-      v0[name]={dk:dkey(new Date()),por:(typeof PS==='function'?PS().defaultPractitioner:'')||''};
+      v0[name]={dk:dkey(new Date()),por:(window.medProfesional?medProfesional():'')||''};
       lsGuardar(FIS_VISTO_LS,v0);
       setTimeout(function(){renderFisio();},260);
       if(window.toast)toast(String(name).split(' ')[0]+' · visto, no necesita tratamiento hoy');
@@ -22535,7 +22535,7 @@ window.fisMarcarVisto=function(name){
     }
   }catch(e){}
   const v=fisVistos();
-  v[name]={dk:dkey(new Date()),por:(typeof PS==='function'?PS().defaultPractitioner:'')||''};
+  v[name]={dk:dkey(new Date()),por:(window.medProfesional?medProfesional():'')||''};
   lsGuardar(FIS_VISTO_LS,v);
   renderFisio();
   if(window.toast)toast(String(name).split(' ')[0]+' · visto, no necesita tratamiento hoy');
@@ -23027,7 +23027,7 @@ window.fisSerieCrear=function(){
   const dur=parseFloat(g('fs-dur'))||null;
   const zone=(g('fs-zone')||'').trim();
   const hora=g('fs-time')||'';
-  const by=(typeof PS==='function'?PS().defaultPractitioner:'')||'';
+  const by=(window.medProfesional?medProfesional():'')||'';
   f.forEach((dk,i)=>{
     STATE.med.treat.push({id:medUid('t'),name,dk,time:hora,tipo,dur,by,practitioner:by,
       role:'Fisioterapeuta',bodyZone:zone,side:'',injId:inj,techniques:[],objectives:[],
@@ -23157,7 +23157,7 @@ window.fisPaseSig=function(){
 window.fisPaseVisto=function(){
   const c=fisCandidatos()[FIS_PASE];if(!c)return;
   const v=fisVistos();
-  v[c.name]={dk:dkey(new Date()),por:(typeof PS==='function'?PS().defaultPractitioner:'')||''};
+  v[c.name]={dk:dkey(new Date()),por:(window.medProfesional?medProfesional():'')||''};
   lsGuardar(FIS_VISTO_LS,v);
   /* al salir de la lista, el índice se queda apuntando al siguiente solo */
   try{renderFisio();}catch(e){}
@@ -35300,6 +35300,13 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   if(s.showNextStep==null)s.showNextStep=true;
  };
  function PS(){medPhysioEnsureSettings();return STATE.med.settings.physio;}
+ /* v522 · `PS` vive dentro de este módulo, y cuatro sitios del bloque principal la
+    consultaban protegidos con `typeof PS==='function'`, que desde allí es SIEMPRE
+    falso: los tratamientos creados «en serie» y las marcas de «visto» se
+    guardaban con el profesional vacío en vez de con el que hay puesto por
+    defecto. Una guarda que protege de una función inalcanzable no da error:
+    devuelve el respaldo para siempre. Se publica el dato, no la función. */
+ window.medProfesional=function(){try{return (PS().defaultPractitioner||'');}catch(e){return '';}};
 
  // ---------- lesiones abiertas de un jugador ----------
  /* v279 · también las molestias: filtrando por kind==='lesion' el enlace
@@ -40297,8 +40304,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.11*/
-const VER_ACTUAL='2026-11-10.11';
+/*BUILD:2026-11-10.12*/
+const VER_ACTUAL='2026-11-10.12';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
