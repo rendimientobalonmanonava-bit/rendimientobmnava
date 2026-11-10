@@ -3099,6 +3099,12 @@ main{padding:20px 18px 80px}
   .cg-d14-leg-r{margin-left:0;width:100%}
 }
 
+/* v514 · El desglose por bloque dentro del panel del día. */
+.cal-cmp-bl{display:flex;flex-direction:column;gap:2px;margin-top:5px;
+  font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cal-cmp-bl em{font-style:normal;color:var(--muted2);font-weight:500}
+.cal-cmp-bl b{font-weight:700;color:var(--muted)}
+
 .cg-ref{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;padding-top:11px;
   border-top:.5px solid var(--hair);font-size:11.5px;font-weight:500;color:var(--muted)}
 .cg-ref i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
@@ -8725,21 +8731,43 @@ window.lbTeamDay=function(dk){
   const hayP=ns.some(n=>all[n].pista), hayG=ns.some(n=>all[n].gym), hayT=ns.some(n=>all[n].tec);
   const val=(b,f)=>media(ns.map(n=>all[n][b]?f(all[n][b]):0));
   const soloCon=(b,f)=>{const v=ns.filter(n=>all[n][b]).map(n=>f(all[n][b]));return media(v);};
+  /* v514 · `uaSes` es la carga de quien HIZO cada bloque; `ua`, la media de la
+     plantilla entera. Son dos preguntas distintas y hasta ahora solo existía la
+     segunda, que es la que se comparaba con el plan del calendario — y el plan
+     describe lo que hace UN jugador que hace todas las sesiones, no una media
+     repartida entre quien fue y quien no.
+     Daniel, 10/11/2026, tras el parón internacional: seis jugadores no hicieron
+     gimnasio el 9/11 y el día salía **−32 % respecto al plan** sin que nadie
+     hubiese entrenado menos de lo que le tocaba. *Medido: el gimnasio del
+     equipo daba 265 UA repartido entre 18 y 398 entre los 12 que lo hicieron;
+     con el plan de pista 90′ + gimnasio 60′ (1.050 UA), el día pasa de −32 % a
+     **−11 %**.* **Y no era puntual**: de los últimos 53 días con carga, 39
+     tenían un desfase del 10 % o más entre las dos formas de medir.
+     La asimetría ya estaba escrita aquí mismo: la duración y el RPE se
+     promedian «solo sobre quien lo hizo, que es lo que describen». Lo único que
+     faltaba era la carga. **`ua` no se toca**: sigue alimentando el ACWR, la
+     monotonía, el readiness y el dashboard de cargas, que describen lo que se
+     llevó la plantilla. `nb` dice sobre cuántos va cada bloque, porque una
+     media sin su n no se puede juzgar — y con un solo declarante describe a un
+     jugador, no a la sesión. */
+  const soloN=b=>ns.filter(n=>all[n][b]).length;
   return {
     n:ns.length,
     excluidos:Object.keys(all).filter(n=>!lbEntrenaConGrupo(n,dk)),
     /* ua se promedia sobre TODO el grupo (0 si no hizo ese bloque) para que sume;
        dur y rpe solo sobre quien lo hizo, que es lo que describen. */
-    pista:hayP?{ua:val('pista',x=>x.ua),dur:soloCon('pista',x=>x.dur),rpe:soloCon('pista',x=>x.rpe)}:null,
-    gym:hayG?{ua:val('gym',x=>x.ua),dur:soloCon('gym',x=>x.dur),rpe:soloCon('gym',x=>x.rpe)}:null,
+    pista:hayP?{ua:val('pista',x=>x.ua),uaSes:soloCon('pista',x=>x.ua),nb:soloN('pista'),dur:soloCon('pista',x=>x.dur),rpe:soloCon('pista',x=>x.rpe)}:null,
+    gym:hayG?{ua:val('gym',x=>x.ua),uaSes:soloCon('gym',x=>x.ua),nb:soloN('gym'),dur:soloCon('gym',x=>x.dur),rpe:soloCon('gym',x=>x.rpe)}:null,
     /* v391 · La tecnificación la hacen unos pocos, así que su ua se promedia
        igual sobre TODO el grupo —0 para quien no fue— y la barra sigue sumando
        lo que dice. `n` dice cuántos la hicieron de verdad, que es el dato que
        hay que leer, no la media. El RPE y el nivel del día NO la miran. */
-    tec:hayT?{ua:val('tec',x=>x.ua),dur:soloCon('tec',x=>x.dur),rpe:soloCon('tec',x=>x.rpe),
+    tec:hayT?{ua:val('tec',x=>x.ua),uaSes:soloCon('tec',x=>x.ua),nb:soloN('tec'),dur:soloCon('tec',x=>x.dur),rpe:soloCon('tec',x=>x.rpe),
               n:ns.filter(n=>all[n].tec).length,
               quien:ns.filter(n=>all[n].tec)}:null,
     ua:media(ns.map(n=>all[n].ua)),
+    /* La carga comparable con el plan: cada bloque sobre quien lo hizo. */
+    uaSes:(hayP?soloCon('pista',x=>x.ua):0)+(hayG?soloCon('gym',x=>x.ua):0)+(hayT?soloCon('tec',x=>x.ua):0),
     /* El RPE del equipo sale solo de pista y gimnasio: es el esfuerzo de la
        sesión del equipo, y la tecnificación no lo es. */
     rpe:media(ns.map(n=>{const a=[];if(all[n].pista)a.push(all[n].pista.rpe);if(all[n].gym)a.push(all[n].gym.rpe);return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}).filter(x=>x>0)),
@@ -29535,13 +29563,20 @@ function calContactBar(c,cls){let s='';for(let i=1;i<=5;i++)s+=`<i class="${i<=c
    Es el mismo error de siempre con otra cara: lo que describe el día elegido va
    por REF(), y lo que describe otra cosa, no. Aquí se lee día a día con
    lbTeamDay, que da exactamente el mismo número y no está acotado por REF. */
+/* v514 · **El calendario habla en la unidad del PLAN.** `calPlanUA` suma
+   `RPE objetivo × minutos` de cada sesión programada, o sea lo que hace un
+   jugador que las hace todas; comparar eso con la media de la plantilla —que
+   cuenta como 0 a quien no hizo un bloque— es comparar dos cosas distintas.
+   Por eso aquí se devuelve `uaSes`, cada bloque sobre quien lo hizo. **La
+   carga media del equipo sigue entera en `lbTeamDay().ua`** y es la que
+   alimenta el ACWR, la monotonía, el readiness y el dashboard de cargas. */
 function calRealMap(){
   const m={};
   try{
     const dks=[...new Set((STATE.rpe||[]).map(x=>x&&x.dk).filter(Boolean))];
     dks.forEach(dk=>{
       let t=null;try{t=lbTeamDay(dk);}catch(e){}
-      if(t&&t.ua>0)m[dk]=Math.round(t.ua);
+      if(t&&t.uaSes>0)m[dk]=Math.round(t.uaSes);
     });
   }catch(e){}
   const meta=STATE.calMeta||{};
@@ -29869,7 +29904,21 @@ function calDayPlan(dk){const todas=(STATE.calendar||{})[dk]||[];const sinProg=t
   let totMin=0,peak=0,peakC=0;evs.forEach(e=>{totMin+=evDur(e);peak=Math.max(peak,evIntens(e));peakC=Math.max(peakC,evContacto(e));});const ci=CAL_INT[peak]||CAL_INT[2];return{n:evs.length,sinProg,total:todas.length,totMin,peak,col:ci.col,lab:ci.lab,contacto:peakC,planPct:Math.min(100,Math.round(totMin/150*100)),planUA:calPlanUA(dk)};}
 function calDkLabel(dk){const a=dk.split('-').map(Number);return a[2]+' '+CAL_MES[a[1]-1].toLowerCase()+' '+a[0];}
 function calTraffic(intens,h,cls){h=h||46;const w=Math.round(h*0.46);const cols={3:'#e23b32',2:'#e6a700',1:'#1ea863'};const order=[3,2,1];const pad=w*0.17,r=(w-2*pad)*0.42;const span=h-2*pad,step=span/3;let g='';order.forEach((lv,i)=>{const cy=pad+step*(i+0.5);const on=lv===intens;if(on)g+=`<circle cx="${w/2}" cy="${cy}" r="${(r*1.5).toFixed(1)}" fill="${cols[lv]}" opacity="0.24"/>`;g+=`<circle cx="${w/2}" cy="${cy}" r="${r.toFixed(1)}" fill="${on?cols[lv]:'var(--tl-off,#39414f)'}" opacity="${on?1:0.5}"/>`;});return `<svg class="${cls||''}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;flex:none"><rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="${(w*0.28).toFixed(1)}" fill="var(--tl-body,#1d222c)" stroke="var(--tl-edge,#10141b)" stroke-width="1"/>${g}</svg>`;}
-function calPlanPanel(dk,pl,real,dev){if(!pl.n)return '';const grado=pl.lab.toUpperCase();let vcol='#8a93a3',vtx='Sin carga real todavía',vsub='Se completará al cargar el RPE de este día';if(dev){vcol=dev.col;vtx=dev.tier==='ok'?'Bien programado':dev.tier==='warn'?'Ligero desajuste':'Desajuste — revisar';vsub=`${dev.arrow} ${dev.pct>0?'+':''}${dev.pct}% real vs plan · ${dev.lab}`;}const realStr=real!=null?`${real} UA`:'—';return `<div class="cal-panel" style="--pc:${pl.col}"><div class="cal-panel-tl">${calTraffic(pl.peak,82)}</div><div class="cal-panel-main"><div class="cal-panel-lab">Intensidad programada</div><div class="cal-panel-grade" style="color:${colTexto(pl.col)}">${grado}</div><div class="cal-panel-dur"><span class="cal-clock">◷</span> <b>${pl.totMin}′</b> <span class="muted">duración total${pl.n>1?` · ${pl.n} sesiones`:''}</span></div></div><div class="cal-panel-cmp"><div class="cal-cmp-row"><span>Programado</span><b>${pl.planUA} UA</b></div><div class="cal-cmp-row"><span>Real (RPE)</span><b style="color:var(--c-data,#3f5572)">${realStr}</b></div><div class="cal-cmp-verdict" style="--vc:${vcol}"><span class="cal-cmp-dot"></span><div class="cal-cmp-vtx"><b>${vtx}</b><span>${vsub}</span></div></div></div></div>`;}
+/* v514 · Sobre cuánta gente va cada bloque. Sin esto, la carga comparable con
+   el plan es tan opaca como la media que sustituye: lo que explica un día es
+   que el gimnasio lo hicieran 12 de 18, no la cifra sola. Se dice **sólo
+   cuando falta alguien**, porque en un día normal los tres números serían
+   iguales y una línea que siempre dice lo mismo deja de leerse. */
+function calBloquesN(dk){
+  let t=null;try{t=lbTeamDay(dk);}catch(e){}
+  if(!t||!t.n)return '';
+  const LB=[['pista','Pista'],['gym','Gimnasio'],['tec','Tecnificación']];
+  const bs=LB.map(([k,lab])=>{const b=t[k];return (b&&b.nb>0)?{lab,nb:b.nb,ua:Math.round(b.uaSes)}:null;}).filter(Boolean);
+  if(!bs.length||!bs.some(b=>b.nb<t.n))return '';
+  return '<div class="cal-cmp-bl">'+bs.map(b=>
+    '<span><em>'+b.lab+'</em> '+b.ua+' UA · <b>'+b.nb+' de '+t.n+'</b></span>').join('')+'</div>';
+}
+function calPlanPanel(dk,pl,real,dev){if(!pl.n)return '';const grado=pl.lab.toUpperCase();let vcol='#8a93a3',vtx='Sin carga real todavía',vsub='Se completará al cargar el RPE de este día';if(dev){vcol=dev.col;vtx=dev.tier==='ok'?'Bien programado':dev.tier==='warn'?'Ligero desajuste':'Desajuste — revisar';vsub=`${dev.arrow} ${dev.pct>0?'+':''}${dev.pct}% real vs plan · ${dev.lab}`;}const realStr=real!=null?`${real} UA`:'—';return `<div class="cal-panel" style="--pc:${pl.col}"><div class="cal-panel-tl">${calTraffic(pl.peak,82)}</div><div class="cal-panel-main"><div class="cal-panel-lab">Intensidad programada</div><div class="cal-panel-grade" style="color:${colTexto(pl.col)}">${grado}</div><div class="cal-panel-dur"><span class="cal-clock">◷</span> <b>${pl.totMin}′</b> <span class="muted">duración total${pl.n>1?` · ${pl.n} sesiones`:''}</span></div></div><div class="cal-panel-cmp"><div class="cal-cmp-row"><span>Programado</span><b>${pl.planUA} UA</b></div><div class="cal-cmp-row"><span>Real (RPE)</span><b style="color:var(--c-data,#3f5572)">${realStr}</b></div>${calBloquesN(dk)}<div class="cal-cmp-verdict" style="--vc:${vcol}"><span class="cal-cmp-dot"></span><div class="cal-cmp-vtx"><b>${vtx}</b><span>${vsub}</span></div></div></div></div>`;}
 function calBajas(dk){const out=[];try{buildPhysio();}catch(e){}for(const name in (STATE.players||{})){let cs=null;try{cs=effectiveStatus(name,dk);}catch(e){}if(cs&&(cs.status==='baja'||cs.status==='noentto'))out.push({name,status:cs.status,zone:cs.zone||'',side:cs.side||''});}return out.sort((a,b)=>physioSev(b.status)-physioSev(a.status));}
 /* v502 · La media de este panel es del EQUIPO, asi que sale de la MISMA
    poblacion que la carga real de arriba: `lbEntrenaConGrupo`, que deja fuera a
@@ -30714,10 +30763,13 @@ function calRefMD(){
       const m=calMd(dk,ps);
       if(!m)continue;
       let td=null;try{td=lbTeamDay(dk);}catch(e){}
-      if(!td||!(td.ua>0))continue;          // sin carga registrada: no sabemos, no inventamos
+      if(!td||!(td.uaSes>0))continue;       // sin carga registrada: no sabemos, no inventamos
       if(!porMD[m.txt]){fuera++;continue;}   // ciclos de más de una semana
       porMD[m.txt].dias.push(dk);
-      porMD[m.txt].ua.push(td.ua);
+      /* v514 · En la misma unidad que el plan, porque esta referencia se dibuja
+         al lado de la barra de plan en el microciclo: con una media de equipo
+         enfrente de un plan por jugador, la comparación sería falsa. */
+      porMD[m.txt].ua.push(td.uaSes);
     }
   }
   const out=MD_ORDEN.map(k=>{
@@ -39714,8 +39766,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-09.7*/
-const VER_ACTUAL='2026-11-09.7';
+/*BUILD:2026-11-10.1*/
+const VER_ACTUAL='2026-11-10.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
