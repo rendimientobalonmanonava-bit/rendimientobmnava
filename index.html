@@ -9735,6 +9735,58 @@ window.evReadinessBars=function(limit){
 
 </script>
 <script>
+/* ══ v521 · Lo que entra por un CSV no puede traer marcado ════════════════
+   Auditoría del 10/11/2026: el texto libre «zona de dolor» del cuestionario de
+   wellness —que rellena el jugador desde un formulario público— se pintaba
+   tal cual en Disponibilidad, Jugadores y Alertas. Comprobado con una carga
+   de prueba: un `<img onerror=…>` escrito en ese campo SE EJECUTABA en el
+   navegador del cuerpo técnico, con acceso a todo lo guardado.
+
+   Se arregla **donde entra y no donde se pinta**: hay unas 400 asignaciones
+   de `innerHTML` y siete llamadas a `Papa.parse`, y escapar una a una es
+   garantizar que la próxima se olvide. Todo CSV —las cuatro hojas, los
+   pegados a mano, las importaciones— pasa por `Papa.parse`, así que se
+   envuelve una vez: los cinco caracteres con los que se abre una etiqueta o
+   se sale de un atributo se cambian por su gemelo tipográfico, que se lee
+   igual y no significa nada para el navegador. **Solo los valores**: las
+   cabeceras son de la hoja, que es del cuerpo técnico. Mismo criterio que el
+   filtro de bajas en `lsLeer`: un punto, no quince. */
+function bmSanTxt(v){
+  return typeof v==='string'
+    ? v.replace(/[<>"'`]/g,c=>({'<':'‹','>':'›','"':'”',"'":'’','`':'’'}[c]))
+    : v;
+}
+function bmPapaSan(){
+  try{
+    if(!window.Papa||Papa.__bmSan)return;
+    const limpia=res=>{
+      try{
+        if(res&&Array.isArray(res.data)){
+          res.data=res.data.map(row=>{
+            if(Array.isArray(row))return row.map(bmSanTxt);
+            if(row&&typeof row==='object'){const o={};for(const k in row)o[k]=bmSanTxt(row[k]);return o;}
+            return bmSanTxt(row);
+          });
+        }
+      }catch(e){console.warn('bmnava · saneado del CSV',e);}
+      return res;
+    };
+    const orig=Papa.parse.bind(Papa);
+    Papa.parse=function(input,cfg){
+      let c=cfg;
+      if(c&&typeof c.complete==='function'){
+        const c0=c.complete;
+        c=Object.assign({},c,{complete:function(res,file){return c0(limpia(res),file);}});
+      }
+      const r=orig(input,c);
+      return (r&&r.data)?limpia(r):r;
+    };
+    Papa.__bmSan=true;
+  }catch(e){console.warn('bmnava · no se pudo envolver Papa.parse',e);}
+}
+bmPapaSan();
+/* Segunda barrera, para los dos sitios donde ese texto se pintaba sin más. */
+function bmEsc(t){return (t==null?'':String(t)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 /* ===================== CONFIG (espejo del diccionario, editable) ===================== */
 const CONFIG = {
   sources:{wellness:"https://docs.google.com/spreadsheets/d/e/2PACX-1vRxFWAqcLs52AO-JteMVPC1JFlBjFPyln2FcVtVUQIPZzRGQcXOicnqes0Wj3XqQWjUpUeQ94di-3eq/pub?output=csv", rpe:"https://docs.google.com/spreadsheets/d/e/2PACX-1vR32AXngaidancL2Gasy4-2TR0xs7TYxw-ltwJ08CZqSTw6vqzj7A2UyMong7c8rMdRYzpSvflRqLfe/pub?gid=1017122376&single=true&output=csv", roster:"https://docs.google.com/spreadsheets/d/e/2PACX-1vTIVD9RU3XMh24DFSsvM4_GCxHv8v9AD9ofEO7R3Ga3tnhPEe3GpAqU5COwpqE3FqCZDXGpGLnK3IU1/pub?output=csv",
@@ -11281,7 +11333,7 @@ function buildPlayers(){
   });
   STATE.players=players;buildAlerts();
 }
-function buildAlerts(){const A=[];for(const name in STATE.players){const p=STATE.players[name];if(p.last&&!p.stale){for(const key in p.z){const z=p.z[key];if(!z.alertSev)continue;A.push({name,pos:p.pos,type:z.cfg.label+(p.loadCtx&&p.loadCtx.applied?(p.loadCtx.mod<1?' · esperado por carga':' · sin carga previa'):''),sev:z.alertSev,val:fmt(z.val,0),z:z.z,rel:z.rel,mdx:p.mdx,date:p.last.dk,mod:"Wellness"});}if(p.last.dolor)A.push({name,pos:p.pos,type:(p.last.golpe?"Dolor por golpe":"Dolor muscular")+(p.last.zona?" ("+p.last.zona+")":""),sev:p.last.golpe?"bad":"warn",val:"—",z:NaN,rel:true,mdx:p.mdx,date:p.last.dk,mod:"Wellness"});}if(p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio)){if(p.acwr.ratio>=CONFIG.load.acwrRedHi)A.push({name,pos:p.pos,type:"ACWR muy alto",sev:"bad",val:fmt(p.acwr.ratio,2),z:NaN,rel:true,mdx:p.mdx,date:p.last?p.last.dk:"",mod:"Carga"});else if(p.acwr.ratio>=CONFIG.load.acwrYellowHi)A.push({name,pos:p.pos,type:"ACWR elevado",sev:"warn",val:fmt(p.acwr.ratio,2),z:NaN,rel:true,mdx:p.mdx,date:p.last?p.last.dk:"",mod:"Carga"});}}
+function buildAlerts(){const A=[];for(const name in STATE.players){const p=STATE.players[name];if(p.last&&!p.stale){for(const key in p.z){const z=p.z[key];if(!z.alertSev)continue;A.push({name,pos:p.pos,type:z.cfg.label+(p.loadCtx&&p.loadCtx.applied?(p.loadCtx.mod<1?' · esperado por carga':' · sin carga previa'):''),sev:z.alertSev,val:fmt(z.val,0),z:z.z,rel:z.rel,mdx:p.mdx,date:p.last.dk,mod:"Wellness"});}if(p.last.dolor)A.push({name,pos:p.pos,type:(p.last.golpe?"Dolor por golpe":"Dolor muscular")+(p.last.zona?" ("+bmEsc(p.last.zona)+")":""),sev:p.last.golpe?"bad":"warn",val:"—",z:NaN,rel:true,mdx:p.mdx,date:p.last.dk,mod:"Wellness"});}if(p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio)){if(p.acwr.ratio>=CONFIG.load.acwrRedHi)A.push({name,pos:p.pos,type:"ACWR muy alto",sev:"bad",val:fmt(p.acwr.ratio,2),z:NaN,rel:true,mdx:p.mdx,date:p.last?p.last.dk:"",mod:"Carga"});else if(p.acwr.ratio>=CONFIG.load.acwrYellowHi)A.push({name,pos:p.pos,type:"ACWR elevado",sev:"warn",val:fmt(p.acwr.ratio,2),z:NaN,rel:true,mdx:p.mdx,date:p.last?p.last.dk:"",mod:"Carga"});}}
 for(const nm in STATE.players){const pp=STATE.players[nm];let cr=null;try{cr=loadCorridorRow(pp);}catch(e){}
   /* v436 · Estas tres salen del CORREDOR semanal, no del ACWR: decían «ACWR
      1,62» con un número que no es el ACWR de la app y que en la ficha salía
@@ -20648,7 +20700,7 @@ window.modalWatch=modalWatch;window.modalWatchAll=modalWatchAll;window.modalLock
 function renderPlayersGrid(){const box=document.getElementById('players-grid');if(!box)return;buildTests();const rows=tsaRows();const n=rows.length;const byName={};rows.forEach(r=>byName[r.name]=r);
   box.innerHTML=sortedPlayerNames().map(name=>{const p=STATE.players[name];const r=byName[name]||{};const tier=r.rank?tsaTier(r.rank,n):'na';let cr=null;try{cr=loadCorridorRow(p);}catch(e){}
     const w=lastWell(name);const dolor=w&&(w.dolor||w.golpe)&&(w.zona||w.dolor);const flags=[];
-    if(dolor)flags.push(`<span class="flag bad">Dolor${w.zona?': '+w.zona:''}</span>`);
+    if(dolor)flags.push(`<span class="flag bad">Dolor${w.zona?': '+bmEsc(w.zona):''}</span>`);
     if(cr&&cr.sev==='bad')flags.push(`<span class="flag bad">${cr.lab}</span>`);else if(cr&&cr.sev==='warn')flags.push(`<span class="flag warn">${cr.lab}</span>`);
     if(p.sev==='bad')flags.push(`<span class="flag bad">Readiness baja</span>`);
     if(!flags.length)flags.push(`<span class="flag ok">Disponible</span>`);
@@ -21446,7 +21498,7 @@ function dispWellDots(name,dk){
   const pt=(v,lab)=>'<i style="background:'+col(v)+'" title="'+lab+' '+(v!=null?v+'/5':'—')+'"></i>';
   const dol=w.dolor?(w.golpe?'var(--bad)':'var(--bad)'):'var(--ok)';
   return '<span class="dsp-dots">'+pt(w.fatiga,'Fatiga')+pt(w.doms,'Agujetas')
-    +'<i style="background:'+dol+'" title="'+(w.dolor?('Dolor: '+(w.zona||'sin zona')+(w.golpe?' · GOLPE':'')):'Sin dolor')+'"></i></span>';
+    +'<i style="background:'+dol+'" title="'+(w.dolor?('Dolor: '+bmEsc(w.zona||'sin zona')+(w.golpe?' · GOLPE':'')):'Sin dolor')+'"></i></span>';
 }
 /* ---------- 4 · dolor declarado que no está registrado (v355) ----------------
    Lo que hace que los números de disponibilidad no cuadren con la realidad: un
@@ -24841,6 +24893,7 @@ async function fetchCSVReal(url,ms){
     const res=await fetch(url,ctrl?{signal:ctrl.signal}:undefined);
     if(!res.ok)throw new Error("HTTP "+res.status);
     const txt=await res.text();
+    bmPapaSan();
     return await new Promise(r=>Papa.parse(txt,{header:true,skipEmptyLines:true,complete:c=>r(c.data)}));
   }catch(e){
     if(e&&(e.name==='AbortError'))throw new Error('la hoja no respondió en '+Math.round(tope/1000)+' s');
@@ -40244,8 +40297,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.10*/
-const VER_ACTUAL='2026-11-10.10';
+/*BUILD:2026-11-10.11*/
+const VER_ACTUAL='2026-11-10.11';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
