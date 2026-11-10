@@ -2864,7 +2864,11 @@ main{padding:20px 18px 80px}
 .nut-e{display:grid;grid-template-columns:minmax(0,1fr) 110px 24px;align-items:center;gap:10px;
   padding:8px 0;border-bottom:.5px solid var(--hair)}
 .nut-e:last-child{border-bottom:0}
-.nut-e span{display:flex;align-items:baseline;gap:8px;min-width:0}
+/* v517 · La cara en la ficha de la gente de fuera. Es la MISMA pieza que la
+   tarjeta de cobro (`nuc-av`), a 30 px y **sin el aro ámbar**: ahí el aro
+   significa «debe dinero» y aquí solo se dice quién es. */
+.nut-e span{display:flex;align-items:center;gap:8px;min-width:0}
+.nut-e-av{width:30px;height:30px;box-shadow:none;border:.5px solid var(--hair);font-size:var(--fs-xs)}
 .nut-e b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nut-e em{font-style:normal;font-size:10.5px;font-weight:600;color:var(--muted2);
   padding:1px 7px;border-radius:999px;background:var(--panel2);flex:none}
@@ -16620,6 +16624,76 @@ function nutSembrar(){
   try{lsGuardar(NUT_LS,N);}catch(e){}
   return true;
 }
+/* ══ v517 · El cuerpo técnico, dado de alta ══════════════════════
+   Daniel, 10/11/2026, al pasar sus fotos: *«dales de alta como staff por si
+   en algún momento tienen que aparecer en la app»*. **«Gente de fuera de la
+   plantilla» es hoy la ÚNICA lista de personas que no son jugadores**, así
+   que es ahí donde van; vive en Nutrición y por eso salen en la tabla de
+   cobros, al día y sin apuntes mientras nadie les cree ninguno.
+
+   Se siembra desde el código por la misma razón que el pedido de FullGas y
+   las cifras del tape: lo que yo escriba en un navegador no llega a otro.
+
+   **El `id` sale del NOMBRE, no de `nutId()`**: estos registros los crea el
+   código en CADA equipo por separado, y la fusión une por `id`. Con un id al
+   azar, el mismo Carlos nacería distinto en cada navegador y la fusión vería
+   dos —es exactamente lo que pasó con los cobros en la v449—.
+
+   **No duplica**: si ya hay alguien de fuera que sea esta persona, no se
+   toca. La comparación va **solo contra la gente de fuera y los nombres con
+   cobros sin ficha**, nunca contra la plantilla: «Carlos Villagrán» comparte
+   apellido con Óscar Marugán Villagrán y «Pablo Gallego» nombre con Pablo
+   Herranz García, así que comparándolos con la plantilla no se sembraría
+   ninguno de los dos. */
+const NUT_SEED_STAFF_FLAG='bmnava_nutri_seed_staff_2026';
+const NUT_SEED_STAFF=[
+  ['Carlos Villagrán','Primer entrenador'],
+  ['Virginia Virseda','Fisioterapeuta'],
+  ['Pablo Gallego','Staff'],
+  ['Victor Recio','Staff']
+];
+/* Tokens del nombre, sin acentos ni puntuación: la misma idea que usa
+   `canonicalName`, pero comparando contra la gente de fuera y no contra la
+   plantilla. */
+function nutTokens(t){
+  return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
+}
+function nutMismaPersona(a,b){
+  const A=nutTokens(a), B=nutTokens(b);
+  if(!A.length||!B.length)return false;
+  if(A.join(' ')===B.join(' '))return true;
+  return A.some(t=>t.length>=5&&B.indexOf(t)>=0);
+}
+function nutSembrarStaff(){
+  const N=STATE.nutri; if(!N)return false;
+  try{ if(lsLeer(NUT_SEED_STAFF_FLAG,null))return false; }catch(e){}
+  /* **Sin plantilla no se siembra, y NO se pone la marca.** Las hojas de
+     Google tardan unos segundos (§4.1.1) y `nutLoad` puede correr antes: con
+     `STATE.players` vacío, los jugadores con cobros pasarían por «gente sin
+     ficha» y la guarda bloquearía a Carlos Villagrán —por Óscar Marugán
+     Villagrán— y a Pablo Gallego —por Pablo Herranz—, dejándolos sin dar de
+     alta para siempre. Es el fallo que `phScanFolder` ya tuvo en la v253. */
+  if(!Object.keys(STATE.players||{}).length)return false;
+  if(!Array.isArray(N.externos))N.externos=[];
+  /* Con quién se compara: la gente de fuera y quien tenga cobros sin estar
+     en la plantilla. La plantilla queda fuera a propósito (ver arriba). */
+  const plantilla=Object.keys(STATE.players||{});
+  const sueltos=[...new Set((N.cobros||[]).map(c=>c.jugador))]
+    .filter(j=>j&&plantilla.indexOf(j)<0);
+  const yaHay=N.externos.map(e=>e.nombre).concat(sueltos);
+  let n=0;
+  NUT_SEED_STAFF.forEach(([nombre,rol])=>{
+    if(yaHay.some(x=>nutMismaPersona(x,nombre)))return;
+    N.externos.push({id:'x|'+nombre,nombre,rol});
+    yaHay.push(nombre);
+    n++;
+  });
+  try{lsGuardar(NUT_SEED_STAFF_FLAG,1);}catch(e){}
+  if(n){try{lsGuardar(NUT_LS,N);}catch(e){}
+    console.info('bmnava · cuerpo técnico dado de alta: '+n);}
+  return n>0;
+}
 function nutLoad(){
   if(!STATE.nutri){
     const d=lsLeer(NUT_LS,null)||{};
@@ -16647,6 +16721,7 @@ function nutLoad(){
     try{nutPurgaAgosto();}catch(e){console.warn('bmnava · agosto no purgado:',e&&e.message);}
     try{nutSembrar();}catch(e){console.warn('bmnava · pedido de octubre no sembrado:',e&&e.message);}
     try{nutSembrarCuota();}catch(e){console.warn('bmnava · cuotas no sembradas:',e&&e.message);}
+    try{nutSembrarStaff();}catch(e){console.warn('bmnava · cuerpo técnico no sembrado:',e&&e.message);}
   }
   return STATE.nutri;
 }
@@ -17307,6 +17382,9 @@ window.nutSetMes=nutSetMes;
 function renderNutri(){
   const box=document.getElementById('v-nutri');if(!box)return;
   const N=nutLoad();
+  /* Si al arrancar no había plantilla, el alta del cuerpo técnico se quedó sin
+     hacer: aquí seguro que la hay. Sale sola por la marca si ya se hizo. */
+  try{nutSembrarStaff();}catch(e){console.warn('bmnava · cuerpo técnico no sembrado:',e&&e.message);}
   const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const q=j=>"'"+esc(j).replace(/'/g,"\\'")+"'";
   /* Un solo punto desde el que se recorre «todo el mundo»: plantilla y gente
@@ -17602,7 +17680,7 @@ function renderNutri(){
         <button class="btn" onclick="nutAddExterno()">Añadir</button>
       </div>
       ${ext.length?`<div class="nut-ext-l">${ext.slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(e=>`<div class="nut-e">
-          <span><b>${esc(e.nombre)}</b>${e.rol?`<em>${esc(e.rol)}</em>`:''}</span>
+          <span><span class="nuc-av nuc-ini nut-e-av" data-ph="${esc(e.nombre)}">${esc(nutInic(e.nombre))}</span><b>${esc(e.nombre)}</b>${e.rol?`<em>${esc(e.rol)}</em>`:''}</span>
           <u>${nutPendiente(e.nombre)>0?nutEur(nutPendiente(e.nombre)):'al día'}</u>
           <button class="nut-x" onclick="nutDelExterno('${e.id}')" title="Quitar">✕</button>
         </div>`).join('')}</div>`:''}
@@ -40081,8 +40159,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.5*/
-const VER_ACTUAL='2026-11-10.5';
+/*BUILD:2026-11-10.6*/
+const VER_ACTUAL='2026-11-10.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
