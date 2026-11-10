@@ -8587,6 +8587,41 @@ function lbBucket(tipo){
   if(tieneFuerza)return 'gym';
   return 'pista';
 }
+/* ══ v524 · Un cuestionario puede declarar tecnificación Y otra cosa ══════════
+   El formulario deja marcar varias casillas, y `lbBucket` miraba primero si
+   había «tecnificación» y devolvía 'tec' sin leer el resto: «Tecnificación,
+   Gimnasio» y «Tecnificación, Pista, Gimnasio» contaban SOLO como
+   tecnificación, y la parte de pista o de gimnasio de esa declaración se
+   perdía. Medido en la auditoría del 10/11/2026: 2 registros de 1.885, pero
+   el formulario ya lo permite.
+
+   `lbBloquesDe` dice a qué bloques pertenece un cuestionario. **Sin
+   tecnificación no cambia nada**: es la misma regla de siempre, letra por
+   letra. Con ella, **cada casilla marcada se clasifica por separado**, y es
+   a propósito: el patrón de pista casa con «sesión» y «entrenamiento», así
+   que mirando la cadena entera un «Sesión de tecnificación» pasaría a contar
+   también como pista —que es justo lo que la v391 quiso evitar—.
+
+   **La regla de la tecnificación no se toca**: sigue entrando en lo individual
+   y en ningún agregado de equipo. `lbBucket` devuelve lo mismo que antes, así
+   que `sessMeta` sigue dejando fuera del RPE del equipo cualquier cuestionario
+   que lleve tecnificación: su RPE es uno solo para todo lo que marcó y no
+   describe la sesión del grupo. Lo que cambia es que su gimnasio cuenta como
+   su gimnasio. */
+function lbBloquesDe(tipo){
+  const t=lbNorm(tipo);
+  if(!t)return {pista:true,gym:false,tec:false};
+  const esTec=x=>/tecnific|tecnif|individualizad/.test(x);
+  const esGym=x=>/fuerza|gimnasio|gym/.test(x);
+  const esPista=x=>/entrenamiento|partido|pista|sesion/.test(x);
+  if(!esTec(t)){const f=esGym(t),p=esPista(t);return {pista:!f||(f&&p),gym:f,tec:false};}
+  const o={pista:false,gym:false,tec:true};
+  t.split(/\s*[,;+\/]\s*|\s+y\s+/).map(x=>x.trim()).filter(Boolean).forEach(x=>{
+    if(esTec(x))return;
+    if(esGym(x))o.gym=true; else if(esPista(x))o.pista=true;
+  });
+  return o;
+}
 /* Los tres bloques, en el orden en que se enseñan. Lo que recorra bloques debe
    usar esto y no una pareja escrita a mano. */
 const LB_BLOQUES=['pista','gym','tec'];
@@ -8603,13 +8638,11 @@ const LB_BLOQUES_EQUIPO=['pista','gym'];
    dieciocho botones de «Convocar» a un entrenamiento de mañana que no se había
    hecho. La regla se escribe una vez y se usa en todas partes. */
 function lbEsDe(tipo,b){
-  const bb=lbBucket(tipo);
-  if(bb===b)return true;
-  return bb==='both'&&(b==='pista'||b==='gym');
+  return !!lbBloquesDe(tipo)[b];
 }
 window.lbEsDe=lbEsDe;
 window.LB_BLOQUES=LB_BLOQUES;window.LB_BLOQ_LAB=LB_BLOQ_LAB;window.LB_BLOQUES_EQUIPO=LB_BLOQUES_EQUIPO;
-window.lbBucket=lbBucket;
+window.lbBucket=lbBucket;window.lbBloquesDe=lbBloquesDe;
 
 /* ---------- duraciones ----------
    sessDur[dk] admite:
@@ -8700,10 +8733,9 @@ function lbDayAll(dk){
        que crea la app, y NO por x.estimado: ese marca al jugador-día entero, así
        que descartaría también la respuesta real del bloque que sí rellenó. */
     if(r.bloqueConvocado||r.sinRegistro)return;
-    const b=lbBucket(r.tipo);
+    const bq=lbBloquesDe(r.tipo);
     decl[r.name]=decl[r.name]||{pista:[],gym:[],tec:[]};
-    if(b==='both'){decl[r.name].pista.push(r);decl[r.name].gym.push(r);}
-    else decl[r.name][b].push(r);
+    LB_BLOQUES.forEach(b=>{if(bq[b])decl[r.name][b].push(r);});
   });
   /* v507 · `dur0` son los minutos DECLARADOS y `dur` es el resultado del
      cálculo: `sessDurApply` lo escribe de vuelta sobre el registro. Leer `dur`
@@ -30188,11 +30220,11 @@ function sessDurApply(){
         return idx<0?0:(w[idx]/sw);
       };
       g.forEach(x=>{
-        const b=lbBucket(x.tipo);
+        const bq=lbBloquesDe(x.tipo);
         let ua=0,cal=0,dur=0;
-        if((b==='pista'||b==='both')&&d.pista){const f=share(x,'pista');ua+=d.pista.ua*f;cal+=d.pista.cal*f;dur+=d.pista.dur*f;}
-        if((b==='gym'||b==='both')&&d.gym){const f=share(x,'gym');ua+=d.gym.ua*f;cal+=d.gym.cal*f;dur+=d.gym.dur*f;}
-        if(b==='tec'&&d.tec){const f=share(x,'tec');ua+=d.tec.ua*f;cal+=d.tec.cal*f;dur+=d.tec.dur*f;}
+        if(bq.pista&&d.pista){const f=share(x,'pista');ua+=d.pista.ua*f;cal+=d.pista.cal*f;dur+=d.pista.dur*f;}
+        if(bq.gym&&d.gym){const f=share(x,'gym');ua+=d.gym.ua*f;cal+=d.gym.cal*f;dur+=d.gym.dur*f;}
+        if(bq.tec&&d.tec){const f=share(x,'tec');ua+=d.tec.ua*f;cal+=d.tec.cal*f;dur+=d.tec.dur*f;}
         x.ua=ua;x.cal=cal;x.dur=dur;
         x.lb=d;
         x.rpeEff=d.pista&&d.gym?Math.round(((d.pista.rpe+d.gym.rpe)/2)*10)/10:(d.pista?d.pista.rpe:(d.gym?d.gym.rpe:x.rpe));
@@ -40312,8 +40344,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.13*/
-const VER_ACTUAL='2026-11-10.13';
+/*BUILD:2026-11-10.14*/
+const VER_ACTUAL='2026-11-10.14';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
