@@ -71,6 +71,11 @@ window.__PHOTOS__ = window.__PHOTOS__ || {};</script>
   /* v469 · anillos del radar de capacidades · declarados en los dos temas */
   --plr-ok:#e2f2e8;--plr-warn:#fcefd6;--plr-bad:#fbe2df;--plr-now:rgba(48,86,196,.20);
   --accent:#3056c4; --accent-hover:#2747a6; --accent2:#c2702e; --accent-dim:rgba(48,86,196,.10);
+  /* v515 · El color del TEXTO que va encima del acento. En oscuro `--accent`
+     sube de luz a #6d8cff —regla de §3— y el blanco de siempre se queda en
+     **3,07:1 medido**, por debajo del 4,5 que pide un texto pequeño. Va junto
+     al fondo, que es la trampa que la capa Apple ya pisó una vez. */
+  --on-accent:#fff;
   --focus:0 0 0 3px rgba(48,86,196,.16);
   /* ── semántica · rojo SOLO alerta ── */
   --ok:#158a56; --ok-bg:rgba(21,138,86,.10); --ok-text:#116b44;
@@ -303,7 +308,7 @@ html[data-theme="dark"]{
   --ok:#30d47f; --ok-bg:rgba(48,212,127,.13); --ok-text:#7ceaad;
   --warn:#ffb224; --warn-bg:rgba(255,178,36,.14); --warn-text:#ffd18a;
   --bad:#ff5f52; --bad-bg:rgba(255,95,82,.14); --bad-text:#ffa79e;
-  --te-aer:#3ec9df;--te-ana:#2b9fb6;--accent:#6d8cff;
+  --te-aer:#3ec9df;--te-ana:#2b9fb6;--accent:#6d8cff;--on-accent:#10131a;
   --plr-ok:#17301f;--plr-warn:#302512;--plr-bad:#3a1d19;--plr-now:rgba(109,140,255,.26); --accent-hover:#899fff; --accent-dim:rgba(109,140,255,.14);
   --na:#7d8593; --na-bg:#212530;
   --c-teal:#5fc8dd;
@@ -1385,7 +1390,7 @@ main{padding:20px 18px 80px}
   /* v378 · Igual que con el azul de Champions: la ficha es siempre un documento
      en claro, así que sus colores semánticos no pueden virar al subirlos de luz
      para el modo oscuro de la aplicación. */
-  --ok:#1ea863;--warn:#e0a800;--bad:#e23b32;--accent:#3056c4;--muted2:#696d75;
+  --ok:#1ea863;--warn:#e0a800;--bad:#e23b32;--accent:#3056c4;--muted2:#696d75;--on-accent:#fff;
   /* v485 · Las variantes de TEXTO son posteriores a esta regla (v476) y se
      quedaron sin fijar, así que con la app en oscuro resolvían a sus valores
      de oscuro —#7ceaad, #ffd18a, #ffa79e— sobre el blanco del papel. Mismo motivo
@@ -2822,7 +2827,7 @@ main{padding:20px 18px 80px}
 .nut-kpis b{font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .nut-mes{margin-left:auto;height:32px;border-radius:9px;border:1px solid var(--line);
   background:var(--panel2);color:var(--txt);padding:0 10px;font-size:12.5px;font-family:inherit}
-.nut-head,.nut-r{display:grid;grid-template-columns:minmax(0,1.6fr) 120px 120px 110px 86px;
+.nut-head,.nut-r{display:grid;grid-template-columns:minmax(0,1.6fr) 120px 120px 110px;
   align-items:center;gap:10px}
 .nut-head{padding:0 0 9px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:700;
   letter-spacing:.05em;text-transform:uppercase;color:var(--muted2)}
@@ -2848,8 +2853,6 @@ main{padding:20px 18px 80px}
 .nut-c--no:hover{border-color:var(--line)}
 .nut-r-p{text-align:right;font-size:13px;font-weight:600;color:var(--muted2);font-variant-numeric:tabular-nums}
 .nut-r-p--deb{color:var(--warn-text);font-weight:700}
-.nut-r-q{font-size:11.5px;color:var(--muted2)}
-.nut-r-q label{display:flex;align-items:center;gap:5px;cursor:pointer}
 .nut-cuota{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px;padding-top:14px;
   border-top:.5px solid var(--hair);font-size:12.5px;color:var(--muted)}
 .nut-cuota input{width:92px;height:34px;border-radius:9px;border:1px solid var(--line);
@@ -2875,17 +2878,149 @@ main{padding:20px 18px 80px}
 .nut-h b{color:var(--txt);font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
 .nut-h span b{text-align:left;font-size:13.5px;font-weight:600}
 .nut-h em{font-style:normal;font-size:11px;color:var(--muted2)}
+/* ═══ v515 · Nutrición · la pantalla de COBRAR ═════════════════════
+   Daniel, 10/11/2026: *«es muy poco intuitivo para Carlos… lo único que
+   queremos es registrar los pagos y los pedidos»*. Medido antes de tocar:
+   5.662 px en escritorio y **9.655 en el móvil — 11,4 pantallas de scroll—**,
+   con el pedido llevándose el 46 %, 85 botones de borrar y la deuda total
+   escrita tres veces. Lo nuevo usa los tokens `--fs-*` de §3. */
+.nuc-head{display:flex;align-items:flex-end;justify-content:space-between;gap:26px;
+  flex-wrap:wrap;padding:4px 2px 20px}
+.nuc-head-l{min-width:0}
+.nuc-eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted2);margin-bottom:4px}
+.nuc-big{display:flex;align-items:baseline;gap:6px}
+.nuc-big b{font-size:var(--fs-hero);font-weight:700;letter-spacing:-.025em;
+  font-variant-numeric:tabular-nums;line-height:1.05}
+.nuc-big span{font-size:var(--fs-h2);font-weight:600;color:var(--muted)}
+.nuc-sub{font-size:var(--fs-sm);color:var(--muted);margin-top:3px}
+.nuc-head-r{display:flex;gap:26px;flex-wrap:wrap}
+.nuc-st em{display:block;font-style:normal;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--muted2);margin-bottom:3px}
+.nuc-st b{font-size:var(--fs-h2);font-weight:700;font-variant-numeric:tabular-nums}
+.nuc-st u{display:block;text-decoration:none;font-size:var(--fs-xs);color:var(--muted2);margin-top:1px}
+/* El aviso de la cuota sin generar lleva su botón al lado: un aviso sin la
+   acción a mano obliga a buscarla al final de la pantalla. */
+.nuc-av-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.nuc-av-top .btn{flex:none}
+/* ─ las tarjetas de cobro ─ */
+.nuc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(286px,1fr));gap:12px}
+.nuc-c{border:.5px solid var(--line);border-radius:14px;padding:12px 13px 13px;background:var(--panel2);
+  display:flex;flex-direction:column;gap:9px;min-width:0}
+.nuc-c-h{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:10px}
+.nuc-av{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:none;
+  background:var(--panel);box-shadow:0 0 0 1.5px var(--warn)}
+.nuc-ini{display:flex;align-items:center;justify-content:center;font-size:var(--fs-sm);
+  font-weight:700;color:var(--muted);letter-spacing:.02em}
+.nuc-n{font-size:var(--fs-body);font-weight:600;min-width:0;cursor:pointer;line-height:1.25}
+.nuc-n:hover{color:var(--accent)}
+.nuc-n em{display:block;font-style:normal;font-size:var(--fs-xs);font-weight:500;color:var(--muted2)}
+.nuc-d{font-size:var(--fs-h2);font-weight:700;font-variant-numeric:tabular-nums;
+  color:var(--warn-text);white-space:nowrap}
+/* Un chip por apunte pendiente: pulsarlo cobra SOLO ese. */
+.nuc-chips{display:flex;flex-direction:column;gap:5px}
+.nuc-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  padding:8px 11px;border-radius:10px;cursor:pointer;font-family:inherit;text-align:left;
+  border:.5px solid color-mix(in srgb,var(--warn) 38%,transparent);
+  background:color-mix(in srgb,var(--warn) 12%,transparent);
+  transition:border-color var(--ease),background-color var(--ease)}
+.nuc-chip span{font-size:var(--fs-sm);font-weight:600;color:var(--txt);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nuc-chip b{font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;
+  color:var(--warn-text);flex:none}
+.nuc-chip:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.nuc-chip:active{transform:scale(.985)}
+.nuc-all{width:100%;padding:9px 12px;border-radius:10px;border:0;cursor:pointer;font-family:inherit;
+  background:var(--accent);color:var(--on-accent);font-size:var(--fs-sm);font-weight:700;
+  transition:filter var(--ease)}
+.nuc-all:hover{filter:brightness(1.08)}
+.nuc-all:active{transform:scale(.985)}
+.nuc-pag{font-size:var(--fs-xs);color:var(--muted2)}
+.nuc-pag u{text-decoration:none;color:var(--ok-text);font-weight:600;cursor:pointer}
+.nuc-pag u:hover{text-decoration:line-through}
+.nuc-vacio{font-size:var(--fs-body);font-weight:600;color:var(--ok-text);margin:2px 0 0}
+/* Los que no deben nada: una línea, no una tarjeta cada uno. */
+.nuc-ok{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:16px;padding-top:13px;
+  border-top:.5px solid var(--hair)}
+.nuc-ok em{font-style:normal;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--muted2);flex:none}
+.nuc-ok span{font-size:var(--fs-xs);font-weight:600;color:var(--muted);cursor:pointer;
+  padding:3px 9px;border-radius:999px;background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.nuc-ok span:hover{color:var(--accent)}
+/* ─ secciones plegadas: el summary se lee igual que una cabecera de tarjeta ─ */
+.nut-sec{padding:0}
+.nut-sec>summary{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;cursor:pointer;
+  padding:22px 24px;list-style:none;border-radius:var(--r-lg,16px)}
+.nut-sec>summary::-webkit-details-marker{display:none}
+.nut-sec>summary h3{margin:0;font-size:var(--fs-h2);font-weight:600;letter-spacing:-.01em}
+.nut-sec>summary span{font-size:var(--fs-sm);font-weight:500;color:var(--muted)}
+.nut-sec>summary::after{content:'\25BE';margin-left:auto;color:var(--muted2);font-size:11px;
+  transition:transform var(--ease)}
+.nut-sec[open]>summary::after{transform:rotate(180deg)}
+.nut-sec>summary:hover h3{color:var(--accent)}
+.nut-sec-b{padding:0 24px 22px}
+.nut-sec-h2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:22px 0 12px;
+  font-size:var(--fs-h2);font-weight:600}
+/* ─ el pedido, una fila por persona y sus líneas al desplegar ─ */
+.nut-pj{border-bottom:.5px solid var(--hair)}
+.nut-pj:last-of-type{border-bottom:0}
+.nut-pj>summary{display:grid;grid-template-columns:minmax(0,1fr) 88px 86px 30px;align-items:center;
+  gap:10px;padding:8px 0;cursor:pointer;list-style:none}
+.nut-pj>summary::-webkit-details-marker{display:none}
+.nut-pj>summary span{font-size:var(--fs-body);font-weight:600;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nut-pj>summary b{font-size:var(--fs-body);font-weight:700;text-align:right;
+  font-variant-numeric:tabular-nums}
+.nut-pj>summary i{font-style:normal;font-size:var(--fs-xs);font-weight:700;text-align:right;
+  color:var(--warn-text);font-variant-numeric:tabular-nums}
+.nut-pj>summary em{font-style:normal;font-size:var(--fs-xs);color:var(--muted2);text-align:right}
+.nut-pj>summary:hover span{color:var(--accent)}
+.nut-pj .nut-l{padding-left:2px}
+.nut-pj--add>summary span{color:var(--accent);font-weight:700}
+.nut-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+/* ─ quién lleva el servicio: pastillas, y SIEMPRE a la vista ─ */
+.nut-cuo-t{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.nut-cuo-t label{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);
+  font-weight:600;color:var(--muted)}
+.nut-cuo-t input{width:96px;height:36px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--txt);padding:0 11px;font-size:var(--fs-body);
+  font-family:inherit;font-variant-numeric:tabular-nums;font-weight:700}
+.nut-cuo-g{display:flex;gap:7px;flex-wrap:wrap}
+.nut-cuo-p{padding:7px 12px;border-radius:999px;cursor:pointer;font-family:inherit;
+  font-size:var(--fs-sm);font-weight:600;border:.5px solid var(--line);
+  background:var(--panel2);color:var(--muted);transition:background-color var(--ease),color var(--ease),border-color var(--ease)}
+.nut-cuo-p:hover{border-color:var(--accent);color:var(--accent)}
+.nut-cuo-p.on{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok-text);
+  border-color:color-mix(in srgb,var(--ok) 42%,transparent)}
+.nut-cuo-p.on::before{content:'\2713 ';font-weight:800}
+/* Donde se cobra con el dedo, el objetivo no baja de 44 px (HIG · Layout:
+   *«make sure tap targets are at least 44x44 pt»*). Medidos a 390 px antes de
+   esto: chip 32, botón 33, pastilla 30 — y aquí un toque mueve dinero, que es
+   el error caro de esta pantalla. Va por capacidad táctil y también por ancho,
+   porque un portátil con pantalla táctil cumple lo primero y no lo segundo. */
+@media(hover:none),(max-width:900px){
+  .nuc-chip{min-height:44px}
+  .nuc-all{min-height:44px}
+  .nut-cuo-p{min-height:44px;display:inline-flex;align-items:center}
+  .nut-pj>summary{min-height:44px}
+  .nuc-ok span{min-height:34px;display:inline-flex;align-items:center}
+}
 @media(max-width:900px){
   .nut-cols{grid-template-columns:minmax(0,1fr)}
   .nut-add{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
   .nut-head,.nut-r{grid-template-columns:minmax(0,1.3fr) 104px 104px;gap:8px}
-  .nut-head .nut-r-p,.nut-head .nut-r-q{display:none}
-  /* v450 · Estas dos columnas estaban OCULTAS en el móvil, y una de ellas es el
-     tic de «Lleva cuota»: desde el teléfono no se podía dar de alta a nadie en
-     el servicio de nutrición, que es justo lo que se hace en esta tabla. Bajan
-     a una segunda línea en vez de desaparecer. */
+  .nut-head .nut-r-p{display:none}
+  /* v450 · Esta columna estaba OCULTA en el móvil, igual que el tic de «Lleva
+     cuota» que la acompañaba: desde el teléfono no se podía dar de alta a nadie
+     en el servicio. Baja a una segunda línea en vez de desaparecer, y desde la
+     v515 el tic ya no vive aquí sino en su propio bloque, siempre a la vista. */
   .nut-r .nut-r-p{grid-column:1;text-align:left;font-size:12px;padding-top:2px}
-  .nut-r .nut-r-q{grid-column:2/4;justify-self:start;padding-top:2px}
+  .nut-pj summary{grid-template-columns:minmax(0,1fr) 78px 62px}
+  .nut-pj summary em{display:none}
+  .nuc-head{flex-direction:column;align-items:flex-start;gap:14px}
+  .nuc-head-r{width:100%}
+  .nuc-av-top{flex-direction:column;align-items:flex-start}
+  .nuc-grid{grid-template-columns:minmax(0,1fr)}
 }
 
 /* ── v439 · Dashboard de cargas · tablas del PDF ──
@@ -16682,11 +16817,20 @@ function nutGenerarCuota(mes){
   jug.forEach(j=>nutCobroSet(j,mes,'cuota',imp));
   nutPersist();renderNutri();
 }
+/* ══ v515 · Un SOLO sitio escribe el «pagado» ════════════════════
+   Marcar pagado mueve dinero, y desde la v515 se puede hacer desde TRES
+   sitios: la tarjeta de cobro, la rejilla de meses y la tabla de apuntes.
+   Con la escritura repetida en cada uno, el día que cambie —una fecha de
+   pago, el sello `upd` que la fusión necesita— uno se quedaría atrás y
+   dos pantallas guardarían cosas distintas. Misma regla que `lbEsDe`. */
+function nutMarcar(cs,pagado){
+  const hoy=dkey(new Date());
+  (cs||[]).forEach(c=>{if(!c)return;c.pagado=!!pagado;c.fechaPago=pagado?hoy:'';nutTocado(c);});
+  return (cs||[]).length;
+}
 function nutTogglePago(j,mes,con){
   const c=nutCobro(j,mes,con);if(!c)return;
-  c.pagado=!c.pagado;
-  c.fechaPago=c.pagado?dkey(new Date()):'';
-  nutTocado(c);
+  nutMarcar([c],!c.pagado);
   nutPersist();renderNutri();
 }
 function nutToggleCuota(j){
@@ -16770,14 +16914,13 @@ function nutPagarMes(j,mes){
   const cs=N.cobros.filter(c=>c.jugador===j&&c.mes===mes);
   if(!cs.length)return;
   const sin=cs.filter(c=>!c.pagado);
-  const hoy=dkey(new Date());
   if(sin.length){
     const t=nutRedondea(sin.reduce((a,c)=>a+(+c.importe||0),0));
     if(!confirm('¿Marcar como pagado?\n\n'+j+' · '+nutMesLab(mes)+'\n'+nutEur(t)))return;
-    sin.forEach(c=>{c.pagado=true;c.fechaPago=hoy;nutTocado(c);});
+    nutMarcar(sin,true);
   } else {
     if(!confirm('¿Deshacer el pago de '+j+' en '+nutMesLab(mes)+'?'))return;
-    cs.forEach(c=>{c.pagado=false;c.fechaPago='';nutTocado(c);});
+    nutMarcar(cs,false);
   }
   nutPersist();renderNutri();
 }
@@ -17047,6 +17190,75 @@ window.nutLeerHoja=nutLeerHoja;window.nutImpAsignar=nutImpAsignar;
 window.nutImpConfirmar=nutImpConfirmar;window.nutImpCancelar=nutImpCancelar;
 window.nutParseProducto=nutParseProducto;
 
+/* ══ v515 · COBRAR, que es para lo que Carlos abre esto ══════════════
+   Daniel, 10/11/2026: *«es muy poco intuitivo para Carlos, para el
+   entrenador. Al final lo único que queremos es registrar los pagos,
+   registrar un poco los pedidos que se hacen»*.
+
+   **Lo que cambia es la deuda de una PERSONA, no la casilla de un mes.** La
+   v444 dejó escrito que pulsar una casilla cobra el mes entero «y el detalle
+   concepto a concepto se queda en Cobros»; preguntado el 10/11/2026, Daniel
+   lo cambió: *«dale opciones, desde pagar todo a pagar solo una parte»* —
+   imagina que debe mensualidad + pedido y paga solo el pedido—. Así que
+   desde la tarjeta se puede cobrar **todo** o **un apunte suelto**, sin bajar
+   a la tabla.
+
+   Del más viejo al más nuevo, que es la regla que ya seguía la ficha del
+   jugador: lo primero que hay que cobrar es lo que lleva más tiempo sin
+   cobrarse. **Sin filtrar por importe**: así el desglose suma SIEMPRE lo
+   que dice `nutPendiente`, y un apunte raro de 0 € se ve en vez de
+   desaparecer dejando una cifra que no cuadra con sus partes. */
+const NUT_LAB=k=>((NUT_CONCEPTOS.find(c=>c[0]===k)||[])[1])||k;
+function nutDeudaDe(j){
+  const N=nutLoad();
+  return N.cobros.filter(c=>c.jugador===j&&!c.pagado)
+    .map(c=>({mes:c.mes,con:c.concepto,lab:NUT_LAB(c.concepto),imp:+c.importe||0}))
+    .sort((a,b)=>String(a.mes).localeCompare(String(b.mes))||String(a.con).localeCompare(String(b.con)));
+}
+/* Lo que ya pagó, para poder deshacer sin irse a otra tabla. */
+function nutPagadoDe(j){
+  const N=nutLoad();
+  return N.cobros.filter(c=>c.jugador===j&&c.pagado)
+    .map(c=>({mes:c.mes,con:c.concepto,lab:NUT_LAB(c.concepto),imp:+c.importe||0}))
+    .sort((a,b)=>String(b.mes).localeCompare(String(a.mes))||String(a.con).localeCompare(String(b.con)));
+}
+/* `sel` vacío cobra todo lo pendiente de esa persona; `mes|concepto` cobra
+   solo ese apunte. **Siempre con el desglose y la cifra delante**, porque
+   esto mueve dinero: es la regla que `nutPagarMes` ya tenía escrita. */
+function nutCobrar(j,sel){
+  const N=nutLoad();
+  let cs=N.cobros.filter(c=>c.jugador===j&&!c.pagado);
+  if(sel){const a=String(sel).split('|');cs=cs.filter(c=>c.mes===a[0]&&c.concepto===a[1]);}
+  if(!cs.length)return;
+  const t=nutRedondea(cs.reduce((a,c)=>a+(+c.importe||0),0));
+  const det=cs.slice().sort((a,b)=>String(a.mes).localeCompare(String(b.mes)))
+    .map(c=>'· '+nutMesLab(c.mes)+' · '+NUT_LAB(c.concepto)+' · '+nutEur(c.importe)).join('\n');
+  if(!confirm('¿Lo ha pagado?\n\n'+j+'\n'+det+'\n\nTotal: '+nutEur(t)))return;
+  nutMarcar(cs,true);
+  nutPersist();renderNutri();
+}
+/* Deshacer un apunte ya cobrado, desde la misma tarjeta. */
+function nutDescobrar(j,sel){
+  const a=String(sel||'').split('|');
+  const c=nutCobro(j,a[0],a[1]);if(!c||!c.pagado)return;
+  if(!confirm('¿Deshacer este pago?\n\n'+j+'\n· '+nutMesLab(c.mes)+' · '+NUT_LAB(c.concepto)+' · '+nutEur(c.importe)))return;
+  nutMarcar([c],false);
+  nutPersist();renderNutri();
+}
+/* La foto sale del helper de siempre (`photoFor`), así que es la misma cara
+   que en el resto de la app. **La gente de fuera de la plantilla no pasa por
+   ahí y va con iniciales**: no tienen foto en el repositorio, y la
+   coincidencia difusa de `photoFor` —dos tokens, o uno de cinco letras—
+   podría colgarle a un externo la cara de un jugador, que en una pantalla
+   donde se cobra dinero es el error caro (ver §9, «AGUSTIN CAMPILLO»). */
+function nutFoto(j,ext){
+  if(ext)return '';
+  try{return (window.photoFor?photoFor(j):null)||((STATE.players||{})[j]||{}).avatar||'';}
+  catch(e){return '';}
+}
+const nutInic=j=>String(j||'').trim().split(/\s+/).slice(0,2).map(s=>(s[0]||'').toUpperCase()).join('')||'·';
+window.nutCobrar=nutCobrar;window.nutDescobrar=nutDescobrar;
+
 /* ── la pantalla ─────────────────────────────────────────────────────────
    Tres bloques en el orden en que se usa esto: el pedido que está abierto,
    los cobros del mes —que es lo que Carlos mira el día 6— y el historial. */
@@ -17067,27 +17279,228 @@ function renderNutri(){
   const box=document.getElementById('v-nutri');if(!box)return;
   const N=nutLoad();
   const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const q=j=>"'"+esc(j).replace(/'/g,"\\'")+"'";
   /* Un solo punto desde el que se recorre «todo el mundo»: plantilla y gente
      de fuera del club con descuento. */
   const personas=nutPersonas();
   /* v443 · Quien tiene un cobro aparece aunque no esté en la plantilla ni en
      la lista de gente de fuera. Si no, un nombre que la hoja de plantilla
-     escriba distinto se queda con dinero pendiente y sin fila donde verlo:
-     el apunte existiría y nadie lo cobraría. */
+     escriba distinto se queda con dinero pendiente y sin fila donde verlo. */
   const nomP=personas.map(p=>p.nombre);
   const sueltos=[...new Set(N.cobros.map(c=>c.jugador))].filter(j=>j&&nomP.indexOf(j)<0).sort();
   const jugadores=nomP.concat(sueltos);
-  const rolDe={};personas.forEach(p=>{rolDe[p.nombre]=p.externo?(p.rol||'de fuera'):'';});
-  sueltos.forEach(j=>{rolDe[j]='sin ficha';});
+  const rolDe={},extDe={};
+  personas.forEach(p=>{rolDe[p.nombre]=p.externo?(p.rol||'de fuera'):'';extDe[p.nombre]=!!p.externo;});
+  sueltos.forEach(j=>{rolDe[j]='sin ficha';extDe[j]=true;});
   const mesAct=NUT_MES||nutMes(new Date());
   const meses=[...new Set(nutMeses().concat([mesAct]))].sort();
 
-  /* ⓪ importar del formulario · se confirma jugador por jugador */
+  /* ══ ① LO QUE HAY QUE COBRAR ═══════════════════════════════════════════
+     Las cifras van UNA vez. Antes el hero decía la deuda total y los cuatro
+     indicadores de «Quién debe qué» la repetían tres líneas más abajo, junto
+     con «personas que deben»: la misma cifra dos veces (regla de §9). */
+  const deudaDe={};jugadores.forEach(j=>{deudaDe[j]=nutRedondea(nutPendiente(j));});
+  const deben=jugadores.filter(j=>deudaDe[j]>0).sort((a,b)=>deudaDe[b]-deudaDe[a]||a.localeCompare(b));
+  const deudaTot=nutRedondea(deben.reduce((a,j)=>a+deudaDe[j],0));
+  const deudaMes=nutRedondea(jugadores.reduce((a,j)=>a+nutMesDe(j,mesAct).debe,0));
+  const atrasos=nutRedondea(deudaTot-deudaMes);
+  /* Quien ya pagó algo alguna vez y hoy no debe nada. Quien nunca tuvo un
+     apunte no sale: no está «al día», es que no tiene nada que ver aquí. */
+  const alDia=jugadores.filter(j=>deudaDe[j]<=0&&N.cobros.some(c=>c.jugador===j)).sort();
+  /* El cobro de la cuota existe por el hecho de tener el servicio, así que un
+     hueco es un olvido y se dice con nombres; y va ARRIBA, donde se ve, no al
+     final de la pantalla donde está el botón. */
+  const conServicio=jugadores.filter(j=>N.cuota.jugadores[j]);
+  const faltan=conServicio.filter(j=>!nutCobro(j,mesAct,'cuota'));
+  const r=nutRondaAbierta();
+  const cab=`<section class="nuc-head">
+      <div class="nuc-head-l">
+        <div class="nuc-eyebrow">Pendiente de cobro</div>
+        <div class="nuc-big"><b>${esc(nutEur(deudaTot).replace(' €',''))}</b><span>€</span></div>
+        <div class="nuc-sub">${deben.length?`${deben.length} persona${deben.length===1?'':'s'} de ${jugadores.length}`:'Nadie debe nada'}</div>
+      </div>
+      <div class="nuc-head-r">
+        <div class="nuc-st"><em>De ${esc(nutMesLab(mesAct))}</em><b>${nutEur(deudaMes)}</b></div>
+        <div class="nuc-st"><em>De meses anteriores</em><b style="color:${colTexto(atrasos>0?'var(--warn)':'var(--muted2)')}">${nutEur(atrasos)}</b></div>
+        <div class="nuc-st"><em>Pedido</em><b>${r?'abierto':'ninguno'}</b><u>${r?esc(nutMesLab(r.mes)):'sin ronda'}</u></div>
+      </div>
+    </section>
+    ${faltan.length?`<div class="nut-aviso nuc-av-top">
+      <span>${faltan.length} persona${faltan.length>1?'s':''} con servicio de nutrición sin la cuota de ${esc(nutMesLab(mesAct))}: ${esc(faltan.slice(0,4).join(', '))}${faltan.length>4?' y '+(faltan.length-4)+' más':''}.</span>
+      <button class="btn" onclick="nutGenerarCuota('${mesAct}')">Generar la de ${esc(nutMesLab(mesAct))}</button></div>`:''}`;
+
+  /* ══ ② A QUIÉN COBRAR ══════════════════════════════════════════════════
+     Daniel, 10/11/2026, elegido entre tres opciones: *«quién debe, con foto»*
+     —el mismo patrón que pidió en Perfil físico para asociar más fácil— y
+     *«añádele opciones para que pueda pagar solo una parte: imagina que debe
+     mensualidad + pedido y paga solo el pedido, pues que se pueda marcar»*.
+
+     Una tarjeta por persona: su cara, lo que debe en grande y **un chip por
+     apunte pendiente**, del más viejo al más nuevo. Pulsar un chip cobra ese
+     apunte; el botón de abajo, todo. El botón solo sale **con dos o más
+     apuntes**: con uno sería la misma acción dos veces. */
+  const tarj=deben.map(j=>{
+    const ds=nutDeudaDe(j), ph=nutFoto(j,extDe[j]);
+    const pg=nutPagadoDe(j).filter(x=>x.mes===mesAct);
+    return `<div class="nuc-c">
+      <div class="nuc-c-h">
+        ${ph?`<img class="nuc-av" src="${esc(ph)}" alt="">`:`<span class="nuc-av nuc-ini">${esc(nutInic(j))}</span>`}
+        <span class="nuc-n" onclick="nutIrAJugador(${q(j)})" title="Abrir la ficha">${esc(j)}${rolDe[j]?`<em>${esc(rolDe[j])}</em>`:''}</span>
+        <b class="nuc-d">${nutEur(deudaDe[j])}</b>
+      </div>
+      <div class="nuc-chips">${ds.map(x=>`<button class="nuc-chip" onclick="nutCobrar(${q(j)},'${x.mes}|${x.con}')" title="Marcar como pagado · ${esc(nutMesLab(x.mes))} · ${esc(x.lab)}"><span>${esc(nutMesCorto(x.mes))} · ${esc(x.lab)}</span><b>${nutEur(x.imp)}</b></button>`).join('')}</div>
+      ${ds.length>1?`<button class="nuc-all" onclick="nutCobrar(${q(j)})">Lo ha pagado todo · ${nutEur(deudaDe[j])}</button>`:''}
+      ${pg.length?`<div class="nuc-pag">Ya pagado de ${esc(nutMesLab(mesAct))}: ${pg.map(x=>`<u onclick="nutDescobrar(${q(j)},'${x.mes}|${x.con}')" title="Deshacer este pago">${esc(x.lab.toLowerCase())} ${nutEur(x.imp)}</u>`).join(' · ')}</div>`:''}
+    </div>`;}).join('');
+  const cobrar=`<section class="cgr-card">
+      <div class="cgr-card-h"><h3>A quién hay que cobrar</h3><span>pulsa un concepto para cobrar solo ese; el botón cobra todo</span></div>
+      ${deben.length?`<div class="nuc-grid">${tarj}</div>`:`<p class="nuc-vacio">✓ Nadie debe nada ahora mismo.</p>`}
+      ${alDia.length?`<div class="nuc-ok"><em>Al día · ${alDia.length}</em>${alDia.map(j=>`<span onclick="nutIrAJugador(${q(j)})">${esc(j)}</span>`).join('')}</div>`:''}
+    </section>`;
+
+  /* ══ ③ EL DETALLE, mes a mes y apunte a apunte ══════════════════════════
+     La rejilla de meses y la tabla de apuntes siguen enteras: son la vista de
+     «cómo vamos» y el sitio donde se arregla un mes de atrás, no la de cobrar.
+     Van plegadas porque cobrar ya se hace arriba — **el tic de «lleva cuota»
+     NO se queda aquí dentro**, que esconder detrás de un pliegue el control
+     que da de alta a alguien es el error de la v455; vive en ⑥, a la vista. */
+  const mesesG=nutMeses().slice((typeof window!=='undefined'&&window.innerWidth<620)?-4:-8);
+  const gente=jugadores.map(j=>{
+    const cel=mesesG.map(m=>nutMesDe(j,m));
+    return {j,cel,deuda:deudaDe[j],mov:deudaDe[j]>0||cel.some(c=>c.n>0)};
+  }).filter(x=>x.mov).sort((a,b)=>(b.deuda-a.deuda)||a.j.localeCompare(b.j));
+  const totMesG=mesesG.map(m=>nutRedondea(gente.reduce((a,x)=>a+nutMesDe(x.j,m).debe,0)));
+  const rejilla=gente.length?`<div class="nut-m" style="--nm:${mesesG.length}">
+        <div class="nut-m-h"><span></span>${mesesG.map(m=>`<i${m===mesAct?' class="nut-m-act"':''}>${esc(nutMesCorto(m))}</i>`).join('')}<u>Debe</u></div>
+        ${gente.map(x=>`<div class="nut-m-r">
+            <span class="nut-m-n" onclick="nutIrAJugador(${q(x.j)})" title="Abrir la ficha">${esc(x.j)}${rolDe[x.j]?`<em class="nut-ext">${esc(rolDe[x.j])}</em>`:''}</span>
+            ${x.cel.map((c,i)=>{
+              if(!c.n)return `<i class="nut-m-c nut-m-c--na" title="${esc(nutMesLab(mesesG[i]))} · sin apuntes"></i>`;
+              const deb=c.debe>0;
+              return `<i class="nut-m-c nut-m-c--${deb?'deb':'ok'}" onclick="nutPagarMes(${q(x.j)},'${mesesG[i]}')" title="${esc(nutMesLab(mesesG[i]))} · ${deb?'debe '+nutEur(c.debe):'pagado '+nutEur(c.pagado)} · pulsa para ${deb?'cobrar':'deshacer'}">${deb?'':'✓'}</i>`;}).join('')}
+            <u class="nut-m-d${x.deuda>0?' nut-m-d--deb':''}">${x.deuda>0?nutEur(x.deuda):'al día'}</u>
+          </div>`).join('')}
+        <div class="nut-m-r nut-m-tot">
+          <span class="nut-m-n">Debe el grupo</span>
+          ${totMesG.map((t,i)=>`<i class="nut-m-c nut-m-c--t" title="${esc(nutMesLab(mesesG[i]))}">${t>0?Math.round(t):''}</i>`).join('')}
+          <u class="nut-m-d${deudaTot>0?' nut-m-d--deb':''}">${nutEur(deudaTot)}</u>
+        </div>
+      </div>
+      <p class="hint">Cada casilla es un mes: <b>verde</b> pagado, <b>ámbar</b> pendiente, vacía si esa persona no tenía nada ese mes. Pulsarla cobra o deshace el mes entero. La cifra de abajo son los euros que faltan de ese mes.</p>`
+      :'<p class="hint">Todavía no hay ningún cobro registrado. En cuanto se cierre una ronda o se genere la cuota de un mes, aquí se verá quién debe qué.</p>';
+  const filas=jugadores.map(j=>{
+    const cs=NUT_CONCEPTOS.map(([k])=>nutCobro(j,mesAct,k));
+    if(!NUT_TODOS&&!cs.some(Boolean))return '';
+    return `<div class="nut-r">
+      <span class="nut-r-n">${esc(j)}${rolDe[j]?`<em class="nut-ext">${esc(rolDe[j])}</em>`:''}</span>
+      ${NUT_CONCEPTOS.map(([k,lab],i)=>{const c=cs[i];
+        if(!c)return `<span class="nut-c nut-c--add" onclick="nutCrearApunte(${q(j)},'${mesAct}','${k}')" title="Añadir ${esc(lab).toLowerCase()} de ${esc(nutMesLab(mesAct))}">＋</span>`;
+        return `<span class="nut-c${c.pagado?' nut-c--ok':''}" onclick="nutTogglePago(${q(j)},'${mesAct}','${k}')" title="${esc(lab)} · pulsa para marcar pagado">
+          <i>${c.pagado?'✓':''}</i><b>${nutEur(c.importe)}</b><u class="nut-cx" onclick="event.stopPropagation();nutDelApunte(${q(j)},'${mesAct}','${k}')" title="Quitar este apunte">✕</u></span>`;}).join('')}
+      <span class="nut-r-p${deudaDe[j]>0?' nut-r-p--deb':''}">${deudaDe[j]>0?nutEur(deudaDe[j]):'al día'}</span>
+    </div>`;}).filter(Boolean).join('');
+  const totMes=NUT_CONCEPTOS.reduce((s,[k])=>s+jugadores.reduce((t,j)=>{const c=nutCobro(j,mesAct,k);return t+(c?+c.importe||0:0);},0),0);
+  const cobMes=NUT_CONCEPTOS.reduce((s,[k])=>s+jugadores.reduce((t,j)=>{const c=nutCobro(j,mesAct,k);return t+((c&&c.pagado)?+c.importe||0:0);},0),0);
+  const detalle=`<details class="cgr-card nut-sec" style="margin-top:20px">
+      <summary><h3>Mes a mes y apunte a apunte</h3><span>el detalle, y donde se arregla un mes de atrás</span></summary>
+      <div class="nut-sec-b">
+        ${rejilla}
+        <div class="nut-sec-h2">Apuntes de un mes
+          <select class="nut-mes" onchange="nutSetMes(this.value)">${meses.map(m=>`<option value="${m}"${m===mesAct?' selected':''}>${esc(nutMesLab(m))}</option>`).join('')}</select>
+          <button class="btn ghost nut-todos" onclick="nutVerTodos()">${NUT_TODOS?'Solo con apuntes':'Ver a todos'}</button></div>
+        <div class="nut-kpis">
+          <div><em>Del mes</em><b>${nutEur(totMes)}</b></div>
+          <div><em>Cobrado</em><b style="color:var(--ok-text)">${nutEur(cobMes)}</b></div>
+          <div><em>Pendiente</em><b style="color:${colTexto(totMes-cobMes>0?'var(--warn)':'var(--muted2)')}">${nutEur(totMes-cobMes)}</b></div>
+        </div>
+        <div class="nut-head"><span class="nut-r-n">Persona</span>${NUT_CONCEPTOS.map(c=>`<span class="nut-c">${esc(c[1])}</span>`).join('')}<span class="nut-r-p">Debe en total</span></div>
+        ${filas||'<p class="hint">Nadie tiene apuntes este mes todavía. Pulsa «Ver a todos» para crearlos.</p>'}
+        <p class="hint">El <b>＋</b> crea el apunte de ese mes y el <b>✕</b> de la esquina lo quita. Para los meses de antes del primer pedido hay que meterlos a mano: el botón de generar la cuota usa la lista de quién la lleva HOY, y en agosto o septiembre podía ser otra gente.</p>
+      </div>
+    </details>`;
+
+  /* ══ ④ EL PEDIDO ═══════════════════════════════════════════════════════
+     Daniel, 10/11/2026: resumen por persona y el detalle al pulsar. Eran 73
+     líneas a la vista con una ✕ al lado de cada una —2.632 px de los 5.662 de
+     la pantalla, el 46 %—, y Carlos no toca ninguna. **No se borra nada**:
+     las líneas y su ✕ están dentro del pliegue de cada persona. */
+  let pedido;
+  if(!r){
+    pedido=`<section class="cgr-card" style="margin-top:20px">
+      <div class="cgr-card-h"><h3>Pedido</h3><span>no hay ninguna ronda abierta</span></div>
+      <p class="hint">Abre una ronda cuando pases el formulario al grupo. Las líneas se van añadiendo aquí y, al cerrarla, el total de cada jugador pasa a sus cobros del mes.</p>
+      <button class="btn" onclick="nutRondaNueva()">＋ Abrir ronda de pedido</button>
+    </section>`;
+  } else {
+    const porJug={};(r.lineas||[]).forEach(l=>{(porJug[l.jugador]=porJug[l.jugador]||[]).push(l);});
+    const nombres=Object.keys(porJug).sort((a,b)=>nutTotalJug(r,b)-nutTotalJug(r,a)||a.localeCompare(b));
+    const prods=nutPorProducto(r);
+    const pendP=nutPorProducto(r,true);
+    const totR=nutTotalRonda(r);
+    const pendR=nutPendRonda(r);
+    const uds=prods.reduce((a,p)=>a+p.cant,0);
+    pedido=`<section class="cgr-card" style="margin-top:20px">
+      <div class="cgr-card-h"><h3>${esc(r.nombre||'Pedido')}</h3><span>${esc(nutMesLab(r.mes))} · ${nombres.length} persona${nombres.length===1?'':'s'} · ${uds} uds · <b>${nutEur(totR)}</b>${pendR>0?' · '+nutEur(pendR)+' esperando stock':''}</span></div>
+      ${nombres.length?`<div class="nut-cols">
+        <div>
+          <div class="nut-sub">Por persona · pulsa para ver sus líneas</div>
+          ${nombres.map(j=>{const pj=nutPendJug(r,j);
+            return `<details class="nut-pj">
+              <summary><span>${esc(j)}</span><b>${nutEur(nutTotalJug(r,j))}</b>${pj>0?`<i title="Encargado y sin stock: no se cobra ahora">+${nutEur(pj)}</i>`:'<i></i>'}<em>${porJug[j].length}</em></summary>
+              ${porJug[j].map(l=>`<div class="nut-l${nutEsPend(l)?' nut-l--pend':''}"${nutEsPend(l)?' title="Sin stock: encargado, pero no se cobra hasta que llegue"':''}><span>${nutEsPend(l)?'<i class="nut-sin">sin stock</i>':''}${esc(l.producto)}</span><em>×${l.cant}</em><u>${nutEsPend(l)?'('+nutEur(l.cant*l.precio)+')':nutEur(l.cant*l.precio)}</u><button class="nut-x" onclick="nutDelLinea('${l.id}')" title="Quitar">✕</button></div>`).join('')}
+            </details>`;}).join('')}
+          <details class="nut-pj nut-pj--add">
+            <summary><span>＋ Añadir una línea a mano</span><b></b><i></i><em></em></summary>
+            <div class="nut-add">
+              <select id="nut-jug">${jugadores.map(j=>`<option>${esc(j)}</option>`).join('')}</select>
+              <input id="nut-prod" type="text" placeholder="Producto" list="nut-prods">
+              <datalist id="nut-prods">${[...new Set(N.rondas.flatMap(x=>(x.lineas||[]).map(l=>l.producto)))].filter(Boolean).map(p=>`<option>${esc(p)}</option>`).join('')}</datalist>
+              <input id="nut-cant" type="number" min="1" step="1" value="1" placeholder="Cant.">
+              <input id="nut-precio" type="text" placeholder="Precio €">
+              <button class="btn" onclick="nutAddLinea()">Añadir</button>
+            </div>
+            <p class="hint">El precio se escribe en cada línea, no se hereda de un catálogo: la marca cambia tarifas y aplica descuentos por ronda, así que lo que se cobró en enero no se reescribe porque en marzo valga otra cosa.</p>
+          </details>
+        </div>
+        <div>
+          <div class="nut-sub">Para pedir a la marca</div>
+          <div class="nut-agg">
+            ${prods.map(p=>`<div class="nut-a"><b>${p.cant}×</b><span>${esc(p.producto)}</span><u>${nutEur(p.importe)}</u>${Object.keys(p.precios).length>1?'<i title="Esta ronda tiene este producto a más de un precio">⚠</i>':''}</div>`).join('')}
+            <div class="nut-a nut-a-tot"><b></b><span>Total de la ronda</span><u>${nutEur(totR)}</u></div>
+          </div>
+          ${pendP.length?`<div class="nut-sub" style="margin-top:14px">Esperando stock · no se cobra ahora</div>
+          <div class="nut-agg nut-agg--pend">
+            ${pendP.map(p=>`<div class="nut-a"><b>${p.cant}×</b><span>${esc(p.producto)}</span><u>${nutEur(p.importe)}</u></div>`).join('')}
+          </div>
+          <p class="hint">La marca los tiene agotados. Cuando vuelvan se piden y se cobran a quien los encargó, <b>al precio que tengan entonces</b>: el importe de aquí es con el de hoy. En total, <b>${nutEur(pendR)}</b>.</p>`:''}
+          <div class="nut-btns">
+            <button class="btn ghost" onclick="nutCopiarPedido()">Copiar para Héctor</button>
+            <button class="btn" onclick="nutRondaACobros('${r.id}')">Cerrar ronda y pasar a cobros</button>
+          </div>
+          <p class="hint">Al cerrarla, el total de cada persona se convierte en su cobro de suplementación de ${esc(nutMesLab(r.mes))}. El tick de pagado nunca se pisa.</p>
+        </div>
+      </div>`:`<p class="hint">Todavía no hay líneas en esta ronda.</p>
+      <div class="nut-add" style="margin-top:10px">
+        <select id="nut-jug">${jugadores.map(j=>`<option>${esc(j)}</option>`).join('')}</select>
+        <input id="nut-prod" type="text" placeholder="Producto" list="nut-prods">
+        <datalist id="nut-prods"></datalist>
+        <input id="nut-cant" type="number" min="1" step="1" value="1" placeholder="Cant.">
+        <input id="nut-precio" type="text" placeholder="Precio €">
+        <button class="btn" onclick="nutAddLinea()">Añadir</button>
+      </div>`}
+    </section>`;
+  }
+
+  /* ══ ⑤ TRAER LOS PEDIDOS DEL FORMULARIO ════════════════════════════════
+     Es trabajo puntual de Daniel, una vez cada pocos meses, así que va
+     plegado. **Cuando hay una importación a medias se abre solo**: ahí hay
+     nombres que confirmar y dinero esperando, y un pliegue lo esconderría. */
   let importar;
   if(NUT_IMP){
     const sinAsig=NUT_IMP.filas.filter(f=>!f.sug).length;
-    importar=`<section class="cgr-card" style="border:1px solid var(--accent)">
-      <div class="cgr-card-h"><h3>Confirma a quién es cada pedido</h3><span>${NUT_IMP.filas.length} respuesta${NUT_IMP.filas.length===1?'':'s'} en la hoja</span></div>
+    importar=`<details class="cgr-card nut-sec" style="margin-top:20px;border:1px solid var(--accent)" open>
+      <summary><h3>Confirma a quién es cada pedido</h3><span>${NUT_IMP.filas.length} respuesta${NUT_IMP.filas.length===1?'':'s'} en la hoja</span></summary>
+      <div class="nut-sec-b">
       <p class="hint" style="margin-top:0"><b>La app no asigna los nombres sola, y es a propósito.</b> La hoja los trae escritos a mano y la regla de nombres de la app confunde apellidos comunes: «AGUSTIN CAMPILLO GARCIA» caía en «Pablo Herranz García». Aquí se cobra dinero, así que lo que propone se confirma. Lo que corrijas se recuerda y no se vuelve a preguntar.</p>
       ${sinAsig?`<div class="nut-aviso">${sinAsig} respuesta${sinAsig>1?'s':''} sin jugador asignado: se quedará${sinAsig>1?'n':''} fuera si no la${sinAsig>1?'s':''} asignas.</div>`:''}
       <div class="nut-imp">
@@ -17105,193 +17518,55 @@ function renderNutri(){
             <div class="nut-i-l">${f.lineas.map(l=>`<span>${l.cant}× ${esc(l.producto)}<em>${nutEur(l.cant*l.precio)}</em></span>`).join('')}</div>
           </div>`;}).join('')}
       </div>
-      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <div class="nut-btns" style="margin-top:14px">
         <button class="btn" onclick="nutImpConfirmar()">Importar a la ronda</button>
         <button class="btn ghost" onclick="nutImpCancelar()">Cancelar</button>
-      </div>
-    </section>`;
+      </div></div>
+    </details>`;
   } else {
-    importar=`<section class="cgr-card">
-      <div class="cgr-card-h"><h3>Traer los pedidos del formulario</h3><span>hoja de respuestas de Google</span></div>
+    importar=`<details class="cgr-card nut-sec" style="margin-top:20px">
+      <summary><h3>Traer los pedidos del formulario</h3><span>hoja de respuestas de Google</span></summary>
+      <div class="nut-sec-b">
       <div class="nut-url">
         <input id="nut-url" type="text" placeholder="Enlace de la hoja de respuestas" value="${esc(N.hoja||'')}">
         <button class="btn" onclick="nutLeerHoja()">Leer la hoja</button>
       </div>
       <div class="hint" id="nut-imp-msg" style="margin-top:8px"></div>
       <p class="hint">Vale el enlace de compartir tal cual: la app lo convierte a CSV. El <b>precio sale del propio texto del producto</b> —así viene de FullGas en las opciones del formulario—, de modo que la tarifa se comprueba al montar el formulario y no hay un catálogo aparte que mantener. Volver a leer la hoja no duplica: reemplaza las líneas de las mismas respuestas.</p>
-    </section>`;
+      </div>
+    </details>`;
   }
 
-  /* ① pedido abierto */
-  const r=nutRondaAbierta();
-  let pedido;
-  if(!r){
-    pedido=`<section class="cgr-card">
-      <div class="cgr-card-h"><h3>Pedido</h3><span>no hay ninguna ronda abierta</span></div>
-      <p class="hint">Abre una ronda cuando pases el formulario al grupo. Las líneas se van añadiendo aquí y, al cerrarla, el total de cada jugador pasa a sus cobros del mes.</p>
-      <button class="btn" onclick="nutRondaNueva()">＋ Abrir ronda de pedido</button>
-    </section>`;
-  } else {
-    const porJug={};(r.lineas||[]).forEach(l=>{(porJug[l.jugador]=porJug[l.jugador]||[]).push(l);});
-    const nombres=Object.keys(porJug).sort();
-    const prods=nutPorProducto(r);
-    const pendP=nutPorProducto(r,true);
-    const totR=nutTotalRonda(r);
-    const pendR=nutPendRonda(r);
-    pedido=`<section class="cgr-card">
-      <div class="cgr-card-h"><h3>${esc(r.nombre||'Pedido')}</h3><span>${esc(nutMesLab(r.mes))} · ${(r.lineas||[]).length} línea${(r.lineas||[]).length===1?'':'s'} · <b>${nutEur(totR)}</b> a cobrar${pendR>0?' · '+nutEur(pendR)+' esperando stock':''}</span></div>
-      <div class="nut-add">
-        <select id="nut-jug">${jugadores.map(j=>`<option>${esc(j)}</option>`).join('')}</select>
-        <input id="nut-prod" type="text" placeholder="Producto" list="nut-prods">
-        <datalist id="nut-prods">${[...new Set(N.rondas.flatMap(x=>(x.lineas||[]).map(l=>l.producto)))].filter(Boolean).map(p=>`<option>${esc(p)}</option>`).join('')}</datalist>
-        <input id="nut-cant" type="number" min="1" step="1" value="1" placeholder="Cant.">
-        <input id="nut-precio" type="text" placeholder="Precio €">
-        <button class="btn" onclick="nutAddLinea()">Añadir</button>
-      </div>
-      <p class="hint" style="margin-top:8px">El precio se escribe en cada línea, no se hereda de un catálogo: la marca cambia tarifas y aplica descuentos por ronda, así que lo que se cobró en enero no se reescribe porque en marzo valga otra cosa.</p>
-      ${nombres.length?`<div class="nut-cols">
-        <div>
-          <div class="nut-sub">Por jugador</div>
-          ${nombres.map(j=>`<div class="nut-j">
-            <div class="nut-j-h"><b>${esc(j)}</b><span>${nutEur(nutTotalJug(r,j))}${nutPendJug(r,j)>0?`<i class="nut-pw" title="Encargado y sin stock: no se cobra ahora">+${nutEur(nutPendJug(r,j))} pend.</i>`:''}</span></div>
-            ${porJug[j].map(l=>`<div class="nut-l${nutEsPend(l)?' nut-l--pend':''}"${nutEsPend(l)?' title="Sin stock: encargado, pero no se cobra hasta que llegue"':''}><span>${nutEsPend(l)?'<i class="nut-sin">sin stock</i>':''}${esc(l.producto)}</span><em>×${l.cant}</em><u>${nutEsPend(l)?'('+nutEur(l.cant*l.precio)+')':nutEur(l.cant*l.precio)}</u><button class="nut-x" onclick="nutDelLinea('${l.id}')" title="Quitar">✕</button></div>`).join('')}
-          </div>`).join('')}
-        </div>
-        <div>
-          <div class="nut-sub">Para pedir a la marca</div>
-          <div class="nut-agg">
-            ${prods.map(p=>`<div class="nut-a"><b>${p.cant}×</b><span>${esc(p.producto)}</span><u>${nutEur(p.importe)}</u>${Object.keys(p.precios).length>1?'<i title="Esta ronda tiene este producto a más de un precio">⚠</i>':''}</div>`).join('')}
-            <div class="nut-a nut-a-tot"><b></b><span>Total de la ronda</span><u>${nutEur(totR)}</u></div>
-          </div>
-          ${pendP.length?`<div class="nut-sub" style="margin-top:14px">Esperando stock · no se cobra ahora</div>
-          <div class="nut-agg nut-agg--pend">
-            ${pendP.map(p=>`<div class="nut-a"><b>${p.cant}×</b><span>${esc(p.producto)}</span><u>${nutEur(p.importe)}</u></div>`).join('')}
-          </div>
-          <p class="hint">La marca los tiene agotados. Cuando vuelvan se piden y se cobran a quien los encargó, <b>al precio que tengan entonces</b>: el importe de aquí es con el de hoy. Lo de cada uno está en su ficha de la izquierda; en total, <b>${nutEur(pendR)}</b>.</p>`:''}
-          <button class="btn ghost" style="margin-top:10px" onclick="nutCopiarPedido()">Copiar para Héctor</button>
-          <button class="btn" style="margin-top:10px" onclick="nutRondaACobros('${r.id}')">Cerrar ronda y pasar a cobros</button>
-          <p class="hint">Al cerrarla, el total de cada jugador se convierte en su cobro de suplementación de ${esc(nutMesLab(r.mes))}. El tick de pagado nunca se pisa.</p>
-        </div>
-      </div>`:'<p class="hint">Todavía no hay líneas en esta ronda.</p>'}
-    </section>`;
-  }
-
-  /* ══ v444 · Quién debe qué · la rejilla de meses ═════════════════════
-     Daniel, 21/10/2026: *«que se vea de un vistazo qué jugador ha pagado lo
-     de este mes y lo del otro no, o qué le queda de pagar — no solo el
-     último pedido y el último mes—, y que a Carlos se le haga lo más
-     cómodo posible»*. La tabla de Cobros contesta **un mes**; esto contesta
-     **la deuda**, que es con lo que Carlos se planta delante del jugador.
-
-     Una fila por persona, una columna por mes, ordenado por lo que debe.
-     **Pulsar una casilla cobra el mes entero de esa persona** —los dos
-     conceptos de una vez, que es lo que pasa de verdad cuando alguien paga—
-     y siempre con la cifra delante antes de confirmar: marcar pagado mueve
-     dinero. El detalle concepto a concepto sigue en Cobros, que es un solo
-     sitio donde tocar cada apunte.
-
-     **Verde pagado, ámbar debe, vacío nada**: el rojo en esta app es solo de
-     alertas y deber la cuota del mes no lo es. */
-  const mesesG=nutMeses().slice((typeof window!=='undefined'&&window.innerWidth<620)?-4:-8);
-  const gente=jugadores.map(j=>{
-    const cel=mesesG.map(m=>nutMesDe(j,m));
-    const deuda=nutRedondea(nutPendiente(j));
-    return {j,cel,deuda,mov:deuda>0||cel.some(c=>c.n>0)};
-  }).filter(x=>x.mov).sort((a,b)=>(b.deuda-a.deuda)||a.j.localeCompare(b.j));
-  /* Lo que se arrastra de meses anteriores: es la pregunta que la tabla de
-     un mes no puede contestar, y la razón de que este panel exista. */
-  const deudaTot=nutRedondea(gente.reduce((a,x)=>a+x.deuda,0));
-  const deudaMes=nutRedondea(gente.reduce((a,x)=>a+nutMesDe(x.j,mesAct).debe,0));
-  const atrasos=nutRedondea(deudaTot-deudaMes);
-  const totMesG=mesesG.map(m=>nutRedondea(gente.reduce((a,x)=>a+nutMesDe(x.j,m).debe,0)));
-  const deudas=`<section class="cgr-card" style="margin-top:20px">
-      <div class="cgr-card-h"><h3>Quién debe qué</h3><span>pulsa un mes para cobrarlo entero</span></div>
-      <div class="nut-kpis">
-        <div><em>Deuda total</em><b style="color:${colTexto(deudaTot>0?'var(--warn)':'var(--muted2)')}">${nutEur(deudaTot)}</b></div>
-        <div><em>De ${esc(nutMesLab(mesAct))}</em><b>${nutEur(deudaMes)}</b></div>
-        <div><em>De meses anteriores</em><b style="color:${colTexto(atrasos>0?'var(--warn)':'var(--muted2)')}">${nutEur(atrasos)}</b></div>
-        <div><em>Personas que deben</em><b>${gente.filter(x=>x.deuda>0).length}</b></div>
-      </div>
-      ${gente.length?`<div class="nut-m" style="--nm:${mesesG.length}">
-        <div class="nut-m-h"><span></span>${mesesG.map(m=>`<i${m===mesAct?' class="nut-m-act"':''}>${esc(nutMesCorto(m))}</i>`).join('')}<u>Debe</u></div>
-        ${gente.map(x=>{const jq="'"+esc(x.j).replace(/'/g,"\\'")+"'";
-          return `<div class="nut-m-r">
-            <span class="nut-m-n" onclick="nutIrAJugador(${jq})" title="Abrir la ficha">${esc(x.j)}${rolDe[x.j]?`<em class="nut-ext">${esc(rolDe[x.j])}</em>`:''}</span>
-            ${x.cel.map((c,i)=>{
-              if(!c.n)return `<i class="nut-m-c nut-m-c--na" title="${esc(nutMesLab(mesesG[i]))} · sin apuntes"></i>`;
-              const deb=c.debe>0;
-              return `<i class="nut-m-c nut-m-c--${deb?'deb':'ok'}" onclick="nutPagarMes(${jq},'${mesesG[i]}')" title="${esc(nutMesLab(mesesG[i]))} · ${deb?'debe '+nutEur(c.debe):'pagado '+nutEur(c.pagado)} · pulsa para ${deb?'cobrar':'deshacer'}">${deb?'':'✓'}</i>`;}).join('')}
-            <u class="nut-m-d${x.deuda>0?' nut-m-d--deb':''}">${x.deuda>0?nutEur(x.deuda):'al día'}</u>
-          </div>`;}).join('')}
-        <div class="nut-m-r nut-m-tot">
-          <span class="nut-m-n">Debe el grupo</span>
-          ${totMesG.map((t,i)=>`<i class="nut-m-c nut-m-c--t" title="${esc(nutMesLab(mesesG[i]))}">${t>0?Math.round(t):''}</i>`).join('')}
-          <u class="nut-m-d${deudaTot>0?' nut-m-d--deb':''}">${nutEur(deudaTot)}</u>
-        </div>
-      </div>
-      <p class="hint">Cada casilla es un mes: <b>verde</b> pagado, <b>ámbar</b> pendiente, vacía si esa persona no tenía nada ese mes. La cifra de la fila de abajo son los euros que faltan por cobrar de ese mes. Para añadir o quitar un apunte suelto, usa la tabla de Cobros de debajo.</p>`
-      :'<p class="hint">Todavía no hay ningún cobro registrado. En cuanto se cierre una ronda o se genere la cuota de un mes, aquí se verá quién debe qué.</p>'}
-    </section>`;
-
-  /* ② cobros del mes */
-  const filas=jugadores.map(j=>{
-    const cs=NUT_CONCEPTOS.map(([k])=>nutCobro(j,mesAct,k));
-    const pend=nutPendiente(j);
-    /* v444 · Con un mes de antes del primer pedido casi nadie tiene apuntes,
-       y es justo ahí donde hay que poder meterlos: «Ver a todos» quita el
-       filtro en vez de dejar la tabla vacía sin salida. */
-    if(!NUT_TODOS&&!cs.some(Boolean)&&!N.cuota.jugadores[j]&&pend<=0)return '';
-    const jq="'"+esc(j).replace(/'/g,"\\'")+"'";
-    return `<div class="nut-r">
-      <span class="nut-r-n">${esc(j)}${rolDe[j]?`<em class="nut-ext">${esc(rolDe[j])}</em>`:''}</span>
-      ${NUT_CONCEPTOS.map(([k,lab],i)=>{const c=cs[i];
-        if(!c)return `<span class="nut-c nut-c--add" onclick="nutCrearApunte(${jq},'${mesAct}','${k}')" title="Añadir ${esc(lab).toLowerCase()} de ${esc(nutMesLab(mesAct))}">＋</span>`;
-        return `<span class="nut-c${c.pagado?' nut-c--ok':''}" onclick="nutTogglePago(${jq},'${mesAct}','${k}')" title="${esc(lab)} · pulsa para marcar pagado">
-          <i>${c.pagado?'✓':''}</i><b>${nutEur(c.importe)}</b><u class="nut-cx" onclick="event.stopPropagation();nutDelApunte(${jq},'${mesAct}','${k}')" title="Quitar este apunte">✕</u></span>`;}).join('')}
-      <span class="nut-r-p${pend>0?' nut-r-p--deb':''}">${pend>0?nutEur(pend):'al día'}</span>
-      <span class="nut-r-q"><label><input type="checkbox" ${N.cuota.jugadores[j]?'checked':''} onchange="nutToggleCuota('${esc(j).replace(/'/g,"\\'")}')"> cuota</label></span>
-    </div>`;}).filter(Boolean).join('');
-  /* Quién tiene contratado el servicio, y a quién le falta el apunte del mes:
-     el cobro de la cuota existe por el hecho de tener el servicio, así que si
-     falta es un olvido y hay que decirlo en vez de dejar el hueco callado. */
-  const conServicio=jugadores.filter(j=>N.cuota.jugadores[j]);
-  const faltan=conServicio.filter(j=>!nutCobro(j,mesAct,'cuota'));
-  const totMes=NUT_CONCEPTOS.reduce((s,[k])=>s+jugadores.reduce((t,j)=>{const c=nutCobro(j,mesAct,k);return t+(c?+c.importe||0:0);},0),0);
-  const cobMes=NUT_CONCEPTOS.reduce((s,[k])=>s+jugadores.reduce((t,j)=>{const c=nutCobro(j,mesAct,k);return t+((c&&c.pagado)?+c.importe||0:0);},0),0);
-  const cobros=`<section class="cgr-card" style="margin-top:20px">
-      <div class="cgr-card-h"><h3>Cobros</h3><span>pulsa un importe para marcarlo como pagado</span>
-        <select class="nut-mes" onchange="nutSetMes(this.value)">${meses.map(m=>`<option value="${m}"${m===mesAct?' selected':''}>${esc(nutMesLab(m))}</option>`).join('')}</select>
-        <button class="btn ghost nut-todos" onclick="nutVerTodos()">${NUT_TODOS?'Solo con apuntes':'Ver a todos'}</button></div>
-      <div class="nut-kpis">
-        <div><em>Del mes</em><b>${nutEur(totMes)}</b></div>
-        <div><em>Cobrado</em><b style="color:var(--ok-text)">${nutEur(cobMes)}</b></div>
-        <div><em>Pendiente</em><b style="color:${colTexto(totMes-cobMes>0?'var(--warn)':'var(--muted2)')}">${nutEur(totMes-cobMes)}</b></div>
-      </div>
-      <div class="nut-head"><span class="nut-r-n">Jugador</span>${NUT_CONCEPTOS.map(c=>`<span class="nut-c">${esc(c[1])}</span>`).join('')}<span class="nut-r-p">Debe en total</span><span class="nut-r-q">Lleva</span></div>
-      ${filas||'<p class="hint">Nadie tiene cobros este mes todavía. Cierra una ronda de pedido o genera la cuota mensual.</p>'}
-      <div class="nut-cuota">
-        <span><b>Servicio de nutrición</b> · ${conServicio.length} persona${conServicio.length===1?'':'s'} · importe mensual</span>
-        <input type="text" value="${(N.cuota.importe||0).toFixed(2).replace('.',',')}" onchange="nutSetCuotaImporte(this.value)" title="Importe por persona y mes">
+  /* ══ ⑥ EL SERVICIO DE NUTRICIÓN ════════════════════════════════════════
+     **Visible, nunca plegado**: aquí se da de alta a alguien en el servicio,
+     y esconder detrás de un pliegue el control que desbloquea una función es
+     el error de la v455, que costó semanas con los centímetros del tape. Una
+     pastilla por persona en vez de una fila con un tic perdido a la derecha:
+     en el móvil esa columna llegó a desaparecer del todo (v450). */
+  const servicio=`<section class="cgr-card" style="margin-top:20px">
+      <div class="cgr-card-h"><h3>Servicio de nutrición</h3><span>${conServicio.length} persona${conServicio.length===1?'':'s'} · marca a quién se le cobra cada mes</span></div>
+      <div class="nut-cuo-t">
+        <label>Importe al mes <input type="text" value="${(N.cuota.importe||0).toFixed(2).replace('.',',')}" onchange="nutSetCuotaImporte(this.value)" title="Importe por persona y mes"></label>
         <button class="btn${faltan.length?'':' ghost'}" onclick="nutGenerarCuota('${mesAct}')">Generar la de ${esc(nutMesLab(mesAct))}</button>
       </div>
-      ${faltan.length?`<div class="nut-aviso" style="margin-top:10px">${faltan.length} persona${faltan.length>1?'s':''} con servicio de nutrición sin generar en ${esc(nutMesLab(mesAct))}: ${esc(faltan.slice(0,4).join(', '))}${faltan.length>4?' y '+(faltan.length-4)+' más':''}.</div>`:''}
+      <div class="nut-cuo-g">${jugadores.map(j=>`<button class="nut-cuo-p${N.cuota.jugadores[j]?' on':''}" onclick="nutToggleCuota(${q(j)})" title="${N.cuota.jugadores[j]?'Lleva el servicio · pulsa para quitarlo':'No lo lleva · pulsa para añadirlo'}">${esc(j)}</button>`).join('')}</div>
+      <p class="hint">Es siempre <b>mes a mes</b>: generar un mes crea el apunte solo para los marcados, con el importe de arriba. Para un mes de atrás, mejor apunte a apunte en «Mes a mes», porque esta lista es la de quién lo lleva <b>hoy</b>.</p>
     </section>`;
 
-  /* ③ historial */
+  /* ══ ⑦ y ⑧ el archivo ══════════════════════════════════════════════════ */
   const hist=N.rondas.filter(x=>x.cerrada).sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
-  const historial=`<section class="cgr-card" style="margin-top:20px">
-      <div class="cgr-card-h"><h3>Historial de pedidos</h3><span>${hist.length} ronda${hist.length===1?'':'s'} cerrada${hist.length===1?'':'s'}</span></div>
-      ${hist.length?hist.map(x=>{
+  const historial=`<details class="cgr-card nut-sec" style="margin-top:20px">
+      <summary><h3>Historial de pedidos</h3><span>${hist.length} ronda${hist.length===1?'':'s'} cerrada${hist.length===1?'':'s'}</span></summary>
+      <div class="nut-sec-b">${hist.length?hist.map(x=>{
         const nj=[...new Set((x.lineas||[]).map(l=>l.jugador))].length;
         return `<div class="nut-h"><span><b>${esc(x.nombre||'Pedido')}</b><em>${esc((x.fecha||'').split('-').reverse().join('/'))}</em></span>
-          <span>${nj} jugador${nj===1?'':'es'}</span><span>${(x.lineas||[]).length} líneas</span><b>${nutEur(nutTotalRonda(x))}</b></div>`;}).join('')
-        :'<p class="hint">Aquí quedarán las rondas cerradas, con lo que pidió cada jugador y lo que costó.</p>'}
-    </section>`;
-
-  /* ④ gente de fuera de la plantilla */
+          <span>${nj} persona${nj===1?'':'s'}</span><span>${(x.lineas||[]).length} líneas</span><b>${nutEur(nutTotalRonda(x))}</b></div>`;}).join('')
+        :'<p class="hint">Aquí quedarán las rondas cerradas, con lo que pidió cada jugador y lo que costó.</p>'}</div>
+    </details>`;
   const ext=nutExternos();
-  const externos=`<section class="cgr-card" style="margin-top:20px">
-      <div class="cgr-card-h"><h3>Gente de fuera de la plantilla</h3><span>staff, directiva o conocidos que compran con el descuento del club</span></div>
+  const externos=`<details class="cgr-card nut-sec" style="margin-top:20px">
+      <summary><h3>Gente de fuera de la plantilla</h3><span>${ext.length} persona${ext.length===1?'':'s'} · staff, directiva o conocidos con el descuento del club</span></summary>
+      <div class="nut-sec-b">
       <div class="nut-url">
         <input id="nut-ext-nom" type="text" placeholder="Nombre y apellidos">
         <input id="nut-ext-rol" type="text" placeholder="Staff, directiva, amigo…" style="max-width:220px">
@@ -17302,24 +17577,12 @@ function renderNutri(){
           <u>${nutPendiente(e.nombre)>0?nutEur(nutPendiente(e.nombre)):'al día'}</u>
           <button class="nut-x" onclick="nutDelExterno('${e.id}')" title="Quitar">✕</button>
         </div>`).join('')}</div>`:''}
-      <p class="hint">Estas personas <b>solo existen aquí</b>: no entran en la plantilla ni aparecen en ninguna otra pantalla de la app. Salen en el desplegable al importar el formulario y en la tabla de cobros, como todos los demás. No se puede quitar a alguien que tenga pedidos o cobros registrados.</p>
-    </section>`;
-
-  const totalDeuda=jugadores.reduce((s,j)=>s+nutPendiente(j),0);
-  box.innerHTML=`<div class="pagehead"><h1>Nutrición</h1><p>Pedidos de FullGas y cobros a los jugadores</p></div>
-    <section class="cgr-hero">
-      <div class="cgr-hero-top">
-        <div class="cgr-hero-l">
-          <div class="cgr-eyebrow">Pendiente de cobro</div>
-          <div class="cgr-big"><b>${nutEur(totalDeuda).replace(' €','')}</b><span>€ que deben los jugadores</span></div>
-          <div class="cgr-sub">${r?'Ronda abierta: '+esc(r.nombre):'Sin ronda de pedido abierta'}</div>
-        </div>
-        <div class="cgr-hero-r">
-          <div class="cgr-stat"><em>Jugadores que deben</em><b>${jugadores.filter(j=>nutPendiente(j)>0).length}</b><u>de ${jugadores.length}</u></div>
-        </div>
+      <p class="hint">Estas personas <b>solo existen aquí</b>: no entran en la plantilla ni aparecen en ninguna otra pantalla de la app. Salen en el desplegable al importar el formulario y en los cobros, como todos los demás. No se puede quitar a alguien que tenga pedidos o cobros registrados.</p>
       </div>
-    </section>
-    ${importar}${deudas}${pedido}${cobros}${historial}${externos}
+    </details>`;
+
+  box.innerHTML=`<div class="pagehead"><h1>Nutrición</h1><p>Cobros a los jugadores y pedidos de FullGas</p></div>
+    ${cab}${cobrar}${detalle}${pedido}${importar}${servicio}${historial}${externos}
     <p class="hint" style="margin-top:14px"><b>Los correos no salen de aquí.</b> Esta pantalla es la fuente de la verdad de importes y pagos; el envío lo hace el Apps Script pegado a la hoja de pedidos, desde la cuenta de Héctor.</p>`;
 }
 window.renderNutri=renderNutri;
@@ -35819,7 +36082,6 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
 #v-nutri .nut-c b{font-size:var(--fs-sm)}
 #v-nutri .nut-r-n{font-size:var(--fs-sm)}
 #v-nutri .nut-r-p,#v-nutri .nut-r .nut-r-p{font-size:var(--fs-sm)}
-#v-nutri .nut-r-q{font-size:var(--fs-xs)}
 #v-nutri .nut-m-n{font-size:var(--fs-sm)}
 #v-nutri .nut-m-h i,#v-nutri .nut-m-h u{font-size:var(--fs-xs)}
 #v-nutri .nut-j-h b,#v-nutri .nut-j-h span{font-size:var(--fs-sm)}
@@ -39766,8 +40028,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.1*/
-const VER_ACTUAL='2026-11-10.1';
+/*BUILD:2026-11-10.2*/
+const VER_ACTUAL='2026-11-10.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
