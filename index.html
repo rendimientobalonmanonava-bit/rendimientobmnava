@@ -17252,12 +17252,39 @@ function nutDescobrar(j,sel){
    podría colgarle a un externo la cara de un jugador, que en una pantalla
    donde se cobra dinero es el error caro (ver §9, «AGUSTIN CAMPILLO»). */
 function nutFoto(j,ext){
-  if(ext)return '';
+  if(ext)return '';   /* se resuelve aparte, con `nutFotosExternos` */
   try{return (window.photoFor?photoFor(j):null)||((STATE.players||{})[j]||{}).avatar||'';}
   catch(e){return '';}
 }
 const nutInic=j=>String(j||'').trim().split(/\s+/).slice(0,2).map(s=>(s[0]||'').toUpperCase()).join('')||'·';
 window.nutCobrar=nutCobrar;window.nutDescobrar=nutDescobrar;
+
+/* ══ v516 · La cara del cuerpo técnico ═════════════════════════
+   Daniel, 10/11/2026, pidiendo cómo darme las fotos del cuerpo técnico. Un
+   externo no está en `STATE.players`, así que no pasa por `photoFor` ni por el
+   escaneo del arranque: se pinta con iniciales y **después** se le busca su
+   archivo en `fotos/`, por el mismo nombre y las mismas extensiones que a un
+   jugador. Si lo hay, la inicial se cambia por la cara; si no, se queda como
+   está —nadie espera a una petición para ver lo que debe—.
+   **Se sigue sin pasar por `photoFor`**: su coincidencia difusa podría
+   colgarle a un externo la cara de un jugador, y aquí se cobra dinero. Aquí
+   el nombre del archivo tiene que ser **exacto**. */
+async function nutFotosExternos(){
+  if(typeof phBuscar!=='function')return;
+  const box=document.getElementById('v-nutri'); if(!box)return;
+  const huecos=[...box.querySelectorAll('.nuc-ini[data-ph]')];
+  if(!huecos.length)return;
+  const vistos={};
+  await Promise.all(huecos.map(async el=>{
+    const n=el.getAttribute('data-ph'); if(!n)return;
+    if(vistos[n]===undefined)vistos[n]=await phBuscar(n);
+    const url=vistos[n]; if(!url||!el.isConnected)return;
+    const img=document.createElement('img');
+    img.className='nuc-av'; img.src=url; img.alt='';
+    el.replaceWith(img);
+  }));
+}
+window.nutFotosExternos=nutFotosExternos;
 
 /* ── la pantalla ─────────────────────────────────────────────────────────
    Tres bloques en el orden en que se usa esto: el pedido que está abierto,
@@ -17344,7 +17371,7 @@ function renderNutri(){
     const pg=nutPagadoDe(j).filter(x=>x.mes===mesAct);
     return `<div class="nuc-c">
       <div class="nuc-c-h">
-        ${ph?`<img class="nuc-av" src="${esc(ph)}" alt="">`:`<span class="nuc-av nuc-ini">${esc(nutInic(j))}</span>`}
+        ${ph?`<img class="nuc-av" src="${esc(ph)}" alt="">`:`<span class="nuc-av nuc-ini" data-ph="${esc(j)}">${esc(nutInic(j))}</span>`}
         <span class="nuc-n" onclick="nutIrAJugador(${q(j)})" title="Abrir la ficha">${esc(j)}${rolDe[j]?`<em>${esc(rolDe[j])}</em>`:''}</span>
         <b class="nuc-d">${nutEur(deudaDe[j])}</b>
       </div>
@@ -17584,6 +17611,7 @@ function renderNutri(){
   box.innerHTML=`<div class="pagehead"><h1>Nutrición</h1><p>Cobros a los jugadores y pedidos de FullGas</p></div>
     ${cab}${cobrar}${detalle}${pedido}${importar}${servicio}${historial}${externos}
     <p class="hint" style="margin-top:14px"><b>Los correos no salen de aquí.</b> Esta pantalla es la fuente de la verdad de importes y pagos; el envío lo hace el Apps Script pegado a la hoja de pedidos, desde la cuenta de Héctor.</p>`;
+  try{nutFotosExternos();}catch(e){console.error('bmnava · fotos de externos',e);}
 }
 window.renderNutri=renderNutri;
 /* Pedido en texto plano, para pegárselo a la marca o a Héctor. */
@@ -39658,6 +39686,29 @@ function phDel(name){const m=phLoad();delete m[name];phPersist();}
    para que se pueda corregir una foto sin tocar el hosting. */
 function phOf(name){return phLoad()[name]||PH_FILE[name]||null;}
 window.phOf=phOf;
+/* ══ v516 · La foto de alguien que NO está en la plantilla ══════════════
+   `phScanFolder` recorre `STATE.players` más los jugadores históricos, y el
+   cuerpo técnico —Héctor, Virginia, Carlos…— no está en ninguna de las dos
+   listas, así que su archivo en `fotos/` no se buscaba nunca. Esto lo busca
+   **bajo demanda y no en el arranque**: son varios nombres por hasta seis
+   extensiones, o sea decenas de peticiones que no tiene por qué pagar quien
+   nunca abre esa pantalla (§4.1.1: *«el problema es la red»*).
+   **Se cachea el fallo además del acierto**: sin eso, cada repintado volvería
+   a pedir los mismos 404. Mismo nombre de archivo y mismo orden de extensiones
+   que para un jugador: una sola regla de nombres. */
+const PH_NOFILE={};
+window.phBuscar=async function(name){
+  if(!name||location.protocol==='file:')return null;
+  if(PH_FILE[name])return PH_FILE[name];
+  const loc=phLoad()[name]; if(loc)return loc;
+  if(PH_NOFILE[name])return null;
+  for(const ext of PH_EXT){
+    const url=PH_DIR+encodeURIComponent(name)+'.'+ext+PH_QS;
+    if(await phTry(url)){PH_FILE[name]=url;return url;}
+  }
+  PH_NOFILE[name]=1;
+  return null;
+};
 
 /* ---------- carpeta del hosting ---------- */
 /* Se prueba una URL por jugador y extensión. Con file:// no funciona (el navegador
@@ -40028,8 +40079,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.3*/
-const VER_ACTUAL='2026-11-10.3';
+/*BUILD:2026-11-10.4*/
+const VER_ACTUAL='2026-11-10.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
