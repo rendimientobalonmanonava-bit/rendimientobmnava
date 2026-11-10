@@ -9881,7 +9881,15 @@ function colTexto(c){
 }
 const fmt=(x,d=1)=>(x===null||x===undefined||isNaN(x))?"—":(+x).toFixed(d).replace(".",",");
 const sum=a=>a.reduce((x,y)=>x+y,0);
-function parseSleep(raw){if(raw==null)return NaN;let s=raw.toString().trim().replace(",",".");if(/^\d{4,}$/.test(s))return NaN;if(/[:;]/.test(s)){const p=s.split(/[:;]/);return (+p[0])+(+p[1]||0)/60;}const v=parseFloat(s);return(isNaN(v)||v<0||v>16)?NaN:v;}
+/* v523 · **Cero horas de sueño no es un dato, es un campo sin rellenar.** Hasta
+   aquí solo se descartaba lo negativo o lo mayor de 16, así que un 0 entraba
+   como una noche real: medidos el 10/11/2026, **12 registros**. `horas_sueno`
+   pesa 1,0 en el componente de wellness, o sea que ese cero hundía el
+   readiness del día y se quedaba en la línea base del jugador. Regla de §10:
+   ante un valor raro, la hipótesis por defecto es error de medición. **Solo el
+   cero exacto**: 2 o 3 horas son una mala noche, y eso sí puede ser verdad. La
+   rama de «hh:mm» devolvía además sin pasar por el filtro. */
+function parseSleep(raw){if(raw==null)return NaN;let s=raw.toString().trim().replace(",",".");if(/^\d{4,}$/.test(s))return NaN;let v;if(/[:;]/.test(s)){const p=s.split(/[:;]/);v=(+p[0])+(+p[1]||0)/60;}else v=parseFloat(s);return(isNaN(v)||v<=0||v>16)?NaN:v;}
 function parseDate(raw){if(!raw)return null;let s=raw.toString().trim().split(" ")[0];let p=s.split(/[\/\-]/);if(p.length<3){const d=new Date(raw);return isNaN(d)?null:d;}let a=+p[0],b=+p[1],c=+p[2];if(c<100)c+=2000;let day,mon;if(a>12){day=a;mon=b;}else if(b>12){mon=a;day=b;}else{day=a;mon=b;}const d=new Date(c,mon-1,day);return isNaN(d)?null:d;}
 /* ============ v254 · REGLA ÚNICA DE PERSISTENCIA LOCAL ============
    Nadie escribe en disco sin haber leído antes.
@@ -40304,8 +40312,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.12*/
-const VER_ACTUAL='2026-11-10.12';
+/*BUILD:2026-11-10.13*/
+const VER_ACTUAL='2026-11-10.13';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
