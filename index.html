@@ -8774,7 +8774,6 @@ window.lbBias=lbBias;window.lbResetBias=lbResetBias;
      {pista:{rpe,dur,ua,est}, gym:{...}, ua, dur, est:[bloques estimados]}
 */
 let LB_CACHE={};
-function lbDayKey(dk){return dk;}
 /* v213 · ¿existe este bloque (pista/gym) ese día? Se usa tanto para decidir si
    toca imputar como, desde fuera del módulo, para saber si mostrar el botón
    de convocatoria en una celda vacía. */
@@ -8951,11 +8950,7 @@ function conLaSeleccion(name,dk){
   try{const ev=effectiveStatus(name,dk);return !!(ev&&ev.status==='seleccion');}
   catch(e){return false;}
 }
-function sinSeleccion(nombres,dk){
-  return Array.isArray(nombres)?nombres.filter(n=>!conLaSeleccion(n,dk)):[];
-}
 window.conLaSeleccion=conLaSeleccion;
-window.sinSeleccion=sinSeleccion;
 /* v268 · MEDIA, no mediana, y sobre la misma población en los tres números.
    Antes devolvía la mediana de pista y la mediana de gimnasio por separado, y
    quien las sumaba —el gráfico de la semana— se inventaba un jugador que no
@@ -11051,7 +11046,6 @@ function dayContext(ref){const k=dkey(ref);const wT=STATE.wellness.filter(x=>x.d
   const mdxs=[...wT.map(x=>x.mdx),...rT.map(x=>x.mdx)].filter(m=>m&&m!=="—");const mode=modeOf(mdxs)||"—";
   const isMatch=mode==="MD"||rT.some(s=>norm(s.tipo).includes("partido"))||plan.some(e=>e.type==='partido');
   return{dk:k,mdx:mode,isMatch,trained:rT.length>0,nWell:wT.length,nSes:rT.length,nPlan:plan.length};}
-function fmtDayLabel(dk){const a=dk.split('-').map(Number);const dt=new Date(a[0],a[1]-1,a[2]);const wd=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][dt.getDay()];const c=dayContext(dt);return `${a[2]}/${a[1]} (${wd})`+(c.mdx!=='—'?' · '+c.mdx:'')+(c.isMatch?' ★':'');}
 /* ===================== FILTRO DE PLANTILLA ACTUAL (26/27) =====================
    El dashboard solo muestra jugadores de la plantilla vigente (ROSTER_PDF).
    Los datos de jugadores de temporadas anteriores presentes en el histórico o la
@@ -11137,8 +11131,6 @@ function photoFor(name){
   if(p&&p.avatar)return p.avatar;
   return null;
 }
-/* true si el jugador tiene foto real (para activar el efecto de cara sobresaliente). */
-function hasRealPhoto(name){return !!photoFor(name);}
 /* Agrupación de posiciones (regla del club):
    EI+ED = Extremo · LI+LD+CE = 1ª Línea · PI = Pivote · PO = Portero.
    Acepta tanto códigos específicos (EI, ED, LI…) como etiquetas ya genéricas. */
@@ -11186,20 +11178,7 @@ function contactoDePista(x){
   try{return lbBucket(x.tipo)!=='gym';}catch(e){return true;}
 }
 window.contactoDePista=contactoDePista;
-/* Media de contacto ponderada por posición sobre registros de RPE.
-   Portero 0 · Extremo 0,5 · 1ª Línea y Pivote 1 (CONFIG.contactPosW). */
-function meanContactoPos(recs){
-  let sw=0,sv=0;
-  (recs||[]).forEach(x=>{
-    if(!x||x.contacto==null||isNaN(x.contacto))return;
-    if(!contactoDePista(x))return;              // el gimnasio no cuenta
-    const w=contactWeightOf(x.name,x.pos);
-    if(!(w>0))return;                 // porteros fuera
-    sw+=w;sv+=x.contacto*w;
-  });
-  return sw>0?sv/sw:NaN;
-}
-window.contactWeightOf=contactWeightOf;window.meanContactoPos=meanContactoPos;
+window.contactWeightOf=contactWeightOf;
 function posDetailOf(name){
   try{
     const code=rosterPos(name);
@@ -12959,7 +12938,7 @@ function medInjurySave(editId){const g=id=>{const el=document.getElementById(id)
  }
  const st=g('mi-status');if(!hist&&st&&st!=='nochange'){inj.status=st;medPhysioOpen(name,st,zona,inj.lado,title,id,inj.dk);}
  STATE.med.inj.push(inj);medPersist();MED_SEL=id;closeInfoEdit();toast('Registro guardado · '+title);
- try{renderMedico();}catch(e){}try{renderAvail&&document.getElementById('v-avail').classList.contains('on')&&renderAvail();}catch(e){}}
+ try{renderMedico();}catch(e){}try{if(window.renderAvail&&document.getElementById('v-estado'))renderAvail();}catch(e){}}
 /* v248 · Sincroniza el espejo de Disponibilidad con el episodio médico: es lo
    que garantiza que una baja en Médico sea la misma baja en Disponibilidad, en
    el resumen y en la ficha del jugador, aunque se edite después. */
@@ -12997,7 +12976,7 @@ function medInjuryUpdate(editId,g,name,title,zona,kind){
  medMirrorSync(e,oldName);
  medPersist();MED_SEL=e.id;closeInfoEdit();toast('Episodio actualizado · '+title);
  try{renderMedico();}catch(err){}
- try{renderAvail&&document.getElementById('v-avail').classList.contains('on')&&renderAvail();}catch(err){}
+ try{if(window.renderAvail&&document.getElementById('v-estado'))renderAvail();}catch(err){}
  try{renderTeam&&renderTeam();}catch(err){}
 }
 /* ---------- Modal: Tratamiento ---------- */
@@ -13382,11 +13361,6 @@ function medNextPhase(injId){const e=medInj(injId);if(!e)return;const f=e.phases
  if(pend&&!confirm('Quedan '+pend+' criterio(s) sin cumplir en esta fase. ¿Pasar igualmente?'))return;
  e.phaseIdx++;const nf=e.phases[e.phaseIdx];if(nf&&!nf.startDk)nf.startDk=medToday();medPersist();renderMedico();toast('Fase: '+(nf?nf.nom:''));}
 /* ---------- Dolor ---------- */
-function medPainAdd(injId){const e=medInj(injId);if(!e)return;const el=document.getElementById('mp-v-'+injId);const v=parseFloat(el&&el.value);if(isNaN(v)||v<0||v>10){toast('Valor 0–10');return;}
- const dk=medToday();const ex=e.pain.find(p=>p.dk===dk&&p.src==='manual');if(ex)ex.v=v;else e.pain.push({dk,v,src:'manual'});
- e.pain.sort((a,b)=>a.dk<b.dk?-1:1);medPersist();renderMedico();}
-function medWellnessPain(e){const zn=norm(e.zona||'');
- return (STATE.wellness||[]).filter(w=>w.name===e.name&&w.dolor&&w.dk>=e.dk&&(!e.closeDk||w.dk<=e.closeDk)&&(zn===''||!w.zona||norm(w.zona).includes(zn)||zn.includes(norm(w.zona)))).map(w=>({dk:w.dk,zona:w.zona||''}));}
 /* v297 · La curva de dolor era una polilínea roja sobre blanco. Ahora lleva
    bandas de fondo que dicen qué es mucho y qué es poco —verde hasta 3, ámbar
    hasta 6, rojo por encima—, área bajo la línea, el último valor destacado y
@@ -13495,55 +13469,6 @@ function medFasesSvg(e){
   +'</div>';
  return '<div class="med-fx"><svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img">'
    +ejes+body+marca+'</svg></div>'+pie;
-}
-function medPainSvg(e){
- const man=(e.pain||[]).filter(p=>p.src==='manual').sort((a,b)=>a.dk<b.dk?-1:1);
- const wel=medWellnessPain(e);
- const trs=((STATE.med||{}).treat||[]).filter(t=>t&&t.injId===e.id);
- const end=e.closeDk||medToday();
- const span=Math.max(7,medDaysBetween(e.dk,end));
- const W=560,H=132,L=26,R=10,T=10,B=30;
- const x=dk=>L+Math.max(0,Math.min(1,medDaysBetween(e.dk,dk)/span))*(W-L-R);
- const y=v=>T+(1-v/10)*(H-T-B);
- /* bandas: el color dice el nivel sin tener que leer el eje */
- const banda=(a,b,c)=>'<rect x="'+L+'" y="'+y(b)+'" width="'+(W-L-R)+'" height="'+(y(a)-y(b))
-   +'" fill="'+c+'" opacity=".13"/>';
- let g=banda(0,3,'#1ea863')+banda(3,6,'#e0a800')+banda(6,10,'#e23b32');
- [0,5,10].forEach(v=>{g+='<line x1="'+L+'" y1="'+y(v)+'" x2="'+(W-R)+'" y2="'+y(v)
-   +'" stroke="var(--hair)" stroke-dasharray="3 3"/><text x="'+(L-6)+'" y="'+(y(v)+3.5)
-   +'" font-size="9" fill="var(--muted2)" text-anchor="end">'+v+'</text>';});
- let line='';
- if(man.length){
-  const pts=man.map(p=>x(p.dk).toFixed(1)+','+y(p.v).toFixed(1)).join(' ');
-  if(man.length>1){
-   const area=L+','+y(0).toFixed(1)+' '+pts+' '+x(man[man.length-1].dk).toFixed(1)+','+y(0).toFixed(1);
-   line+='<polygon points="'+area+'" fill="#8c1d34" opacity=".10"/>';
-  }
-  line+='<polyline points="'+pts+'" fill="none" stroke="#8c1d34" stroke-width="2.2" stroke-linejoin="round"/>';
-  line+=man.map((p,i)=>{
-   const ult=i===man.length-1;
-   return '<circle cx="'+x(p.dk).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="'+(ult?5:3.4)
-     +'" fill="'+(ult?'#8c1d34':'var(--panel)')+'" stroke="#8c1d34" stroke-width="2">'
-     +'<title>'+p.dk+' · dolor '+p.v+'/10</title></circle>';}).join('');
-  /* el último valor, en grande y con su color */
-  const u=man[man.length-1];
-  const col=u.v<=3?'#1ea863':(u.v<=6?'#a06a00':'#c0392f');
-  line+='<text x="'+(W-R)+'" y="'+(T+16)+'" font-size="22" font-weight="800" text-anchor="end" fill="'+col+'">'+u.v+'</text>'
-    +'<text x="'+(W-R)+'" y="'+(T+27)+'" font-size="8.5" text-anchor="end" fill="var(--muted2)">último · '+pbFecha(u.dk)+'</text>';
- }
- /* tratamientos, para ver si el dolor baja cuando se trata */
- const tr=trs.map(t=>'<line x1="'+x(t.dk).toFixed(1)+'" y1="'+(H-B+2)+'" x2="'+x(t.dk).toFixed(1)
-   +'" y2="'+(H-B+9)+'" stroke="#1ea863" stroke-width="2" stroke-linecap="round">'
-   +'<title>'+t.dk+' · '+medEsc(t.tipo||'tratamiento')+'</title></line>').join('');
- const wl=wel.map(w=>'<path d="M '+x(w.dk).toFixed(1)+' '+(H-B+13)+' l 4 5 l -4 5 l -4 -5 Z" fill="#e08a00">'
-   +'<title>'+w.dk+' · dolor reportado en wellness'+(w.zona?' ('+medEsc(w.zona)+')':'')+'</title></path>').join('');
- const x0='<text x="'+L+'" y="'+(H-2)+'" font-size="9" fill="var(--muted2)">'+pbFecha(e.dk)+'</text>'
-   +'<text x="'+(W-R)+'" y="'+(H-2)+'" font-size="9" fill="var(--muted2)" text-anchor="end">'
-   +(e.open?'hoy':pbFecha(end))+'</text>';
- const vacio=(man.length||wel.length)?'':'<text x="'+(W/2)+'" y="'+(H/2)
-   +'" font-size="11" fill="var(--muted2)" text-anchor="middle">Sin dolor registrado todavía</text>';
- return '<svg class="med-pain" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="max-width:100%">'
-   +g+line+tr+wl+x0+vacio+'</svg>';
 }
 function medSparkSvg(c){
  const W=110,H=26,n=c.med.length;if(n<2)return '';
@@ -13724,7 +13649,7 @@ function sbBtn(v,l){return `<button class="sb-item" data-v="${v}" onclick="go('$
 function buildSidebar(){const sb=document.getElementById('sb-nav');if(!sb)return;
   let h='';NAV.forEach(g=>{if(g.v){h+=sbBtn(g.v,g.label);}else{h+=`<div class="sb-glab">${g.label}</div>`;g.items.forEach(([v,l])=>h+=sbBtn(v,l));}});
   sb.innerHTML=h;}
-function sbMark(v){const eff=v==='jugador'?'jugadores':(v==='unif'?'carga':(v==='estado'?'dispo':v));document.querySelectorAll('.sb-item').forEach(b=>b.classList.toggle('on',b.dataset.v===eff));}
+function sbMark(v){const eff=v==='jugador'?'jugadores':(v==='estado'?'dispo':v);document.querySelectorAll('.sb-item').forEach(b=>b.classList.toggle('on',b.dataset.v===eff));}
 function sbToggle(){document.body.classList.toggle('sb-min');try{localStorage.setItem('bmnava_sbmin',document.body.classList.contains('sb-min')?'1':'0');}catch(e){}window.dispatchEvent(new Event('resize'));}
 function sbToggleMobile(f){if(f===undefined)document.body.classList.toggle('sb-open');else document.body.classList.toggle('sb-open',f);}
 function injectPageHeads(){document.querySelectorAll('.view').forEach(sec=>{const v=sec.id.replace(/^v-/,'');const m=VIEW_META[v];if(!m||sec.querySelector('.pagehead'))return;
@@ -13733,19 +13658,6 @@ function injectPageHeads(){document.querySelectorAll('.view').forEach(sec=>{cons
   const el=document.createElement('div');el.className='pagehead';el.innerHTML=`<h1>${m.t}</h1><div class="ph-sub">${m.s}</div>${ban}`;
   sec.insertBefore(el,sec.firstChild);});}
 function phDismiss(v){try{localStorage.setItem('bmnava_ban_'+v,'1');}catch(e){}const b=document.getElementById('phb-'+v);if(b)b.remove();}
-function renderLeaders(){const box=document.getElementById('leaders-grid');if(!box)return;
-  const today=REF();const t0=new Date(today.getFullYear(),today.getMonth(),today.getDate());const from=new Date(t0);from.setDate(from.getDate()-6);
-  const inWin=dk=>{if(!dk)return false;const d=dkToDate(dk);return d>=from&&d<=t0;};
-  const ua={};(STATE.rpe||[]).forEach(r=>{if(inWin(r.dk))ua[r.name]=(ua[r.name]||0)+(r.cal!=null?r.cal:(r.ua||0));});
-  const topUA=Object.keys(ua).map(n=>({n,v:Math.round(ua[n])})).sort((a,b)=>b.v-a.v).slice(0,4);
-  const tr={};(STATE.hr||[]).forEach(r=>{if(inWin(r.dk))tr[r.name]=(tr[r.name]||0)+trimpOf(r);});
-  const topTR=Object.keys(tr).map(n=>({n,v:Math.round(tr[n])})).sort((a,b)=>b.v-a.v).slice(0,4);
-  const rd=Object.keys(STATE.players||{}).map(n=>({n,v:STATE.players[n].readiness})).filter(x=>x.v!=null&&!isNaN(x.v)).sort((a,b)=>b.v-a.v).slice(0,4);
-  const card=(title,items,unit)=>{if(!items.length)return `<div class="ldr-card"><div class="ldr-h">${title}</div><div class="ldr-row small muted">Sin datos en la ventana</div></div>`;
-    return `<div class="ldr-card"><div class="ldr-h">${title}</div>${items.map((it,i)=>{const p=STATE.players[it.n]||{};const ph=p.avatar||window.__AVATAR__;
-      const med=i<3?`<span class="ldr-med m${i+1}">${i+1}</span>`:`<span class="ldr-med mx">${i+1}</span>`;
-      return `<div class="ldr-row" style="cursor:pointer" onclick="openPlayer('${it.n.replace(/'/g,"\\'")}')">${med}<img class="ldr-ph" src="${ph}"><span class="ldr-nm">${it.n}</span><span class="ldr-v">${it.v}${unit?`<small>${unit}</small>`:''}</span></div>`;}).join('')}</div>`;};
-  box.innerHTML=card('Mayor carga semanal',topUA,'UA')+card('Top TRIMP semanal',topTR,'')+card('Mejor readiness',rd,'');}
 function go(v){const ESUB={dispo:1,medico:1,parte:1,fisio:1};let realV=ESUB[v]?'estado':v;
   /* v334 · go() apaga todas las vistas y enciende la pedida. Si el nombre no
      existe no enciende ninguna y la app se queda EN BLANCO, con el menú pintado
@@ -13758,7 +13670,7 @@ function go(v){const ESUB={dispo:1,medico:1,parte:1,fisio:1};let realV=ESUB[v]?'
   }document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));const sec=document.getElementById('v-'+realV);if(sec)sec.classList.add('on');sbMark(v);
   document.querySelectorAll('#nav button').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
-  NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'||v==='unif'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
+  NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
   window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}if(FILTER.cargaTab==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='nutri'){try{renderNutri();}catch(e){console.error('bmnava · nutrición',e);}}if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
 function writeHash(){
@@ -13767,7 +13679,7 @@ function writeHash(){
   if(window.__RD_CALC)return;
   const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){history.replaceState(null,'',h);}}
 function readHash(){const h=decodeURIComponent(location.hash.replace(/^#/,''));if(!h)return null;const p=h.split('/');const v=p[0];if(!TABS.some(t=>t[0]===v))return null;return{view:v,date:p[1]||null};}
-const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["unif","Carga integrada"],["avail","Disponibilidad"],["parte","Parte wellness"],["fisio","Fisioterapia"],["nutri","Nutrición"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
+const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["parte","Parte wellness"],["fisio","Fisioterapia"],["nutri","Nutrición"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
 const NAV=[
   {label:'Equipo', items:[['equipo','Resumen'],['cal','Calendario']]},
   {label:'Carga', items:[['carga','Cargas'],['hr','Pulsómetros']]},
@@ -13803,8 +13715,6 @@ function sparkline(vals,opts){opts=opts||{};vals=(vals||[]).filter(v=>v!=null&&!
 const TW_KEYS=['fatiga','sueno','doms','stress','mood'];
 function twVal(x){return TW_KEYS.reduce((a,k)=>a+(isNaN(x[k])?0:x[k]),0);}
 function freshSeries(p,n){return (p&&p.w||[]).slice(-(n||10)).map(x=>-twVal(x));}// invertido: arriba = mejor
-function teamFreshSeries(n){const byDk={};STATE.wellness.forEach(w=>{(byDk[w.dk]=byDk[w.dk]||[]).push(twVal(w));});
-  const dks=Object.keys(byDk).sort();return dks.slice(-(n||12)).map(dk=>-mean(byDk[dk]));}
 /* ═══ v287 · Readiness del equipo, día a día ═══
    Un solo índice, por decisión de Daniel (27/08/2026). Antes el Resumen daba el
    readiness —wellness, carga, RPE y dolor— y el Parte wellness un «índice de
@@ -13821,41 +13731,15 @@ function teamFreshSeries(n){const byDk={};STATE.wellness.forEach(w=>{(byDk[w.dk]
    los datos. Comprobado que llamar a buildPlayers en bucle no acumula registros
    ni alertas: seis pasadas dejan STATE.rpe y STATE.alerts exactamente igual. */
 let RD_SERIE_CACHE=null;
-function teamReadinessSeries(n){
-  n=n||14;
-  const dks=[...new Set((STATE.wellness||[]).map(w=>w.dk).filter(Boolean))].sort().slice(-n);
-  if(!dks.length)return [];
-  const clave=(STATE.wellness||[]).length+'|'+(STATE.rpe||[]).length+'|'+dks.join(',');
-  if(RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave)return RD_SERIE_CACHE.datos;
-  const orig=STATE.refDate;
-  const out=[];
-  window.__RD_CALC=true;
-  try{
-    dks.forEach(dk=>{
-      STATE.refDate=dkToDate(dk);
-      buildPlayers();
-      /* v500 · cada día de la serie se mide con quien estaba ese día. */
-      const v=Object.values(STATE.players)
-        .filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dk)))
-        .map(p=>p.readiness).filter(x=>x!=null);
-      out.push({dk,rd:v.length?Math.round(mean(v)):null,n:v.length});
-    });
-  }catch(e){console.error('bmnava · serie de readiness',e);}
-  finally{
-    /* pase lo que pase, el estado vuelve al día que se estaba mirando */
-    STATE.refDate=orig;
-    try{buildPlayers();}catch(e2){}
-    window.__RD_CALC=false;
-  }
-  RD_SERIE_CACHE={clave,datos:out};
-  return out;
-}
-/* ═══ v311 · La misma serie, sin congelar la pantalla ═══
-   La versión de arriba encadena catorce buildPlayers() y bloquea el hilo 1,6
-   segundos: la interfaz se queda muerta y al soltarse repinta de golpe, que es
-   el «temblor» y los pantallazos en blanco. Aquí se hace lo mismo pero cediendo
-   el hilo entre día y día, así que el navegador puede pintar y responder
-   mientras. Tarda lo mismo en total y no se nota.
+/* ═══ v311 · La serie, sin congelar la pantalla ═══
+   La primera versión encadenaba catorce buildPlayers() seguidos y bloqueaba el
+   hilo 1,6 segundos: la interfaz se quedaba muerta y al soltarse repintaba de
+   golpe, que era el «temblor» y los pantallazos en blanco. Aquí se cede el hilo
+   entre día y día, así que el navegador puede pintar y responder mientras.
+   Tarda lo mismo en total y no se nota.
+   v531 · Aquella versión síncrona (`teamReadinessSeries`) se quedó sin ningún
+   llamante y se retiró el 10/11/2026: eran dos copias del mismo recorrido que
+   había que mantener de acuerdo a mano. Esta es la única.
    Si otra pasada ya está en marcha se espera a esa en vez de lanzar otra: dos
    cálculos a la vez se pisarían STATE.refDate el uno al otro. */
 let RD_SERIE_PROM=null;
@@ -13917,7 +13801,6 @@ function teamReadinessSerieAsync(n){
   return RD_SERIE_PROM;
 }
 window.teamReadinessSerieAsync=teamReadinessSerieAsync;
-window.teamReadinessSeries=teamReadinessSeries;
 /* La serie si ya está calculada, sin ponerse a calcularla: el parte se pinta al
    instante y el gráfico se rellena en cuanto está, en vez de congelar la
    pantalla segundo y medio en el primer render. */
@@ -13938,7 +13821,6 @@ function kpi(l,v,s,sev,opts){opts=opts||{};
   if(opts.delta){const d=opts.delta;delta=` <span class="kpi-delta ${d.cls||'flat'}">${d.icon||''} ${d.text}</span>`;}
   const dc=(''+v).match(/^-?\d[\d.,]*$/)?` data-count="${(''+v).replace(',','.')}"`:'';
   return`<div class="kpi"><div class="lab">${l}</div><div class="val" style="color:${colTexto('var(--'+(sev||'txt')+')')}"${dc}>${v}</div><div class="sub">${s}${delta}</div>${spark}</div>`;}
-function dirDelta(series,goodUp){if(!series||series.length<2)return null;const a=series[series.length-1],b=series[series.length-2];const eps=(Math.abs(a)+Math.abs(b))*0.01+0.05;const up=a>b+eps,dn=a<b-eps;const better=goodUp?up:dn;const worse=goodUp?dn:up;return{icon:up?'▲':dn?'▼':'▬',text:up||dn?'vs ayer':'estable',cls:better?'up':worse?'down':'flat'};}
 /* v382 · La animación se lanzaba desde go(), pero la tira del Resumen la pinta
    renderTeam(), que corre cuando llegan los datos — casi siempre DESPUÉS. Se
    animaba un marcado que todavía no existía, así que no se veía nunca. Ahora
@@ -14067,7 +13949,7 @@ function renderTeam(){
   const avg=mean(withR.map(p=>p.readiness));
   const reds=STATE.alerts.filter(a=>a.sev==="bad").length,warns=STATE.alerts.filter(a=>a.sev==="warn").length;
   const teamA=mean(all.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
-  const fresh=teamFreshSeries(12), acwrSer=teamAcwrSeries(12);
+  const acwrSer=teamAcwrSeries(12);
   const hsev=isNaN(avg)?'na':avg>=75?"ok":avg>=55?"warn":"bad";
   const hero=document.getElementById('team-hero');
   if(hero)hero.innerHTML=`<div class="panel">
@@ -14157,7 +14039,6 @@ function openPlayer(name){STATE.curPlayer=name;go('jugador');renderPlayer(name);
 let charts={};
 function killCharts(ids){ids.forEach(id=>{if(charts[id]){charts[id].destroy();delete charts[id];}});}
 const yBand=(lo,hi,c)=>({id:'yb',beforeDatasetsDraw(ch){const{ctx,chartArea:{left,right},scales:{y}}=ch;const a=y.getPixelForValue(lo),b=y.getPixelForValue(hi);ctx.save();ctx.fillStyle=c;ctx.fillRect(left,Math.min(a,b),right-left,Math.abs(b-a));ctx.restore();}});
-const xBand=(lo,hi,c)=>({id:'xb',beforeDatasetsDraw(ch){const{ctx,chartArea:{top,bottom},scales:{x}}=ch;const a=x.getPixelForValue(lo),b=x.getPixelForValue(hi);ctx.save();ctx.fillStyle=c;ctx.fillRect(Math.min(a,b),top,Math.abs(b-a),bottom-top);ctx.restore();}});
 let AX, BASE;
 let PAL={data:'#3f5572',data2:'#94a3b5',accent:'#c2702e',ink:'#2b3543',line2:'#b4b9c2',ok:'#1ea863',warn:'#e08a00',bad:'#e23b32',matchday:'#e23b32'};
 function rgba(hex,a){if(typeof hex!=='string')return hex;const m=hex.replace('#','');if(m.length<6)return hex;const r=parseInt(m.slice(0,2),16),g=parseInt(m.slice(2,4),16),b=parseInt(m.slice(4,6),16);return`rgba(${r},${g},${b},${a})`;}
@@ -15739,13 +15620,6 @@ function renderLoadReport(){
   box.innerHTML=`<h2>Informe de cargas · últimos 7 días <span class="r muted">media del equipo · réplica de tu informe</span></h2>
    <div class="wrap-x"><table class="tbl"><thead><tr><th>Sesión</th><th>Dur (min)</th><th>RPE</th><th>UA</th><th>Monotonía</th><th>Strain</th><th>Aguda</th><th>Crónica</th><th>ACWR</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
-function drawUARPE(){
-  killCharts(['ch-uarpe']);const s=teamDayAgg().slice(-14);if(!s.length||!document.getElementById('ch-uarpe'))return;
-  charts['ch-uarpe']=new Chart(document.getElementById('ch-uarpe'),{data:{labels:s.map(d=>d.dk.slice(5)),datasets:[
-    {type:'bar',label:'UA',data:s.map(d=>d.ua),backgroundColor:s.map(d=>d.mdx==='MD'?rgba(PAL.matchday,.5):rgba(PAL.data,.3)),borderColor:s.map(d=>d.mdx==='MD'?PAL.matchday:PAL.data),borderWidth:1.2,borderRadius:4,yAxisID:'y'},
-    {type:'line',label:'RPE',data:s.map(d=>d.rpe),borderColor:PAL.accent,backgroundColor:PAL.accent,tension:.35,pointRadius:0,yAxisID:'y1'}]},
-    options:{...BASE,plugins:{legend:{display:true,labels:{color:'#6b7280',boxWidth:10,font:{size:10}}}},scales:{x:AX,y:{...AX,position:'left'},y1:{...AX,position:'right',min:0,max:10,grid:{drawOnChartArea:false}}}}});
-}
 function renderMatchX(){
   const box=document.getElementById('load-matchx');if(!box)return;
   const order=['MD-4','MD-3','MD-2','MD-1','MD','MD+1','MD+2'];
@@ -16482,10 +16356,6 @@ function pctlIn(arr,v){if(!arr.length)return NaN;return Math.round(arr.filter(a=
 function acwrZone(v){if(v==null||isNaN(v))return{c:'var(--muted)',t:'—'};if(v>=1.5)return{c:'#dc2626',t:'Riesgo'};if(v>1.3)return{c:'#e08a00',t:'Alta'};if(v<0.8)return{c:'#e0a800',t:'Baja'};return{c:'#16a34a',t:'Óptimo'};}
 function acwrPill(v){const z=acwrZone(v);return `<span class="zpill" style="color:${colTinta(z.c)};background:color-mix(in srgb,${z.c} 15%,transparent)">${z.t}</span>`;}
 function sevColor(s){return {ok:'#16a34a',warn:'#e0a800',bad:'#dc2626',na:'#9aa3ad'}[s]||'#9aa3ad';}
-function drawTeamWeekBars(id,rows){killCharts([id]);const el=document.getElementById(id);if(!el)return;const r=rows.slice(-10);const vals=r.map(w=>Math.round(w.ua));const cols=r.map(w=>acwrZone(w.acwr).c);
-  const dl={id:'dlw',afterDatasetsDraw(c){const ctx=c.ctx,m=c.getDatasetMeta(0);ctx.save();ctx.font='800 10px Inter,system-ui,sans-serif';ctx.fillStyle=cssVar('--muted')||'#888';ctx.textAlign='center';m.data.forEach((b,i)=>{if(vals[i]==null)return;ctx.fillText(vals[i],b.x,b.y-5);});ctx.restore();}};
-  const mc=cssVar('--muted')||'#888',gc=cssVar('--hair')||'rgba(120,130,145,.18)';
-  charts[id]=new Chart(el,{type:'bar',data:{labels:r.map(w=>w.week.slice(5)),datasets:[{data:vals,backgroundColor:cols,borderRadius:5,maxBarThickness:34}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:18}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'UA '+c.parsed.y+(isNaN(r[c.dataIndex].acwr)?'':' · ACWR '+fmt(r[c.dataIndex].acwr,2))}}},scales:{x:{ticks:{color:mc,font:{size:9}},grid:{display:false}},y:{ticks:{color:mc,font:{size:9}},grid:{color:gc}}}},plugins:[dl]});}
 function buildCargaRanking(){const box=document.getElementById('carga-ranking');if(!box)return;
   const ps=Object.values(STATE.players).filter(p=>p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio));
   if(!ps.length){box.innerHTML='<p class="hint">Sin datos de carga suficientes.</p>';return;}
@@ -17086,7 +16956,6 @@ function nutPorProducto(ronda,pend){
    Un apunte por jugador, mes y concepto. La clave es la terna, así que
    generar dos veces el mismo mes no duplica: actualiza el importe y respeta
    el tick de pagado, que es lo único que no se puede perder. */
-function nutCobroClave(j,mes,con){return j+'|'+mes+'|'+con;}
 /* ══ v449 · El id de un cobro ES su identidad, no un número al azar ══════
    Daniel, 23/10/2026: *«hay pagos en los que hemos hecho el check y no
    aparece, no se ha guardado, es muy grave»*. Y no era el guardado.
@@ -18530,12 +18399,6 @@ function drawTypeDonut(win){
   const cols=[PAL.data,PAL.accent,PAL.warn,PAL.ok,PAL.bad,PAL.data2,PAL.line2];
   charts['ch-type']=new Chart(document.getElementById('ch-type'),{type:'doughnut',data:{labels:labs,datasets:[{data:vals,backgroundColor:labs.map((_,i)=>rgba(cols[i%cols.length],.82)),borderColor:cssVar('--panel'),borderWidth:3,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'right',labels:{color:'#6e6e73',font:{family:'JetBrains Mono',size:10},boxWidth:10,usePointStyle:true,pointStyle:'circle'}}}}});
 }
-function drawACWRBar(){
-  killCharts(['ch-acwr']);
-  const ps=Object.values(STATE.players).filter(p=>p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio)).sort((a,b)=>b.acwr.ratio-a.acwr.ratio);
-  const disp=ps.map(p=>Math.min(p.acwr.ratio,2.5));
-  charts['ch-acwr']=new Chart(document.getElementById('ch-acwr'),{type:'bar',data:{labels:ps.map(p=>p.name),datasets:[{label:'ACWR',data:disp,backgroundColor:ps.map(p=>{const c=p.acwr.ratio>=1.5?PAL.bad:p.acwr.ratio>=1.3||p.acwr.ratio<0.8?PAL.warn:PAL.ok;return rgba(c,.55);}),borderColor:ps.map(p=>p.acwr.ratio>=1.5?PAL.bad:p.acwr.ratio>=1.3||p.acwr.ratio<0.8?PAL.warn:PAL.ok),borderWidth:1.2,borderRadius:5}]},options:{...BASE,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'ACWR '+fmt(ps[c.dataIndex].acwr.ratio,2)}}},scales:{x:{...AX,min:0,max:2.5},y:{...AX,ticks:{...AX.ticks,font:{family:'JetBrains Mono',size:9}}}},onClick:(e,el)=>{if(el[0])openPlayer(ps[el[0].index].name);}},plugins:[xBand(0.8,1.3,rgba(PAL.ok,.08))]});
-}
 function drawPosLoad(win){
   killCharts(['ch-pos-load']);const end=REF();const lim=new Date(end);lim.setDate(lim.getDate()-win);
   const g={},np={};Object.values(STATE.players).forEach(p=>{np[p.pos]=(np[p.pos]||0)+1;});
@@ -18543,18 +18406,6 @@ function drawPosLoad(win){
   const poss=Object.keys(g);const types=[...new Set(STATE.rpe.map(x=>x.tipo))];
   const cols=[PAL.data,PAL.accent,PAL.warn,PAL.ok,PAL.bad,PAL.data2,PAL.line2];
   charts['ch-pos-load']=new Chart(document.getElementById('ch-pos-load'),{type:'bar',data:{labels:poss,datasets:types.map((t,i)=>({label:t,data:poss.map(pp=>(g[pp][t]||0)/(np[pp]||1)),backgroundColor:cols[i%cols.length]}))},options:{...BASE,scales:{x:{...AX,stacked:true},y:{...AX,stacked:true}}}});
-}
-function drawHeat(){
-  const ps=Object.values(STATE.players);const refw=weekKey(REF());
-  const weeksSet=new Set();ps.forEach(p=>weekly(p.name,'ua',REF()).forEach(w=>weeksSet.add(w.week)));
-  const weeks=[...weeksSet].filter(w=>w<=refw).sort().slice(-8);
-  let max=1;ps.forEach(p=>weekly(p.name,'ua',REF()).forEach(w=>{if(weeks.includes(w.week))max=Math.max(max,w.ua);}));
-  const colScale=v=>{const t=clamp(v/max,0,1);const stops=[[237,239,242],[186,199,216],[110,138,173],[63,85,114],[194,112,46]];const idx=t*(stops.length-1);const i=Math.floor(idx),f=idx-i;const a=stops[i],b=stops[Math.min(i+1,stops.length-1)];return`rgb(${a.map((c,k)=>Math.round(c+(b[k]-c)*f)).join(',')})`;};
-  const grid=document.getElementById('heat');
-  grid.style.gridTemplateColumns=`130px repeat(${weeks.length},1fr)`;
-  let html=`<div class="heatname"></div>`+weeks.map(w=>`<div class="heathdr">${w.slice(5)}</div>`).join('');
-  ps.forEach(p=>{const wk={};weekly(p.name,'ua',REF()).forEach(w=>wk[w.week]=w.ua);html+=`<div class="heatname" title="${p.name}">${p.name}</div>`+weeks.map(w=>{const v=wk[w];return v==null?`<div class="heatcell" style="background:#ececef"></div>`:`<div class="heatcell" style="background:${colScale(v)}" title="${p.name} · ${w.slice(5)} · ${fmt(v,0)} UA" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')">${fmt(v,0)}</div>`;}).join('');});
-  grid.innerHTML=html;
 }
 function renderLoadDetail(){
   const name=document.getElementById('load-player').value||FILTER.loadPlayer;if(!name)return;FILTER.loadPlayer=name;
@@ -18655,7 +18506,6 @@ function posMapRows(){const opts=[...new Set([...Object.values(STATE.players).ma
   return Object.keys(STATE.players).sort().map(n=>{const cur=STATE.players[n].pos;const o=opts.map(p=>`<option ${p===cur?'selected':''}>${p}</option>`).join('');return `<tr><td style="white-space:nowrap">${n}</td><td><select onchange="posSetPos('${n.replace(/'/g,"\\'")}',this.value)" style="min-width:140px">${o}<option ${opts.includes(cur)?'':'selected'} value="${cur}">${cur||'—'}</option></select></td></tr>`;}).join('');}
 function posSetMetric(m){POSUI.metric=m;renderPos();}
 function posToggleRadar(p){POSUI.sel=POSUI.sel||{};POSUI.sel[p]=!POSUI.sel[p];renderPos();}
-function posSetCmp(){const a=document.getElementById('pos-a'),b=document.getElementById('pos-b');if(a)POSUI.A=a.value;if(b)POSUI.B=b.value;renderPos();}
 function posSetPos(name,val){STATE.posOverride=STATE.posOverride||{};STATE.posOverride[name]=val;renderAll();renderPosMap();}
 
 function setAlertFilter(s){FILTER.alertSev=s;renderAlerts();}
@@ -18917,16 +18767,6 @@ function pctile(name,t){const vals=Object.keys(STATE.tests||{}).map(n=>(STATE.te
    con otro. Se unifican en tsaEnNota. */
 function catScore(zobj,cat){const ks=TESTS.filter(t=>t.cat===cat&&tsaEnNota(t)&&zobj[t.k]!=null).map(t=>zobj[t.k]);return ks.length?mean(ks):NaN;}
 function shortLbl(t){return ({masa:'Masa',grasa:'Grasa',imo:'IMO',tobm:'Tob.mov',toba:'Tob.asim',bench:'Banca',benchrel:'Banca rel',cmj:'CMJ',cmja:'CMJ asim',rsi:'RSI',v7:'Lanz 7m',v9:'Lanz 9m',peso:'Peso',vift:'30-15',vo2:'VO₂máx',grip:'Agarre',squat:'Sentadilla',squatrel:'Sent. rel',cmju:'CMJ uni',sp10:'Sprint 10',sp20:'Sprint 20',sp30:'Sprint 30'})[t.k]||t.name;}
-function scoreRing(val,colorVar,size,label){size=size||96;const v=clamp(val||0,0,100);const deg=v*3.6;
-  return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:7px">
-    <div data-arc="${deg}" data-arc-col="var(--${colorVar})" data-arc-track="var(--panel2)" style="position:relative;width:${size}px;height:${size}px;border-radius:50%;background:conic-gradient(var(--${colorVar}) ${deg}deg, var(--panel2) 0deg)">
-      <div style="position:absolute;inset:9px;border-radius:50%;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center">
-        <span style="font-family:var(--mono,monospace);font-size:${Math.round(size*0.3)}px;font-weight:800;color:${colTexto('var(--'+(colorVar)+')')};line-height:1">${Math.round(v)}</span>
-        <span class="muted" style="font-size:9px;letter-spacing:.04em">/100</span>
-      </div>
-    </div>
-    <div class="small muted" style="text-align:center;max-width:${size+28}px">${label}</div>
-  </div>`;}
 function tsaRows(){const st=testStats();const names=Object.keys(STATE.players);const rows=names.map(n=>{const r=testZ(n,st);return{name:n,pos:posOf(n),z:r.z,tsa:r.tsa,t100:r.t100};});rows.sort((a,b)=>(isNaN(b.tsa)?-1e9:b.tsa)-(isNaN(a.tsa)?-1e9:a.tsa));rows.forEach((r,i)=>r.rank=i+1);return rows;}
 function tsaTier(rank,n){if(rank<=Math.ceil(n/3))return'ok';if(rank<=Math.ceil(2*n/3))return'warn';return'bad';}
 /* ============ v252 · Resumen de equipo del perfil físico ============
@@ -19648,7 +19488,7 @@ function renderTestsProfile(){
   try{renderTestsGraphs(name);}catch(e){console.error('tsa-graphs',e);}
   const head=document.getElementById('tsa-prof-head');
   // fitness score jugador vs media de su posición
-  const pos=posOf(name);const posT=rows.filter(x=>x.pos===pos&&x.t100!=null).map(x=>x.t100);const posAvg=posT.length?mean(posT):null;
+  const pos=posOf(name);
   const tier=tsaTier(me.rank,n);
   // percentiles fuertes/débiles
   const pcs=TT.map(t=>({t,p:pctile(name,t)})).filter(o=>o.p!=null);
@@ -19991,7 +19831,6 @@ function champRefBuild(){
   CHAMP_REF=out;return CHAMP_REF;
 }
 window.champRefBuild=champRefBuild;
-function svgRing(val,color,size,label,track,txt){track=track||cssVar('--panel2')||'#e6e9ee';txt=txt||cssVar('--muted')||'#8a93a0';const v=clamp(val||0,0,100);const r=(size-14)/2;const c=2*Math.PI*r;const off=c*(1-v/100);return `<div style="text-align:center"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${track}" stroke-width="11"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="49%" text-anchor="middle" dominant-baseline="central" font-size="${Math.round(size*0.3)}" font-weight="800" fill="${color}" font-family="monospace">${Math.round(v)}</text><text x="50%" y="68%" text-anchor="middle" font-size="10" fill="${txt}">/100</text></svg><div class="small" style="margin-top:2px;color:${colTexto(txt)}">${label}</div></div>`;}
 function fichaMetricDefs(){const L=[{k:'talla',label:'Talla',cat:'Antropometría'},{k:'peso',label:'Peso',cat:'Antropometría'}];TESTS.forEach(t=>{if(t.k==='peso')return;L.push({k:t.k,label:t.name,cat:t.cat});});L.push({k:'t100',label:'Fitness score',cat:'Total'});return L;}
 function openFicha(name){FICHA_NAME=name;buildTests();buildAnthro();buildTestHist();testLogApply();try{vhHistApply();}catch(e){}const opts=fichaMetricDefs().map(m=>`<option value="${m.k}">${m.label}</option>`).join('');['fref0','fref1','fref2','fref3'].forEach((id,i)=>{const sl=document.getElementById(id);if(sl){if(!sl.options.length)sl.innerHTML=opts;sl.value=FICHA_REFS[i];}});['fh0','fh1'].forEach((id,i)=>{const sl=document.getElementById(id);if(sl){if(!sl.options.length)sl.innerHTML=opts;sl.value=FICHA_HIST[i];}});fichaTblChips();const ov=document.getElementById('ficha-overlay');ov.style.display='flex';const _j=document.getElementById('fm-jug'),_f=document.getElementById('fm-full');if(_j)_j.classList.toggle('on',FICHA_MODE==='jugador');if(_f)_f.classList.toggle('on',FICHA_MODE==='completo');try{renderFicha(name);}catch(e){console.error('ficha',e);const c=document.getElementById('ficha-card');if(c)c.innerHTML='<div style="padding:24px">No se pudo generar la ficha: '+e.message+'</div>';}}
 /* v217 · La tabla se elegía con un <select multiple>: no se veía lo seleccionado
@@ -20096,7 +19935,6 @@ function drawLV(elId,capId,name,mc,gc){
   const ds=[];lifts.forEach(L=>{ds.push({type:'scatter',label:L.name,data:L.pts,backgroundColor:L.col,borderColor:L.col,pointRadius:5});const xmin=Math.min(...L.pts.map(p=>p.x));ds.push({type:'line',label:L.name+' ajuste',data:[{x:xmin,y:L.a+L.b*xmin},{x:L.est1rm,y:L.mvt}],borderColor:L.col,borderDash:[5,4],borderWidth:1.5,pointRadius:0,showLine:true});});
   charts[elId]=new Chart(el,{data:{datasets:ds},options:{...BASE,animation:false,plugins:{legend:{display:true,labels:{color:mc,font:{size:9},boxWidth:9,filter:i=>!/ajuste/.test(i.text)}},tooltip:{callbacks:{label:c=>c.parsed.x+' kg · '+fmt(c.parsed.y,2)+' m/s'}}},scales:{x:{type:'linear',...AX,grid:{color:gc},ticks:{color:mc},title:{display:true,text:'Carga (kg)',color:mc,font:{size:9}}},y:{...AX,grid:{color:gc},ticks:{color:mc},title:{display:true,text:'Velocidad media (m/s)',color:mc,font:{size:9}}}}}});
 }
-function nmHash(x){let h=0;for(let i=0;i<x.length;i++)h=(h*31+x.charCodeAt(i))>>>0;return h;}
 function cmjSeries(name){
   /* v230 · antes, con menos de 4 registros reales, se generaban 10 puntos
      sintéticos con un seno sobre el hash del nombre y se pintaban como si
@@ -21823,10 +21661,7 @@ function renderAvail(){
 
   // otras tarjetas
   const sevName={baja:0,noentto:1,enfermo:2,seleccion:3,sancion:4};
-  const cardNoav=noav.sort((a,b)=>(sevName[stOf(a)]-sevName[stOf(b)])).map(n=>{const c=cur[n];const st=PHYSTAT[c.status]||{lab:c.status,c:'var(--muted)'};const z=c.ev&&c.ev.zone?c.ev.zone+(c.ev.side?' '+c.ev.side:''):'';const days=c.ev&&c.ev.date?Math.round((today-c.ev.date)/864e5):null;return `<div class="av-card" onclick="openPlayer('${esc(n)}')" style="border-left:3px solid ${st.c}"><div class="av-card-top"><b>${n}</b><span class="tag" style="border-color:${st.c};color:${colTexto(st.c)}">${st.lab}</span></div><div class="small muted">${[STATE.players[n].pos,z,days!=null?'hace '+days+' d':''].filter(Boolean).join(' · ')}</div></div>`;}).join('')||'<div class="small" style="color:var(--ok-text)">Plantilla completa · nadie de baja, sin entrenar ni enfermo.</div>';
-  const pill=(n,col,extra)=>`<span class="wpill" onclick="openPlayer('${esc(n)}')"><span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${col}"></span>${n}${extra?' · '+extra:''}</span>`;
-  const dispoPills=dispo.map(n=>pill(n,'var(--ok)')).join('')||'<span class="small muted">—</span>';
-  const carePills=care.map(n=>{const z=cur[n].ev&&cur[n].ev.zone?cur[n].ev.zone:'';return pill(n,PHYSTAT[stOf(n)].c,z);}).join('')||'<span class="small muted">Nadie con dolor ni en tratamiento.</span>';
+  noav.sort((a,b)=>(sevName[stOf(a)]-sevName[stOf(b)]));
   const lowPills=lowR.map(n=>`<span class="wpill" onclick="openPlayer('${esc(n)}')"><span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--${STATE.players[n].sev})"></span>${n} <b style="color:${colTexto('var(--'+(STATE.players[n].sev)+')')}">${STATE.players[n].readiness}</b></span>`).join('')||'<span class="small muted">Sin readiness en zona de aviso.</span>';
   const zoneBars=regS.length?regS.map(([r,c])=>`<div class="avz-row"><div class="avz-lab">${regLbl[r]||r}</div><div class="avz-track"><div class="avz-bar" style="width:${Math.round(c/regMax*100)}%"></div></div><div class="mono" style="text-align:right">${c}</div></div>`).join(''):'<div class="small muted">Sin incidencias.</div>';
   const posOutRows=Object.keys(posOut).length?Object.entries(posOut).sort((a,b)=>b[1]-a[1]).map(([p,c])=>`<div class="pos-baja-row"><span>${p}</span><b style="color:var(--bad-text)">${c}</b></div>`).join(''):'<div class="small" style="color:var(--ok-text)">Sin bajas por posición.</div>';
@@ -24709,7 +24544,6 @@ function renderParte(){
       +'<div class="pt-mpie">Los avisos los marca fisioterapia · entrenan con normalidad, hay que valorarlos</div>'
     +'</div>';
   })();
-  const ptMods=(ptOjo||ptSinResp)?('<div class="pt-mods">'+ptOjo+ptSinResp+'</div>'):'';
   /* v492 · El bloque por puesto ocupaba 342 px —más de un cuarto del parte—
      para dibujar círculos de iniciales. Daniel pidió encogerlo, no quitarlo:
      una fila por puesto con su media y quién se sale, que es lo que se mira. */
@@ -29381,11 +29215,6 @@ function hrAvisoDup(otras){
   return '<br><span style="color:var(--warn-text);font-weight:700">Ojo: ese día ya tenías '+otras.length+' sesión'+(otras.length>1?'es':'')+' cargada'+(otras.length>1?'s':'')+' ('+otras.map(x=>'«'+x+'»').join(', ')+'). Si es un duplicado, bórralo en «Sesiones cargadas».</span>';
 }
 /* ===================== CARGA INTEGRADA (interna × externa) ===================== */
-function linreg(pts){const n=pts.length;if(n<2)return null;
-  const mx=pts.reduce((a,p)=>a+p.x,0)/n,my=pts.reduce((a,p)=>a+p.y,0)/n;
-  let sxx=0,sxy=0,syy=0;pts.forEach(p=>{sxx+=(p.x-mx)**2;sxy+=(p.x-mx)*(p.y-my);syy+=(p.y-my)**2;});
-  const slope=sxy/(sxx||1),intercept=my-slope*mx,r2=(sxx&&syy)?(sxy*sxy)/(sxx*syy):0;
-  return {slope,intercept,r2,mx,my};}
 // Bandas de eficiencia (TRIMP/sRPE): rojo=percepción/fuerza, verde=equilibrio, azul=demanda cardíaca
 function effBand(r){if(r==null||isNaN(r))return{c:'var(--muted2)',t:'—'};
   if(r<0.30)return{c:PAL.accent,t:'percepción/contacto'};
@@ -30237,7 +30066,6 @@ function calRealMap(){
    sincronización haya dejado STATE.sessDur a null. */
 function sessDurGet(){if(!STATE.sessDur)STATE.sessDur=lsLeer('bmnava_sessdur',{});return STATE.sessDur;}
 function sessDurPersist(){return lsGuardar('bmnava_sessdur',sessDurGet());}
-function sessDurForName(dk,name){const m=sessDurGet()[dk];if(!m)return null;if(m[name]!=null&&m[name]!=='')return +m[name];if(m.__group!=null&&m.__group!=='')return +m.__group;return null;}
 /* v213 · convocatoria/asistencia por bloque (pista/gym). Sin esto, LB imputaba
    RPE a toda la plantilla aunque solo hubiera entrenado una parte. Ahora solo
    se imputa a quien respondió el cuestionario o a quien está en esta lista. */
@@ -30468,7 +30296,6 @@ function calCerrarSesion(dk){
   toast('Sesión cerrada · '+hechos.join(' · ')+(fuera?' · '+fuera+' fuera del grupo':''));
 }
 window.calCerrarSesion=calCerrarSesion;
-function calDurSetName(dk,name,val){const SD=sessDurGet();SD[dk]=SD[dk]||{};const v=(''+val).trim();if(v==='')delete SD[dk][name];else SD[dk][name]=+v;if(!Object.keys(SD[dk]).length)delete SD[dk];sessDurPersist();sessDurRecalc(dk);}
 /* v266 · Este botón hacía dos cosas mal y las dos movían la carga sin avisar:
      1 · SD[dk]={__group:v} REEMPLAZABA el día entero, así que borraba los
          minutos por bloque y los ajustes individuales que ya hubiera.
@@ -31292,11 +31119,6 @@ function calSemanaA4(opts){
      +'</footer>'
    +'</div>';
 }
-function calSemanaA4Abrir(){
-  const h=document.getElementById('cal-sem-a4');if(!h)return;
-  calSemanaA4();h.style.display='block';
-  h.scrollIntoView({block:'start',behavior:'smooth'});
-}
 function calSemanaA4Cerrar(){const h=document.getElementById('cal-sem-a4');if(h)h.style.display='none';}
 /* v433 · Dentro de la vista de semana hay una hoja en pantalla (`sa-page-wk`,
    escalada y sin microciclo) y para exportar o imprimir se monta la COMPLETA
@@ -31374,7 +31196,7 @@ if(!window.__calA4Resize){window.__calA4Resize=true;let t=null,ancho=window.inne
     if(antes!==ahora&&CALMODE==='semana'&&document.getElementById('cal-body')){try{renderCalendar();}catch(e){}}
     else calA4Fit();
   },180);});}
-window.calSemanaA4=calSemanaA4;window.calSemanaA4Abrir=calSemanaA4Abrir;
+window.calSemanaA4=calSemanaA4;
 window.calSemanaA4Cerrar=calSemanaA4Cerrar;window.calSemanaA4PNG=calSemanaA4PNG;
 window.calSemanaA4Imprimir=calSemanaA4Imprimir;
 
@@ -32536,31 +32358,6 @@ function addDataGoConfig(){closeAddData();go('config');}
 /* v216 · el menú ＋ ahora abre el selector único de fisioterapia. Las funciones
    específicas se conservan porque las usan otros botones dentro de la app. */
 function addDataFisio(){closeAddData();if(window.openFisioReg)openFisioReg();}
-function addDataQuickPhysio(){closeAddData();
-  const roster=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
-  const ov=ensureInfoOverlay();const title=document.getElementById('info-mtitle'),body=document.getElementById('info-mbody');
-  title.textContent='Añadir disponibilidad / lesión';
-  if(!roster.length){body.innerHTML='<p class="hint">Aún no hay jugadores cargados. Conecta o carga un equipo desde <b>Conexión</b> y vuelve a intentarlo.</p>';
-    const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
-    ov.style.display='flex';return;}
-  body.innerHTML=`<p class="hint">Se abre un episodio que se mantiene en el día a día hasta que pulses <b>✓ Alta</b> en Disponibilidad. No toca tu hoja de Google.</p>
-  <div class="add-modal-grid">
-    <label class="wide">Jugador<select id="qp-player">${roster.map(n=>`<option>${n}</option>`).join('')}</select></label>
-    <label>Estado<select id="qp-status"><option value="dolor">Con dolor</option><option value="trat">En tratamiento</option><option value="noentto">No entrena</option><option value="baja">Baja / lesión</option></select></label>
-    <label>Lado<select id="qp-side"><option value="">—</option><option value="I">Izquierdo</option><option value="D">Derecho</option></select></label>
-    <label>Zona<input id="qp-zone" placeholder="rodilla, gemelo, hombro…"></label>
-    <label>Nota (opcional)<input id="qp-note" placeholder="contexto breve"></label>
-  </div>`;
-  const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn" onclick="addDataQuickPhysioSave()">Guardar episodio</button> <button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
-  ov.style.display='flex';setTimeout(()=>{const p=document.getElementById('qp-player');if(p)p.focus();},60);}
-function addDataQuickPhysioSave(){const g=id=>(document.getElementById(id)||{}).value;const n=g('qp-player');if(!n){toast('Selecciona un jugador');return;}
-  physioOpenEpisode(n,g('qp-status'),g('qp-zone'),g('qp-side'),g('qp-note'));
-  closeInfoEdit();
-  const lab=(PHYSTAT[g('qp-status')]||{}).lab||g('qp-status');
-  toast(n.split(' ')[0]+' · '+lab+' registrado');
-  try{buildPhysio();buildPlayers();}catch(e){}
-  try{const v=STATE.view||'avail';const R={equipo:'renderTeam',avail:'renderAvail',parte:'renderParte',alertas:'renderAlerts'};const fn=window[R[v]];if(typeof fn==='function')fn();else go(v);}catch(e){}
-}
 /* v446 · El botón 🔍 Buscar no buscaba, y el motivo no estaba en la búsqueda:
    el campo vive dentro del `<details>` «Plantilla · estado del día», que nace
    PLEGADO. `focus()` sobre un elemento que el navegador no está desplegando no
@@ -32758,11 +32555,6 @@ function ptPerfil(name){
     minMax:Math.max.apply(null,obs.map(o=>o.min))};
 }
 function ptRango(v,banda){return {lo:v*(1-banda),hi:v*(1+banda)};}
-function ptFmtRango(v,banda,dec){
-  const r=ptRango(v,banda);
-  const d=dec==null?0:dec;
-  return r.lo.toFixed(d)+'–'+r.hi.toFixed(d);
-}
 window.ptPerfil=ptPerfil;
 
 /* ---------- estimador ----------
@@ -34497,9 +34289,6 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   if(kind==='competitive')medRehabStartPostInjuryFollowUp(e);
   medPersist();closeInfoEdit();renderMedico();toast(({medical:'Alta médica',sport:'Alta deportiva',competitive:'Alta competitiva'})[kind]+' registrada');
  };
- window.medRehabMarkMedicalDischarge=function(id){medRehabDischargeModal(id,'medical');};
- window.medRehabMarkSportDischarge=function(id){medRehabDischargeModal(id,'sport');};
- window.medRehabMarkCompetitiveDischarge=function(id){medRehabDischargeModal(id,'competitive');};
  window.medRehabStartPostInjuryFollowUp=function(e){medRehabEnsureState();
   e.postInjuryFollowUp={startDk:today(),weeks:STATE.med.rehab.settings.postInjuryDefaultWeeks||6,active:true};
   var idx=(e.phases||[]).map(function(f){return f.key;}).indexOf('post');
@@ -34521,9 +34310,6 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var f=e.phases[e.phaseIdx];var pend=f.crit.filter(function(c){return !medCritOk(c);}).map(function(c){return c.txt;});
   closeInfoEdit();medRehabAdvance(e,e.phaseIdx+1,{by:by,txt:g('rh-f-reason')+(g('rh-f-note')?(' · '+g('rh-f-note')):'')},true,pend);
  };
- window.medRehabCompletePhase=function(injId){var e=medInj(injId);if(!e)return;if(e.phaseIdx>=e.phases.length-1){toast('Última fase · usa Alta competitiva');return;}window.medNextPhase(injId);};
- window.medRehabReopenPhase=function(injId,i){var e=medInj(injId);if(!e)return;if(!confirm('¿Reabrir/volver a la fase «'+(e.phases[i]||{}).nom+'»?'))return;var from=e.phaseIdx;e.phaseIdx=i;e.phases[i].status='reopened';pushHist(e,from,i,'Reapertura de fase',false,[]);medRehabSyncAvailability(e);medPersist();renderMedico();};
- window.medRehabSkipPhase=function(injId,i){var e=medInj(injId);if(!e)return;if(!confirm('¿Saltar la fase «'+(e.phases[i]||{}).nom+'»?'))return;e.phases[i].status='skipped';if(i===e.phaseIdx&&i<e.phases.length-1)medRehabAdvance(e,i+1,'Fase saltada',true,[]);else{medPersist();renderMedico();}};
 
  // ---- overrides basados en modal (sin prompt) ----
  window.medPhaseEdit=function(injId){var e=medInj(injId);var f=e&&e.phases[e.phaseIdx];if(!f)return;
@@ -34707,14 +34493,12 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var kBaja=count(function(e){return e.status==='baja';});
   var kFunc=count(function(e){return curKey(e)==='aprox';});
   var kRead=count(function(e){return curKey(e)==='orient'||curKey(e)==='preopt';});
-  var kReent=count(function(e){return curKey(e)==='preopt';});
   var kAltaM=count(function(e){return e.medicalDischargeReal&&!e.competitiveDischargeReal;});
   var kAltaD=count(function(e){return e.sportDischargeReal&&!e.competitiveDischargeReal;});
   var kPost=count(function(e){return e.postInjuryFollowUp&&e.postInjuryFollowUp.active;});
   var lost=0;open.forEach(function(e){lost+=Math.max(0,dB(e.dk,today()));});
   var recid=eps.filter(function(e){return e.recurrence;}).length;
   var delayed=open.filter(function(e){return semaforo(e).t!=='Dentro de plan';}).length;
-  var painRec=open.filter(function(e){return medRehabAlerts(e).some(function(a){return a.msg.indexOf('dolor')>=0||a.msg.indexOf('Dolor')>=0;});}).length;
   var soon=function(dateField,realField){return open.filter(function(e){if(!e[dateField]||e[realField])return false;var d=dB(today(),e[dateField]);return d>=-3&&d<=21;}).sort(function(a,b){return a[dateField]<b[dateField]?-1:1;});};
   var nextMed=soon('medicalDischargeEstimated','medicalDischargeReal');
   var nextRTP=open.filter(function(e){var dd=e.competitiveDischargeEstimated||e.rtp;return dd&&!e.competitiveDischargeReal;}).sort(function(a,b){return (a.competitiveDischargeEstimated||a.rtp)<(b.competitiveDischargeEstimated||b.rtp)?-1:1;});
@@ -35358,7 +35142,6 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   try{var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='bmnava_cronograma_medico_'+todayDk()+'.csv';a.click();toast('Cronograma exportado');}catch(e){toast('No se pudo exportar');}
  };
 
- window.medTimelineTooltip=function(e){var s=medTimelinePlayerStateBeforeInjury(e);var cf=(e.phases||[])[e.phaseIdx]||{};return e.name+' · '+e.title+' · '+(cf.nom||'')+' · '+dB(e.dk,e.closeDk||todayDk())+'d';};
 })();
 
 </script>
@@ -35882,7 +35665,6 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
  };
 
  // ---------- acceso desde menú Añadir datos ----------
- window.addDataQuickTreatment=function(){try{closeAddData&&closeAddData();}catch(e){}try{estadoTab('medico');}catch(e){}openMedTreatQuick();};
 
  // ---------- enganches ----------
  var _medDbLoad=window.medDbLoad;window.medDbLoad=function(){_medDbLoad();try{medPhysioEnsureSettings();}catch(e){}};
@@ -35990,7 +35772,6 @@ html[data-theme="dark"] .wm-miss-pill i{background:#2a303c;color:#c7ccd4;border-
   return {state:state,answered:answered,eligible:elig.eligible,wToday:wToday,wLast:wLast,lastDate:lastDate,label:label,reason:elig.reason,elig:elig};
  };
  window.eligibleWellnessRoster=function(dk){dk=dk||selectedDk();return Object.keys(STATE.players||{}).filter(function(n){return playerGroupEligibility(n,dk).eligible;});};
- window.missingWellnessRoster=function(dk){dk=dk||selectedDk();return eligibleWellnessRoster(dk).filter(function(n){return !hasWellnessToday(n,dk);});};
  window.excludedFromWellnessRoster=function(dk){dk=dk||selectedDk();return Object.keys(STATE.players||{}).filter(function(n){return !playerGroupEligibility(n,dk).eligible;});};
  window.wellnessResponseRate=function(dk){dk=dk||selectedDk();var el=eligibleWellnessRoster(dk);var resp=el.filter(function(n){return hasWellnessToday(n,dk);});return {responded:resp.length,eligible:el.length,rate:el.length?resp.length/el.length:0};};
 
@@ -40460,8 +40241,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.20*/
-const VER_ACTUAL='2026-11-10.20';
+/*BUILD:2026-11-10.21*/
+const VER_ACTUAL='2026-11-10.21';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
