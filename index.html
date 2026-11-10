@@ -16694,6 +16694,37 @@ function nutSembrarStaff(){
     console.info('bmnava · cuerpo técnico dado de alta: '+n);}
   return n>0;
 }
+/* ══ v518 · La suplementación de Virginia, noviembre 2026 ════════════
+   Daniel, 10/11/2026: *«revisa a Virginia, que está en noviembre, debe 43,44
+   euros por suplementación»*. **Revisado antes de escribir nada**: en lo que
+   carga el código, noviembre tenía 8 apuntes y los 8 eran la cuota de 35 €;
+   Virginia no tenía ningún cobro ni ninguna línea de pedido, y la única ronda
+   es la de octubre. O sea que el apunte **no existía**: lo crea esto, con el
+   importe que dio Daniel.
+
+   Se siembra desde el código por la misma razón que el resto del módulo. El
+   `id` lo pone `nutCobroSet` y es la terna jugador+mes+concepto, así que el
+   mismo apunte nace igual en todos los equipos (regla de la v449).
+
+   **Si ya existe, NO se toca — ni el importe ni el tick de pagado.** Aquí se
+   mueve dinero: si alguien lo había metido a mano con otra cifra, o ya lo
+   había cobrado, pisarlo sería reescribir un pago. Se comprueba también por
+   variantes del nombre —«Virginia» a secas— con `nutMismaPersona`. */
+const NUT_SEED_VIRG_FLAG='bmnava_nutri_seed_virginia_nov2026';
+const NUT_SEED_VIRG={jugador:'Virginia Virseda',mes:'2026-11',concepto:'supl',importe:43.44};
+function nutSembrarCobroVirginia(){
+  const N=STATE.nutri; if(!N)return false;
+  try{ if(lsLeer(NUT_SEED_VIRG_FLAG,null))return false; }catch(e){}
+  const d=NUT_SEED_VIRG;
+  const ya=(N.cobros||[]).some(c=>c&&c.mes===d.mes&&c.concepto===d.concepto
+                                 &&nutMismaPersona(c.jugador,d.jugador));
+  try{lsGuardar(NUT_SEED_VIRG_FLAG,1);}catch(e){}
+  if(ya){console.info('bmnava · Virginia ya tenía su apunte de noviembre: no se toca');return false;}
+  nutCobroSet(d.jugador,d.mes,d.concepto,d.importe);
+  try{lsGuardar(NUT_LS,N);}catch(e){}
+  console.info('bmnava · creado el apunte de suplementación de Virginia ('+d.importe+' €)');
+  return true;
+}
 function nutLoad(){
   if(!STATE.nutri){
     const d=lsLeer(NUT_LS,null)||{};
@@ -16722,6 +16753,7 @@ function nutLoad(){
     try{nutSembrar();}catch(e){console.warn('bmnava · pedido de octubre no sembrado:',e&&e.message);}
     try{nutSembrarCuota();}catch(e){console.warn('bmnava · cuotas no sembradas:',e&&e.message);}
     try{nutSembrarStaff();}catch(e){console.warn('bmnava · cuerpo técnico no sembrado:',e&&e.message);}
+    try{nutSembrarCobroVirginia();}catch(e){console.warn('bmnava · apunte de Virginia no sembrado:',e&&e.message);}
   }
   return STATE.nutri;
 }
@@ -40159,8 +40191,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.6*/
-const VER_ACTUAL='2026-11-10.6';
+/*BUILD:2026-11-10.7*/
+const VER_ACTUAL='2026-11-10.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
