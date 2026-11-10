@@ -39854,9 +39854,22 @@ window.phBuscar=async function(name){
   if(PH_FILE[name])return PH_FILE[name];
   const loc=phLoad()[name]; if(loc)return loc;
   if(PH_NOFILE[name])return null;
-  for(const ext of PH_EXT){
-    const url=PH_DIR+encodeURIComponent(name)+'.'+ext+PH_QS;
-    if(await phTry(url)){PH_FILE[name]=url;return url;}
+  /* v520 · Se prueba el nombre tal cual y, si no hay archivo, **el mismo sin
+     tildes**. Daniel, 10/11/2026: *«Virginia sigue sin aparecer con su propia
+     cara»* — en su app está como «Virginia Vírseda» y el archivo se guardó
+     como «Virseda», que es como él me lo escribió. La búsqueda es literal, así
+     que una tilde de diferencia deja a alguien sin cara. **Esto NO afloja la
+     regla de no confundir personas**: quitar tildes no junta a dos personas
+     distintas, mientras que la coincidencia difusa de `photoFor` —que sigue
+     sin usarse aquí— sí lo hace. */
+  const vars=[name];
+  const sinTilde=String(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(sinTilde!==name)vars.push(sinTilde);
+  for(const v of vars){
+    for(const ext of PH_EXT){
+      const url=PH_DIR+encodeURIComponent(v)+'.'+ext+PH_QS;
+      if(await phTry(url)){PH_FILE[name]=url;return url;}
+    }
   }
   PH_NOFILE[name]=1;
   return null;
@@ -40231,8 +40244,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.9*/
-const VER_ACTUAL='2026-11-10.9';
+/*BUILD:2026-11-10.10*/
+const VER_ACTUAL='2026-11-10.10';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
