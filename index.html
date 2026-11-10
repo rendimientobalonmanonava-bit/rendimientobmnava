@@ -16725,6 +16725,45 @@ function nutSembrarCobroVirginia(){
   console.info('bmnava · creado el apunte de suplementación de Virginia ('+d.importe+' €)');
   return true;
 }
+/* ══ v519 · El pedido de Virginia, registrado ════════════════════
+   Daniel, 10/11/2026: *«añádela y deja ese pedido registrado con su foto y
+   usuario»*. Preguntado antes de tocarlo, eligió **dejar el cobro donde está**
+   —noviembre, 43,44 €— y registrarlo **sin desglose, como una línea única**,
+   porque no hay detalle de productos y aquí no se inventa nada: un producto
+   fabricado acabaría en la lista que se le pasa a la marca.
+
+   **Va en una ronda PROPIA de noviembre y nace CERRADA**, y las dos cosas
+   importan. Propia, porque la ronda abierta es la de octubre y meter ahí sus
+   líneas le creaba un segundo cobro al cerrarla —**43,44 en octubre más 43,44
+   en noviembre: 86,88 €, el doble de lo que debe**—. Y cerrada, porque así no
+   rompe la regla de «una sola ronda abierta», no vuelve a pasar por
+   `nutRondaACobros` y no aparece en el agregado para la marca, que solo se
+   calcula para la abierta.
+
+   El cobro NO se crea aquí: ya existe desde la v518, y su importe cuadra
+   exactamente con el total de esta ronda. */
+const NUT_SEED_RV_FLAG='bmnava_nutri_seed_ronda_virginia_nov2026';
+const NUT_SEED_RV_ID='nov-2026-virginia';
+function nutSembrarRondaVirginia(){
+  const N=STATE.nutri; if(!N)return false;
+  try{ if(lsLeer(NUT_SEED_RV_FLAG,null))return false; }catch(e){}
+  const d=NUT_SEED_VIRG;
+  /* No se duplica: ni esta misma ronda, ni un pedido suyo de ese mes que ya
+     exista con otro nombre o que llegue del servidor. */
+  const yaRonda=(N.rondas||[]).some(r=>r&&r.id===NUT_SEED_RV_ID);
+  const yaLineas=(N.rondas||[]).some(r=>r&&r.mes===d.mes
+    &&(r.lineas||[]).some(l=>l&&nutMismaPersona(l.jugador,d.jugador)));
+  try{lsGuardar(NUT_SEED_RV_FLAG,1);}catch(e){}
+  if(yaRonda||yaLineas){console.info('bmnava · Virginia ya tenía pedido de noviembre: no se toca');return false;}
+  N.rondas.push({id:NUT_SEED_RV_ID,fecha:'2026-11-01',mes:d.mes,
+    nombre:'Pedido · noviembre 2026',cerrada:true,
+    lineas:[{id:NUT_SEED_RV_ID+'-l1',jugador:d.jugador,
+      producto:'Suplementación · pedido sin desglosar',
+      cant:1,precio:d.importe,codigo:'',pend:false,ajuste:false,src:'manual'}]});
+  try{lsGuardar(NUT_LS,N);}catch(e){}
+  console.info('bmnava · registrado el pedido de noviembre de Virginia');
+  return true;
+}
 function nutLoad(){
   if(!STATE.nutri){
     const d=lsLeer(NUT_LS,null)||{};
@@ -16754,6 +16793,7 @@ function nutLoad(){
     try{nutSembrarCuota();}catch(e){console.warn('bmnava · cuotas no sembradas:',e&&e.message);}
     try{nutSembrarStaff();}catch(e){console.warn('bmnava · cuerpo técnico no sembrado:',e&&e.message);}
     try{nutSembrarCobroVirginia();}catch(e){console.warn('bmnava · apunte de Virginia no sembrado:',e&&e.message);}
+    try{nutSembrarRondaVirginia();}catch(e){console.warn('bmnava · pedido de Virginia no sembrado:',e&&e.message);}
   }
   return STATE.nutri;
 }
@@ -17699,7 +17739,7 @@ function renderNutri(){
       <div class="nut-sec-b">${hist.length?hist.map(x=>{
         const nj=[...new Set((x.lineas||[]).map(l=>l.jugador))].length;
         return `<div class="nut-h"><span><b>${esc(x.nombre||'Pedido')}</b><em>${esc((x.fecha||'').split('-').reverse().join('/'))}</em></span>
-          <span>${nj} persona${nj===1?'':'s'}</span><span>${(x.lineas||[]).length} líneas</span><b>${nutEur(nutTotalRonda(x))}</b></div>`;}).join('')
+          <span>${nj} persona${nj===1?'':'s'}</span><span>${(x.lineas||[]).length} línea${(x.lineas||[]).length===1?'':'s'}</span><b>${nutEur(nutTotalRonda(x))}</b></div>`;}).join('')
         :'<p class="hint">Aquí quedarán las rondas cerradas, con lo que pidió cada jugador y lo que costó.</p>'}</div>
     </details>`;
   const ext=nutExternos();
@@ -40191,8 +40231,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.7*/
-const VER_ACTUAL='2026-11-10.7';
+/*BUILD:2026-11-10.9*/
+const VER_ACTUAL='2026-11-10.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
