@@ -8100,7 +8100,7 @@ async function syPushKeys(keys){
         _setItem.call(localStorage,SY_PEND,JSON.stringify(y));}catch(e){}
       if(window.lsAvisar)lsAvisar('EL SERVIDOR HA RECHAZADO LA SUBIDA: esta versión de la app es antigua. '
         +'Lo tuyo queda guardado en este navegador y se subirá en cuanto pulses «Actualizar» en el aviso de versión nueva.');
-      try{if(window.verComprobar)verComprobar();}catch(e){}
+      try{if(window.verComprobar)verComprobar(true);}catch(e){}
       syStatus('err','App antigua: el servidor no admite la subida');
     }else if(/BMNAVA_VACIO/.test(cuerpo)){
       if(window.lsAvisar)lsAvisar('El servidor ha rechazado un bloque vacío: se conserva lo del equipo. Recarga la página.');
@@ -40344,8 +40344,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.14*/
-const VER_ACTUAL='2026-11-10.14';
+/*BUILD:2026-11-10.15*/
+const VER_ACTUAL='2026-11-10.15';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
@@ -40365,6 +40365,34 @@ function verBanner(otra){
   document.getElementById('ver-no').addEventListener('click',()=>d.remove());
 }
 
+/* ══ v525 · Saber si hay versión nueva no puede costar bajarse la app ════════
+   Auditoría del 10/11/2026. Para leer UNA línea —la marca BUILD— esto pedía
+   `index.html` entero saltándose la caché: **1,1 MB comprimido, 3,3 sin
+   comprimir, por comprobación**. Y corría a los 9 s de abrir, cada diez
+   minutos y cada vez que se volvía a la pestaña; en el arranque medí dos
+   descargas en 14 s. Con la pestaña abierta ocho horas, unos 50 MB al día
+   —en el móvil de Carlos, con datos—.
+
+   Ahora la app entera se baja **una vez por sesión**, y de ahí se guarda el
+   sello del archivo (`ETag`, que GitHub Pages envía, o `Last-Modified`). Las
+   demás comprobaciones son un `HEAD`: solo cabeceras, sin cuerpo. Mientras el
+   sello no cambie no hay nada que leer; cuando cambia, se baja el archivo y
+   se compara la marca como siempre.
+
+   **La primera comprobación sigue leyendo la marca de verdad, y es a
+   propósito**: el aviso existe para quien está viendo una copia vieja
+   guardada por su navegador, y ese caso no se detecta comparando el sello
+   de ahora con el de ahora. **Si el `HEAD` falla o no trae sello, se hace lo
+   de antes**: se pierde el ahorro, no el aviso. */
+let VER_SELLO=null, VER_ULT=0, VER_VUELO=null;
+const verSelloDe=r=>{try{return r.headers.get('etag')||r.headers.get('last-modified')||null;}catch(e){return null;}};
+async function verCabecera(){
+  if(location.protocol==='file:')return null;
+  try{
+    const r=await fetch(location.pathname+'?_ver='+Date.now(),{method:'HEAD',cache:'no-store'});
+    return r.ok?verSelloDe(r):null;
+  }catch(e){return null;}
+}
 /* Devuelve la marca del archivo que hay ahora mismo en el servidor, o null si
    no se puede saber (sin conexión, protocolo file://, respuesta rara). */
 async function verDelServidor(){
@@ -40372,16 +40400,29 @@ async function verDelServidor(){
   try{
     const r=await (window.fetchConTope?fetchConTope(location.pathname+'?_ver='+Date.now(),{cache:'reload'},30000):fetch(location.pathname+'?_ver='+Date.now(),{cache:'reload'}));
     if(!r.ok)return null;
+    const sello=verSelloDe(r);
     const t=await r.text();
     const m=t.match(/\/\*BUILD:([^*]+)\*\//);
+    if(m&&sello)VER_SELLO=sello;
     return m?m[1].trim():null;
   }catch(e){return null;}
 }
 
-async function verComprobar(){
+/* `forzar` salta la pausa de un minuto: lo usa la subida rechazada por versión
+   antigua, que necesita saberlo ya. Sin él, dos llamadas seguidas —el
+   temporizador del arranque y la vuelta a la pestaña— hacen una sola. */
+async function verComprobar(forzar){
   if(document.hidden)return;
-  const remota=await verDelServidor();
-  if(remota&&remota!==VER_ACTUAL)verBanner(remota);
+  if(VER_VUELO)return VER_VUELO;
+  if(!forzar&&Date.now()-VER_ULT<60000)return;
+  VER_VUELO=(async()=>{
+    try{
+      if(VER_SELLO){const s=await verCabecera();if(s&&s===VER_SELLO)return;}
+      const remota=await verDelServidor();
+      if(remota&&remota!==VER_ACTUAL)verBanner(remota);
+    }finally{VER_ULT=Date.now();VER_VUELO=null;}
+  })();
+  return VER_VUELO;
 }
 window.verComprobar=verComprobar;
 /* Para mirarlo desde la consola cuando algo "sigue exactamente igual". */
