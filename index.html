@@ -6443,11 +6443,13 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
   /* Si existe un escudo propio en la carpeta se usa ese, sin placa blanca
      detrás, porque se espera con transparencia. Si no lo hay, se cae al
      logotipo de la cabecera, que trae fondo blanco y sí necesita la placa.
-     Se prueba primero el SVG, que escala mejor. */
+     v526 · Se prueba primero el PNG, que es el que existe: con el SVG delante,
+     cada arranque de cada dispositivo pedía un `escudo.svg` que no está y se
+     llevaba un 404. Si algún día se añade el SVG, basta con invertir el orden. */
   function ponLogo(){
     var img=document.getElementById('sp-logo');
     if(!img)return;
-    var propio=['escudo.svg','escudo.png'];
+    var propio=['escudo.png','escudo.svg'];
     var i=0;
     function siguiente(){
       if(i>=propio.length){
@@ -39962,11 +39964,15 @@ window.phBuscar=async function(name){
      regla de no confundir personas**: quitar tildes no junta a dos personas
      distintas, mientras que la coincidencia difusa de `photoFor` —que sigue
      sin usarse aquí— sí lo hace. */
-  const vars=[name];
+  /* v526 · **Primero sin tildes y primero por extensión.** La v520 probaba las
+     seis extensiones del nombre con tilde antes de pasar a la otra grafía, y
+     las fotos del cuerpo técnico se guardan SIN tildes: medido en la auditoría
+     del 10/11/2026, unas 36 peticiones fallidas cada vez que se abría
+     Nutrición. Con este orden, quien tiene foto la encuentra a la primera. */
   const sinTilde=String(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  if(sinTilde!==name)vars.push(sinTilde);
-  for(const v of vars){
-    for(const ext of PH_EXT){
+  const vars=sinTilde!==name?[sinTilde,name]:[name];
+  for(const ext of PH_EXT){
+    for(const v of vars){
       const url=PH_DIR+encodeURIComponent(v)+'.'+ext+PH_QS;
       if(await phTry(url)){PH_FILE[name]=url;return url;}
     }
@@ -40344,8 +40350,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-10.15*/
-const VER_ACTUAL='2026-11-10.15';
+/*BUILD:2026-11-10.16*/
+const VER_ACTUAL='2026-11-10.16';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
