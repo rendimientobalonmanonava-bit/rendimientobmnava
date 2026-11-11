@@ -13907,6 +13907,125 @@ function bmHojaCierra(id){
   return true;
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BMH.pila.length){e.stopPropagation();bmHojaCierra();}},true);
+/* v572 · Búsqueda global, en el móvil. La lupa de la cabecera llevaba al
+   Resumen y enfocaba el filtro de la plantilla: sólo encontraba jugadores, y
+   sólo ahí. Ahora abre una hoja con un único campo que busca en cuatro sitios
+   a la vez (HIG · Searching: un solo lugar para encontrarlo todo):
+     · jugadores → abre su ficha;
+     · pantallas y sus pestañas → va a ella;
+     · acciones → las del menú «añadir», las de «Más» y los formularios;
+     · un día → «hoy», «ayer» o una fecha (12/11) cambian el día que se ve.
+   Sin texto enseña lo último que se abrió desde aquí y las acciones.
+   No hay un segundo índice que mantener: las pantallas salen de `NAV` y de las
+   pestañas que ya existen, y las acciones del menú se leen del propio menú y
+   se ejecutan pulsando SU botón. */
+const BMB_REC='bmnava-busca';
+const BMB_IC={
+  ir:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M3.5 9.5h17"/></svg>',
+  mas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg>',
+  dia:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'
+};
+function bmbIndice(){
+  const it=[];
+  /* jugadores */
+  Object.keys(STATE.players||{}).sort((x,y)=>x.localeCompare(y,'es')).forEach(n=>{const pl=STATE.players[n]||{};let dor='';try{dor=((STATE.info||{})[n]||{}).dorsal||'';}catch(e){}
+    it.push({g:'j',k:'j|'+n,l:n,s:[posGroup(pl.pos)||'',dor?('dorsal '+dor):''].filter(Boolean).join(' · '),q:normH(n+' '+(pl.pos||'')+' '+dor),n:n,f:()=>openPlayer(n)});});
+  /* pantallas */
+  const P=(l,v,f,kw)=>it.push({g:'p',k:'p|'+l,l:l,s:'',q:normH(l+' '+(kw||'')),v:v,f:f||(()=>go(v))});
+  P('Resumen','equipo',null,'inicio portada equipo');
+  P('Calendario','cal',null,'planificacion sesiones microciclo');
+  P('Calendario › Mes','cal',()=>{go('cal');calSetMode('mes');});
+  P('Calendario › Semana','cal',()=>{go('cal');calSetMode('semana');},'lamina a4');
+  P('Cargas','carga',null,'rpe acwr monotonia');
+  (typeof CARGAS_TABS!=='undefined'?CARGAS_TABS:[]).forEach(t=>P('Cargas › '+t[1],'carga',()=>{go('carga');cargasTab(t[0]);}));
+  P('Pulsómetros','hr',null,'polar fc pulso zonas');
+  P('Pulsómetros › Equipo','hr',()=>{go('hr');hrModo('equipo');},'sesion');
+  P('Pulsómetros › Jugador','hr',()=>{go('hr');hrModo('jugador');});
+  P('Disponibilidad','dispo',null,'estado bajas lesionados');
+  P('Médico','medico',null,'lesiones episodios');
+  P('Médico › Ficha clínica','medico',()=>{go('medico');medTab('clinica');});
+  P('Médico › Configuración','medico',()=>{go('medico');medTab('config');});
+  P('Parte wellness','parte',null,'informe cuestionario');
+  P('Fisioterapia','fisio',null,'tratamientos virginia');
+  P('Fisioterapia › Hoy','fisio',()=>{go('fisio');fisTab('hoy');});
+  P('Fisioterapia › Calendario','fisio',()=>{go('fisio');fisTab('cal');});
+  P('Fisioterapia › Vendajes','fisio',()=>{go('fisio');fisTab('vend');},'tape tobillos');
+  P('Fisioterapia › Análisis','fisio',()=>{go('fisio');fisTab('datos');},'dolor mapa');
+  P('Nutrición','nutri',null,'cobros pedido fullgas suplementos cuota');
+  P('Perfil físico','tests',null,'tsa valoraciones tests champions');
+  P('Perfil físico › Equipo','tests',()=>{go('tests');tsaModo('equipo');});
+  P('Perfil físico › Jugador','tests',()=>{go('tests');tsaModo('jugador');});
+  P('Perfil físico › Análisis','tests',()=>{go('tests');tsaModo('analisis');},'correlaciones');
+  P('Jugadores','jugadores',null,'plantilla fichas');
+  P('Alertas','alertas',null,'avisos');
+  P('Conexión','config',null,'ajustes hojas sincronizar copia seguridad');
+  /* acciones */
+  const A=(l,sub,f,kw)=>it.push({g:'a',k:'a|'+l,l:l,s:sub||'',q:normH(l+' '+(sub||'')+' '+(kw||'')),f:f});
+  A('Parte del día','Dolor, tratamiento o incidencia de un jugador',()=>{if(window.openHeroForm)openHeroForm('incidencia','');},'apuntar molestia');
+  A('Cita o documento médico','Cita, reconocimiento o prueba',()=>{if(window.openHeroForm)openHeroForm('med','');});
+  A('Ausencia de varios jugadores','Selección, viaje, permiso…',()=>{if(window.openAusenciaGrupo)openAusenciaGrupo(dkey(REF()));},'seleccion paron');
+  A('Planificar el día de hoy','Añadir una sesión al calendario',()=>{go('cal');calOpenDay(dkey(new Date()));},'entreno partido');
+  document.querySelectorAll('#add-menu .add-item').forEach(b=>{const t=b.querySelector('b'),sm=b.querySelector('small');if(!t)return;
+    A(t.textContent.trim(),sm?sm.textContent.trim():'',()=>b.click(),'añadir');});
+  document.querySelectorAll('#sb-tools button').forEach(b=>{const tx=[...b.querySelectorAll('span')].map(x=>x.textContent.trim()).filter(Boolean);let l=(tx.length?tx[tx.length-1]:b.textContent.trim());
+    if(/claro|oscuro/i.test(b.textContent))l='Cambiar entre tema claro y oscuro';
+    if(/^pdf$/i.test(l))l='Imprimir o guardar en PDF';
+    if(/^ajustes$/i.test(l))l='Ajustes de cálculo';
+    if(/^agenda$/i.test(l))l='Agenda médica';
+    if(/^actualizar$/i.test(l))l='Actualizar los datos';
+    A(l,'',()=>b.click());});
+  return it;
+}
+/* «hoy», «ayer» o una fecha escrita: 12/11 · 12-11 · 12/11/2026 */
+function bmbDia(q){
+  const hoy=new Date();let d=null;
+  if(/^hoy$/.test(q))d=hoy;
+  else if(/^ayer$/.test(q)){d=new Date();d.setDate(d.getDate()-1);}
+  else{const m=q.match(/^(\d{1,2})[\/\-. ](\d{1,2})(?:[\/\-. ](\d{2,4}))?$/);
+    if(m){let y=m[3]?+m[3]:hoy.getFullYear();if(y<100)y+=2000;const x=new Date(y,+m[2]-1,+m[1]);
+      if(x.getDate()===+m[1]&&x.getMonth()===+m[2]-1){d=x;if(!m[3]&&d>hoy){d=new Date(y-1,+m[2]-1,+m[1]);}}}}
+  if(!d||d>hoy)return null;
+  const dk=dkey(d);
+  return {g:'d',k:'d|'+dk,l:'Ver el '+d.toLocaleDateString('es',Object.assign({weekday:'long',day:'numeric',month:'long'},d.getFullYear()!==hoy.getFullYear()?{year:'numeric'}:{})),s:'Cambia el día que se está viendo',q:'',f:()=>{const i=document.getElementById('ref-date');if(i)i.value=dk;setRefDate(dk);}};
+}
+function bmBusca(){
+  const idx=bmbIndice();
+  const fila=x=>'<button type="button" class="bmh-fila" data-k="'+bmjEsc(x.k)+'">'
+    +(x.g==='j'?bmjCara(x.n):'<span class="ic">'+(x.g==='p'?(SB_ICONS[x.v]||SB_ICONS._||BMB_IC.ir):(x.g==='d'?BMB_IC.dia:BMB_IC.mas))+'</span>')
+    +'<span class="tx">'+bmjEsc(x.l)+(x.s?'<small>'+bmjEsc(x.s)+'</small>':'')+'</span><span class="ch">'+BMJ_CH+'</span></button>';
+  const grupo=(rot,xs)=>xs.length?'<div class="bmh-rot">'+rot+'</div><div class="bmh-grupo">'+xs.map(fila).join('')+'</div>':'';
+  const hoja=bmHoja({id:'busca',titulo:'Buscar',clase:'bmb',
+    html:'<div class="bmj-busca"><input type="search" class="bmj-in" placeholder="Jugadores, pantallas, acciones, un día" aria-label="Buscar en la app" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></div><div class="bmb-res"></div>'});
+  const c=hoja.querySelector('.bmh-cuerpo'),inp=c.querySelector('.bmj-in'),res=c.querySelector('.bmb-res');
+  let vistos=[];
+  const pinta=()=>{
+    const q=normH(inp.value).trim();
+    if(!q){
+      let rec=[];try{rec=(JSON.parse(localStorage.getItem(BMB_REC)||'[]')||[]).map(k=>idx.find(x=>x.k===k)).filter(Boolean);}catch(e){}
+      vistos=rec.concat(idx.filter(x=>x.g==='a'&&rec.indexOf(x)<0));
+      res.innerHTML=grupo('Recientes',rec)+grupo('Acciones',idx.filter(x=>x.g==='a'&&rec.indexOf(x)<0));
+      return;
+    }
+    const ts=q.split(/\s+/);
+    const casa=x=>ts.every(t=>x.q.indexOf(t)>=0);
+    const peso=x=>(x.q.indexOf(q)===0?0:(x.q.split(' ').some(w=>w.indexOf(ts[0])===0)?1:2));
+    const ord=xs=>xs.filter(casa).sort((x,y)=>peso(x)-peso(y));
+    const d=bmbDia(q),J=ord(idx.filter(x=>x.g==='j')).slice(0,6),Pn=ord(idx.filter(x=>x.g==='p')).slice(0,6),Ac=ord(idx.filter(x=>x.g==='a')).slice(0,6);
+    vistos=(d?[d]:[]).concat(J,Pn,Ac);
+    res.innerHTML=vistos.length?(d?grupo('Día',[d]):'')+grupo('Jugadores',J)+grupo('Pantallas',Pn)+grupo('Acciones',Ac)
+      :'<p class="bmj-nada">Nada con «'+bmjEsc(inp.value.trim())+'».</p>';
+  };
+  const abre=x=>{if(!x)return;
+    try{if(x.g!=='d'){const r=(JSON.parse(localStorage.getItem(BMB_REC)||'[]')||[]).filter(k=>k!==x.k);r.unshift(x.k);localStorage.setItem(BMB_REC,JSON.stringify(r.slice(0,5)));}}catch(e){}
+    bmHojaCierra('bmh-busca');
+    setTimeout(()=>{try{x.f();}catch(e){console.error('bmnava · buscar',e);}},40);};
+  inp.oninput=pinta;
+  inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();abre(vistos[0]);}};
+  res.onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;abre(vistos.find(x=>x.k===b.dataset.k));};
+  inp.value='';pinta();
+  try{inp.focus({preventScroll:true});}catch(e){}
+  return hoja;
+}
 /* v570 · Elegir jugador por la cara. En el móvil, cualquier desplegable cuyas
    opciones son la plantilla deja de abrir la rueda de dieciocho nombres: en su
    sitio va un botón con la foto y el nombre, y al tocarlo sube una hoja con
@@ -33428,6 +33547,8 @@ function addDataFisio(){closeAddData();if(window.openFisioReg)openFisioReg();}
    primero y llevarlo a la vista: está a 13.000 px del principio de la página,
    o sea que aunque tomara el foco no se vería. */
 function focusSearch(){
+  /* v572 · En el móvil, la lupa busca en toda la app. En el ordenador, lo de siempre. */
+  if(esMovil()){bmBusca();return;}
   go('equipo');
   const d=document.getElementById('eq-plantilla');
   if(d&&!d.open)d.open=true;
@@ -38975,6 +39096,14 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
   .bmf .bmf-pie>.btn.ghost{flex:1.25 1 0;background:var(--bmh-celda);border:none;color:var(--accent);font-size:15px}
 }
 </style>
+<style id="movil-v572">
+/* ===== v572 · Búsqueda global =====
+   Es una `bmHoja`: sólo existe en el móvil. Ocupa todo el alto para que los
+   resultados no hagan saltar la hoja al escribir. */
+.bmh.bmb .bmh-caja{height:calc(100dvh - 52px - var(--kb,0px))}
+.bmb-res .bmh-rot:first-child{margin-top:4px}
+.bmh-fila .bmj-av{width:34px;height:34px}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -42540,8 +42669,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.35*/
-const VER_ACTUAL='2026-11-11.35';
+/*BUILD:2026-11-11.36*/
+const VER_ACTUAL='2026-11-11.36';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
