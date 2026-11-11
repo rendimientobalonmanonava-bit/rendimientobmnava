@@ -6607,6 +6607,9 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 </header>
 
 <main>
+  <!-- v547 · Sale cuando lo que se ve no viene de las hojas sino de la última
+       copia guardada en este aparato. Dice de cuándo es. -->
+  <div id="bm-copia" role="status" hidden></div>
   <div id="fallback-banner" style="display:none;margin:0 0 14px;padding:12px 16px;border-radius:14px;background:rgba(255,59,48,.10);border:1px solid rgba(255,59,48,.28);font-size:14px;line-height:1.45">
     <b>Estás viendo solo una muestra (Asaph Ching).</b> Tu equipo completo —los 22 jugadores— se carga al abrir este archivo <b>en tu navegador</b> (descárgalo y doble clic). En la vista previa de aquí, Google bloquea la lectura de la hoja por seguridad (CORS), por eso no salen todos.
     <button class="btn ghost" style="margin-left:8px" onclick="connect()">Reintentar conexión</button>
@@ -13869,7 +13872,7 @@ function writeHash(push,y0){
        que el gesto «atrás» vuelve a la pantalla anterior en vez de sacar de la
        app. Cambiar de día sigue reemplazando, como siempre. La entrada que se
        deja atrás se lleva su desplazamiento para poder volver a él. */
-    if(push&&window.__BM_LISTO&&!window.__BM_POP&&esMovil()){
+    if(push&&window.__BM_LISTO&&!window.__BM_POP&&!window.__BM_NOHIST&&esMovil()){
       try{history.replaceState({y:y0||0},'');}catch(e){}
       history.pushState(null,'',h);
     }else history.replaceState(null,'',h);
@@ -25117,6 +25120,92 @@ function renderAll(){
    importa: si se cacheara el resultado, «Actualizar» dejaría de traer datos
    nuevos. Al no haber caché, el comportamiento es idéntico al de antes y lo
    único que cambia es cuántas veces sale la petición. */
+/* ═══ v547 · La última copia buena de cada hoja ═══
+   Daniel, 11/11/2026 (letra D): «abrir con la última copia de los datos y
+   avisar de su antigüedad». Hasta aquí, si Google no contestaba la app
+   arrancaba con una muestra que no era el equipo. Ahora cada hoja que se lee
+   bien se guarda en este aparato, y si la siguiente lectura falla se usa esa
+   copia y SE DICE de cuándo es.
+
+   Tres reglas:
+   - **La red va siempre primero.** La copia sólo entra cuando la lectura falla,
+     así que «Actualizar» sigue trayendo datos nuevos: es la regla escrita
+     arriba para la promesa en vuelo, y no se rompe.
+   - **Vive en la caché del navegador (`caches`), no en `localStorage`**: todo lo
+     que empieza por `bmnava_` se sincroniza con Supabase, y la copia de una
+     hoja no es un dato que haya que mandar a nadie. Tampoco cuenta para el
+     tope de 5 MB.
+   - **Una página de error no es una copia.** Si la respuesta parece HTML no se
+     guarda, o pisaría la última buena con basura.
+
+   `__BM_SOLO_COPIA` hace que se lea directamente la copia, sin tocar la red: lo
+   usa el arranque del móvil para pintar al instante y refrescar después. */
+const HOJAS_COPIA='bmnava-hojas-v1';
+async function bmHojaGuarda(url,txt){
+  try{
+    if(!('caches' in window)||!txt||txt.length<40||/^\s*<(!doctype|html)/i.test(txt))return;
+    const c=await caches.open(HOJAS_COPIA);
+    await c.put(url,new Response(txt,{headers:{'content-type':'text/plain;charset=utf-8','x-bm-t':String(Date.now())}}));
+  }catch(e){}
+}
+async function bmHojaLee(url){
+  try{
+    if(!('caches' in window))return null;
+    const c=await caches.open(HOJAS_COPIA);const r=await c.match(url);if(!r)return null;
+    return {txt:await r.text(),t:+(r.headers.get('x-bm-t')||0)};
+  }catch(e){return null;}
+}
+async function bmHayCopia(){
+  try{
+    const us=[CONFIG.sources.wellness,CONFIG.sources.rpe].filter(Boolean);
+    if(!us.length||!('caches' in window))return false;
+    const c=await caches.open(HOJAS_COPIA);
+    for(const u of us){if(!(await c.match(u)))return false;}
+    return true;
+  }catch(e){return false;}
+}
+/* Anota que algo de lo que se ve viene de la copia. Se queda con la fecha MÁS
+   VIEJA de las copias usadas: es la que no engaña. */
+function bmCopiaUsada(t){
+  const c=window.__BM_COPIA||(window.__BM_COPIA={t:0});
+  if(t&&(!c.t||t<c.t))c.t=t;
+  c.refrescando=!!window.__BM_SOLO_COPIA;
+  clearTimeout(c._tm);c._tm=setTimeout(bmAvisoCopia,0);
+}
+function bmAvisoCopia(){
+  const el=document.getElementById('bm-copia');if(!el)return;
+  const c=window.__BM_COPIA;
+  if(!c){el.hidden=true;el.innerHTML='';return;}
+  let cuando='una carga anterior';
+  if(c.t){const d=new Date(c.t);
+    cuando=(dkey(d)===dkey(new Date())?'hoy':'el '+d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'numeric'}))
+      +' a las '+d.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});}
+  el.hidden=false;
+  el.innerHTML=c.refrescando
+    ?'<span>Datos guardados de <b>'+cuando+'</b> · actualizando…</span>'
+    :'<span><b>No se han podido leer las hojas.</b> Estás viendo los datos guardados de <b>'+cuando+'</b>.</span>'
+      +'<button type="button" class="btn ghost" onclick="refreshAll()">Reintentar</button>';
+}
+/* El refresco que sigue a un arranque con copia: lo mismo que hace `boot` tras
+   conectar —incluida la recuperación de las sesiones de Polar, que `connect`
+   reconstruye— y volviendo a la vista en la que esté la persona. */
+async function bmRefrescoArranque(){
+  const vista=STATE.view;
+  try{rfSet('load');}catch(e){}
+  let ok=false;
+  try{await connect();ok=(STATE.mode==='live')&&!window.__BM_COPIA;}catch(e){console.warn('bmnava · refresco tras la copia',e&&e.message);}
+  try{const n=hrLoadSaved();if(n){buildPlayers();renderAll();renderHR();}}catch(e){}
+  window.__BM_NOHIST=true;
+  try{if(vista)go(vista);}catch(e){}finally{window.__BM_NOHIST=false;}
+  try{syncDatePicker();renderDayCtx();}catch(e){}
+  try{if(ok){localStorage.setItem(RF_LS,String(Date.now()));rfSet('ok','Actualizado');}else rfSet('err','Sin conexión');}catch(e){}
+}
+/* La copia de la propia aplicación, para poder abrirla sin red (sw.js). Sólo
+   en https o en local; si el navegador no lo admite, no pasa nada. */
+try{
+  if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))
+    window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('bmnava · sin copia de la aplicación',e&&e.message));});
+}catch(e){}
 const CSV_EN_VUELO=new Map();
 async function fetchCSV(url,ms){
   const k=String(url)+'|'+(ms||'');
@@ -25127,6 +25216,12 @@ async function fetchCSV(url,ms){
 }
 async function fetchCSVReal(url,ms){
   const tope=ms||20000;
+  const parsea=txt=>{bmPapaSan();return new Promise(r=>Papa.parse(txt,{header:true,skipEmptyLines:true,complete:c=>r(c.data)}));};
+  /* v547 · Arranque con copia: se lee lo guardado y no se toca la red. */
+  if(window.__BM_SOLO_COPIA){
+    const c=await bmHojaLee(url);if(!c)throw new Error('sin copia guardada de esta hoja');
+    bmCopiaUsada(c.t);return parsea(c.txt);
+  }
   let ctrl=null,t=null;
   try{ctrl=(typeof AbortController!=='undefined')?new AbortController():null;}catch(e){ctrl=null;}
   if(ctrl)t=setTimeout(()=>{try{ctrl.abort();}catch(e){}},tope);
@@ -25134,14 +25229,17 @@ async function fetchCSVReal(url,ms){
     const res=await fetch(url,ctrl?{signal:ctrl.signal}:undefined);
     if(!res.ok)throw new Error("HTTP "+res.status);
     const txt=await res.text();
-    bmPapaSan();
-    return await new Promise(r=>Papa.parse(txt,{header:true,skipEmptyLines:true,complete:c=>r(c.data)}));
+    bmHojaGuarda(url,txt);
+    return await parsea(txt);
   }catch(e){
+    /* v547 · La hoja no se ha podido leer: si hay copia, se usa y se avisa. */
+    const c=await bmHojaLee(url);
+    if(c){console.warn('bmnava · hoja no leída, se usa la copia guardada:',e&&e.message);bmCopiaUsada(c.t);return parsea(c.txt);}
     if(e&&(e.name==='AbortError'))throw new Error('la hoja no respondió en '+Math.round(tope/1000)+' s');
     throw e;
   }finally{ if(t)clearTimeout(t); }
 }
-async function connect(){const wu=document.getElementById('url-wellness').value.trim()||CONFIG.sources.wellness;const ru=document.getElementById('url-rpe').value.trim()||CONFIG.sources.rpe;const msg=document.getElementById('conn-msg');if(!wu&&!ru){msg.textContent="Pega al menos una URL CSV, o usa el modo demo.";return;}msg.textContent="Cargando…";/* v326 · Las cuatro hojas se pedían una detrás de otra: cada una esperaba a que terminase la anterior, y una lenta retrasaba a todas. Ahora salen a la vez y se procesan en el mismo orden de siempre, así que el resultado es idéntico. Y con allSettled, una hoja caída ya no tumba a las demás: antes iban en el mismo try y la primera que fallara se llevaba por delante el resto. */const _rou=(document.getElementById('url-roster')||{}).value||CONFIG.sources.roster;const _pw=wu?fetchCSV(wu):Promise.resolve(null);const _pr=ru?fetchCSV(ru):Promise.resolve(null);const _pro=_rou?fetchCSV(_rou):Promise.resolve(null);_pro.catch(()=>{});try{const [_rw,_rr]=await Promise.allSettled([_pw,_pr]);if(_rw.status==='fulfilled'&&_rw.value)STATE.wellness=ingestWellness(_rw.value);else if(_rw.status==='rejected')console.warn('bmnava · wellness no leído:',_rw.reason&&_rw.reason.message);if(_rr.status==='fulfilled'&&_rr.value)STATE.rpe=ingestRPE(_rr.value);else if(_rr.status==='rejected')console.warn('bmnava · RPE no leído:',_rr.reason&&_rr.reason.message);if(!STATE.wellness.length&&!STATE.rpe.length)throw new Error("0 registros leídos");STATE.mode="live";STATE.refDate=null;document.getElementById('fallback-banner').style.display='none';renderAll();syncDatePicker();let rosterMsg='';try{const rou=_rou;if(rou){const _cro=await _pro;const rn=_cro?applyRosterLive(ingestRoster(_cro)):0;if(rn){rosterMsg=` · Plantilla: ${rn} jugadores`;if(STATE.curPlayer&&document.getElementById('v-jugador').classList.contains('on'))renderPlayer(STATE.curPlayer);}}}catch(re){rosterMsg=' · Plantilla no leída (hoja privada o CORS)';}let vhMsg='';
+async function connect(){window.__BM_COPIA=null;try{bmAvisoCopia();}catch(e){}const wu=document.getElementById('url-wellness').value.trim()||CONFIG.sources.wellness;const ru=document.getElementById('url-rpe').value.trim()||CONFIG.sources.rpe;const msg=document.getElementById('conn-msg');if(!wu&&!ru){msg.textContent="Pega al menos una URL CSV, o usa el modo demo.";return;}msg.textContent="Cargando…";/* v326 · Las cuatro hojas se pedían una detrás de otra: cada una esperaba a que terminase la anterior, y una lenta retrasaba a todas. Ahora salen a la vez y se procesan en el mismo orden de siempre, así que el resultado es idéntico. Y con allSettled, una hoja caída ya no tumba a las demás: antes iban en el mismo try y la primera que fallara se llevaba por delante el resto. */const _rou=(document.getElementById('url-roster')||{}).value||CONFIG.sources.roster;const _pw=wu?fetchCSV(wu):Promise.resolve(null);const _pr=ru?fetchCSV(ru):Promise.resolve(null);const _pro=_rou?fetchCSV(_rou):Promise.resolve(null);_pro.catch(()=>{});try{const [_rw,_rr]=await Promise.allSettled([_pw,_pr]);if(_rw.status==='fulfilled'&&_rw.value)STATE.wellness=ingestWellness(_rw.value);else if(_rw.status==='rejected')console.warn('bmnava · wellness no leído:',_rw.reason&&_rw.reason.message);if(_rr.status==='fulfilled'&&_rr.value)STATE.rpe=ingestRPE(_rr.value);else if(_rr.status==='rejected')console.warn('bmnava · RPE no leído:',_rr.reason&&_rr.reason.message);if(!STATE.wellness.length&&!STATE.rpe.length)throw new Error("0 registros leídos");STATE.mode="live";STATE.refDate=null;document.getElementById('fallback-banner').style.display='none';renderAll();syncDatePicker();let rosterMsg='';try{const rou=_rou;if(rou){const _cro=await _pro;const rn=_cro?applyRosterLive(ingestRoster(_cro)):0;if(rn){rosterMsg=` · Plantilla: ${rn} jugadores`;if(STATE.curPlayer&&document.getElementById('v-jugador').classList.contains('on'))renderPlayer(STATE.curPlayer);}}}catch(re){rosterMsg=' · Plantilla no leída (hoja privada o CORS)';}let vhMsg='';
 try{
   /* v199 · las valoraciones físicas se cargan aquí, junto a las demás fuentes,
      para que "Conectar y cargar" deje el sistema entero listo de una vez. */
@@ -33260,7 +33358,22 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   try{ if(window.syEnsureAuth)await window.syEnsureAuth(); }catch(e){}
   ARR.sincronizacion=Math.round(performance.now()-_t);
   _t=performance.now();
-  try{ if(CONFIG.sources.wellness||CONFIG.sources.rpe){await connect();} else {loadDemo();} }
+  /* v547 · En el móvil, si hay una copia de las hojas, se pinta con ella y se
+     refresca después: se deja de mirar la pantalla de arranque mientras Google
+     contesta (§4.1.1: las cuatro hojas son ~4,3 s). El aviso dice que son datos
+     guardados hasta que llegan los nuevos. En el ordenador el arranque es el de
+     siempre. */
+  let _copia=false;
+  try{
+    if(CONFIG.sources.wellness||CONFIG.sources.rpe){
+      if(esMovil()&&await bmHayCopia()){
+        window.__BM_SOLO_COPIA=true;
+        try{await connect();_copia=(STATE.mode==='live');}catch(_){_copia=false;}
+        finally{window.__BM_SOLO_COPIA=false;}
+      }
+      if(!_copia)await connect();
+    } else {loadDemo();}
+  }
   catch(e){ try{loadDemo();}catch(_){} }
   ARR.hojasGoogle=Math.round(performance.now()-_t);
   _t=performance.now();
@@ -33284,6 +33397,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
      algo de arriba hubiera fallado, su propio tope de 5s la retira igual. */
   try{if(window.__splashOff)window.__splashOff();}catch(e){}
   try{if(window.rfIdle)rfIdle();}catch(e){}
+  if(_copia)bmRefrescoArranque();   /* v547 · ahora sí, a por los datos nuevos */
   /* v315 · Copia automática del día, con los datos ya asentados: después del
      pull y de que cada módulo haya leído lo suyo. Antes de esto, guardaría un
      retrato a medio hacer. */
@@ -36941,6 +37055,17 @@ html[data-theme="dark"] .dp-mnav{background:rgba(255,255,255,.06);border-color:r
   #v-tests .tsat-av{width:28px;height:28px}
 }
 </style>
+<style id="copia-v547">
+/* v547 · Aviso de «estás viendo datos guardados». En ámbar: es un aviso, no una
+   alerta (§2.3). El fondo plano va primero por si el navegador no sabe mezclar. */
+#bm-copia{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;margin:0 0 14px;padding:11px 14px;border-radius:14px;
+  background:var(--panel2);background:color-mix(in srgb,var(--warn) 13%,var(--panel));
+  border:1px solid var(--line);border-color:color-mix(in srgb,var(--warn) 38%,transparent);
+  font-size:var(--fs-body);line-height:1.4;color:var(--txt)}
+#bm-copia[hidden]{display:none}
+#bm-copia b{font-weight:600}
+#bm-copia .btn{margin-left:auto}
+</style>
 <style id="movil-v532">
 /* ===== v532 · El móvil como aplicación =====
    Daniel, 11/11/2026: «vamos a mejorar mucho la parte para dispositivos móviles…
@@ -39828,8 +39953,17 @@ window.__VH_VUELO=window.__VH_VUELO||new Map();
 window.vhTexto=function(url){
   const m=window.__VH_VUELO;
   if(m.has(url))return m.get(url);
-  const p=(window.fetchConTope?fetchConTope(url,null,20000):fetch(url))
+  /* v547 · La misma copia de respaldo que el resto de hojas (ver `bmHojaLee`). */
+  const red=()=>(window.fetchConTope?fetchConTope(url,null,20000):fetch(url))
     .then(res=>{if(!res.ok)throw new Error('HTTP '+res.status);return res.text();})
+    .then(txt=>{try{if(window.bmHojaGuarda)bmHojaGuarda(url,txt);}catch(e){}return txt;});
+  const copia=async err=>{
+    const c=window.bmHojaLee?await bmHojaLee(url):null;
+    if(!c)throw err;
+    try{bmCopiaUsada(c.t);}catch(e){}
+    return c.txt;
+  };
+  const p=(window.__BM_SOLO_COPIA?copia(new Error('sin copia guardada de esta hoja')):red().catch(copia))
     .finally(()=>{m.delete(url);});
   m.set(url,p);
   return p;
@@ -40978,8 +41112,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.15*/
-const VER_ACTUAL='2026-11-11.15';
+/*BUILD:2026-11-11.16*/
+const VER_ACTUAL='2026-11-11.16';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
