@@ -31921,7 +31921,7 @@ function renderCalendar(){
   const off=(new Date(y,m,1).getDay()+6)%7;
   const days=new Date(y,m+1,0).getDate();
   const todayDk=dkey(new Date());
-  const real=calRealMap();
+  const real=calRealMap();window.__CAL_REAL=real;
   const wd=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   const mk=`${y}-${String(m+1).padStart(2,'0')}`;
   let nEnt=0,nFue=0,nPar=0,nEv=0;
@@ -31957,7 +31957,7 @@ function renderCalendar(){
        dice qué falta, que es lo único que hace falta para arreglarlo. */
     const faltanMinDia=(!dev&&rv==null&&pl.n&&(STATE.rpe||[]).some(r=>r&&r.dk===dk));
     const corner=hasMatch?'':(dev?`<span class="cal-dev" style="color:${colTexto(dev.col)};border-color:${dev.col}" title="Desviación plan vs real: ${dev.lab}">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:(rv!=null?`<span class="cal-realbadge" title="Carga real (RPE): ${rv} UA">${rv}</span>`:(faltanMinDia?`<span class="cal-nomin" title="Hay cuestionarios de este día pero no hay minutos de sesión, así que no se puede calcular la carga real ni la desviación. Abre el día y escribe los minutos.">min?</span>`:'')));
-    cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" onclick="calOpenDay('${dk}')">
+    cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" data-dk="${dk}" onclick="calTocaDia('${dk}')">
       <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${(citas.length&&(onlyRest||hasMatch))?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length})">🩺 ${citas.length}</span>`:''}${corner}</div>
       ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body"><span class="cal-match-k">Partido</span>${(evRival(matchEv)||matchEv.title)?`<span class="cal-match-rival">${(evRival(matchEv)?'vs '+evRival(matchEv):matchEv.title).replace(/</g,'&lt;')}</span>`:''}${evRival(matchEv)?`<span class="cal-match-comp">${(PARTIDO_COMP[evComp(matchEv)]||'').toLowerCase()}${evOrigenHR(matchEv)==='medido'?' · FC medida':''}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-bars">
         ${pl.n?`<div class="cal-plan" title="Plan · ${pl.lab} intensidad · contacto ${pl.contacto}/5 · ${pl.totMin}′ (${pl.planUA} UA est.)">${calTraffic(pl.peak,54,'cal-tl')}<div class="cal-plan-tx"><span class="cal-plan-grade" style="color:${colTexto(pl.col)}">${pl.lab}</span><span class="cal-plan-dur"><span class="cal-clock">◷</span> ${pl.totMin}′</span>${pl.contacto>0?`<span class="cal-plan-ct">${calContactBar(pl.contacto)}</span>`:''}${zd?(()=>{
@@ -32001,6 +32001,7 @@ function renderCalendar(){
    </div>
    <div class="cal-stats"><span><b>${nEnt}</b> entrenos</span><span><b>${nFue}</b> fuerza</span><span><b>${nPar}</b> partidos</span><span><b>${nEv}</b> eventos</span></div>
    <div class="cal-grid">${wd.map(w=>`<div class="cal-wd">${w}</div>`).join('')}${cells}</div>
+   <section class="cal-dia" id="cal-dia" aria-live="polite"></section>
    <div class="cal-scale"><span class="small muted">Semáforo = intensidad programada:</span><span class="cal-sc"><i style="background:#1ea863"></i>Baja</span><span class="cal-sc"><i style="background:#e6a700"></i>Media</span><span class="cal-sc"><i style="background:#e23b32"></i>Alta</span><span class="small muted" style="margin-left:8px"><span class="cal-clock">◷</span> = min · <b>Real</b> = carga (UA) · esquina = <b>desviación</b> · <span class="cal-risk">⚠</span> pico · ⚕ bajas</span></div>
    ${wkTable}
    <!-- v397 · El microciclo vive aquí, debajo del resumen por semana, por
@@ -32009,6 +32010,42 @@ function renderCalendar(){
    <p class="small muted" style="margin-top:8px">Toca un día para planificar o editar. La carga real, las bajas y la desviación se enlazan solas con tus datos. Se guarda en este dispositivo.</p>`;
   /* después del innerHTML: antes el contenedor todavía no existía */
   try{renderCalMicro();}catch(e){console.error('bmnava · microciclo',e);}
+  try{calDiaPinta();}catch(e){console.error('bmnava · día del calendario',e);}
+}
+/* v549 · El mes en el móvil. Daniel, 11/11/2026, con la captura delante: «en
+   cuanto a la parte de calendario, fatal… no lo has adaptado nada». Medido a
+   375 px: la rejilla empezaba en el píxel 1.253 —detrás de «Exportar a Google
+   Calendar» y de los 845 px de «Carga de la semana»— y cada casilla mide 47 px,
+   así que el semáforo, el grado, los minutos, el contacto y las zonas se
+   montaban sobre la casilla de al lado.
+   Preguntado, eligió «mes compacto + día debajo»: en la casilla quedan el día,
+   el semáforo y los minutos, y **tocar un día lo elige** y pinta debajo su
+   tarjeta entera, que es la de la vista de semana (`calDiaCol`). Editar sigue a
+   un toque. En el ordenador tocar un día abre el editor, como siempre. */
+let CAL_SEL=null;
+function calTocaDia(dk){
+  if(!esMovil()){calOpenDay(dk);return;}
+  CAL_SEL=dk;calDiaPinta();
+}
+function calDiaPinta(){
+  const host=document.getElementById('cal-dia');if(!host)return;
+  if(!esMovil()){host.innerHTML='';return;}
+  const hoy=dkey(new Date());
+  const celda=dk=>document.querySelector('.cal-cell[data-dk="'+dk+'"]:not(.cal-out)');
+  /* Sin día elegido, hoy —si el mes que se ve es el de hoy—. */
+  const dk=(CAL_SEL&&celda(CAL_SEL))?CAL_SEL:(celda(hoy)?hoy:null);
+  document.querySelectorAll('.cal-cell.cal-sel').forEach(c=>c.classList.remove('cal-sel'));
+  if(!dk){host.innerHTML='<p class="cal-dia-vacio">Toca un día para ver su detalle.</p>';return;}
+  const c=celda(dk);if(c)c.classList.add('cal-sel');
+  const d=dkToDate(dk),i=(d.getDay()+6)%7;
+  const wdL=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  let mdMap={};try{mdMap=calMDmap([dk]).map||{};}catch(e){}
+  const hay=((STATE.calendar||{})[dk]||[]).length;
+  host.innerHTML='<div class="cal-dia-h"><b>'+wdL[i]+' '+d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase()+'</b>'
+      +(dk===hoy?'<span class="cal-dia-hoy">Hoy</span>':'')
+      +'<button type="button" class="cal-dia-ed" onclick="calOpenDay(\''+dk+'\')">'+(hay?'Editar':'Planificar')+'</button></div>'
+    +(()=>{let r=null;try{r=calRisk(dk);}catch(e){}return r&&r.msg?'<p class="cal-dia-aviso">⚠ '+bmEsc(r.msg)+'</p>':'';})()
+    +calDiaCol(dk,i,window.__CAL_REAL||calRealMap(),mdMap,hoy,wdL);
 }
 function calPrev(){CALVIEW.m--;if(CALVIEW.m<0){CALVIEW.m=11;CALVIEW.y--;}renderCalendar();}
 function calNext(){CALVIEW.m++;if(CALVIEW.m>11){CALVIEW.m=0;CALVIEW.y++;}renderCalendar();}
@@ -32026,13 +32063,11 @@ function calA4Cabe(winW){
   return w>=CAL_A4_MIN;
 }
 window.calA4Cabe=calA4Cabe;
-function renderCalWeek(box){
-  calLoad();
-  if(!CALWEEK)CALWEEK=calWeekStart(new Date());
-  const mon=calWeekStart(CALWEEK);const dks=calWeekDks(mon);const real=calRealMap();const todayDk=dkey(new Date());
-  const {map:mdMap,ref:mdRef}=calMDmap(dks);
-  const wdL=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-  const cols=dks.map((dk,i)=>{
+/* v549 · La tarjeta de UN día. Vivía dentro de `renderCalWeek`, como una función
+   sin nombre; sale aquí, sin cambiar una coma, para que el detalle del día del
+   mes en el móvil pinte exactamente la misma tarjeta que la vista de semana:
+   dos plantillas del mismo día acabarían diciendo cosas distintas. */
+function calDiaCol(dk,i,real,mdMap,todayDk,wdL){
     const evs=(STATE.calendar[dk]||[]);const pl=calDayPlan(dk);const rv=real[dk];const dev=pl.n?calDev(pl.planUA,rv):null;
     const bajas=calBajas(dk);const z=calZonesGet(dk);const md=mdMap[dk];const a=dk.split('-');
     const evList=evs.length?evs.map(e=>{const t=calTipo(e.type),ci=calIntens(evIntens(e)),du=evDur(e),os=evObjs(e);const esP=evEsPartido(e);
@@ -32063,7 +32098,14 @@ function renderCalWeek(box){
       </div>
       ${bajas.length?`<div class="cw-bajas" title="${bajas.map(b=>b.name+(b.zone?' ('+b.zone+')':'')).join(', ')}">⚕ ${bajas.length} baja${bajas.length>1?'s':''}</div>`:''}
     </div>`;
-  }).join('');
+}
+function renderCalWeek(box){
+  calLoad();
+  if(!CALWEEK)CALWEEK=calWeekStart(new Date());
+  const mon=calWeekStart(CALWEEK);const dks=calWeekDks(mon);const real=calRealMap();const todayDk=dkey(new Date());
+  const {map:mdMap,ref:mdRef}=calMDmap(dks);
+  const wdL=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  const cols=dks.map((dk,i)=>calDiaCol(dk,i,real,mdMap,todayDk,wdL)).join('');
   const wsum=calWeekSummary(mon);const mt=calMonoTier(wsum.mono);const wdev=(wsum.planUA&&wsum.nReal)?calDev(wsum.planUA,wsum.realUA):null;
   const monEnd=new Date(mon);monEnd.setDate(mon.getDate()+6);
   const title=`${mon.getDate()} ${CAL_MES[mon.getMonth()].toLowerCase().slice(0,3)} – ${monEnd.getDate()} ${CAL_MES[monEnd.getMonth()].toLowerCase().slice(0,3)} ${monEnd.getFullYear()}`;
@@ -37586,6 +37628,82 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   .add-menu{bottom:calc(86px + env(safe-area-inset-bottom))}
 }
 </style>
+<style id="movil-v549">
+/* ===== v549 · El Calendario en el móvil =====
+   Orden: el mes arriba del todo, el día elegido debajo, y después la carga de
+   la semana, el resumen por semana y el microciclo; exportar, al final.
+   La casilla mide 47 px: caben el día, el semáforo y los minutos. Todo lo demás
+   (grado, contacto, zonas, desviación, bajas, citas) sigue en el marcado y se
+   lee en la tarjeta del día. En el ordenador nada de esto se aplica. */
+.cal-dia{display:none}
+@media(max-width:760px){
+  #v-cal.on{display:flex;flex-direction:column}
+  #v-cal>.pagehead{order:0}
+  #v-cal>#cal-body{order:1}
+  #v-cal>#cal-week-panel{order:2;margin-top:14px}
+  #v-cal>.cal-ics-bar{order:3;margin-top:14px}
+
+  /* Cabecera del mes: título con sus flechas en una fila, y el conmutador debajo.
+     La leyenda de tipos sobra: en la casilla compacta el tipo no se pinta. */
+  .cal-head{gap:10px;margin-bottom:10px}
+  .cal-headr{width:100%}
+  .cal-legend,.cal-stats{display:none}
+  .cal-modetog{display:flex;width:100%}
+  .cal-modetog .cal-mtg{flex:1}
+
+  .cal-grid{gap:3px}
+  .cal-wd{font-size:var(--fs-xs);padding:2px 0 4px;text-align:center}
+  .cal-cell{min-height:62px;min-width:0;padding:4px 1px 5px;gap:2px;align-items:center;justify-content:flex-start;
+    border-radius:11px;overflow:hidden;transform:none}
+  .cal-dnum{width:100%;justify-content:center;gap:0;font-size:var(--fs-sm);font-weight:600;line-height:1.2}
+  /* Lo que cuelga del número —«hoy», aviso, bajas, citas, desviación— va a la
+     tarjeta del día. El número es un nodo de texto y se queda. */
+  .cal-dnum>*{display:none}
+  .cal-bars{margin-top:0;width:100%;align-items:center}
+  .cal-plan{flex-direction:column;align-items:center;gap:2px}
+  .cal-plan .cal-tl{height:26px}
+  .cal-plan-tx{align-items:center;gap:0}
+  .cal-plan-grade,.cal-plan-ct,.cal-zon,.cal-plan-dur .cal-clock,.cal-l2{display:none}
+  .cal-plan-dur{font-size:var(--fs-xs);font-weight:600;color:var(--muted);white-space:nowrap}
+  /* Partido: la casilla ya va teñida; dentro, sólo la palabra. */
+  .cal-match-body{padding:0;align-items:center;justify-content:center;gap:0}
+  .cal-match-body>*,.cal-match-logo{display:none}
+  .cal-match-body>.cal-match-k{display:block;font-size:var(--fs-xs);font-weight:600;letter-spacing:0;text-transform:none}
+  /* El rival y la hora caben (recortados) y son lo que se busca; la competición no. */
+  .cal-cell .cal-match-body>.cal-match-rival,.cal-cell .cal-match-body>.cal-match-h{display:block;font-size:var(--fs-xs);max-width:100%;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+  .cal-cell .cal-match-body>.cal-match-comp{display:none}
+  /* De la leyenda queda el semáforo: lo demás habla de marcas que la casilla
+     compacta ya no lleva. */
+  .cal-scale>.small.muted+.cal-sc~.small.muted,.cal-scale>.small.muted[style]{display:none}
+  .cal-rest-body span{font-size:0}
+  .cal-rest-body span::after{content:"–";font-size:var(--fs-body);color:var(--ok-text)}
+  /* El día elegido: aro del color de acción, por fuera del de «hoy». */
+  .cal-cell.cal-sel{outline:2px solid var(--accent);outline-offset:1px}
+
+  /* ── El día elegido ── */
+  .cal-dia{display:block;margin:14px 0 4px}
+  .cal-dia-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .cal-dia-h b{font-size:var(--fs-h2);font-weight:600;letter-spacing:-.01em}
+  .cal-dia-hoy{font-size:var(--fs-xs);font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 8px}
+  .cal-dia-ed{margin-left:auto;min-height:44px;padding:0 16px;border:none;border-radius:999px;background:var(--panel2);color:var(--accent);
+    font:inherit;font-size:var(--fs-body);font-weight:600;cursor:pointer;touch-action:manipulation}
+  .cal-dia-vacio{margin:0;padding:18px 14px;border-radius:16px;background:var(--panel);color:var(--muted);font-size:var(--fs-body);text-align:center}
+  /* La tarjeta de semana está pensada como columna estrecha. A todo el ancho,
+     el semáforo va a la izquierda y el resto se lee a su lado. */
+  .cal-dia .cw-col{display:flex;flex-direction:column;gap:7px;align-items:stretch;text-align:left;
+    padding:18px 16px 16px 88px;border-radius:18px;min-height:96px}
+  .cal-dia .cw-col>*{margin:0;justify-content:flex-start;text-align:left}
+  .cal-dia .cw-col>.cw-head{display:none}
+  .cal-dia .cw-col>.cw-tl{position:absolute;left:28px;top:20px}
+  .cal-dia .cw-grade{font-size:var(--fs-h2);font-weight:700;letter-spacing:0}
+  .cal-dia .cw-dur{font-size:var(--fs-body)}
+  /* El aviso de pico de carga, que en la casilla era un triángulo con la
+     explicación en el `title`: en el teléfono no hay `title` que leer. */
+  .cal-dia-aviso{margin:0 0 8px;padding:9px 12px;border-radius:12px;font-size:var(--fs-sm);line-height:1.35;color:var(--warn-text);
+    background:var(--panel2);background:color-mix(in srgb,var(--warn) 13%,var(--panel))}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -41151,8 +41269,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.17*/
-const VER_ACTUAL='2026-11-11.17';
+/*BUILD:2026-11-11.18*/
+const VER_ACTUAL='2026-11-11.18';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
