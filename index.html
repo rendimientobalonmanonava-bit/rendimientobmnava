@@ -8533,6 +8533,7 @@ function syShowGate(){
         await syLogin(em,pw);
         await syPull();
         SY.on=true;
+        syVistoPon();
         try{await syPendientes();}catch(e){}
         try{syDispRegistrar();}catch(e){}
         try{syVigilar();}catch(e){}
@@ -8551,12 +8552,72 @@ function syShowGate(){
 /* Punto de entrada usado por el boot() general: exige sesión antes de
    continuar. Si ya hay un token guardado en este navegador, intenta validarlo
    en silencio; si falla o no existe, muestra la pantalla de login y espera. */
+/* ═══ v569 · Abrir sin cobertura, en el móvil ═══
+   Autorizado por Daniel el 11/11/2026. Hasta aquí, sin red la app se quedaba
+   en la pantalla de acceso: no podía comprobar la sesión, así que no entraba
+   nadie, tampoco quien había entrado esa misma mañana. En un pabellón sin
+   cobertura eso es no tener app.
+   Ahora se deja pasar SOLO si se cumplen las cuatro cosas a la vez:
+     · es el diseño de móvil;
+     · en este teléfono hay una sesión guardada Y se verificó contra el
+       servidor hace menos de `SY_SIN_RED_DIAS` días;
+     · lo que ha fallado es la RED —no hay respuesta—, nunca una respuesta del
+       servidor: un «HTTP 401» es una sesión rechazada y va a la pantalla de
+       acceso, como siempre;
+     · hay copia guardada de las hojas, o sea algo que enseñar.
+   Dentro, la app trabaja con lo que hay en el teléfono. Lo que se apunte se
+   queda en la cola de siempre (`syQueue` ya la tenía para esto) y sube
+   fusionado al volver la red. En cuanto hay red se vuelve a comprobar la
+   sesión: si el servidor la rechaza, sale la pantalla de acceso encima. */
+const SY_VISTO='bmnava-visto';      /* con guion: es de este aparato y no se sincroniza */
+const SY_SIN_RED_DIAS=14;
+function syVistoPon(){try{_setItem.call(localStorage,SY_VISTO,String(Date.now()));}catch(e){}}
+function syEsFalloDeRed(e){
+  const m=String((e&&e.message)||e||'');
+  if(/^HTTP \d/.test(m))return false;                     /* el servidor contestó: no es la red */
+  return !!((e&&e.name==='TypeError')||/sin respuesta del servidor|failed to fetch|load failed|networkerror|network connection/i.test(m)||navigator.onLine===false);
+}
+async function sySinRedVale(e){
+  let movil=false;try{movil=!!(window.matchMedia&&window.matchMedia('(max-width:760px)').matches);}catch(_){}
+  if(!movil||!SY.token||!syEsFalloDeRed(e))return false;
+  let visto=0;try{visto=+localStorage.getItem(SY_VISTO)||0;}catch(_){}
+  if(!(visto>0&&(Date.now()-visto)<SY_SIN_RED_DIAS*864e5))return false;
+  try{return (typeof bmHayCopia==='function')?!!(await bmHayCopia()):false;}catch(_){return false;}
+}
+/* Mientras se está dentro sin red: al volver la conexión, y cada minuto por si
+   el aviso del sistema no llega, se comprueba la sesión de verdad. */
+function sySinRedVigila(){
+  if(window.__SY_SR_T)return;
+  const prueba=async()=>{
+    if(!window.__BM_SIN_RED||window.__SY_SR_EN)return;
+    window.__SY_SR_EN=true;
+    try{
+      await syPull();
+      SY.on=true;window.__BM_SIN_RED=false;syVistoPon();
+      clearInterval(window.__SY_SR_T);window.__SY_SR_T=null;
+      try{await syPendientes();}catch(e){}
+      try{syDispRegistrar();}catch(e){}
+      try{syVigilar();}catch(e){}
+      try{syRenderPanel();}catch(e){}
+      try{if(typeof refreshAll==='function')refreshAll();}catch(e){}
+    }catch(e){
+      if(!syEsFalloDeRed(e)){
+        /* El servidor ha contestado y no acepta la sesión: a la pantalla de acceso. */
+        window.__BM_SIN_RED=false;clearInterval(window.__SY_SR_T);window.__SY_SR_T=null;
+        try{await syShowGate();syRenderPanel();if(typeof refreshAll==='function')refreshAll();}catch(_){}
+      }
+    }finally{window.__SY_SR_EN=false;}
+  };
+  window.__SY_SR_T=setInterval(prueba,60000);
+  window.addEventListener('online',()=>setTimeout(prueba,800));
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(prueba,500);});
+}
 window.syEnsureAuth=async function(){
   syCfgLoad();
   if(SY.token){
     try{
       await syPull();
-      SY.on=true;
+      SY.on=true;syVistoPon();
       try{await syPendientes();}catch(e){}   // lo que quedó a medias al cerrar
     try{syDispRegistrar();}catch(e){}
       try{syVigilar();}catch(e){}
@@ -8564,6 +8625,13 @@ window.syEnsureAuth=async function(){
       return true;
     }catch(e){
       SY.on=false;
+      if(await sySinRedVale(e)){
+        window.__BM_SIN_RED=true;
+        syStatus('err','Sin conexión · datos de este teléfono');
+        sySinRedVigila();
+        try{syRenderPanel();}catch(_){}
+        return false;
+      }
     }
   }
   await syShowGate();
@@ -25552,6 +25620,12 @@ function bmAvisoCopia(){
     cuando=(dkey(d)===dkey(new Date())?'hoy':'el '+d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'numeric'}))
       +' a las '+d.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});}
   el.hidden=false;
+  /* v569 · Dentro sin cobertura: se dice, y se dice qué pasa con lo que se apunte. */
+  if(window.__BM_SIN_RED&&!c.refrescando){
+    el.innerHTML='<span><b>Sin conexión.</b> Datos guardados de <b>'+cuando+'</b>. Lo que apuntes se queda en este teléfono y se envía al volver la red.</span>'
+      +'<button type="button" class="btn ghost" onclick="refreshAll()">Reintentar</button>';
+    return;
+  }
   el.innerHTML=c.refrescando
     ?'<span>Datos guardados de <b>'+cuando+'</b> · actualizando…</span>'
     :'<span><b>No se han podido leer las hojas.</b> Estás viendo los datos guardados de <b>'+cuando+'</b>.</span>'
@@ -42129,8 +42203,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.32*/
-const VER_ACTUAL='2026-11-11.32';
+/*BUILD:2026-11-11.33*/
+const VER_ACTUAL='2026-11-11.33';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
