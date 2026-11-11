@@ -8,7 +8,7 @@ Contexto permanente del proyecto. Léelo entero antes de tocar nada.
 
 Dashboard de monitorización de carga y disponibilidad del **Club Balonmano Nava** (liga ASOBAL, España).
 
-- **Archivo único**: `index.html`. Autocontenido, sin build, sin dependencias de servidor. *Desde la v546 lo acompañan cuatro archivos estáticos que no llevan lógica de la app: `manifest.webmanifest` y `icono-180/192/512.png` (instalable en el teléfono) y `sw.js` (copia para abrir sin red). Ver §6.12.1.*
+- **Archivo único**: `index.html`. Autocontenido, sin build, sin dependencias de servidor. *Desde la v546 lo acompañan archivos estáticos que no llevan lógica de la app: `manifest.webmanifest`, `icono-180/192/512.png` y la carpeta `arranque/` (instalable en el teléfono) y `sw.js` (copia para abrir sin red). Ver §6.12.1 y §6.12.3.*
 - **Despliegue**: GitHub Pages.
 - **Responsable**: Daniel Gutiérrez, preparador físico y analista.
 - **Usuarios**: Daniel y Virginia (fisioterapeuta, perfil técnico) · Carlos (primer entrenador, usa móvil, necesita información visual a simple vista).
@@ -869,6 +869,29 @@ Daniel, 11/11/2026, ya con la app en el iPhone: *«el funcionamiento está basta
 
 ---
 
+#### 6.12.3 Cuarta tanda · la cabecera y nueve mejoras (v551–v559)
+
+Daniel, 11/11/2026: *«vamos con las 9, sin duda»* y *«el encabezado de arriba me parece un poco cutre… algo más espectacular»*.
+
+| Elemento | Regla |
+|---|---|
+| La cabecera, en cristal flotante (v551) | Elegida por él entre tres formas (cristal flotante · banda azul del club · título grande). **Sin banda**: el escudo en un círculo, el día en una cápsula con sus flechas, y buscar y añadir en círculos, con el mismo cristal que la barra inferior. El contenido pasa por debajo y se funde con un degradado de `--bg`. `header` no recoge toques; sólo sus piezas. **Mismo marcado** |
+| El día, escrito (v551) | `dpSyncLabel` pone «mié 11 nov» en el móvil y sigue en cifras en el ordenador |
+| ⟳ sale de la cabecera (v551) | Se actualiza tirando hacia abajo (v542) y «Actualizar» queda en «Más», en el sitio de «Buscar», que sube a la cabecera. La lupa va **dibujada** con una máscara: el emoji no vira con el tema |
+| La semana, en lista (v552) | Siete tarjetas a todo el ancho, la misma `calDiaCol` del detalle del día. Al entrar en la semana, la tarjeta de hoy sube a la vista. Exportar e imprimir bajan debajo |
+| Deslizar de lado (v553) | Un solo ayudante. El contenedor lleva `data-dz`: `cal` (mes o semana siguiente, según `CALMODE`) o el selector de la barra cuyos botones se recorren. **No hace nada que no hiciera ya la flecha o la pestaña.** No cuenta junto al borde de la pantalla (es el «atrás» del sistema), dentro de algo que se desplaza de lado, sobre una fila `data-sw`, un campo o un lienzo |
+| Cargas y Nutrición por pestañas (v554) | Cargas: «Día a día» · «Semanas» —cada pareja de gráficos con su tabla, regla de la v508—. Nutrición: «Cobrar» · «Pedido» · «Servicio y gente». Las dos vistas se pintan enteras desde una plantilla: **la pestaña vive en el contenedor** (`data-mtab`) y sobrevive a cada repintado; `mtTag` cuelga la pestaña del elemento raíz de cada trozo **sin envolverlo**, y `mtBarra` pinta la barra con la pestaña que el contenedor ya tenía |
+| La ficha compacta (v555) | Cabecera de 441 a 242 px: las cuatro cifras en una fila y las acciones en una tira que se desliza. «Ficha de jugador» se oculta: el título es el nombre. **Al bajar, la barra de pestañas enseña de quién es la ficha** (`plt-pegada` + `data-nom`). Las notas `.hint` quedan en dos líneas y se abren al tocarlas: siguen enteras |
+| Vendajes, una tarjeta por jugador (v556) | El nombre entero arriba y las seis zonas debajo (49 × 48 px), **con el nombre de la zona escrito dentro de la casilla** —sale del orden, que es fijo (§6.6)—. Nada que arrastrar de lado |
+| Gráficos táctiles (v557) | Valores por defecto de Chart.js sólo en el móvil: el valor sale al tocar CERCA de un punto, área de toque de 18 px, leyenda debajo y cartel más grande. **Van al final de `buildChartTheme`**: unas líneas más arriba se fijan el área de toque y la letra del cartel para todos, y puestos antes los pisaban |
+| El tema sigue al teléfono (v558) | Sólo en el móvil y sólo mientras no se haya elegido uno con el botón. `bmnava-theme` se escribe en cada arranque, así que no dice si alguien lo eligió; lo dice **`bmnava-theme-manual`**, que sólo pone `toggleTheme`. En el ordenador, el tema guardado |
+| Pantalla de arranque (v558) | `arranque/arranque-ANCHOxALTO.png`, ocho tamaños de iPhone, con el escudo sobre el fondo de la pantalla de carga. iOS sólo usa la que casa con su pantalla |
+| Teclado de cifras (v559) | Un `input[type=number]` recibe `inputmode="decimal"` al entrar en él, por delegación: vale también para los formularios que se pinten después |
+
+**Sigue sin verse en un teléfono real** lo que es gesto o instalación: deslizar de lado, la barra pegada de la ficha, la pantalla de arranque y la barra de estado de iOS.
+
+---
+
 ## 7. Flujo de trabajo
 
 1. **Un cambio por mensaje.** No agrupes varias modificaciones sin pedirlo.
@@ -897,7 +920,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - **La monotonía tiene DOS umbrales y no coinciden.** `CONFIG.load.monoHi` vale **1,5** —es la línea que dibuja el gráfico ⑤ y la marca de la celda en el dashboard de cargas— y `calMonoTier` dice «ok» hasta **2** y «elevada» por encima, que es lo que usan el calendario y «Cada jugador, esta semana». *Medido el 9/11/2026 sobre los 14 días: **5 de los 11 días con dato** salen verdes con un criterio y pasados con el otro.* Preguntado, Daniel dijo que **manda 1,5**, pero **no se ha tocado `calMonoTier`**: cambiarlo reclasifica el calendario y el panel por jugador, que es un cambio de criterio con efecto en dos pantallas más y necesita su visto bueno expreso. Mientras tanto, la columna de monotonía del dashboard **no lleva color** —solo la marca del 1,5—, para que ninguna pantalla afirme lo que la otra niega
 
 **Trabajo pendiente:**
-- **Móvil, pendiente tras la v547**: probarlo todo en un teléfono real; quitar el botón ⟳ de la cabecera cuando Daniel confirme que tirar para actualizar le funciona; y más filas deslizables si las usa. Ver §6.12.1
+- **Móvil, pendiente tras la v559**: que Daniel confirme en su teléfono los gestos (atrás, tirar para actualizar, deslizar filas y deslizar de lado) y la app instalada; más filas deslizables si las usa. Ver §6.12.3
 - ~~La duración de un bloque sin minutos se realimenta.~~ **Resuelto en v507**: `lbDayAll` lee solo `dur0`. Ver §6.1.1
 
 - ~~La app calcula DOS ACWR y no lo dice.~~ **Resuelto en v452**: los cuatro paneles que calculaban con `ewma` rotulándolo «ACWR» pasan a `ratio`, y la tabla de cálculos bloqueados dice ya lo que de verdad se usa. La exponencial sigue viva pero solo donde está rotulada.
@@ -1046,6 +1069,7 @@ No los repitas.
 | Dar por hecho que la copia de prueba termina de arrancar | `prueba.html` nunca llega al final de `boot`: `syEnsureAuth` es de verdad y se queda en la pantalla de acceso. Todo lo que se active al final del arranque —`__BM_LISTO`, el refresco tras la copia— no existe en la copia y hay que ponerlo a mano para probarlo. Costó tres intentos ver por qué «atrás» sacaba de la página |
 | Comparar dos cargas mientras la app se devuelve sola al día de hoy | El primer pintado tardío pone el día en hoy; según cuándo llegue, una carga quedaba en el día fijado y la otra no, y Cargas daba 661 elementos contra 674. **El día se fija antes de CADA pantalla**, no una vez al principio; y cuando dos huellas no coinciden, se compara bloque a bloque antes de buscar la causa en el código |
 | Ordenar bloques con un selector de clase cuando el bloque lleva un id | Para subir el mes del Calendario escribí `#v-cal>.cal-week-panel{order:2}` y la carga de la semana siguió arriba: `cal-week-panel` es un **id**. La regla no casaba con nada y no avisaba. Mi propio listado de bloques imprimía `id||clase` sin decir cuál era cuál. **Antes de escribir un selector sobre un nombre leído en un volcado, mirar si es id o clase** |
+| Añadir valores por defecto antes de que la propia función los vuelva a fijar | Los ajustes táctiles de los gráficos se insertaron a mitad de `buildChartTheme` y dos de ellos no hacían nada: quince líneas más abajo la función fija el área de toque y la letra del cartel para todos. Se vio leyendo los valores en el navegador (12 en vez de 18), no el código. **Un valor por defecto se pone al final de quien los reparte, y se comprueba leyéndolo** |
 
 ---
 
