@@ -14329,8 +14329,11 @@ function bmlEscala(){
 }
 function bmlReescribe(){
   const una=st=>{
+    /* v579 · Además del factor, un SUELO: `--fmin` vale 11 px en el móvil y 0 en
+       los documentos, las barras y los SVG. Un tamaño de 0 —el truco para
+       esconder un texto y dejar el icono— no se toca. */
     try{const v=st.getPropertyValue('font-size');
-      if(v&&/^\s*[0-9.]+px\s*$/.test(v))st.setProperty('font-size','calc('+v.trim()+' * var(--ft,1))',st.getPropertyPriority('font-size'));}catch(e){}
+      if(v&&/^\s*[0-9.]+px\s*$/.test(v)&&parseFloat(v)>=1)st.setProperty('font-size','max(var(--fmin,0px),calc('+v.trim()+' * var(--ft,1)))',st.getPropertyPriority('font-size'));}catch(e){}
     try{for(let i=0;i<st.length;i++){const n=st[i];if(n.indexOf('--fs-')===0){const v=st.getPropertyValue(n);
       if(/^\s*[0-9.]+px\s*$/.test(v))st.setProperty(n,'calc('+v.trim()+' * var(--ft,1))');}}}catch(e){}
   };
@@ -14343,17 +14346,20 @@ function bmlReescribe(){
 }
 /* Los tamaños escritos en línea, que la hoja no alcanza. */
 function bmlEnLinea(){
-  if(BML.f===1&&!BML.hecho)return;
+  if(!BML.hecho)return;
   document.querySelectorAll('main [style*="font-size"],.bmh [style*="font-size"],#sidebar [style*="font-size"],.med-modal [style*="font-size"],.info-modal [style*="font-size"]').forEach(e=>{
     const v=e.style.fontSize;if(!v||v.indexOf('var(')>=0||!/px$/.test(v))return;
-    if(e.closest('svg,header,#tabbar'))return;
-    e.style.fontSize='calc('+v+' * var(--ft,1))';});
+    if(e.closest('svg,header,#tabbar')||parseFloat(v)<1)return;
+    e.style.fontSize='max(var(--fmin,0px),calc('+v+' * var(--ft,1)))';});
 }
 function bmlAplica(){
   const raiz=document.documentElement;
   if(!esMovil()){raiz.style.removeProperty('--ft');BML.f=1;return 1;}
   const f=bmlEscala();
-  if(f!==1&&!BML.hecho){bmlReescribe();BML.hecho=true;}
+  /* v579 · En el móvil la hoja se reescribe siempre, también con la letra
+     normal: es lo que pone el suelo de 11 px. Con `--ft` = 1, cada tamaño de 11
+     o más queda exactamente como estaba. */
+  if(!BML.hecho){bmlReescribe();BML.hecho=true;bmlEnLinea();}
   if(f===BML.f&&(f===1||raiz.style.getPropertyValue('--ft')))return f;
   BML.f=f;
   if(f===1)raiz.style.removeProperty('--ft');else raiz.style.setProperty('--ft',String(f));
@@ -14523,6 +14529,7 @@ function bmEligeJugador(o){
 function bmjMonta(sel){
   const b=document.createElement('button');b.type='button';b.className='bm-jsel';b.setAttribute('aria-haspopup','dialog');
   sel.parentNode.insertBefore(b,sel);sel.classList.add('bm-oc');sel.dataset.bmf='jug';
+  sel.setAttribute('aria-hidden','true');sel.tabIndex=-1;   /* el lector de pantalla lee el botón, no los dos */
   const pinta=()=>{const op=sel.options[sel.selectedIndex],v=op?op.value:'',t=op?(op.textContent||'').trim():'',P=STATE.players||{},k=P[v]?v:(P[t]?t:null);
     const sig=(k||'')+'|'+t+'|'+(sel.disabled?1:0);if(b._sig===sig)return;b._sig=sig;
     b.innerHTML=(k?bmjCara(k):'<span class="bmj-av vac" aria-hidden="true"></span>')+'<span class="bm-jsel-t'+(k?'':' vac')+'">'+bmjEsc(k||t||'Elegir jugador')+'</span><span class="bm-jsel-ch">'+BMJ_CH+'</span>';
@@ -14561,9 +14568,9 @@ function bmfSelect(sel){
   if(!vale()){if(sel.options.length>5||sel.multiple)sel.dataset.bmf='no';return;}
   sel.dataset.bmf='seg';
   const d=document.createElement('span');d.className='bmf-seg';d.setAttribute('role','radiogroup');
-  sel.parentNode.insertBefore(d,sel);sel.classList.add('bm-oc');
+  sel.parentNode.insertBefore(d,sel);sel.classList.add('bm-oc');sel.setAttribute('aria-hidden','true');sel.tabIndex=-1;
   const pinta=()=>{const ops=vale();
-    if(!ops){d.remove();sel.classList.remove('bm-oc');sel.dataset.bmf='no';sel._bmPinta=null;return;}   /* ya no cabe: vuelve el desplegable */
+    if(!ops){d.remove();sel.classList.remove('bm-oc');sel.removeAttribute('aria-hidden');sel.tabIndex=0;sel.dataset.bmf='no';sel._bmPinta=null;return;}   /* ya no cabe: vuelve el desplegable */
     const sig=ops.map(o=>o.value+'\u0001'+o.textContent+(o.disabled?'x':'')).join('\u0002');
     if(d._sig!==sig){d._sig=sig;
       d.innerHTML=ops.map((o,i)=>'<span role="radio" tabindex="0" data-i="'+i+'"'+(o.disabled?' aria-disabled="true"':'')+'>'+bmjEsc((o.textContent||'').trim()||'—')+'</span>').join('');
@@ -14582,7 +14589,7 @@ function bmfEscala(inp){
   inp.dataset.bmf='esc';
   const d=document.createElement('span');d.className='bmf-esc';d.setAttribute('role','radiogroup');
   d.innerHTML=Array.from({length:11},(_,i)=>'<span role="radio" tabindex="0" data-v="'+i+'">'+i+'</span>').join('');
-  inp.parentNode.insertBefore(d,inp);inp.classList.add('bm-oc');
+  inp.parentNode.insertBefore(d,inp);inp.classList.add('bm-oc');inp.setAttribute('aria-hidden','true');inp.tabIndex=-1;
   const pinta=()=>{const v=inp.value===''?null:Math.round(+inp.value);
     [...d.children].forEach(b=>{const n=+b.dataset.v;b.classList.toggle('on',v!=null&&n===v);b.classList.toggle('hasta',v!=null&&n<v);b.setAttribute('aria-checked',v!=null&&n===v?'true':'false');});};
   /* Tocar la casilla que ya está marcada la quita: «sin dolor apuntado» no es un cero. */
@@ -14670,7 +14677,7 @@ function bmFormas(){
       if(!sel.dataset.bmf)sel._bmNo=n;
     });
     if(typeof bmfHojas==='function')bmfHojas();
-    if(BML.f!==1)bmlEnLinea();
+    if(BML.hecho)bmlEnLinea();
   }catch(e){console.error('bmnava · formularios de móvil',e);}
 }
 function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(bmFormas,80);}
@@ -15547,7 +15554,7 @@ function renderPlayer(name){
   const p=STATE.players[name];if(!p)return;
   const ring=p.readiness!=null?`conic-gradient(var(--${p.sev}) ${p.readiness*3.6}deg, var(--line) 0)`:`var(--line)`;
   const zc=Object.keys(CONFIG.wellnessVars).map(k=>{const z=p.z[k];if(!z)return"";const sev=isNaN(z.val)?"na":(z.alertSev?z.alertSev:"ok");return`<div class="zc ${z.rel?'':'lowrel'}"><div class="l">${CONFIG.wellnessVars[k].label}</div><div class="v">${fmt(z.val,k==='horas_sueno'?1:0)}</div><div class="z" style="color:${colTexto('var(--'+(sev)+')')}">z ${fmt(z.z,2)}${z.rel?'':' ·n<14'}</div></div>`;}).join('');
-  const factors=p.factors.length?p.factors.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col})">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';
+  const factors=p.factors.length?p.factors.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';
   const wk=weekly(name,'ua',REF()).slice(-4).reverse();
   const acwrSev=p.acwr&&!isNaN(p.acwr.ratio)?(p.acwr.ratio>=1.5?'bad':p.acwr.ratio>=1.3||p.acwr.ratio<0.8?'warn':'ok'):'na';
   const okc='var(--ok)',wc='var(--warn)',bc='var(--bad)';
@@ -39444,13 +39451,13 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
 .bmh-asa{width:36px;height:5px;border-radius:3px;background:var(--muted2);opacity:.45;margin:8px auto 0;flex:none}
 .bmh-cab{display:flex;align-items:center;gap:10px;padding:10px 16px 12px;flex:none}
 .bmh-tit{flex:1;min-width:0;font-size:17px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bmh-x{position:relative;flex:none;width:30px;height:30px;border-radius:50%;border:none;padding:0;cursor:pointer;
-  background:var(--seg-carril,rgba(118,118,128,.14));color:var(--muted);display:grid;place-items:center;-webkit-tap-highlight-color:transparent}
-.bmh-x::after{content:"";position:absolute;inset:-7px}   /* 44 px al dedo */
+.bmh-x{position:relative;flex:none;width:44px;height:44px;margin:-7px -7px -7px 0;border:none;padding:0;cursor:pointer;
+  background:radial-gradient(circle,var(--seg-carril,rgba(118,118,128,.14)) 15px,transparent 15.6px);color:var(--muted);
+  display:grid;place-items:center;-webkit-tap-highlight-color:transparent}   /* el círculo mide 30; la zona de toque, 44 */
 .bmh-cuerpo{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 16px 18px}
 /* Botones de hoja: uno relleno (la acción) y los demás en celda. */
 .bmh-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;border:none;border-radius:14px;
-  padding:0 16px;font-weight:600;font-size:17px;line-height:1.2;font-family:inherit;cursor:pointer;background:var(--bmh-celda);color:var(--accent);
+  padding:0 16px;font-weight:600;font-size:17px;line-height:1.2;font-family:inherit;cursor:pointer;background:var(--bmh-celda);color:var(--txt);
   -webkit-tap-highlight-color:transparent;transition:opacity .15s ease,transform .15s ease}
 .bmh-btn+.bmh-btn{margin-top:10px}
 .bmh-btn.pri{background:var(--accent);color:var(--on-accent,#fff)}
@@ -39490,7 +39497,7 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
    caras es una `bmHoja`: no existe en el ordenador. */
 .bm-jsel{display:none}
 .bmj-av{position:relative;flex:none;width:30px;height:30px;border-radius:50%;overflow:hidden;display:grid;place-items:center;
-  background:var(--seg-carril,rgba(118,118,128,.14));color:var(--muted);font-weight:600;font-size:11px;line-height:1;font-style:normal}
+  background:var(--seg-carril,rgba(118,118,128,.14));color:var(--txt);font-weight:600;font-size:11px;line-height:1;font-style:normal}
 .bmj-av i{font-style:normal}
 .bmj-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 12%;background:var(--bmh-bg)}
 .bmj-av.vac{background:none;border:1.5px dashed var(--line)}
@@ -39551,10 +39558,10 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
   .med-modal.bmf>h2{position:sticky;top:-8px;z-index:3;background:var(--bmh-bg);margin:0 -16px 6px;padding:10px 16px 10px;font-size:17px;font-weight:600;
     letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
   .med-modal.bmf>h2>.r{margin-left:auto;float:none;flex:none}
-  .med-modal.bmf>h2 .r .btn.ghost,.info-modal.bmf .info-mhead .btn.ghost{position:relative;width:30px;height:30px;min-width:0;min-height:0;padding:0;border:none;
-    border-radius:50%;font-size:0;line-height:0;color:transparent;background:var(--seg-carril) no-repeat 50%/13px
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");box-shadow:none}
-  .med-modal.bmf>h2 .r .btn.ghost::after,.info-modal.bmf .info-mhead .btn.ghost::after{content:"";position:absolute;inset:-7px}
+  .med-modal.bmf>h2 .r .btn.ghost,.info-modal.bmf .info-mhead .btn.ghost{position:relative;width:44px;height:44px;min-width:0;min-height:0;margin:-7px -7px -7px 0;padding:0;border:none;
+    font-size:0;line-height:0;color:transparent;box-shadow:none;background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") no-repeat 50%/13px,
+    radial-gradient(circle,var(--seg-carril) 15px,transparent 15.6px)}
   /* El campo */
   .bmf label.bmf-l{display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:500;color:var(--muted);letter-spacing:0;text-transform:none;min-width:0}
   .bmf label.bmf-l>input:not(.bm-oc),.bmf label.bmf-l>select:not(.bm-oc),.bmf label.bmf-l>textarea,
@@ -39598,7 +39605,7 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
     background:var(--bmh-bg);box-shadow:0 -.5px 0 var(--line);display:flex;flex-wrap:nowrap;gap:10px}
   .bmf .bmf-pie>.btn{flex:1 1 0;min-height:50px;border-radius:14px;font-size:17px;font-weight:600;justify-content:center;text-align:center;white-space:nowrap;min-width:0;
     overflow:hidden;text-overflow:ellipsis;padding:0 12px}
-  .bmf .bmf-pie>.btn.ghost{flex:1.25 1 0;background:var(--bmh-celda);border:none;color:var(--accent);font-size:15px}
+  .bmf .bmf-pie>.btn.ghost{flex:1.25 1 0;background:var(--bmh-celda);border:none;color:var(--txt);font-size:15px}
 }
 </style>
 <style id="movil-v572">
@@ -39655,9 +39662,9 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
   .bm-gw{position:relative}
   .bm-lee{display:block;margin:0 0 8px;font-size:12.5px;line-height:1.4;color:var(--muted);font-variant-numeric:tabular-nums}
   .bm-lee[hidden]{display:none}
-  .bm-gx{display:grid;place-items:center;position:absolute;top:2px;right:2px;z-index:2;width:30px;height:30px;padding:0;border:none;border-radius:50%;
-    background:var(--tb-bg,rgba(255,255,255,.92));color:var(--muted);box-shadow:0 1px 4px rgba(0,0,0,.14);cursor:pointer;-webkit-tap-highlight-color:transparent}
-  .bm-gx::after{content:"";position:absolute;inset:-7px}
+  .bm-gx{display:grid;place-items:center;position:absolute;top:-5px;right:-5px;z-index:2;width:44px;height:44px;padding:0;border:none;
+    background:radial-gradient(circle,var(--tb-solido,#fff) 15px,transparent 15.6px);color:var(--muted);filter:drop-shadow(0 1px 2px rgba(0,0,0,.16));
+    cursor:pointer;-webkit-tap-highlight-color:transparent}
   .bm-gx:active{transform:scale(.92)}
 }
 </style>
@@ -39667,7 +39674,7 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
    móvil y sólo si no es 1. Aquí se dice dónde NO se aplica: se vuelve a poner
    a 1 dentro de las barras, de los documentos y de los SVG. */
 header,#tabbar,.sb-tools,svg,
-#parte-card,.pt-card,.ficha-card,.ficha-overlay,.sa-page,.sa-page-wk,.a4-page,#sescal-a4-page,.iso-hoja,#iso-overlay,#fis-cap-png,#sy-gate,#splash{--ft:1;
+#parte-card,.pt-card,.ficha-card,.ficha-overlay,.sa-page,.sa-page-wk,.a4-page,#sescal-a4-page,.iso-hoja,#iso-overlay,#fis-cap-png,#sy-gate,#splash{--ft:1;--fmin:0px;
   /* Los seis escalones se vuelven a declarar aquí: un token que se calcula en
      `:root` ya trae dentro el factor de `:root`, y poner `--ft:1` más abajo no
      lo deshace. */
@@ -39676,6 +39683,11 @@ header,#tabbar,.sb-tools,svg,
 .bml-ver{font-size:12.5px;color:var(--muted2);text-align:center;margin:22px 0 4px}
 .bmh-fila .bml-ok{color:var(--accent);font-weight:600}
 @media(max-width:760px){
+  /* v579 · El suelo del texto en el móvil: 11 px (HIG · Typography). La
+     auditoría encontró más de 800 textos a 9–10,5 px fuera de los documentos:
+     etiquetas de nivel, celdas de mapas de calor, la matriz de correlaciones.
+     El suelo lo aplica la misma reescritura de la hoja que el tamaño de letra. */
+  html{--fmin:11px}
   /* La hoja «Más» pasa de cinco a seis herramientas. */
   .sb-tools{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:2px!important}
   /* Con la letra grande (`bml-g`), lo único que dejaba de caber de las 29
@@ -39710,6 +39722,35 @@ header,#tabbar,.sb-tools,svg,
 .bma-sw.on i{transform:translateX(20px)}
 .bma-f[disabled]{opacity:.6}
 .bma-t{margin-top:0}
+</style>
+<style id="movil-v578">
+/* ===== v578 · Auditoría del móvil, 11/11/2026 =====
+   Medidas las 29 pantallas a 375 × 812 con TODO lo pulsable y el listón en 44
+   px de verdad —la medición de la v536 se hizo sobre diez—. Lo que salió, y
+   lo que se hace con ello. Todo dentro de la regla de ancho. */
+@media(max-width:760px){
+  /* 1 · Los segmentos medían 40 de alto. */
+  :is(.estado-seg,.cal-modetog,#hr-modo,#tsa-modo,.cargas-seg,.plt-bar)>button{min-height:44px}
+  /* 2 · Flechas y aspas con 44 de alto pero 27–41 de ancho. */
+  .cal-nav>.btn,.gv-wk>.btn,.ctrlrow>.btn,.med-form .med-chipbtn,.rh-tpl-act .med-chipbtn,.fc-top .iconbtn,.hrp-nav{min-width:44px;min-height:44px}
+  .datepick .dp-nav{width:44px}
+  /* 3 · Pastillas que se pulsan (24–31 de alto). Conservan su tamaño —a 44
+     serían botones, no pastillas— y ganan la zona de toque por arriba y por
+     abajo con un pseudo-elemento, que ninguna de ellas usaba. */
+  .hrn-b,.tl-chip,.tsat-chip,#player-medical .med-chip,.hrp-csv,.hrp-seg2>button,.well-pills .wpill,.nut-f-tc .nut-m-c,.panel>h2 .r>a,.bmf-dias>span{position:relative}
+  .hrn-b::after,.tl-chip::after,.tsat-chip::after,#player-medical .med-chip::after,.hrp-csv::after,.hrp-seg2>button::after,.well-pills .wpill::after,.nut-f-tc .nut-m-c::after,.panel>h2 .r>a::after{
+    content:"";position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
+  .panel>h2 .r>a::after{left:-8px;right:-8px}
+  /* 4 · Filas que abren la ficha (26 de alto) y cabeceras que ordenan (42). */
+  .vhg-j,.tsat-th{min-height:44px}
+  /* 5 · Campos de 42. */
+  main input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not(.bm-oc),main select:not(.bm-oc){min-height:44px}
+  /* 6 · La previsión de mañana se salía 44 px de su tarjeta: la rejilla de dos
+     columnas no podía encoger por debajo del ancho natural de la fecha y del
+     botón del jugador. */
+  .plan-form>label,label:has(>.bm-jsel){min-width:0}
+  .plan-form input,.plan-form select{min-width:0;width:100%}
+}
 </style>
 <script>
 /* ============================================================
@@ -43276,8 +43317,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.41*/
-const VER_ACTUAL='2026-11-11.41';
+/*BUILD:2026-11-11.43*/
+const VER_ACTUAL='2026-11-11.43';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
