@@ -13853,7 +13853,7 @@ window.addEventListener('popstate',e=>{
 (function(){
   let x0=0,y0=0,t0=0,zona=null;
   const DZ=[['cal-body','cal'],['v-jugador','#plt-bar'],['tsa-pane-jugador','#tsm-bar'],['hr-pane-equipo','#hrm-bar'],
-            ['v-estado','.estado-seg'],['carga-resumen','#cgm-bar'],['nutri-body','#num-bar']];
+            ['v-estado','.estado-seg'],['carga-resumen','#cgm-bar'],['v-nutri','#num-bar']];
   const marca=()=>DZ.forEach(([id,v])=>{const e=document.getElementById(id);if(e&&!e.dataset.dz)e.dataset.dz=v;});
   document.addEventListener('touchstart',e=>{
     zona=null;if(!esMovil()||e.touches.length!==1)return;marca();
@@ -18085,9 +18085,12 @@ function renderNutri(){
       </div>
     </details>`;
 
+  /* v554 · En el móvil, tres pestañas: cobrar —que es lo de Carlos—, el pedido y
+     la gente. En el ordenador, todo seguido como siempre. */
   box.innerHTML=`<div class="pagehead"><h1>Nutrición</h1><p>Cobros a los jugadores y pedidos de FullGas</p></div>
-    ${cab}${cobrar}${detalle}${pedido}${importar}${servicio}${historial}${externos}
-    <p class="hint" style="margin-top:14px"><b>Los correos no salen de aquí.</b> Esta pantalla es la fuente de la verdad de importes y pagos; el envío lo hace el Apps Script pegado a la hoja de pedidos, desde la cuenta de Héctor.</p>`;
+    ${mtBarra(box,'num-bar','nutSub',[['cobrar','Cobrar'],['pedido','Pedido'],['gente','Servicio y gente']],'Apartados de nutrición')}
+    ${mtTag(cab,'cobrar')}${mtTag(cobrar,'cobrar')}${mtTag(detalle,'cobrar')}${mtTag(pedido,'pedido')}${mtTag(importar,'pedido')}${mtTag(servicio,'gente')}${mtTag(historial,'pedido')}${mtTag(externos,'gente')}
+    <p class="hint" data-mt="gente" style="margin-top:14px"><b>Los correos no salen de aquí.</b> Esta pantalla es la fuente de la verdad de importes y pagos; el envío lo hace el Apps Script pegado a la hoja de pedidos, desde la cuenta de Héctor.</p>`;
   try{nutFotosExternos();}catch(e){console.error('bmnava · fotos de externos',e);}
 }
 window.renderNutri=renderNutri;
@@ -18503,7 +18506,10 @@ function renderCargaResumen(){
     }
   }catch(e){console.error('bmnava · refmd',e);}
 
-  box.innerHTML=hero+tabla1+graficos1+tabla2+graficos2+refmd;
+  /* v554 · En el móvil, dos pestañas. Cada pareja de gráficos se queda con su
+     tabla, que es la regla de la v508. */
+  box.innerHTML=mtBarra(box,'cgm-bar','cgSub',[['dias','Día a día'],['semanas','Semanas']],'Apartados del dashboard de cargas')
+    +mtTag(hero,'dias')+mtTag(tabla1,'dias')+mtTag(graficos1,'dias')+mtTag(tabla2,'semanas')+mtTag(graficos2,'semanas')+mtTag(refmd,'semanas');
 
   /* ── los gráficos, después del innerHTML ── */
   try{
@@ -19276,6 +19282,21 @@ function mtCambia(paneId,barId,t){const p=document.getElementById(paneId),bar=do
   if(bar&&bar.offsetParent){const y=p.getBoundingClientRect().top+window.scrollY-70;if(window.scrollY>y)window.scrollTo(0,y);}
   setTimeout(()=>{try{Object.values(charts).forEach(c=>c&&c.resize&&c.resize());}catch(e){console.error('bmnava · pestañas de móvil',e);}},60);}
 function tsaSub(t){mtCambia('tsa-pane-jugador','tsm-bar',t);}
+/* v554 · Para las vistas que se pintan enteras desde una plantilla (Cargas,
+   Nutrición): `mtTag` cuelga la pestaña del elemento raíz de cada trozo, sin
+   envolverlo —un envoltorio cambiaría quién es hijo de quién en el ordenador—,
+   y `mtBarra` pinta la barra con la pestaña que el contenedor ya tenía puesta,
+   que sobrevive a cada repintado porque vive en el contenedor y no dentro. */
+function mtTag(h,t){return h?String(h).replace(/^(\s*<[a-zA-Z0-9]+)/,'$1 data-mt="'+t+'"'):'';}
+function mtBarra(cont,id,fn,pest,rotulo){
+  let act=cont.getAttribute('data-mtab');
+  if(!pest.some(p=>p[0]===act)){act=pest[0][0];cont.setAttribute('data-mtab',act);}
+  return '<nav class="tsm-bar" id="'+id+'" role="tablist" aria-label="'+rotulo+'">'
+    +pest.map(p=>'<button type="button" class="tsm-b'+(p[0]===act?' on':'')+'" role="tab" aria-selected="'+(p[0]===act)+'" data-t="'+p[0]+'" onclick="'+fn+'(\''+p[0]+'\')">'+p[1]+'</button>').join('')
+    +'</nav>';
+}
+function cgSub(t){mtCambia('carga-resumen','cgm-bar',t);}
+function nutSub(t){mtCambia('v-nutri','num-bar',t);}
 function hrSub(t){mtCambia('hr-pane-equipo','hrm-bar',t);}
 function tsaModo(m){
   /* v491 · Tres paneles desde que Análisis tiene pestaña propia. Un modo
@@ -37859,6 +37880,22 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   .cw-cardhd{margin-bottom:10px}
 }
 </style>
+<style id="movil-v554">
+/* ===== v554 · Cargas y Nutrición por pestañas, en el móvil =====
+   Medido a 375 px: el Dashboard de cargas eran 6.111 px (14 días 2.529 · sus
+   gráficos 928 · 6 semanas 1.660 · sus gráficos 810) y Nutrición diez pantallas.
+   Mismo mecanismo que Perfil físico y Pulsómetros. La pestaña vive en el
+   contenedor, así que cobrar a alguien —que repinta la pantalla— no devuelve a
+   la primera. */
+@media(max-width:760px){
+  #carga-resumen[data-mtab="dias"]>[data-mt]:not([data-mt="dias"]),
+  #carga-resumen[data-mtab="semanas"]>[data-mt]:not([data-mt="semanas"]),
+  #v-nutri[data-mtab="cobrar"]>[data-mt]:not([data-mt="cobrar"]),
+  #v-nutri[data-mtab="pedido"]>[data-mt]:not([data-mt="pedido"]),
+  #v-nutri[data-mtab="gente"]>[data-mt]:not([data-mt="gente"]){display:none}
+  #carga-resumen>[data-mt],#v-nutri>[data-mt]{animation:mvFunde .22s ease}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -41424,8 +41461,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.21*/
-const VER_ACTUAL='2026-11-11.21';
+/*BUILD:2026-11-11.22*/
+const VER_ACTUAL='2026-11-11.22';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
