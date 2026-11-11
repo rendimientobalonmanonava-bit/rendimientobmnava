@@ -21888,9 +21888,20 @@ function renderAvail(){
 }
 /* v535 · El recuento de alertas del tablero del móvil. Lee `STATE.alerts`, lo
    mismo que cuenta la vista Alertas, y se repinta cuando ella se repinta. */
-function bdAlertas(){const b=document.getElementById('bd-al');if(!b)return;const all=STATE.alerts||[];
-  if(!all.length){b.hidden=true;return;}
+function bdAlertas(){const all=STATE.alerts||[];
   const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;
+  /* v538 · El mismo recuento, en la barra inferior: sobre «Más», que es por
+     donde se llega a Alertas, y sobre la propia entrada dentro de la hoja.
+     Aquí el rojo SÍ es el rojo de alertas (§2.3): va en rojo si hay alguna
+     roja y en ámbar si no. El CSS sólo lo enseña en el móvil. */
+  [document.querySelector('#tabbar [data-v="_mas"]'),document.querySelector('.sb-item[data-v="alertas"]')].forEach(h=>{
+    if(!h)return;let g=h.querySelector('.tb-bdg');
+    if(!all.length){if(g)g.remove();return;}
+    if(!g){g=document.createElement('b');g.className='tb-bdg';h.appendChild(g);}
+    g.textContent=all.length>99?'99+':String(all.length);g.dataset.s=bad?'bad':'warn';
+    g.setAttribute('aria-label',all.length+(all.length===1?' alerta activa':' alertas activas'));});
+  const b=document.getElementById('bd-al');if(!b)return;
+  if(!all.length){b.hidden=true;return;}
   b.hidden=false;
   b.innerHTML='<span class="bd-al-t"><b>'+all.length+(all.length===1?' alerta activa':' alertas activas')+'</b><small>'
     +[bad?bad+(bad===1?' roja':' rojas'):'',warn?warn+' ámbar':''].filter(Boolean).join(' · ')+'</small></span><span class="bd-al-c" aria-hidden="true">›</span>';}
@@ -37092,6 +37103,20 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   .cal-title{min-width:0;flex:1 1 auto;white-space:nowrap}
 }
 </style>
+<style id="movil-v538">
+/* ===== v538 · El número de alertas, en la barra inferior =====
+   Alertas vive dentro de «Más», así que desde la barra no se sabía si había
+   alguna. Lo escribe `bdAlertas` con el mismo recuento que la vista Alertas. */
+.tb-bdg{display:none}
+@media(max-width:760px){
+  .tb-i{position:relative}
+  .tb-bdg{display:block;position:absolute;top:1px;left:calc(50% + 5px);min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;
+    border-radius:9px;font-size:var(--fs-xs);font-weight:700;line-height:18px;text-align:center;font-variant-numeric:tabular-nums;
+    background:var(--bad);color:var(--on-bad)}
+  .tb-bdg[data-s="warn"]{background:var(--warn);color:var(--on-warn)}
+  .sb-item .tb-bdg{position:static;margin-left:auto;flex:none}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -40648,8 +40673,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.7*/
-const VER_ACTUAL='2026-11-11.7';
+/*BUILD:2026-11-11.8*/
+const VER_ACTUAL='2026-11-11.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
