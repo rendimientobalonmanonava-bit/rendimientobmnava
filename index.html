@@ -6571,6 +6571,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 </aside>
 <div id="sb-scrim" onclick="sbToggleMobile(false)"></div>
 <nav id="tabbar" aria-label="Navegación principal"></nav>
+<!-- v542 · Indicador de «tirar para actualizar». Sólo se ve en el móvil. -->
+<div id="ptr" aria-hidden="true"><i></i></div>
 <header>
   <div class="bar">
     <button class="sb-burger" onclick="sbToggleMobile(true)" title="Menú">☰</button>
@@ -13739,6 +13741,77 @@ window.addEventListener('popstate',e=>{
   try{go(r.view);}catch(err){console.error('bmnava · atrás',err);}finally{window.__BM_POP=false;}
   const y=e.state&&e.state.y;if(y)setTimeout(()=>window.scrollTo(0,y),0);
 });
+/* v542 · Tirar hacia abajo para actualizar, en el móvil. Sólo cuenta si la
+   página está arriba del todo, si no hay nada abierto encima y si el dedo no
+   empezó dentro de algo con desplazamiento propio. Al soltar pasado el umbral
+   llama a `refreshAll()`, que es exactamente lo que hace el botón ⟳: no hay
+   una segunda forma de actualizar. Los oyentes son pasivos —no se frena el
+   desplazamiento— y el rebote propio del navegador lo quita el CSS con
+   `overscroll-behavior`, para que no recargue la página entera. */
+(function(){
+  const UMB=76;let y0=null,x0=0,dy=0,act=false;
+  const ind=()=>document.getElementById('ptr');
+  const quieto=i=>{if(!i)return;i.classList.remove('listo','carga','on');i.style.transform='';};
+  document.addEventListener('touchstart',e=>{
+    y0=null;act=false;
+    if(!esMovil()||e.touches.length!==1||(window.scrollY||0)>0)return;
+    if(document.body.classList.contains('sb-open'))return;
+    const t=e.target;
+    if(t&&t.closest&&t.closest('.med-overlay,.ficha-overlay,.drawer,.add-menu,.dp-pop,#sidebar,#tabbar,header,input,textarea,select,[data-sw]'))return;
+    for(let n=t;n&&n!==document.body;n=n.parentElement){if(n.scrollTop>0||n.scrollLeft>0)return;}
+    y0=e.touches[0].clientY;x0=e.touches[0].clientX;dy=0;
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(y0==null)return;
+    const t=e.touches[0];dy=t.clientY-y0;const dx=Math.abs(t.clientX-x0);
+    if(!act){
+      if(dy<-6||dx>26||(window.scrollY||0)>0){y0=null;return;}
+      if(dy>14&&dy>dx*1.6)act=true;else return;
+    }
+    const i=ind();if(!i)return;
+    i.classList.add('on');i.classList.toggle('listo',dy>=UMB);
+    i.style.transform='translate(-50%,'+Math.round(Math.min(dy*.55,70))+'px) rotate('+Math.round(Math.min(dy,UMB)/UMB*180)+'deg)';
+  },{passive:true});
+  const fin=()=>{
+    if(y0==null)return;
+    const i=ind(),ok=act&&dy>=UMB;y0=null;act=false;
+    if(!ok){quieto(i);return;}
+    if(i){i.classList.remove('listo');i.classList.add('carga');i.style.transform='translate(-50%,46px)';}
+    let p;try{p=window.refreshAll?window.refreshAll():null;}catch(err){console.error('bmnava · tirar para actualizar',err);}
+    Promise.resolve(p).catch(err=>console.error('bmnava · tirar para actualizar',err)).then(()=>quieto(i));
+  };
+  document.addEventListener('touchend',fin,{passive:true});
+  document.addEventListener('touchcancel',()=>{y0=null;act=false;quieto(ind());},{passive:true});
+})();
+/* v543 · Deslizar una fila hacia la izquierda para actuar, en el móvil. La
+   fila dice con `data-sw` cuál de SUS botones se pulsa al soltar: deslizar no
+   hace nada que no hiciera ya ese botón, así que la confirmación con la cifra
+   de un cobro sigue saliendo. Un solo ayudante para todas las filas, por
+   delegación: una fila nueva sólo necesita el atributo. */
+(function(){
+  const UMB=96;let f=null,x0=0,y0=0,dx=0,modo=0;
+  const suelta=ok=>{
+    const g=f;f=null;if(!g)return;
+    g.style.transition='transform .28s cubic-bezier(.32,.72,0,1)';g.style.transform='';
+    setTimeout(()=>{g.style.transition='';g.classList.remove('sw-on','sw-listo');},300);
+    if(ok){let b=null;try{b=g.querySelector(g.dataset.sw);}catch(e){}if(b)setTimeout(()=>b.click(),140);}
+  };
+  document.addEventListener('touchstart',e=>{
+    if(f||!esMovil()||e.touches.length!==1)return;
+    const g=e.target&&e.target.closest?e.target.closest('[data-sw]'):null;if(!g)return;
+    f=g;x0=e.touches[0].clientX;y0=e.touches[0].clientY;dx=0;modo=0;
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!f)return;const t=e.touches[0];dx=t.clientX-x0;const dy=t.clientY-y0;
+    if(!modo){
+      if(Math.abs(dy)>10&&Math.abs(dy)>=Math.abs(dx)){f=null;return;}
+      if(dx<-12&&Math.abs(dx)>Math.abs(dy)*1.5){modo=1;f.classList.add('sw-on');}else return;
+    }
+    const d=Math.max(-150,Math.min(0,dx));f.style.transform='translateX('+d+'px)';f.classList.toggle('sw-listo',d<=-UMB);
+  },{passive:true});
+  document.addEventListener('touchend',()=>{if(f)suelta(modo===1&&dx<=-UMB);},{passive:true});
+  document.addEventListener('touchcancel',()=>{if(f)suelta(false);},{passive:true});
+})();
 /* La hoja se cierra arrastrándola hacia abajo, que es lo que el dedo espera de
    una hoja. Sólo cuenta si la lista está arriba del todo: si no, el gesto es
    desplazar la lista. En el ordenador `sb-open` no se pone nunca. */
@@ -17698,7 +17771,7 @@ function renderNutri(){
   const tarj=deben.map(j=>{
     const ds=nutDeudaDe(j), ph=nutFoto(j,extDe[j]);
     const pg=nutPagadoDe(j).filter(x=>x.mes===mesAct);
-    return `<div class="nuc-c">
+    return `<div class="nuc-c" data-sw=".nuc-all,.nuc-chip" data-sw-lab="Cobrar">
       <div class="nuc-c-h">
         ${ph?`<img class="nuc-av" src="${esc(ph)}" alt="">`:`<span class="nuc-av nuc-ini" data-ph="${esc(j)}">${esc(nutInic(j))}</span>`}
         <span class="nuc-n" onclick="nutIrAJugador(${q(j)})" title="Abrir la ficha">${esc(j)}${rolDe[j]?`<em>${esc(rolDe[j])}</em>`:''}</span>
@@ -22920,7 +22993,7 @@ function ojoTarjeta(o){
   const zs=(typeof fisZonas==='function'&&o.e.zona)?fisZonas(o.e.zona):[];
   let sil='';
   try{if(zs.length&&typeof fisSilueta==='function')sil=fisSilueta(zs,'var(--warn)');}catch(e){}
-  return '<div class="ojo-c">'
+  return '<div class="ojo-c" data-sw=".ojo-ok" data-sw-lab="Ya pasó">'
     +'<div class="ojo-c-top">'
       +'<span class="fh-avw" style="--uc:var(--warn)"><img class="fh-av" src="'+ojoFoto(o.name)+'" alt=""></span>'
       +(sil?'<span class="fh-silw">'+sil+'</span>':'')
@@ -37214,6 +37287,44 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   .med-overlay>.med-modal,.add-menu.open{animation:hojaSube .34s cubic-bezier(.32,.72,0,1)}
 }
 </style>
+<style id="movil-v542">
+/* ===== v542 · Tirar para actualizar =====
+   El indicador sale de debajo de la cabecera: una flecha que gira mientras se
+   tira y pasa al color de acción al llegar al umbral; al soltar, gira sola
+   hasta que `refreshAll()` termina. Fuera del móvil no existe. */
+#ptr{display:none}
+@media(max-width:760px){
+  html,body{overscroll-behavior-y:contain}
+  #ptr{display:flex;align-items:center;justify-content:center;position:fixed;left:50%;z-index:45;
+    top:calc(12px + env(safe-area-inset-top));width:38px;height:38px;border-radius:50%;
+    background:var(--panel);box-shadow:var(--lg-shadow);color:var(--muted);
+    transform:translate(-50%,0);opacity:0;pointer-events:none;transition:opacity .15s,color .15s}
+  #ptr.on,#ptr.carga{opacity:1}
+  #ptr:not(.on):not(.carga){transition:opacity .2s,transform .28s cubic-bezier(.32,.72,0,1)}
+  #ptr i{width:15px;height:15px;border:2.5px solid currentColor;border-right-color:transparent;border-radius:50%;display:block}
+  #ptr.listo{color:var(--accent)}
+  #ptr.carga{color:var(--accent);transition:transform .2s}
+  #ptr.carga i{animation:ptrGira .7s linear infinite}
+}
+@keyframes ptrGira{to{transform:rotate(360deg)}}
+</style>
+<style id="movil-v543">
+/* ===== v543 · Deslizar una fila para actuar =====
+   Al arrastrar la fila hacia la izquierda asoma por su derecha el nombre de la
+   acción; pasa al color de acción cuando soltar ya la ejecuta. El rótulo es un
+   pseudo-elemento pegado al borde derecho de la fila, así que no hay marcado
+   nuevo ni contenedores: viaja con ella. `pan-y` deja el desplazamiento
+   vertical al navegador y el horizontal al gesto. */
+@media(max-width:760px){
+  [data-sw]{position:relative;touch-action:pan-y}
+  [data-sw]::after{content:attr(data-sw-lab);position:absolute;top:0;bottom:0;left:calc(100% + 8px);width:142px;
+    display:flex;align-items:center;padding-left:18px;box-sizing:border-box;border-radius:14px;
+    background:var(--panel2);color:var(--muted);font-size:var(--fs-body);font-weight:600;
+    opacity:0;pointer-events:none;transition:background .15s,color .15s}
+  [data-sw].sw-on::after{opacity:1}
+  [data-sw].sw-listo::after{background:var(--accent);color:var(--on-accent)}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -40770,8 +40881,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.11*/
-const VER_ACTUAL='2026-11-11.11';
+/*BUILD:2026-11-11.12*/
+const VER_ACTUAL='2026-11-11.12';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
