@@ -358,7 +358,7 @@ AJUSTES             Conexión
 - **Disponibilidad, Médico, Parte wellness y Fisioterapia NO son vistas**: son pestañas de `v-estado`. Se navega con `go('dispo')`, `go('medico')`, `go('parte')` o `go('fisio')`, y `go` las traduce con su mapa `ESUB`. **No existe `#v-avail` ni `#v-dispo`**: preguntar por ellos devuelve `null` (ver §9).
 - **Alertas es entrada de menú** (`go('alertas')`) y además sus avisos salen dentro de Disponibilidad.
 - Pestañas de Cargas (`CARGAS_TABS`): **Dashboard · Pulso · Polar · Gimnasio · Perfil de partido**. La clave de la primera sigue siendo `resumen` (§2.1). Cuadrantes y RPE están retiradas (§4.3.0b y §4.3.1).
-- **En el móvil (≤760 px) se navega por la barra inferior** (`TABBAR` + `buildTabbar`): Resumen · Calendario · Disponibilidad · Nutrición · Más. «Más» abre el mismo `#sidebar`, que ahí sube como una hoja. Los cuatro destinos los eligió Daniel el 11/11/2026. `sbMark` llama a `tbMark`, así que las dos navegaciones marcan lo mismo.
+- **En el móvil (≤760 px) se navega por la barra inferior** (`TABBAR` + `buildTabbar`), que flota: Resumen · Calendario · Disponibilidad en una cápsula y «Más» en un botón redondo aparte (v548). «Más» abre el mismo `#sidebar`, que ahí sube como una hoja. Los destinos los eligió Daniel el 11/11/2026; Nutrición salió de la barra ese mismo día. `sbMark` llama a `tbMark`, así que las dos navegaciones marcan lo mismo.
 
 ---
 
@@ -850,6 +850,25 @@ Daniel, 11/11/2026, al ver las diez propuestas A–J: *«vamos con todas las let
 
 ---
 
+#### 6.12.2 Tercera tanda · lo que Daniel vio en su teléfono (v548–v550)
+
+Daniel, 11/11/2026, ya con la app en el iPhone: *«el funcionamiento está bastante bien. Ahora bien, en cuanto a la parte de calendario, fatal… no lo has adaptado nada»*; Disponibilidad *«muy bien, apenas lo tocaría»*; el Resumen bien salvo «Ojo hoy», *«muy grandes»*; y la barra, sin Nutrición y *«como una especie de menú flotante… el que tiene YouTube»*.
+
+| Elemento | Regla |
+|---|---|
+| La barra flota (v548) | Tres destinos —**Resumen · Calendario · Disponibilidad**— en una cápsula despegada del borde, con el activo en una pastilla, y **«Más» como botón redondo aparte** con el número de alertas. Las dos cosas las eligió él (preguntado: sin «Más» no había forma de llegar al resto). A Nutrición se llega desde «Más». El contenedor no recoge toques (`pointer-events:none`); sólo la cápsula y el botón. **Sólo cambia la geometría de la v532**: mismo marcado, misma lógica. El aviso flotante, el de versión nueva, la hoja y el menú de añadir dejan su hueco a la barra nueva |
+| El Calendario del móvil: el mes arriba (v549) | Medido: la rejilla empezaba en el píxel **1.253**, detrás de «Exportar a Google Calendar» y de los 845 px de «Carga de la semana». Con `order` sobre los hijos de `#v-cal`: mes → carga de la semana → exportar. **Ojo: `cal-week-panel` es un ID y `cal-ics-bar` una CLASE**; con el selector equivocado el orden no se aplicaba y no daba error |
+| La casilla compacta (v549) | 47 px de ancho: caben **el día, el semáforo y los minutos**. Lo que colgaba del número («hoy», aviso, bajas, citas, desviación) se oculta con `.cal-dnum>*` —el número es un nodo de texto y se queda—. Los partidos conservan rival y hora, recortados; la competición no cabe. **Ninguna casilla desborda** (era lo de la captura: el contenido de un día se montaba sobre el de al lado). Elegido por él entre tres: «mes compacto + día debajo» |
+| Tocar un día lo ELIGE (v549) | `calTocaDia(dk)`: en el móvil elige el día y `calDiaPinta` pinta debajo su tarjeta; **en el ordenador abre el editor, como siempre**. Sin día elegido se enseña hoy, si el mes que se ve es el de hoy. «Editar» sigue a un toque |
+| La tarjeta del día ES la de la semana (v549) | `calDiaCol(dk,i,real,mdMap,todayDk,wdL)` es la función sin nombre que vivía dentro de `renderCalWeek`, **sacada sin cambiar una coma**. El detalle del día del mes pinta esa misma tarjeta: dos plantillas del mismo día acabarían diciendo cosas distintas. A todo el ancho, el semáforo va colgado a la izquierda con `position:absolute` —con una rejilla de filas quedaban huecos vacíos al pie— |
+| El aviso de pico de carga, escrito (v549) | En la casilla era un triángulo con la explicación en el `title`. **En el teléfono no hay `title` que leer**, así que `calRisk(dk).msg` va escrito sobre la tarjeta del día. Vale para cualquier dato que hoy sólo viva en un `title` |
+| «Ojo hoy», una fila por aviso (v550) | De **148 px a 79** por aviso: foto, a su lado el nombre con el motivo y la nota, y a la derecha la fecha sobre «✓ Ya pasó» (44 px). Misma tarjeta `ojoTarjeta`; en el ordenador sigue en vertical |
+| Los titulares, en frase (v550) | A 11 px las versalitas recortaban «Readiness medio» y «Con molestia». En el móvil van en frase, y caben los seis |
+
+**Cómo se probó el Calendario**: la copia de prueba no tiene el calendario de Daniel (vive en Supabase), así que se sembraron en memoria veinte sesiones de noviembre —entrenos, gimnasio, partidos y descansos— en las dos versiones. A 1000 px, con esas mismas sesiones, el mes (661 elementos) y la semana (437) dan la misma huella que antes.
+
+---
+
 ## 7. Flujo de trabajo
 
 1. **Un cambio por mensaje.** No agrupes varias modificaciones sin pedirlo.
@@ -1026,6 +1045,7 @@ No los repitas.
 | Fiarse de una captura con el panel del navegador en segundo plano | La captura enseñaba «Resumen» marcado en la barra estando en Pulsómetros, y una vista a medio fundir. El DOM decía otra cosa: marcada estaba «Más». Con el panel oculto no corren los fotogramas, así que la captura es de antes del último pintado y las animaciones se quedan en su primer instante. **Con el panel oculto se pregunta al DOM, no a la imagen** |
 | Dar por hecho que la copia de prueba termina de arrancar | `prueba.html` nunca llega al final de `boot`: `syEnsureAuth` es de verdad y se queda en la pantalla de acceso. Todo lo que se active al final del arranque —`__BM_LISTO`, el refresco tras la copia— no existe en la copia y hay que ponerlo a mano para probarlo. Costó tres intentos ver por qué «atrás» sacaba de la página |
 | Comparar dos cargas mientras la app se devuelve sola al día de hoy | El primer pintado tardío pone el día en hoy; según cuándo llegue, una carga quedaba en el día fijado y la otra no, y Cargas daba 661 elementos contra 674. **El día se fija antes de CADA pantalla**, no una vez al principio; y cuando dos huellas no coinciden, se compara bloque a bloque antes de buscar la causa en el código |
+| Ordenar bloques con un selector de clase cuando el bloque lleva un id | Para subir el mes del Calendario escribí `#v-cal>.cal-week-panel{order:2}` y la carga de la semana siguió arriba: `cal-week-panel` es un **id**. La regla no casaba con nada y no avisaba. Mi propio listado de bloques imprimía `id||clase` sin decir cuál era cuál. **Antes de escribir un selector sobre un nombre leído en un volcado, mirar si es id o clase** |
 
 ---
 
