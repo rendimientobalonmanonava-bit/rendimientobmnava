@@ -13843,6 +13843,47 @@ window.addEventListener('popstate',e=>{
   document.addEventListener('touchend',()=>{if(f)suelta(modo===1&&dx<=-UMB);},{passive:true});
   document.addEventListener('touchcancel',()=>{if(f)suelta(false);},{passive:true});
 })();
+/* v553 · Deslizar de lado para pasar a lo de al lado, en el móvil: el mes o la
+   semana siguiente en el Calendario, y la pestaña vecina donde hay pestañas.
+   El contenedor lo dice con `data-dz`: «cal», o el selector de la barra cuyos
+   botones se recorren. No hace nada que no hiciera ya la flecha o la pestaña.
+   No cuenta si el dedo empieza junto al borde de la pantalla (ese gesto es el
+   «atrás» del sistema), dentro de algo que se desplaza de lado, sobre una fila
+   deslizable (`data-sw`) o sobre un campo. */
+(function(){
+  let x0=0,y0=0,t0=0,zona=null;
+  const DZ=[['cal-body','cal'],['v-jugador','#plt-bar'],['tsa-pane-jugador','#tsm-bar'],['hr-pane-equipo','#hrm-bar'],
+            ['v-estado','.estado-seg'],['carga-resumen','#cgm-bar'],['nutri-body','#num-bar']];
+  const marca=()=>DZ.forEach(([id,v])=>{const e=document.getElementById(id);if(e&&!e.dataset.dz)e.dataset.dz=v;});
+  document.addEventListener('touchstart',e=>{
+    zona=null;if(!esMovil()||e.touches.length!==1)return;marca();
+    const t=e.touches[0],el=e.target;
+    if(t.clientX<26||t.clientX>window.innerWidth-26)return;
+    if(!el||!el.closest||el.closest('[data-sw],input,textarea,select,.med-overlay,.drawer,#sidebar,#tabbar,header,canvas'))return;
+    for(let n=el;n&&n!==document.body;n=n.parentElement){
+      if(n.scrollWidth>n.clientWidth+6){const o=getComputedStyle(n).overflowX;if(o==='auto'||o==='scroll')return;}
+    }
+    zona=el.closest('[data-dz]');x0=t.clientX;y0=t.clientY;t0=Date.now();
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    const z=zona;zona=null;if(!z||!z.isConnected)return;
+    const t=e.changedTouches&&e.changedTouches[0];if(!t)return;
+    const dx=t.clientX-x0,dy=t.clientY-y0;
+    if(Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*2.2||Date.now()-t0>700)return;
+    const sig=dx<0;   /* hacia la izquierda = lo siguiente */
+    try{
+      if(z.dataset.dz==='cal'){
+        if(typeof CALMODE!=='undefined'&&CALMODE==='semana'){sig?calWeekNext():calWeekPrev();}
+        else{sig?calNext():calPrev();}
+        return;
+      }
+      const barra=[...document.querySelectorAll(z.dataset.dz)].find(b=>b.checkVisibility?b.checkVisibility():b.offsetParent);
+      if(!barra)return;
+      const bs=[...barra.querySelectorAll('button')];const i=bs.findIndex(b=>b.classList.contains('on'));
+      const d=bs[i+(sig?1:-1)];if(i>=0&&d)d.click();
+    }catch(err){console.error('bmnava · deslizar',err);}
+  },{passive:true});
+})();
 /* La hoja se cierra arrastrándola hacia abajo, que es lo que el dedo espera de
    una hoja. Sólo cuenta si la lista está arriba del todo: si no, el gesto es
    desplazar la lista. En el ordenador `sb-open` no se pone nunca. */
@@ -31867,6 +31908,9 @@ function calMonoTier(mono){if(isNaN(mono))return {c:'var(--muted)',lab:'—'};if
    No se funde el color del texto, por lo mismo que no se funde al cambiar de
    tema: deja un gris lavado que parece que algo se ha roto. */
 function calSetMode(m){
+  /* v552 · En el móvil, al pasar a la semana, la tarjeta de hoy sube a la vista. */
+  if(m==='semana'&&esMovil())setTimeout(()=>{try{const h=document.querySelector('#cal-body .cw-today');
+    if(h&&h.checkVisibility())window.scrollTo({top:Math.max(0,h.getBoundingClientRect().top+window.scrollY-150)});}catch(e){}},450);
   if(CALMODE===m)return;
   CALMODE=m;
   const box=document.getElementById('cal-body');
@@ -37791,6 +37835,30 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   .hub,#hdr-actions{gap:6px}
 }
 </style>
+<style id="movil-v552">
+/* ===== v552 · La semana del Calendario, en lista =====
+   A 375 px la semana iba en dos columnas de tarjetas estrechas, detrás de 171 px
+   de herramientas. Ahora es una lista de siete días, cada uno con la misma
+   tarjeta que el detalle del día del mes (v549): el semáforo a la izquierda y
+   el día, el grado, los minutos, las sesiones y la carga a su lado. Exportar e
+   imprimir bajan debajo de la lista. Deslizar de lado cambia de semana (v553). */
+@media(max-width:760px){
+  #cal-body{display:flex;flex-direction:column}
+  #cal-body>.cal-wk-tools{order:5;margin-top:12px}
+  #cal-body>.cal-micro-panel,#cal-body>#cal-micro-panel{order:6}
+  #cal-body>p.small{order:7}
+  .cw-grid{grid-template-columns:minmax(0,1fr);gap:8px}
+  .cw-grid .cw-col{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left;
+    padding:14px 14px 14px 84px;border-radius:16px;min-height:94px}
+  .cw-grid .cw-col>*{margin:0;justify-content:flex-start;text-align:left}
+  .cw-grid .cw-col>.cw-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .cw-grid .cw-col>.cw-tl{position:absolute;left:26px;top:18px}
+  .cw-grid .cw-wd{font-size:var(--fs-body);font-weight:600}
+  .cw-grid .cw-date{font-size:var(--fs-sm);color:var(--muted)}
+  .cw-grid .cw-grade{font-size:var(--fs-body);font-weight:700;letter-spacing:0}
+  .cw-cardhd{margin-bottom:10px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -41356,8 +41424,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.20*/
-const VER_ACTUAL='2026-11-11.20';
+/*BUILD:2026-11-11.21*/
+const VER_ACTUAL='2026-11-11.21';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
