@@ -14026,6 +14026,90 @@ function bmBusca(){
   try{inp.focus({preventScroll:true});}catch(e){}
   return hoja;
 }
+/* v573 · Mantener pulsado, en el móvil. Sobre cualquier cosa que abre la ficha
+   de un jugador —una tarjeta, una fila, una cara— sube un menú con lo que se
+   suele hacer con él: ver la ficha, apuntar el parte del día, marcar un «ojo
+   hoy», registrar un tratamiento, una cita. Sobre un día del calendario, editar
+   ese día o verlo.
+   Es un atajo, no el único camino (HIG · Gestures: los atajos complementan a
+   los controles, no los sustituyen): todo lo que ofrece sigue estando donde
+   estaba, y un toque normal hace lo de siempre.
+   No se marca nada en el marcado: se reconoce al jugador por el `openPlayer(…)`
+   que ya lleva el elemento, y al día por su `calTocaDia(…)` o `calOpenDay(…)`.
+   Lo que se añada mañana con esas llamadas lo hereda solo. */
+const BMLP_SEL='[onclick*="openPlayer("],[onclick*="calTocaDia("],[onclick*="calOpenDay("]';
+const BMLP_IC={
+  ficha:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.7-3.6 3.4-5.6 7-5.6s6.300 2 7 5.6"/></svg>',
+  parte:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.500V3h6v1.500M9 10h6M9 14h6M9 18h3"/></svg>',
+  ojo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.500 12S6 5.500 12 5.500 21.500 12 21.500 12 18 18.500 12 18.500 2.500 12 2.500 12z"/><circle cx="12" cy="12" r="2.800"/></svg>',
+  trat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/><rect x="3.500" y="3.500" width="17" height="17" rx="4"/></svg>',
+  cita:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.500" y="5" width="17" height="15" rx="3"/><path d="M3.500 10h17M8 3v4M16 3v4"/></svg>',
+  lapiz:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.500 6.500l4 4"/></svg>'
+};
+function bmlpDe(el){
+  const oc=el.getAttribute('onclick')||'';let m=oc.match(/openPlayer\('((?:[^'\\]|\\.)*)'\)/);
+  if(m){const n=m[1].replace(/\\'/g,"'").replace(/&#39;/g,"'").replace(/&amp;/g,'&');return (STATE.players&&STATE.players[n])?{t:'j',n:n}:null;}
+  m=oc.match(/cal(?:TocaDia|OpenDay)\('(\d{4}-\d{2}-\d{2})'\)/);
+  return m?{t:'d',dk:m[1]}:null;
+}
+function bmlpMenu(x){
+  const fila=(ic,l,sub,k)=>'<button type="button" class="bmh-fila" data-a="'+k+'"><span class="ic">'+ic+'</span><span class="tx">'+l+(sub?'<small>'+sub+'</small>':'')+'</span></button>';
+  let h='',acc={},tit='';
+  if(x.t==='j'){
+    const n=x.n,pl=STATE.players[n]||{},rd=(pl.readiness!=null&&isFinite(pl.readiness))?Math.round(pl.readiness):null;
+    tit=n;
+    h='<div class="bmlp-cab">'+bmjCara(n)+'<div><b>'+bmjEsc(n)+'</b><span>'+bmjEsc([posGroup(pl.pos)||'',rd!=null?('Readiness '+rd):''].filter(Boolean).join(' · '))+'</span></div></div>'
+      +'<div class="bmh-grupo">'+fila(BMLP_IC.ficha,'Ver la ficha','','ficha')+'</div>'
+      +'<div class="bmh-grupo">'
+        +(window.openHeroForm?fila(BMLP_IC.parte,'Parte del día','Dolor, tratamiento o incidencia','parte'):'')
+        +(window.ojoMarcar?fila(BMLP_IC.ojo,'Ojo hoy','Avisar de que hay que valorarlo','ojo'):'')
+        +(window.openFisioReg?fila(BMLP_IC.trat,'Registrar en fisioterapia','Tratamiento, vendaje o parte','trat'):'')
+        +(window.openHeroForm?fila(BMLP_IC.cita,'Cita o documento médico','','cita'):'')
+      +'</div>';
+    acc={ficha:()=>openPlayer(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+  }else{
+    const p=x.dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]),pas=x.dk<=dkey(new Date());
+    tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
+    h='<div class="bmh-grupo">'+fila(BMLP_IC.lapiz,'Planificar o editar el día','Sesiones, partido, datos reales','edita')
+      +(pas?fila(BMLP_IC.ojo,'Ver ese día','Cambia el día que se está viendo y abre el Resumen','ver'):'')+'</div>';
+    acc={edita:()=>calOpenDay(x.dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=x.dk;setRefDate(x.dk);go('equipo');}};
+  }
+  const hoja=bmHoja({id:'ctx',titulo:x.t==='j'?'':tit,clase:'bmlp'+(x.t==='j'?' bmlp-j':''),html:h});
+  hoja.querySelector('.bmh-cuerpo').onclick=e=>{const b=e.target.closest('[data-a]');if(!b)return;const f=acc[b.dataset.a];
+    bmHojaCierra('bmh-ctx');setTimeout(()=>{try{f&&f();}catch(err){console.error('bmnava · menú de mantener pulsado',err);}},60);};
+}
+(function(){
+  let tm=null,el=null,x0=0,y0=0;
+  const suelta=()=>{clearTimeout(tm);tm=null;if(el){el.classList.remove('bm-lp');el=null;}};
+  /* El menú ya está abierto y el dedo sigue apoyado. Al levantarlo puede llegar
+     un toque —sobre la tarjeta o, peor, sobre el velo del menú, que lo cerraría—:
+     se descarta el que llegue hasta un instante después de levantar el dedo,
+     tarde lo que tarde en levantarse. */
+  const fin=()=>{suelta();if(window.__BM_LP)setTimeout(()=>{window.__BM_LP=0;},350);};
+  document.addEventListener('touchstart',e=>{
+    suelta();window.__BM_LP=0;
+    if(!esMovil()||e.touches.length!==1)return;
+    const t=e.target;if(!t||!t.closest||t.closest('.bmh,input,textarea,select,[data-sw].sw-on'))return;
+    const c=t.closest(BMLP_SEL);if(!c)return;
+    const x=bmlpDe(c);if(!x)return;
+    el=c;x0=e.touches[0].clientX;y0=e.touches[0].clientY;
+    const mio=c;
+    tm=setTimeout(()=>{if(el!==mio)return;
+      window.__BM_LP=1;                   /* el toque que viene al soltar no cuenta */
+      mio.classList.remove('bm-lp');el=null;
+      try{bmlpMenu(x);}catch(err){console.error('bmnava · mantener pulsado',err);}
+    },480);
+    setTimeout(()=>{if(el===mio)mio.classList.add('bm-lp');},140);
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{if(!el)return;const t=e.touches[0];if(Math.abs(t.clientX-x0)>9||Math.abs(t.clientY-y0)>9)suelta();},{passive:true});
+  document.addEventListener('touchend',fin,{passive:true});
+  document.addEventListener('touchcancel',fin,{passive:true});
+  window.addEventListener('scroll',suelta,{passive:true});
+  /* Al levantar el dedo tras mantener pulsado llega un toque: se descarta. */
+  document.addEventListener('click',e=>{if(window.__BM_LP){e.preventDefault();e.stopPropagation();}},true);
+  /* El menú del sistema (copiar, guardar imagen) no sale sobre lo que tiene el nuestro. */
+  document.addEventListener('contextmenu',e=>{if(esMovil()&&e.target.closest&&e.target.closest(BMLP_SEL))e.preventDefault();});
+})();
 /* v570 · Elegir jugador por la cara. En el móvil, cualquier desplegable cuyas
    opciones son la plantilla deja de abrir la rueda de dieciocho nombres: en su
    sitio va un botón con la foto y el nombre, y al tocarlo sube una hoja con
@@ -39104,6 +39188,23 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
 .bmb-res .bmh-rot:first-child{margin-top:4px}
 .bmh-fila .bmj-av{width:34px;height:34px}
 </style>
+<style id="movil-v573">
+/* ===== v573 · Mantener pulsado =====
+   El menú es una `bmHoja` (no existe en el ordenador). Lo único que va dentro
+   de la regla de ancho es lo que toca al contenido de siempre: que el teléfono
+   no saque su propio menú ni seleccione texto sobre lo que tiene el nuestro, y
+   que se note que se está pulsando. */
+.bmlp-cab{display:flex;align-items:center;gap:14px;padding:2px 4px 16px}
+.bmlp-cab .bmj-av{width:60px;height:60px;font-size:18px}
+.bmlp-cab b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.bmlp-cab span{display:block;font-size:14px;color:var(--muted);margin-top:3px}
+.bmh.bmlp-j .bmh-cab{padding-bottom:2px}
+@media(max-width:760px){
+  [onclick*="openPlayer("],[onclick*="calTocaDia("],[onclick*="calOpenDay("],
+  [onclick*="openPlayer("] img,[onclick*="calTocaDia("] img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  .bm-lp{transform:scale(.965);opacity:.82;transition:transform .32s cubic-bezier(.32,.72,0,1),opacity .32s ease}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -42669,8 +42770,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.36*/
-const VER_ACTUAL='2026-11-11.36';
+/*BUILD:2026-11-11.37*/
+const VER_ACTUAL='2026-11-11.37';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
