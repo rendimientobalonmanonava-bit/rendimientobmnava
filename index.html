@@ -8640,6 +8640,16 @@ window.syEnsureAuth=async function(){
   return SY.on;
 };
 window.syState=()=>({on:SY.on,status:SY.status,email:SY.email,url:!!SY.url});
+/* v577 · Llamar a una función del servidor con la sesión de la app. La usan
+   los avisos; no hace nada sin sesión. Renueva el token una vez si caducó. */
+window.syFn=async function(nombre,o){
+  o=o||{};
+  if(!SY.url||!SY.key||!SY.token)throw new Error('sin sesión');
+  const pide=()=>syFetch(SY.url+'/functions/v1/'+nombre+(o.query||''),{method:o.method||'GET',headers:syHeaders(!!o.body),body:o.body?JSON.stringify(o.body):undefined},10000);
+  let r=await pide();
+  if(r.status===401&&await syRefresh())r=await pide();
+  return r;
+};
 
 /* ═══ v322 · Que lo del otro llegue solo ═══
    Hasta ahora, lo que escribía Virginia no aparecía en la pantalla de Daniel
@@ -14378,6 +14388,79 @@ function bmTelefono(){
     bmlAplica();c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
   try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(e){}
 }
+/* v577 · Avisos en el teléfono. La app es una página: no hay nada suyo que
+   pueda mandar un aviso con la app cerrada. Quien lo manda es una función en
+   el Supabase del club (carpeta `servidor-avisos/`, que no se sube al
+   repositorio porque lleva la clave privada). Esto es la mitad de la app:
+     · «Más › Teléfono» ofrece activar los avisos en ESTE aparato. Pide el
+       permiso al teléfono sólo al pulsar (HIG · Managing notifications) y
+       guarda la suscripción en el servidor;
+     · cuando alguien marca un «ojo hoy», la app pide al servidor que avise a
+       los demás teléfonos. El aviso dice quién, no qué: ni la zona ni la nota
+       salen a una pantalla bloqueada;
+     · `sw.js` enseña el aviso y, al tocarlo, trae la app al frente.
+   Mientras la función no esté desplegada no pasa nada: se pregunta una vez
+   cada seis horas si existe y, si no, ni se ofrece ni se envía.
+   `BMA.vapid` es la clave PÚBLICA; por eso puede estar aquí. */
+const BMA={vapid:'BAhk5Dv3IKhilX4u-7N2VJCuDuXmwsyoDWikrCRwgDQ40za0_yacDybzjMu-J4iZdnjpN6pIIAim0GKxHdS39Pc',fn:'avisos',k:'bmnava-avisos',ks:'bmnava-avisos-srv'};
+const bmaAdmite=()=>('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
+async function bmaServidor(fuerza){
+  try{const c=JSON.parse(localStorage.getItem(BMA.ks)||'null');if(!fuerza&&c&&Date.now()-c.t<6*3600e3)return !!c.ok;}catch(e){}
+  let ok=false;
+  try{if(window.syFn){const r=await syFn(BMA.fn,{query:'?op=estado'});ok=r.ok&&((await r.json()).ok===true);}}catch(e){ok=false;}
+  try{localStorage.setItem(BMA.ks,JSON.stringify({ok:ok,t:Date.now()}));}catch(e){}
+  return ok;
+}
+/* `ready` no se resuelve nunca si la copia de la aplicación no llegó a registrarse: se le pone tope. */
+async function bmaSub(){
+  const reg=await Promise.race([navigator.serviceWorker.ready,new Promise((_,no)=>setTimeout(()=>no(new Error('sin copia de la aplicación')),4000))]);
+  return {reg:reg,sub:await reg.pushManager.getSubscription()};
+}
+function bmaClave(s){const p='='.repeat((4-s.length%4)%4),b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0));}
+async function bmaActiva(){
+  const perm=await Notification.requestPermission();
+  if(perm!=='granted')throw new Error('permiso');
+  const x=await bmaSub();
+  const sub=x.sub||await x.reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bmaClave(BMA.vapid)});
+  const r=await syFn(BMA.fn,{method:'POST',body:{op:'alta',sub:sub.toJSON()}});
+  if(!r.ok){try{await sub.unsubscribe();}catch(e){}throw new Error('servidor');}
+  try{localStorage.setItem(BMA.k,'1');}catch(e){}
+}
+async function bmaDesactiva(){
+  try{const x=await bmaSub();if(x.sub){try{await syFn(BMA.fn,{method:'POST',body:{op:'baja',endpoint:x.sub.endpoint}});}catch(e){}await x.sub.unsubscribe();}}catch(e){}
+  try{localStorage.removeItem(BMA.k);}catch(e){}
+}
+/* Pide al servidor que avise a los DEMÁS teléfonos. No espera a nadie ni falla en voz alta. */
+async function bmAvisa(o){
+  try{
+    if(!window.syFn||!window.syState||!syState().on||!(await bmaServidor()))return false;
+    let ex='';try{if(bmaAdmite()){const x=await bmaSub();ex=x.sub?x.sub.endpoint:'';}}catch(e){}
+    const r=await syFn(BMA.fn,{method:'POST',body:{op:'envia',titulo:String(o.titulo||'').slice(0,80),cuerpo:String(o.cuerpo||'').slice(0,160),etiqueta:String(o.etiqueta||''),url:String(o.url||''),excepto:ex}});
+    return r.ok;
+  }catch(e){console.warn('bmnava · aviso no enviado:',e&&e.message);return false;}
+}
+async function bmAvisosPinta(){
+  const el=document.getElementById('bmt-avisos');if(!el)return;
+  const marco=(cuerpo,nota)=>'<div class="bmh-rot">Avisos</div>'+cuerpo+(nota?'<p class="bml-nota">'+nota+'</p>':'');
+  const texto=t=>marco('','')+'<p class="bml-nota bma-t">'+t+'</p>';
+  if(!bmaAdmite()){el.innerHTML=texto('Este navegador no admite avisos. En el iPhone hace falta iOS 16.4 o posterior y abrir la app desde su icono de la pantalla de inicio.');return;}
+  if(!window.syState||!syState().on){el.innerHTML=texto('Hace falta conexión para activar los avisos.');return;}
+  el.innerHTML=texto('Comprobando…');
+  const srv=await bmaServidor(true);
+  if(!document.contains(el))return;
+  if(!srv){el.innerHTML=texto('Los avisos todavía no están activados en el servidor del club.');return;}
+  if(Notification.permission==='denied'){el.innerHTML=texto('Los avisos están bloqueados para esta app en los Ajustes del iPhone.');return;}
+  let on=false;try{const x=await bmaSub();on=!!x.sub&&Notification.permission==='granted';}catch(e){on=false;}
+  el.innerHTML=marco('<div class="bmh-grupo"><button type="button" class="bmh-fila bma-f" role="switch" aria-checked="'+on+'" id="bma-sw"><span class="tx">Avisos en este teléfono<small>Cuando alguien marca un «ojo hoy»</small></span><span class="bma-sw'+(on?' on':'')+'" aria-hidden="true"><i></i></span></button></div>',
+    'El aviso dice de quién se trata, no qué le pasa: eso se ve al abrir la app.');
+  const b=document.getElementById('bma-sw');
+  b.onclick=async()=>{b.disabled=true;
+    try{if(on)await bmaDesactiva();else await bmaActiva();}
+    catch(e){toast(e&&e.message==='permiso'?'El teléfono no ha dado permiso para los avisos':'No se han podido activar los avisos');}
+    bmAvisosPinta();};
+}
+/* Al volver a la app, el número del icono se quita: ya se está mirando. */
+document.addEventListener('visibilitychange',()=>{try{if(document.visibilityState==='visible'&&navigator.clearAppBadge)navigator.clearAppBadge().catch(()=>{});}catch(e){}});
 /* v570 · Elegir jugador por la cara. En el móvil, cualquier desplegable cuyas
    opciones son la plantilla deja de abrir la rueda de dieciocho nombres: en su
    sitio va un botón con la foto y el nombre, y al tocarlo sube una hoja con
@@ -24158,6 +24241,8 @@ window.ojoGuardar=function(){
            note:nota,title:lab+(zona?' · '+zona:''),vis:false};
   (STATE.medLog[n]=STATE.medLog[n]||[]).push(e);
   ojoPersist();
+  /* v577 · Se avisa a los demás teléfonos. Sólo el nombre: lo demás, dentro de la app. */
+  try{if(typeof bmAvisa==='function')bmAvisa({titulo:'Ojo hoy',cuerpo:n+' · hay que valorarlo antes de entrenar',etiqueta:e.id,url:'./#equipo'});}catch(err){}
   try{closeInfoEdit();}catch(err){}
   try{toast(String(n).split(' ')[0]+' · marcado para valorar mañana');}catch(err){}
   ojoRepintar(n);
@@ -39616,6 +39701,16 @@ header,#tabbar,.sb-tools,svg,
 ::view-transition-group(bm-foto){animation-duration:.44s;animation-timing-function:cubic-bezier(.32,.72,0,1)}
 ::view-transition-old(bm-foto),::view-transition-new(bm-foto){animation-duration:.2s;height:100%;width:100%;object-fit:cover}
 </style>
+<style id="movil-v577">
+/* ===== v577 · Avisos =====
+   El interruptor de «Más › Teléfono». Vive en una `bmHoja`: sólo en el móvil. */
+.bma-sw{flex:none;position:relative;width:51px;height:31px;border-radius:16px;background:var(--seg-carril,rgba(118,118,128,.2));transition:background .2s ease}
+.bma-sw i{position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.22);transition:transform .22s cubic-bezier(.32,.72,0,1)}
+.bma-sw.on{background:var(--ok)}
+.bma-sw.on i{transform:translateX(20px)}
+.bma-f[disabled]{opacity:.6}
+.bma-t{margin-top:0}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43181,8 +43276,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.40*/
-const VER_ACTUAL='2026-11-11.40';
+/*BUILD:2026-11-11.41*/
+const VER_ACTUAL='2026-11-11.41';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){

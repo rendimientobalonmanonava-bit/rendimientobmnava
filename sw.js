@@ -72,3 +72,27 @@ self.addEventListener('fetch', e => {
   if (!propio && !FUERA.test(u.hostname)) return;
   e.respondWith(responder(r, u, r.mode === 'navigate'));
 });
+
+/* v577 · Avisos. El servidor del club manda un aviso cifrado y esto lo enseña.
+   El texto llega en JSON: {titulo, cuerpo, etiqueta, url}. Al tocar el aviso
+   se trae la app al frente; si no estaba abierta, se abre. */
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { cuerpo: e.data ? e.data.text() : '' }; }
+  e.waitUntil((async () => {
+    await self.registration.showNotification(d.titulo || 'BM Nava', {
+      body: d.cuerpo || '', tag: d.etiqueta || undefined,
+      icon: 'icono-192.png', badge: 'icono-192.png', data: { url: d.url || './' }
+    });
+    try { if (self.navigator && self.navigator.setAppBadge) await self.navigator.setAppBadge(); } catch (_) {}
+  })());
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil((async () => {
+    const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of cs) { if ('focus' in c) { try { await c.focus(); return; } catch (_) {} } }
+    if (self.clients.openWindow) await self.clients.openWindow(url);
+  })());
+});
