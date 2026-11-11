@@ -14420,6 +14420,12 @@ function buildChartTheme(){
       C.plugins.legend.position='bottom';
       C.plugins.tooltip.padding=10;C.plugins.tooltip.caretSize=6;C.plugins.tooltip.boxPadding=4;
       C.plugins.tooltip.bodyFont={family:'Inter',size:13};C.plugins.tooltip.titleFont={family:'Inter',size:12,weight:'600'};
+      /* v563 · Un mismo acabado: barras con las esquinas de arriba redondeadas,
+         rejilla de medio punto y no más de seis marcas por eje, que en 340 px
+         de ancho se pisaban. `AX` es el eje que comparten los gráficos. */
+      C.elements.bar.borderRadius=5;
+      C.plugins.tooltip.cornerRadius=10;C.plugins.tooltip.displayColors=true;
+      try{AX.grid.lineWidth=.5;AX.ticks.maxTicksLimit=6;AX.ticks.padding=6;}catch(e){}
     }
   }
 }
@@ -18654,7 +18660,7 @@ function cargaDiferir(){
     const b=document.getElementById(id);
     /* el aviso solo si está vacío: al repintar ya hay contenido anterior y
        cambiarlo por «calculando» sería un parpadeo gratuito */
-    if(b&&!b.innerHTML.trim())b.innerHTML='<p class="hint">Calculando…</p>';
+    if(b&&!b.innerHTML.trim())b.innerHTML='<p class="hint calc-t">Calculando…</p><div class="calc-s" role="status" aria-label="Calculando"><i></i><i></i><i></i></div>';
   });
   if(CARGA_DIF)clearTimeout(CARGA_DIF);
   CARGA_DIF=setTimeout(()=>{
@@ -38159,6 +38165,35 @@ html[data-theme="dark"]{--seg-carril:rgba(118,118,128,.28);--seg-on:#636366;--se
   .add-menu,body.perf-lite .add-menu{background:var(--panel)!important}
 }
 </style>
+<style id="movil-v563">
+/* ===== v563 · Estados vacíos y siluetas de carga =====
+   Donde un bloque no tiene nada que enseñar había una frase gris pegada al
+   título («Sin minutos de partido esta semana»). En el móvil pasa a ser un
+   estado vacío: un icono tenue y la frase centrada. Sólo se toca el caso
+   inequívoco —la frase es lo ÚNICO que hay tras el título, o el bloque ya se
+   llamaba vacío—: una nota al pie de un panel con contenido no cambia.
+   Y mientras un bloque se calcula, en vez de «Calculando…» salen tres barras
+   que laten; el texto sigue en el marcado para el ordenador. */
+.calc-s{display:none}
+@media(max-width:760px){
+  :is(.panel>h2+p.small.muted:last-child,.panel>h2+div.small.muted:last-child,.ev-rtp-body>p:only-child,
+      .med-time>p.small.muted:only-child,.tl-empty,p.tf-nada){
+    text-align:center;padding:12px 12px 10px;margin:0;color:var(--muted);font-size:var(--fs-body);line-height:1.4}
+  :is(.panel>h2+p.small.muted:last-child,.panel>h2+div.small.muted:last-child,.ev-rtp-body>p:only-child,
+      .med-time>p.small.muted:only-child,.tl-empty,p.tf-nada)::before{
+    content:"";display:block;width:30px;height:30px;margin:0 auto 8px;background:var(--muted2);opacity:.65;
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 13h4l1.5 3h5L16 13h4'/%3E%3Cpath d='M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z'/%3E%3C/svg%3E") center/contain no-repeat;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 13h4l1.5 3h5L16 13h4'/%3E%3Cpath d='M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z'/%3E%3C/svg%3E") center/contain no-repeat}
+  .calc-t{display:none}
+  .calc-s{display:grid;gap:10px;padding:6px 0 4px}
+  .calc-s i{display:block;height:14px;border-radius:7px;background:var(--panel2);animation:calcLate 1.2s ease-in-out infinite}
+  .calc-s i:nth-child(1){width:62%;height:18px}
+  .calc-s i:nth-child(2){width:92%;animation-delay:.12s}
+  .calc-s i:nth-child(3){width:78%;animation-delay:.24s}
+}
+@keyframes calcLate{0%,100%{opacity:.55}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.calc-s i{animation:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -41724,8 +41759,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.27*/
-const VER_ACTUAL='2026-11-11.27';
+/*BUILD:2026-11-11.28*/
+const VER_ACTUAL='2026-11-11.28';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
