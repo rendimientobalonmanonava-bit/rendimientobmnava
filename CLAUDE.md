@@ -928,6 +928,23 @@ Daniel, 11/11/2026, tras ver las nueve propuestas —sólo de aspecto, no de fun
 
 ---
 
+#### 6.12.6 La franja del reloj (v565)
+
+Daniel, 11/11/2026, con una **grabación** de su iPhone 15 Pro: *«sigue pasando lo mismo con el encabezado»*. La v560 no lo había arreglado.
+
+| Elemento | Regla |
+|---|---|
+| Lo que se midió | Fotogramas de 1180 × 2556. El fondo de la cabecera empezaba en la **fila 177 —59 pt, justo donde acaba la barra de estado—** y por encima, detrás del reloj y de la isla, se leía el contenido al desplazar. Abajo no pasa: la franja bajo la barra flotante es lisa en los tres instantes muestreados |
+| El motivo | En la app instalada, iOS pone el origen de lo «fijo» **debajo** de la barra de estado (`env(safe-area-inset-top)` vale 0) pero **sigue pintando la página por detrás de ella**. Lo que se pega arriba con `top:0` empieza 59 pt más abajo que la pantalla, y esa franja no la tapaba nadie. La v560 hizo liso el fondo de la cabecera; no lo subió |
+| El arreglo | `header::before{top:-240px}`: el fondo se prolonga hacia ARRIBA, fuera de la caja. Donde el origen ya es el borde de la pantalla, la prolongación cae fuera y no se ve |
+| Las capas a pantalla completa, también | `#sb-scrim`, `.med-overlay`, `.ficha-overlay`, `.info-overlay`, `.drawer-ov`, `#splash` y `#sy-gate` tienen el mismo hueco: con una hoja abierta quedaría una franja clara sobre una pantalla oscurecida. Suben con **`top:-240px` + `border-top:240px solid transparent`**: el fondo se pinta también bajo el borde, así que **la caja interior no se mueve y no se repite ningún color**. *Comprobado: el alto interior y la posición del primer hijo son idénticos con el bloque puesto y quitado.* Lleva `!important` porque los estilos de la pantalla de acceso se inyectan después. **Una capa nueva a pantalla completa tiene que entrar en esa lista** |
+| Cómo se reproduce en la copia de prueba | La emulación del ordenador no tiene esa franja. Se imita con `header{top:59px!important}`: la cabecera queda 59 px por debajo del borde, igual que en el iPhone, y `elementsFromPoint` en la franja devuelve contenido. Con el arreglo, el fondo de la cabecera va de −181 a 133 |
+| Cómo se lee una grabación | En este Mac no hay ffmpeg. Los fotogramas se sacan con **Swift y AVFoundation** (`AVAssetImageGenerator`), y el color de una columna de píxeles, con un `CGContext`. La grabación se copia a una carpeta propia y el guion vive en otra |
+
+**No está visto en un teléfono**: en este Mac no hay simulador de iOS (no hay `simctl`). Lo comprobado es la geometría.
+
+---
+
 ## 7. Flujo de trabajo
 
 1. **Un cambio por mensaje.** No agrupes varias modificaciones sin pedirlo.
@@ -956,6 +973,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - **La monotonía tiene DOS umbrales y no coinciden.** `CONFIG.load.monoHi` vale **1,5** —es la línea que dibuja el gráfico ⑤ y la marca de la celda en el dashboard de cargas— y `calMonoTier` dice «ok» hasta **2** y «elevada» por encima, que es lo que usan el calendario y «Cada jugador, esta semana». *Medido el 9/11/2026 sobre los 14 días: **5 de los 11 días con dato** salen verdes con un criterio y pasados con el otro.* Preguntado, Daniel dijo que **manda 1,5**, pero **no se ha tocado `calMonoTier`**: cambiarlo reclasifica el calendario y el panel por jugador, que es un cambio de criterio con efecto en dos pantallas más y necesita su visto bueno expreso. Mientras tanto, la columna de monotonía del dashboard **no lleva color** —solo la marca del 1,5—, para que ninguna pantalla afirme lo que la otra niega
 
 **Trabajo pendiente:**
+- **La franja del reloj (v565)**: que Daniel confirme en su iPhone que ya no se lee nada detrás del reloj, también con «Más» o un diálogo abierto, y si en tema oscuro se ve la hora. Ver §6.12.6
 - **Móvil, pendiente tras la v559**: que Daniel confirme en su teléfono los gestos (atrás, tirar para actualizar, deslizar filas y deslizar de lado) y la app instalada; más filas deslizables si las usa. Ver §6.12.3
 - ~~La duración de un bloque sin minutos se realimenta.~~ **Resuelto en v507**: `lbDayAll` lee solo `dur0`. Ver §6.1.1
 
@@ -1108,6 +1126,7 @@ No los repitas.
 | Añadir valores por defecto antes de que la propia función los vuelva a fijar | Los ajustes táctiles de los gráficos se insertaron a mitad de `buildChartTheme` y dos de ellos no hacían nada: quince líneas más abajo la función fija el área de toque y la letra del cartel para todos. Se vio leyendo los valores en el navegador (12 en vez de 18), no el código. **Un valor por defecto se pone al final de quien los reparte, y se comprueba leyéndolo** |
 | Probar un «cristal» en un navegador que desenfoca y darlo por bueno | La cabecera y la barra flotantes se veían limpias en la copia de prueba y en el iPhone de Daniel se leía el contenido de debajo: allí la app va en modo ligero, que quita los desenfoques. **Lo que flota sobre contenido tiene que ser legible sin `backdrop-filter`**; el desenfoque es un adorno, no la base |
 | Probar una pieza nueva sólo en el tema claro | La cabecera de móvil se dio por buena en claro y en oscuro rompía toda la página: una regla de tema con más especificidad devolvía a la vista un logo que el móvil ocultaba. **Cada pieza nueva se mira en los dos temas antes de guardarla**, y se mide el ancho de la página en los dos |
+| Dar por tapado algo que en la emulación no existe | La cabecera del móvil se arregló dos veces mirando la emulación de 375 × 812, que no tiene barra de estado: allí el origen de lo fijo ES el borde de la pantalla. En el iPhone, con la app instalada, ese origen queda 59 pt más abajo y la página se pinta por detrás del reloj. **Dos versiones «verificadas» y el fallo seguía igual.** Lo destapó medir los píxeles de una grabación del teléfono. **Lo que depende del aparato se comprueba con una captura o una grabación del aparato, no con la emulación**; y cuando un arreglo no se ha visto en el teléfono, se dice |
 
 ---
 
