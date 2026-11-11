@@ -892,6 +892,22 @@ Daniel, 11/11/2026: *«vamos con las 9, sin duda»* y *«el encabezado de arriba
 
 ---
 
+#### 6.12.4 Lo que Daniel vio en su iPhone 15 Pro (v560)
+
+Daniel, 11/11/2026, con la captura delante: *«se transparenta y se ven cosas por detrás, queda súper cutre… y en modo oscuro el encabezado queda fatal»*.
+
+| Elemento | Regla |
+|---|---|
+| El cristal no puede depender del desenfoque | **En el teléfono la app va en modo ligero** (`body.perf-lite`), que quita TODOS los `backdrop-filter`. Las piezas de la cabecera y la barra eran un 93 % de opacidad pensado para ir con desenfoque; sin él se leía entero lo de debajo. Ahora son **opacas** (`--tb-bg` al 97 % y `--tb-solido` en modo ligero), con su borde y su sombra en `--tb-borde` y `--tb-sombra`, declarados en los dos temas |
+| El fondo de la cabecera es liso hasta debajo de las piezas | El fundido empezaba a mitad de la altura y el contenido asomaba detrás del reloj y de la isla dinámica. Ahora `header::before` es `--bg` liso desde el borde de la pantalla y sólo se funde en los últimos 22 px. La barra de abajo lleva el mismo fundido hacia arriba (`#tabbar::before`) |
+| En oscuro la cabecera rompía TODA la página | `html[data-theme="dark"] .hp-light` pesa más que `.lockup .hp{display:none}`: el logo del patrocinador reaparecía, la fila no cabía, añadir se salía y la página pasaba a **426 px**, así que el teléfono la encogía entera. Lo que se oculta en el móvil dentro de la cabecera va con `!important`, porque las reglas de tema llevan más especificidad. Las flechas del día recuperaban también su fondo de botón en oscuro |
+| El escudo, sobre una ficha clara en los dos temas | Es rojo y negro: sobre un círculo oscuro se pierde |
+| El color del TIPO de sesión no vale para texto en oscuro | En la tarjeta de día, el rótulo de la sesión y la cifra de contacto iban en el color del tipo (`CAL_TYPES`, pensado para fondo blanco): 2,4:1 y 3,2:1 en oscuro. El punto sigue diciendo el tipo; la palabra pasa a `--txt` |
+
+**Cómo se reproduce el teléfono de Daniel en la copia de prueba:** `document.body.classList.add('perf-lite')` y `applyTheme('dark')`. Sin lo primero el fallo de la transparencia no se ve, porque el navegador de escritorio sí desenfoca.
+
+---
+
 ## 7. Flujo de trabajo
 
 1. **Un cambio por mensaje.** No agrupes varias modificaciones sin pedirlo.
@@ -1070,6 +1086,8 @@ No los repitas.
 | Comparar dos cargas mientras la app se devuelve sola al día de hoy | El primer pintado tardío pone el día en hoy; según cuándo llegue, una carga quedaba en el día fijado y la otra no, y Cargas daba 661 elementos contra 674. **El día se fija antes de CADA pantalla**, no una vez al principio; y cuando dos huellas no coinciden, se compara bloque a bloque antes de buscar la causa en el código |
 | Ordenar bloques con un selector de clase cuando el bloque lleva un id | Para subir el mes del Calendario escribí `#v-cal>.cal-week-panel{order:2}` y la carga de la semana siguió arriba: `cal-week-panel` es un **id**. La regla no casaba con nada y no avisaba. Mi propio listado de bloques imprimía `id||clase` sin decir cuál era cuál. **Antes de escribir un selector sobre un nombre leído en un volcado, mirar si es id o clase** |
 | Añadir valores por defecto antes de que la propia función los vuelva a fijar | Los ajustes táctiles de los gráficos se insertaron a mitad de `buildChartTheme` y dos de ellos no hacían nada: quince líneas más abajo la función fija el área de toque y la letra del cartel para todos. Se vio leyendo los valores en el navegador (12 en vez de 18), no el código. **Un valor por defecto se pone al final de quien los reparte, y se comprueba leyéndolo** |
+| Probar un «cristal» en un navegador que desenfoca y darlo por bueno | La cabecera y la barra flotantes se veían limpias en la copia de prueba y en el iPhone de Daniel se leía el contenido de debajo: allí la app va en modo ligero, que quita los desenfoques. **Lo que flota sobre contenido tiene que ser legible sin `backdrop-filter`**; el desenfoque es un adorno, no la base |
+| Probar una pieza nueva sólo en el tema claro | La cabecera de móvil se dio por buena en claro y en oscuro rompía toda la página: una regla de tema con más especificidad devolvía a la vista un logo que el móvil ocultaba. **Cada pieza nueva se mira en los dos temas antes de guardarla**, y se mide el ancho de la página en los dos |
 
 ---
 
