@@ -6571,7 +6571,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
   <!-- v532 · Sólo en el móvil: las acciones que en el ordenador viven en la
        cabecera y que en una cabecera de una línea no caben. -->
   <div class="sb-tools" id="sb-tools">
-    <button type="button" class="sb-tool" onclick="sbToggleMobile(false);focusSearch()"><i>🔍</i><span>Buscar</span></button>
+    <button type="button" class="sb-tool" onclick="sbToggleMobile(false);refreshAll()"><i>⟳</i><span>Actualizar</span></button>
     <button type="button" class="sb-tool" onclick="sbToggleMobile(false);openMedAgenda()"><i>🩺</i><span>Agenda</span></button>
     <button type="button" class="sb-tool" onclick="sbToggleMobile(false);openDrawer()"><i>⚙️</i><span>Ajustes</span></button>
     <button type="button" class="sb-tool" onclick="toggleTheme()"><i class="sb-t-osc">☀️</i><i class="sb-t-cla">🌙</i><span class="sb-t-osc">Claro</span><span class="sb-t-cla">Oscuro</span></button>
@@ -11261,7 +11261,12 @@ function rosterPos(name){
    ni el calendario llegaban, y «Hoy» iba en realidad a la última jornada con
    datos. Hoy siempre entra. */
 function syncDatePicker(){const dks=[...new Set([...STATE.wellness.map(x=>x.dk),...STATE.rpe.map(x=>x.dk)])].sort();const inp=document.getElementById('ref-date');if(!inp)return;const hoy=dkey(new Date());if(dks.length)inp.min=dks[0];inp.max=(dks.length&&dks[dks.length-1]>hoy)?dks[dks.length-1]:hoy;inp.value=dkey(REF());dpSyncLabel();}
-function dpSyncLabel(){const lab=document.getElementById('dp-label');if(!lab)return;const inp=document.getElementById('ref-date');const v=(inp&&inp.value)||dkey(REF());const p=v.split('-');lab.textContent=p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):'—';}
+function dpSyncLabel(){const lab=document.getElementById('dp-label');if(!lab)return;const inp=document.getElementById('ref-date');const v=(inp&&inp.value)||dkey(REF());const p=v.split('-');
+  /* v551 · En el móvil el día va escrito —«mié 11 nov»—, que es como se lee de un
+     vistazo; en el ordenador sigue en cifras. */
+  if(p.length===3&&esMovil()){try{const d=new Date(+p[0],+p[1]-1,+p[2]);
+    lab.textContent=d.toLocaleDateString('es',{weekday:'short',day:'numeric',month:'short'}).replace(/[.,]/g,'');return;}catch(e){}}
+  lab.textContent=p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):'—';}
 /* v388 · `auto` distingue el día que pone la aplicación del que elige quien
    mira. Elegir uno a mano corta el seguimiento automático; volver a hoy lo
    reanuda. Sin esto, o te arrastra a hoy mientras revisas el martes pasado, o
@@ -37733,6 +37738,59 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   #v-equipo .eq-tile{padding:9px 8px 8px}
 }
 </style>
+<style id="movil-v551">
+/* ===== v551 · La cabecera, en cristal flotante =====
+   Daniel, 11/11/2026: «el encabezado de arriba me parece un poco cutre… algo
+   más espectacular». Era una banda con una fila de botones. Elegido por él
+   entre tres formas: **sin banda**, con las piezas flotando sobre el contenido
+   en el mismo cristal que la barra de abajo —el escudo en un círculo, el día
+   en una cápsula con sus flechas, y buscar y añadir en círculos—. El contenido
+   pasa por debajo y se funde hacia arriba.
+   El botón ⟳ sale de la cabecera: se actualiza tirando hacia abajo (v542) y
+   «Actualizar» queda dentro de «Más». En su sitio va buscar.
+   Mismo marcado de siempre; sólo cambia cómo se pinta por debajo de 760 px. */
+@media(max-width:760px){
+  header{background:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+    border:none!important;box-shadow:none!important;pointer-events:none}
+  header::after{display:none}
+  /* El fundido: el fondo de la página arriba, transparente abajo. */
+  header::before{content:"";position:absolute;left:0;right:0;top:0;bottom:-16px;z-index:-1;pointer-events:none;
+    background:linear-gradient(to bottom,var(--bg) 40%,transparent)}
+  header .bar{padding:8px 12px 6px;gap:8px;min-height:0;pointer-events:none}
+  .hub{gap:8px;justify-content:space-between}
+  .lockup,.datepick,#hdr-actions,.dp-pop,.add-menu{pointer-events:auto}
+  /* Las tres piezas comparten el cristal de la barra inferior. */
+  .lockup .club-plate,.datepick,#hdr-actions>.add-wrap>.iconbtn,#hdr-actions>.iconbtn[onclick="focusSearch()"]{
+    background:var(--tb-bg)!important;-webkit-backdrop-filter:blur(26px) saturate(1.8);backdrop-filter:blur(26px) saturate(1.8);
+    border:.5px solid var(--hair)!important;box-shadow:0 8px 24px rgba(0,0,0,.13),0 1px 3px rgba(0,0,0,.07)!important}
+  .lockup .club-plate{width:46px;height:46px;padding:0;border-radius:50%;justify-content:center;box-sizing:border-box}
+  .lockup .club-logo,.lockup img.club-logo{height:30px;max-height:30px;width:25px}
+  .datepick{margin:0 auto;gap:0;height:46px;padding:0 2px;border-radius:23px;box-sizing:border-box}
+  .datepick .dp-nav,.datepick .dp-trigger{background:none!important;border:none!important;box-shadow:none!important;
+    -webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+  .datepick .dp-nav{width:40px;height:44px;color:var(--muted)}
+  .datepick .dp-trigger{height:44px;padding:0 4px;font-size:15px;font-weight:600;letter-spacing:-.01em;text-transform:lowercase}
+  #hdr-actions{display:flex;gap:8px;flex:none}
+  #hdr-actions>.iconbtn[onclick="focusSearch()"]{display:inline-flex;order:-1;width:46px;height:46px;padding:0;border-radius:50%;
+    justify-content:center;align-items:center;font-size:0;color:var(--txt)}
+  #hdr-actions>.iconbtn[onclick="focusSearch()"] .t{display:none}
+  /* La lupa, dibujada: el emoji no vira con el tema ni casa con los iconos de la barra. */
+  #hdr-actions>.iconbtn[onclick="focusSearch()"]::before{content:"";width:21px;height:21px;background:currentColor;
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E") center/contain no-repeat;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E") center/contain no-repeat}
+  #hdr-actions .iconbtn.primary{width:46px;height:46px;border-radius:50%;font-size:22px;font-weight:400;
+    background:var(--accent)!important;color:var(--on-accent);border-color:transparent!important}
+  .rf-btn{display:none}
+  .dp-pop{top:calc(64px + env(safe-area-inset-top))}
+  /* Las barras pegadas quedan justo debajo de las piezas. */
+  .tsm-bar{top:calc(60px + env(safe-area-inset-top))}
+}
+@media(max-width:370px){
+  .datepick .dp-nav{width:34px}
+  header .bar{padding-left:9px;padding-right:9px;gap:6px}
+  .hub,#hdr-actions{gap:6px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -41298,8 +41356,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.19*/
-const VER_ACTUAL='2026-11-11.19';
+/*BUILD:2026-11-11.20*/
+const VER_ACTUAL='2026-11-11.20';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
