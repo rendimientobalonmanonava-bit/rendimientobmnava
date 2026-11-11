@@ -14113,7 +14113,10 @@ function trainingEffect(r){const m=r.z.map(s=>s/60);const aer=Math.min(5,1+(m[1]
 function teLabel(v){return v<2?'Recuperación':v<3?'Mantenimiento':v<4?'Mejora':v<4.5?'Alto impacto':'Sobrecarga';}
 function teColor(v){return v<2?'var(--muted2)':v<3?'var(--ok)':v<4?'var(--accent)':v<4.5?'var(--warn)':'var(--bad)';}
 
-let TEAMVIEW='tabla';
+/* v545 · En el móvil la plantilla del Resumen abre en tarjetas: la tabla hay que
+   arrastrarla de lado. El conmutador sigue ahí y en el ordenador abre en tabla. */
+let TEAMVIEW=esMovil()?'tarjetas':'tabla';
+try{if(TEAMVIEW!=='tabla')document.querySelectorAll('#team-viewtoggle button').forEach(b=>b.classList.toggle('on',b.dataset.v===TEAMVIEW));}catch(e){}
 function setTeamView(v){TEAMVIEW=v;document.querySelectorAll('#team-viewtoggle button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));renderTeam();}
 function teamFiltered(){
   const qs=document.getElementById('team-search');const ps0=document.getElementById('team-pos');
@@ -18318,15 +18321,15 @@ function renderCargaResumen(){
     const act=(i===0);
     return `<div class="cg-r cg-r2${act?' cg-r--act':''}${acFila(w.acwr)}">
       <span class="cg-d"><b>${dmy(w.ini)} – ${dmy(w.fin)}</b><em>${act?'semana actual':'semana cerrada'}${w.parcial&&act?' · '+w.dias+'/7 d':''}</em></span>
-      <span${barra(w.prom,e2.pd)}>${n0(w.prom)}</span>
-      <span${barra(w.desvio,e2.pd)}>${n0(w.desvio)}</span>
-      <span${barra(w.ua,e2.ua)}><b>${n0(w.ua)}</b></span>
-      <span style="color:${colTexto(saltoCol(w.delta))};font-weight:600">${saltoTxt(w.delta)}</span>
-      <span${barra(w.mono,e2.mono,mHi/e2.mono)}>${n2(w.mono)}</span>
-      <span${barra(w.strain,e2.strain)}>${n0(w.strain)}</span>
-      <span${barra(w.aguda,e2.ac,w.cronica/e2.ac,acEstado(w.acwr))}>${n0(w.aguda)}</span>
-      <span${barra(w.cronica,e2.ac)}>${n0(w.cronica)}</span>
-      <span style="color:${colTexto(acCol(w.acwr))};font-weight:700">${n2(w.acwr)}</span>
+      <span${barra(w.prom,e2.pd)}><i class="cg-lb">Promedio · UA/día</i>${n0(w.prom)}</span>
+      <span${barra(w.desvio,e2.pd)}><i class="cg-lb">Desvío</i>${n0(w.desvio)}</span>
+      <span${barra(w.ua,e2.ua)}><i class="cg-lb">UA</i><b>${n0(w.ua)}</b></span>
+      <span style="color:${colTexto(saltoCol(w.delta))};font-weight:600"><i class="cg-lb">Cambio</i>${saltoTxt(w.delta)}</span>
+      <span${barra(w.mono,e2.mono,mHi/e2.mono)}><i class="cg-lb">Monotonía</i>${n2(w.mono)}</span>
+      <span${barra(w.strain,e2.strain)}><i class="cg-lb">Fatiga</i>${n0(w.strain)}</span>
+      <span${barra(w.aguda,e2.ac,w.cronica/e2.ac,acEstado(w.acwr))}><i class="cg-lb">Aguda</i>${n0(w.aguda)}</span>
+      <span${barra(w.cronica,e2.ac)}><i class="cg-lb">Crónica</i>${n0(w.cronica)}</span>
+      <span style="color:${colTexto(acCol(w.acwr))};font-weight:700"><i class="cg-lb">ACWR</i>${n2(w.acwr)}</span>
     </div>`;}).join('');
 
   const hero=`<section class="cgr-hero">
@@ -37355,6 +37358,60 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   #hr-pane-equipo[data-mtab="datos"]>[data-mt]:not([data-mt="datos"]){display:none}
 }
 </style>
+<style id="movil-v545">
+/* ===== v545 · Tablas como tarjetas y texto de 11 px como mínimo =====
+   Medido a 375 px en diez pantallas: 262 textos por debajo de 11 px —el escalón
+   más pequeño de la escala (§3)— repartidos en 45 clases, casi todos a 10 y
+   10,5. Y tres tablas que había que arrastrar de lado: las semanas de Cargas
+   (798 px en 333), el resumen semanal del Calendario (531 en 357) y la
+   plantilla del Resumen. Las pestañas de Estado tampoco cabían (385 en 357).
+   El Parte de wellness NO se toca: es un documento que se exporta. */
+.cg-lb{display:none}
+@media(max-width:760px){
+  /* ── Texto: nada por debajo del escalón más pequeño ── */
+  .ath-st span,.flag,.cal-realbadge,.kpi-l,.pillT,.pillT-tx,.ath-rd,.ath-rsn,.ath-mt,.cg-head span,.cg-head em,.mini-h,.eq-l,
+  .lbc-kpi span,.lbc-ctx,.cg-d,.cg-d em,.dsp-uas small,.tc-ends span,.tc-md,.tw-light span,.fh-m,.fh-sec,.fh-z span,.eyebrow,
+  .tf-kv span,.tf-h,.rl,.eq-semana-pie,.wm-chip-t,.hero-ringlab,.cal-risk,.dsp-carril-t,.dsp-carril-t em,.dsp-fondo summary,
+  .tsat-ar,.fh-vistos,.ath-ok,.l{font-size:var(--fs-xs)!important}
+  /* `!important` a propósito, y sólo aquí: es un SUELO. Varias de estas clases
+     fijan su tamaño con un selector más específico o en línea desde el JS, y
+     sin él 61 de los 262 textos se quedaban como estaban. */
+
+  /* ── Las cuatro pestañas de Estado caben sin arrastrar ── */
+  .estado-seg{display:flex;width:100%;max-width:100%;overflow-x:visible;box-sizing:border-box}
+  .estado-seg button{flex:1 1 auto;min-width:0;padding:0 5px;font-size:var(--fs-sm);letter-spacing:-.01em;white-space:nowrap}
+
+  /* ── Semanas de Cargas: una tarjeta por semana ──
+     La semana arriba y las nueve cifras en 3 × 3, cada una con su rótulo. La
+     barra y la marca, que en la rejilla crecen desde la derecha, aquí crecen
+     desde la izquierda, que es por donde se lee la cifra. */
+  .cg-wrap:has(>.cg-head2){overflow-x:visible;margin:0;padding:0}
+  .cg-head2{display:none}
+  .cg-r2{min-width:0;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 12px;padding:14px 2px 13px;text-align:left}
+  .cg-r2>span{padding:0 0 6px;font-size:var(--fs-body)}
+  .cg-r2>.cg-d{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:8px;padding-bottom:0}
+  .cg-lb{display:block;font-style:normal;font-size:var(--fs-xs);font-weight:500;color:var(--muted);margin-bottom:1px}
+  .cg-r2 .cg-b::after{right:auto;left:0;bottom:0;width:calc(var(--v,0) * 100%)}
+  .cg-r2 .cg-b--mk::before{right:auto;left:calc(var(--mk,0) * 100%);bottom:-3px}
+
+  /* ── Resumen semanal del Calendario: una tarjeta por semana ──
+     Los rótulos salen del orden de las columnas, que es fijo. */
+  .cal-wksum .wrap-x{overflow-x:visible}
+  .cal-wktbl,.cal-wktbl tbody{display:block;width:100%}
+  .cal-wktbl thead{display:none}
+  .cal-wktbl tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px;padding:12px 2px;border-bottom:.5px solid var(--hair)}
+  .cal-wktbl tbody tr:last-child{border-bottom:none}
+  .cal-wktbl td,.panel .tbl.cal-wktbl td{display:block;padding:0;border:none;text-align:left;min-width:0}
+  .cal-wktbl td.mono{text-align:left}
+  .cal-wktbl td:first-child{grid-column:1/-1;font-weight:600;font-size:var(--fs-body)}
+  .cal-wktbl td:not(:first-child)::before{display:block;font-size:var(--fs-xs);font-weight:500;color:var(--muted);margin-bottom:2px;font-family:inherit}
+  .cal-wktbl td:nth-child(2)::before{content:"Plan · UA"}
+  .cal-wktbl td:nth-child(3)::before{content:"Real · UA"}
+  .cal-wktbl td:nth-child(4)::before{content:"Desviación"}
+  .cal-wktbl td:nth-child(5)::before{content:"Monotonía"}
+  .cal-wktbl td:nth-child(6)::before{content:"Strain"}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -40911,8 +40968,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.13*/
-const VER_ACTUAL='2026-11-11.13';
+/*BUILD:2026-11-11.14*/
+const VER_ACTUAL='2026-11-11.14';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
