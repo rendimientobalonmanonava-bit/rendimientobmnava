@@ -6586,6 +6586,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     <button type="button" class="sb-tool" onclick="sbToggleMobile(false);openMedAgenda()"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M12 10v6M9 13h6"/></svg></i><span>Agenda</span></button>
     <button type="button" class="sb-tool" onclick="sbToggleMobile(false);openDrawer()"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.3" fill="var(--sb-fondo,#1e2a42)"/><circle cx="15" cy="17" r="2.3" fill="var(--sb-fondo,#1e2a42)"/></svg></i><span>Ajustes</span></button>
     <button type="button" class="sb-tool" onclick="toggleTheme()"><i class="sb-t-osc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></i><i class="sb-t-cla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></i><span class="sb-t-osc">Claro</span><span class="sb-t-cla">Oscuro</span></button>
+    <button type="button" class="sb-tool" onclick="sbToggleMobile(false);bmTelefono()"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.8"/><path d="M11 18.5h2"/></svg></i><span>Teléfono</span></button>
     <button type="button" class="sb-tool" onclick="sbToggleMobile(false);window.print()"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><rect x="7" y="14" width="10" height="7"/></svg></i><span>PDF</span></button>
   </div>
   <div class="sb-foot"><button class="sb-collapse" onclick="sbToggle()" title="Plegar/desplegar menú"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg><span>Plegar menú</span></button><div class="sb-ver" id="sb-ver">v209</div></div>
@@ -14283,6 +14284,99 @@ function bmgCierra(){
   window.addEventListener('resize',()=>{if(BMG.ch)setTimeout(()=>{try{BMG.ch&&BMG.ch.resize();}catch(e){}},120);});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BMG.ch)bmgCierra();});
 })();
+/* v575 · El tamaño de letra del teléfono. Los 1.549 tamaños de la hoja de
+   estilos van en píxeles, así que quien tiene la letra grande en el iPhone
+   veía la app igual de pequeña (HIG · Accessibility: admitir texto más grande).
+   No se reescribe la hoja a mano: cuando hace falta —y sólo entonces— se
+   recorren sus reglas y cada `font-size: Npx` pasa a `calc(Npx * var(--ft,1))`,
+   en la misma regla, con la misma prioridad. La cascada no cambia; lo que
+   cambia es que `--ft` manda. Con la letra normal (`--ft` = 1) no se toca ni
+   una regla: quien no ha cambiado nada en su teléfono ve la app exactamente
+   igual que antes.
+   El tamaño sale del teléfono: `font:-apple-system-body` mide 17 px con la
+   letra normal y crece con el ajuste de iOS. Se lleva a cuatro escalones
+   (0,9 · 1 · 1,15 · 1,3) y se puede fijar a mano en «Más › Teléfono».
+   No crecen, a propósito: la cabecera y la barra de abajo (en iOS tampoco
+   crecen las barras), los documentos —parte, ficha, láminas, que están
+   medidos al píxel—, y el texto de dentro de los SVG, que es geometría. Eso
+   lo hace el CSS poniendo `--ft:1` en esos contenedores.
+   El tope es 1,3: por encima hay cajas de alto fijo que dejan de caber. */
+const BML={k:'bmnava-letra',pasos:[0.9,1,1.15,1.3],hecho:false,f:1};
+function bmlSistema(){
+  try{
+    if(!(window.CSS&&CSS.supports&&CSS.supports('font','-apple-system-body')))return 1;
+    const e=document.createElement('span');e.style.cssText='font:-apple-system-body;position:absolute;visibility:hidden;left:-999px;top:0';e.textContent='M';
+    document.body.appendChild(e);const fs=parseFloat(getComputedStyle(e).fontSize);e.remove();
+    return (fs>=11&&fs<=60)?fs/17:1;
+  }catch(e){return 1;}
+}
+function bmlPref(){try{return localStorage.getItem(BML.k)||'sis';}catch(e){return 'sis';}}
+function bmlEscala(){
+  const p=bmlPref();let f=(p==='sis')?bmlSistema():+p;if(!isFinite(f)||f<=0)f=1;
+  f=Math.max(BML.pasos[0],Math.min(BML.pasos[BML.pasos.length-1],f));
+  return BML.pasos.reduce((a,b)=>Math.abs(b-f)<Math.abs(a-f)?b:a);
+}
+function bmlReescribe(){
+  const una=st=>{
+    try{const v=st.getPropertyValue('font-size');
+      if(v&&/^\s*[0-9.]+px\s*$/.test(v))st.setProperty('font-size','calc('+v.trim()+' * var(--ft,1))',st.getPropertyPriority('font-size'));}catch(e){}
+    try{for(let i=0;i<st.length;i++){const n=st[i];if(n.indexOf('--fs-')===0){const v=st.getPropertyValue(n);
+      if(/^\s*[0-9.]+px\s*$/.test(v))st.setProperty(n,'calc('+v.trim()+' * var(--ft,1))');}}}catch(e){}
+  };
+  const baja=rs=>{for(let i=0;i<rs.length;i++){const r=rs[i];
+    if(r.style&&r.selectorText!=null)una(r.style);
+    /* sólo se baja a las reglas de agrupación (@media, @supports): una regla de
+       estilo también expone `cssRules` y no hay que recorrerla dos veces */
+    else if(r.cssRules&&(r.media||r.conditionText!=null))baja(r.cssRules);}};
+  for(let i=0;i<document.styleSheets.length;i++){let rs=null;try{rs=document.styleSheets[i].cssRules;}catch(e){continue;}if(rs)baja(rs);}
+}
+/* Los tamaños escritos en línea, que la hoja no alcanza. */
+function bmlEnLinea(){
+  if(BML.f===1&&!BML.hecho)return;
+  document.querySelectorAll('main [style*="font-size"],.bmh [style*="font-size"],#sidebar [style*="font-size"],.med-modal [style*="font-size"],.info-modal [style*="font-size"]').forEach(e=>{
+    const v=e.style.fontSize;if(!v||v.indexOf('var(')>=0||!/px$/.test(v))return;
+    if(e.closest('svg,header,#tabbar'))return;
+    e.style.fontSize='calc('+v+' * var(--ft,1))';});
+}
+function bmlAplica(){
+  const raiz=document.documentElement;
+  if(!esMovil()){raiz.style.removeProperty('--ft');BML.f=1;return 1;}
+  const f=bmlEscala();
+  if(f!==1&&!BML.hecho){bmlReescribe();BML.hecho=true;}
+  if(f===BML.f&&(f===1||raiz.style.getPropertyValue('--ft')))return f;
+  BML.f=f;
+  if(f===1)raiz.style.removeProperty('--ft');else raiz.style.setProperty('--ft',String(f));
+  raiz.classList.toggle('bml-g',f>1);
+  bmlEnLinea();
+  setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(c=>c&&c.resize&&c.resize());}catch(e){}},80);
+  return f;
+}
+(function(){
+  const ya=()=>{try{bmlAplica();}catch(e){console.error('bmnava · tamaño de letra',e);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ya);else ya();
+  /* Se cambia en los Ajustes del iPhone y se vuelve a la app: se relee. */
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')ya();});
+  try{window.matchMedia('(max-width:760px)').addEventListener('change',ya);}catch(e){}
+})();
+/* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
+function bmTelefono(){
+  const ops=[['sis','Como el teléfono'],['0.9','Pequeña'],['1','Normal'],['1.15','Grande'],['1.3','Muy grande']];
+  const pinta=()=>{const p=bmlPref(),sis=bmlSistema(),f=bmlEscala();
+    const nom=x=>({0.9:'pequeña',1:'normal',1.15:'grande',1.3:'muy grande'})[x]||'normal';
+    return '<div class="bmh-rot">Tamaño de letra</div><div class="bmh-grupo">'
+      +ops.map(o=>'<button type="button" class="bmh-fila'+(p===o[0]?' on':'')+'" data-letra="'+o[0]+'"><span class="tx">'+o[1]
+        +(o[0]==='sis'?'<small>Ahora mismo: '+nom(BML.pasos.reduce((a,b)=>Math.abs(b-Math.max(0.9,Math.min(1.3,sis)))<Math.abs(a-Math.max(0.9,Math.min(1.3,sis)))?b:a))+'</small>':'')
+        +'</span>'+(p===o[0]?'<span class="ch bml-ok">✓</span>':'')+'</button>').join('')+'</div>'
+      +'<p class="bml-nota">La cabecera, la barra de abajo y los documentos que se exportan no cambian de tamaño.</p>'
+      +'<div id="bmt-avisos"></div>'
+      +'<p class="bml-ver">Versión '+bmjEsc(typeof VER_ACTUAL!=='undefined'?VER_ACTUAL:'')+'</p>';};
+  const h=bmHoja({id:'tel',titulo:'Este teléfono',clase:'bmt',html:pinta()});
+  const c=h.querySelector('.bmh-cuerpo');
+  c.onclick=e=>{const b=e.target.closest('[data-letra]');if(!b)return;
+    try{localStorage.setItem(BML.k,b.dataset.letra);}catch(err){}
+    bmlAplica();c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
+  try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(e){}
+}
 /* v570 · Elegir jugador por la cara. En el móvil, cualquier desplegable cuyas
    opciones son la plantilla deja de abrir la rueda de dieciocho nombres: en su
    sitio va un botón con la foto y el nombre, y al tocarlo sube una hoja con
@@ -14492,6 +14586,7 @@ function bmFormas(){
       if(!sel.dataset.bmf)sel._bmNo=n;
     });
     if(typeof bmfHojas==='function')bmfHojas();
+    if(BML.f!==1)bmlEnLinea();
   }catch(e){console.error('bmnava · formularios de móvil',e);}
 }
 function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(bmFormas,80);}
@@ -39206,7 +39301,7 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
 .bmh-cuerpo{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 16px 18px}
 /* Botones de hoja: uno relleno (la acción) y los demás en celda. */
 .bmh-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;border:none;border-radius:14px;
-  padding:0 16px;font:600 17px/1.2 inherit;font-family:inherit;cursor:pointer;background:var(--bmh-celda);color:var(--accent);
+  padding:0 16px;font-weight:600;font-size:17px;line-height:1.2;font-family:inherit;cursor:pointer;background:var(--bmh-celda);color:var(--accent);
   -webkit-tap-highlight-color:transparent;transition:opacity .15s ease,transform .15s ease}
 .bmh-btn+.bmh-btn{margin-top:10px}
 .bmh-btn.pri{background:var(--accent);color:var(--on-accent,#fff)}
@@ -39219,7 +39314,7 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
 .bmh-rot{font-size:12.5px;color:var(--muted);margin:16px 4px 6px;font-weight:500}
 .bmh-rot:first-child{margin-top:2px}
 .bmh-fila{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:8px 14px;border:none;background:none;
-  color:var(--txt);font:400 17px/1.25 inherit;font-family:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  color:var(--txt);font-weight:400;font-size:17px;line-height:1.25;font-family:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .bmh-fila+.bmh-fila::before{content:"";position:absolute;left:14px;right:0;top:0;height:.5px;background:var(--line)}
 .bmh-fila:active{background:var(--seg-carril,rgba(118,118,128,.14))}
 .bmh-fila .ic{flex:none;width:28px;height:28px;display:grid;place-items:center;color:var(--accent)}
@@ -39246,18 +39341,18 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
    caras es una `bmHoja`: no existe en el ordenador. */
 .bm-jsel{display:none}
 .bmj-av{position:relative;flex:none;width:30px;height:30px;border-radius:50%;overflow:hidden;display:grid;place-items:center;
-  background:var(--seg-carril,rgba(118,118,128,.14));color:var(--muted);font:600 11px/1 inherit;font-style:normal}
+  background:var(--seg-carril,rgba(118,118,128,.14));color:var(--muted);font-weight:600;font-size:11px;line-height:1;font-style:normal}
 .bmj-av i{font-style:normal}
 .bmj-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 12%;background:var(--bmh-bg)}
 .bmj-av.vac{background:none;border:1.5px dashed var(--line)}
 .bmj-busca{position:sticky;top:0;z-index:2;background:var(--bmh-bg);padding:0 0 10px}
-.bmj-in{width:100%;height:38px;border:none;border-radius:11px;padding:0 12px 0 34px;font:400 17px/1 inherit;font-family:inherit;color:var(--txt);
+.bmj-in{width:100%;height:38px;border:none;border-radius:11px;padding:0 12px 0 34px;font-weight:400;font-size:17px;line-height:1;font-family:inherit;color:var(--txt);
   background:var(--seg-carril,rgba(118,118,128,.14)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E") 10px 50%/17px no-repeat;
   -webkit-appearance:none;appearance:none;outline:none}
 .bmj-in::placeholder{color:var(--muted)}
 .bmj-g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 2px;background:var(--bmh-celda);border-radius:12px;padding:10px 6px}
 .bmj-c{display:flex;flex-direction:column;align-items:center;gap:5px;min-height:84px;padding:6px 2px;border:none;border-radius:10px;background:none;
-  color:var(--txt);font:400 12.5px/1.15 inherit;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:0}
+  color:var(--txt);font-weight:400;font-size:12.5px;line-height:1.15;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:0}
 .bmj-c[hidden],.bmj-sec[hidden],.bmj-otras[hidden]{display:none}
 .bmj-c .bmj-av{width:52px;height:52px;font-size:15px;box-shadow:0 0 0 2px var(--bmh-celda),0 0 0 3.5px transparent}
 .bmj-c.on .bmj-av{box-shadow:0 0 0 2px var(--bmh-celda),0 0 0 4.5px var(--accent)}
@@ -39273,7 +39368,7 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
   select.bm-oc{position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;opacity:0!important;pointer-events:none!important;
     margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}
   .bm-jsel{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:5px 10px 5px 7px;border:1px solid var(--line);border-radius:12px;
-    background:var(--panel);color:var(--txt);font:500 16px/1.2 inherit;font-family:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:0}
+    background:var(--panel);color:var(--txt);font-weight:500;font-size:16px;line-height:1.2;font-family:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:0}
   .bm-jsel[hidden]{display:none}
   .bm-jsel[disabled]{opacity:.5}
   .bm-jsel-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -39415,6 +39510,35 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
     background:var(--tb-bg,rgba(255,255,255,.92));color:var(--muted);box-shadow:0 1px 4px rgba(0,0,0,.14);cursor:pointer;-webkit-tap-highlight-color:transparent}
   .bm-gx::after{content:"";position:absolute;inset:-7px}
   .bm-gx:active{transform:scale(.92)}
+}
+</style>
+<style id="movil-v575">
+/* ===== v575 · El tamaño de letra del teléfono =====
+   `--ft` es el factor (1 = normal). Lo pone el código en `html` sólo en el
+   móvil y sólo si no es 1. Aquí se dice dónde NO se aplica: se vuelve a poner
+   a 1 dentro de las barras, de los documentos y de los SVG. */
+header,#tabbar,.sb-tools,svg,
+#parte-card,.pt-card,.ficha-card,.ficha-overlay,.sa-page,.sa-page-wk,.a4-page,#sescal-a4-page,.iso-hoja,#iso-overlay,#fis-cap-png,#sy-gate,#splash{--ft:1;
+  /* Los seis escalones se vuelven a declarar aquí: un token que se calcula en
+     `:root` ya trae dentro el factor de `:root`, y poner `--ft:1` más abajo no
+     lo deshace. */
+  --fs-hero:34px;--fs-h1:24px;--fs-h2:17px;--fs-body:14px;--fs-sm:12.5px;--fs-xs:11px}
+.bml-nota{font-size:12.5px;color:var(--muted);margin:8px 4px 0;line-height:1.4}
+.bml-ver{font-size:12.5px;color:var(--muted2);text-align:center;margin:22px 0 4px}
+.bmh-fila .bml-ok{color:var(--accent);font-weight:600}
+@media(max-width:760px){
+  /* La hoja «Más» pasa de cinco a seis herramientas. */
+  .sb-tools{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:2px!important}
+  /* Con la letra grande (`bml-g`), lo único que dejaba de caber de las 29
+     pantallas medidas a 1,3: la previsión de mañana de Disponibilidad, que va a
+     dos columnas, y las cabeceras de bloque con un botón al lado del título. */
+  html.bml-g .plan-form{grid-template-columns:minmax(0,1fr)!important}
+  html.bml-g .plan-form input,html.bml-g .plan-form select,html.bml-g .plan-form .bm-jsel{min-width:0;max-width:100%}
+  html.bml-g .pro-head{flex-wrap:wrap}
+  html.bml-g .pro-head>div{min-width:0;flex-wrap:wrap}
+  /* dos botones en el pie de un formulario ya no caben en una fila */
+  html.bml-g .bmf .bmf-pie{flex-wrap:wrap}
+  html.bml-g .bmf .bmf-pie>.btn{flex:1 1 100%}
 }
 </style>
 <script>
@@ -42982,8 +43106,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.38*/
-const VER_ACTUAL='2026-11-11.38';
+/*BUILD:2026-11-11.39*/
+const VER_ACTUAL='2026-11-11.39';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
