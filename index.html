@@ -13708,11 +13708,15 @@ function sbToggleMobile(f){if(f===undefined)document.body.classList.toggle('sb-o
    existe siempre y el CSS sólo lo enseña por debajo de 760 px, así que en el
    ordenador no pinta nada. Los iconos son los del menú lateral: un destino
    no puede tener dos dibujos distintos según por dónde se llegue. */
-const TABBAR=[['equipo','Resumen'],['cal','Calendario'],['dispo','Disponibilidad'],['nutri','Nutrición']];
+/* v548 · Tres destinos, por decisión de Daniel (11/11/2026): Nutrición sale de
+   la barra y se llega a ella desde «Más», como al resto. */
+const TABBAR=[['equipo','Resumen'],['cal','Calendario'],['dispo','Disponibilidad']];
 const TB_MAS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
 function buildTabbar(){const tb=document.getElementById('tabbar');if(!tb)return;
-  tb.innerHTML=TABBAR.map(([v,l])=>`<button type="button" class="tb-i" data-v="${v}" onclick="tbGo('${v}')">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`).join('')
-    +`<button type="button" class="tb-i" data-v="_mas" aria-haspopup="dialog" aria-expanded="false" onclick="sbToggleMobile()">${TB_MAS}<span>Más</span></button>`;}
+  /* v548 · Los destinos van en una cápsula y «Más» es un botón redondo aparte:
+     la barra flota sobre el contenido en vez de ir pegada al borde. */
+  tb.innerHTML='<div class="tb-cap">'+TABBAR.map(([v,l])=>`<button type="button" class="tb-i" data-v="${v}" onclick="tbGo('${v}')">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`).join('')+'</div>'
+    +`<button type="button" class="tb-i tb-mas" data-v="_mas" aria-haspopup="dialog" aria-expanded="false" aria-label="Más: el menú completo" onclick="sbToggleMobile()">${TB_MAS}<span>Más</span></button>`;}
 /* Tocar la pestaña en la que ya se está sube al principio, como en cualquier
    aplicación de teléfono; tocar otra, navega. */
 function tbGo(v){const abierta=document.body.classList.contains('sb-open');sbToggleMobile(false);
@@ -37547,6 +37551,41 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   .cal-wktbl td:nth-child(6)::before{content:"Strain"}
 }
 </style>
+<style id="movil-v548">
+/* ===== v548 · La barra inferior, flotante =====
+   Daniel, 11/11/2026: «que esta barra de abajo fuese como una especie de menú
+   flotante… el que tiene YouTube», y fuera Nutrición. Los tres destinos van en
+   una cápsula despegada del borde, con el activo marcado por una pastilla, y
+   «Más» es un botón redondo suelto a su derecha (lo eligió él entre tres
+   formas). El contenido pasa por debajo; sólo la cápsula y el botón recogen el
+   toque, así que el hueco entre ellos no tapa nada.
+   Este bloque sustituye la geometría de la v532; el marcado y la lógica son
+   los mismos. */
+@media(max-width:760px){
+  #tabbar{display:flex;align-items:center;justify-content:center;gap:10px;
+    padding:0 max(14px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+    background:none;border:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none;max-width:none}
+  .tb-cap{display:grid;grid-template-columns:1fr 1fr 1.28fr;flex:1 1 auto;max-width:330px;min-width:0;height:62px;padding:5px;
+    box-sizing:border-box;border-radius:31px;pointer-events:auto;
+    background:var(--tb-bg);-webkit-backdrop-filter:blur(26px) saturate(1.8);backdrop-filter:blur(26px) saturate(1.8);
+    box-shadow:0 10px 30px rgba(0,0,0,.17),0 1px 3px rgba(0,0,0,.08);border:.5px solid var(--hair)}
+  .tb-cap .tb-i{min-height:0;height:100%;border-radius:26px;padding:4px 2px 3px;gap:2px}
+  .tb-cap .tb-i svg{width:22px;height:22px}
+  /* La pastilla del activo. El tono plano va primero por si no hay `color-mix`. */
+  .tb-cap .tb-i.on{background:var(--panel2);background:color-mix(in srgb,var(--accent) 13%,transparent)}
+  body.sb-open .tb-cap .tb-i.on{background:none}
+  .tb-mas{width:62px;height:62px;min-height:0;flex:none;border-radius:50%;padding:4px 0 3px;gap:1px;pointer-events:auto;
+    background:var(--tb-bg);-webkit-backdrop-filter:blur(26px) saturate(1.8);backdrop-filter:blur(26px) saturate(1.8);
+    box-shadow:0 10px 30px rgba(0,0,0,.17),0 1px 3px rgba(0,0,0,.08);border:.5px solid var(--hair)}
+  .tb-mas svg{width:22px;height:22px}
+  .tb-mas .tb-bdg{top:-3px;left:auto;right:-3px}
+  main{padding-bottom:calc(98px + env(safe-area-inset-bottom))}
+  #toast{bottom:calc(90px + env(safe-area-inset-bottom))!important}
+  #ver-nueva{bottom:calc(86px + env(safe-area-inset-bottom))}
+  #sidebar,body.sb-min #sidebar{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+  .add-menu{bottom:calc(86px + env(safe-area-inset-bottom))}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -41112,8 +41151,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.16*/
-const VER_ACTUAL='2026-11-11.16';
+/*BUILD:2026-11-11.17*/
+const VER_ACTUAL='2026-11-11.17';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
