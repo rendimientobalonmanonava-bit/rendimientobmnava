@@ -13884,6 +13884,22 @@ window.addEventListener('popstate',e=>{
     }catch(err){console.error('bmnava · deslizar',err);}
   },{passive:true});
 })();
+/* v555 · La ficha en el móvil. Dos cosas que necesitan un poco de código:
+   - Al bajar, la barra de pestañas se queda pegada arriba y enseña el nombre
+     del jugador: con la cabecera fuera de la vista no se sabía de quién era.
+   - Las notas largas (`.hint`) se quedan en dos líneas y se abren al tocarlas:
+     siguen ahí enteras, pero no ocupan media pantalla antes del dato. */
+window.addEventListener('scroll',()=>{
+  if(!esMovil())return;
+  const b=document.getElementById('plt-bar');if(!b||!b.offsetParent)return;
+  const pegada=b.getBoundingClientRect().top<=(parseFloat(getComputedStyle(b).top)||0)+1;
+  if(pegada!==b.classList.contains('plt-pegada')){b.classList.toggle('plt-pegada',pegada);b.dataset.nom=(STATE.curPlayer||'');}
+},{passive:true});
+document.addEventListener('click',e=>{
+  if(!esMovil())return;
+  const h=e.target&&e.target.closest?e.target.closest('#v-jugador .hint'):null;
+  if(h&&!e.target.closest('a,button'))h.classList.toggle('hint-ab');
+});
 /* La hoja se cierra arrastrándola hacia abajo, que es lo que el dedo espera de
    una hoja. Sólo cuenta si la lista está arriba del todo: si no, el gesto es
    desplazar la lista. En el ordenador `sb-open` no se pone nunca. */
@@ -37896,6 +37912,64 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   #carga-resumen>[data-mt],#v-nutri>[data-mt]{animation:mvFunde .22s ease}
 }
 </style>
+<style id="movil-v555">
+/* ===== v555 · La ficha del jugador, compacta en el móvil =====
+   Medido a 375 px: la cabecera eran 441 px (foto de 88, cuatro cifras en 2 × 2
+   y cuatro botones en 2 × 2) y la pestaña Hoy 4.174. Ahora la cabecera son la
+   foto con el nombre, las cuatro cifras en una fila y las acciones en una tira
+   que se desliza. El título «Ficha de jugador» sobra: el título es el nombre. */
+@media(max-width:760px){
+  #v-jugador>.pagehead{display:none}
+  #v-jugador .phero{padding:14px 14px 12px;gap:12px}
+  #v-jugador .phero-id{gap:13px;flex:1 1 100%}
+  #v-jugador .phe-ph{width:68px;height:68px}
+  #v-jugador .phe-tiles{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;flex:1 1 100%}
+  #v-jugador .phe-t{padding:7px 7px 6px;border-radius:11px}
+  #v-jugador .phe-t>*{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #v-jugador .phero-btns{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:6px;
+    margin:0 -14px;padding:0 14px;width:auto}
+  #v-jugador .phero-btns::-webkit-scrollbar{display:none}
+  #v-jugador .phero-btns .btn{flex:none;width:auto;white-space:nowrap;padding:0 14px}
+  /* La barra de pestañas, pegada bajo las piezas de la cabecera, con el nombre. */
+  #v-jugador .plt-bar{top:calc(60px + env(safe-area-inset-top));flex-wrap:wrap}
+  #v-jugador .plt-bar.plt-pegada{box-shadow:0 6px 18px rgba(0,0,0,.12)}
+  #v-jugador .plt-bar.plt-pegada::before{content:attr(data-nom);flex:0 0 100%;box-sizing:border-box;padding:3px 9px 5px;
+    font-size:var(--fs-sm);font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Las notas, en dos líneas hasta que se tocan. */
+  #v-jugador .hint{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;cursor:pointer}
+  #v-jugador .hint.hint-ab{display:block}
+  /* Los seis anillos de wellness, en tres columnas. */
+  #v-jugador .rc-panel{grid-template-columns:minmax(0,1fr);gap:12px}
+  #v-jugador .rc-left{gap:10px 6px;justify-content:space-between}
+}
+</style>
+<style id="movil-v556">
+/* ===== v556 · Vendajes en el móvil: una tarjeta por jugador =====
+   Virginia lo rellena a diario desde el teléfono. La rejilla medía 430 px en
+   325 y había que arrastrarla de lado con el nombre fijado a la izquierda. Ahora
+   cada jugador es una tarjeta de dos líneas: el nombre entero arriba y las seis
+   zonas debajo, a todo el ancho (unos 49 × 48 px cada una), con el nombre de la
+   zona escrito DENTRO de la casilla, porque la cabecera de columnas ya no está
+   encima. El orden de las zonas es fijo (§6.6), así que el rótulo sale del
+   orden. Nada que arrastrar de lado. */
+@media(max-width:760px){
+  .vd-grid{overflow-x:visible;padding-bottom:0}
+  .vd-h{display:none}
+  .vd-r{min-width:0;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px 6px;padding:10px 0 12px}
+  .vd-r>.vd-n{grid-column:1 / span 5;grid-row:1;position:static;padding:0;font-size:var(--fs-body);background:none}
+  .vd-r>:last-child:not(.vd-c){grid-column:6;grid-row:1;justify-self:end}
+  .vd-r>.vd-c{grid-row:2;height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+    border-radius:11px;line-height:1.15}
+  .vd-r>.vd-c::before{font-size:var(--fs-xs);font-weight:500;color:var(--muted);letter-spacing:0}
+  .vd-r>.vd-c:nth-child(2)::before{content:"Tobillo"}
+  .vd-r>.vd-c:nth-child(3)::before{content:"Rodilla"}
+  .vd-r>.vd-c:nth-child(4)::before{content:"Muñeca"}
+  .vd-r>.vd-c:nth-child(5)::before{content:"Mano"}
+  .vd-r>.vd-c:nth-child(6)::before{content:"Dedo"}
+  .vd-r>.vd-c:nth-child(7)::before{content:"Hombro"}
+  .vd-r>.vd-c--on::before{color:var(--on-accent);opacity:.9}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -41461,8 +41535,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.22*/
-const VER_ACTUAL='2026-11-11.22';
+/*BUILD:2026-11-11.23*/
+const VER_ACTUAL='2026-11-11.23';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
