@@ -908,6 +908,24 @@ Daniel, 11/11/2026, con la captura delante: *«se transparenta y se ven cosas po
 
 ---
 
+#### 6.12.5 Nueve mejoras de estética (v561–v563)
+
+Daniel, 11/11/2026, tras ver las nueve propuestas —sólo de aspecto, no de función—: *«vamos con las 9»*.
+
+| Elemento | Regla |
+|---|---|
+| Oscuro sin contornos (v561) | En el móvil y en oscuro, las tarjetas pierden el borde y comparten un único gris (`--panel`); lo que va dentro, el siguiente (`--panel2`). Con `!important`, porque las reglas de cristal y del modo ligero lo llevan |
+| Márgenes (v561) | 16 px de lado y 12 entre tarjetas, en todas las pantallas. Las casillas del mes quedan en 46 px y siguen sin montarse |
+| Un solo control de segmentos (v561) | Había tres estilos (relleno de acento, pastilla blanca, texto de acento). Queda el del sistema: carril `--seg-carril` y pastilla `--seg-on`, declarados en los dos temas. Vale para Estado, Calendario, Pulsómetros, Perfil físico, Cargas y la ficha. **Las barras de pestañas que se deslizan (`.tsm-bar`) son otra cosa** y conservan su pastilla de acento. **Ojo con `.seg`**: se reglan los `button` hijos, nunca `.seg` a secas (§3: la clase la comparten las barras de la tira de readiness) |
+| Respuesta al toque (v561) | `:active` apaga lo que se pulsa, sólo donde no hay ratón y sólo lo más interior (`:not(:has(…:active))`): pulsar un botón dentro de una tarjeta pulsable no apaga la tarjeta |
+| Dibujos en vez de emojis (v562) | En la hoja «Más» y en el menú de añadir. **En el menú de añadir el emoji sigue en el marcado** (`.ic-e`) junto al dibujo: el ordenador enseña el emoji y el móvil el dibujo. Quedan emojis en otros sitios (botones de exportar, chips de bajas y citas) |
+| El título sube a la cápsula del día (v562) | `bmTitulo(v)` escribe el nombre corto de la pantalla —el del menú, o el jugador en la ficha— en `#dp-tit`, y `body.tit-arriba` lo enseña al pasar de 64 px de desplazamiento. En el ordenador `#dp-tit` está oculto |
+| Estados vacíos (v563) | Sólo CSS y sólo el caso inequívoco: la frase gris es lo ÚNICO tras el título (`.panel>h2+p.small.muted:last-child`…) o el bloque ya se llamaba vacío. *Comprobado en 15 pantallas: casa con seis textos y los seis son de «sin datos».* Una nota al pie de un panel con contenido no cambia |
+| Siluetas de carga (v563) | El único «Calculando…» de la app lleva al lado tres barras que laten (`.calc-s`); cada tamaño enseña lo suyo |
+| Acabado de los gráficos (v563) | En el bloque de móvil de `buildChartTheme`: esquinas de barra, rejilla de medio punto y seis marcas por eje (`AX`). **Las alturas no se igualan**: varios gráficos necesitan la suya |
+
+---
+
 ## 7. Flujo de trabajo
 
 1. **Un cambio por mensaje.** No agrupes varias modificaciones sin pedirlo.
