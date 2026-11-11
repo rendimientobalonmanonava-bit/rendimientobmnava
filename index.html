@@ -7184,7 +7184,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
         <div id="ev-rtp-body"></div>
       </div>
       <div id="avail-body"></div>
-      <div class="panel" style="margin-top:22px"><h2>Alertas activas</h2><div id="alerts-body-dispo"></div></div>
+      <div class="panel" id="dispo-alertas" style="margin-top:22px"><h2>Alertas activas</h2><div id="alerts-body-dispo"></div></div>
     </div>
     <!-- v294 · La agenda de Virginia: lo que trata, cuándo, y lo que viene. -->
     <div id="estado-fisio" class="estado-pane" style="display:none">
@@ -18573,7 +18573,7 @@ function posToggleRadar(p){POSUI.sel=POSUI.sel||{};POSUI.sel[p]=!POSUI.sel[p];re
 function posSetPos(name,val){STATE.posOverride=STATE.posOverride||{};STATE.posOverride[name]=val;renderAll();renderPosMap();}
 
 function setAlertFilter(s){FILTER.alertSev=s;renderAlerts();}
-function renderAlerts(){const _tg=[document.getElementById('alerts-body'),document.getElementById('alerts-body-dispo')].filter(Boolean);if(!_tg.length)return;const b={set innerHTML(x){_tg.forEach(t=>t.innerHTML=x);}};const all=STATE.alerts||[];const sevf=FILTER.alertSev||'all';const A=all.filter(a=>sevf==='all'||a.sev===sevf);const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;const players=new Set(all.map(a=>a.name)).size;const byMod={};all.forEach(a=>byMod[a.mod]=(byMod[a.mod]||0)+1);const order={bad:0,warn:1};const groups={};A.forEach(a=>{(groups[a.name]=groups[a.name]||[]).push(a);});const names=Object.keys(groups).sort((x,y)=>{const sx=Math.min.apply(null,groups[x].map(a=>order[a.sev]));const sy=Math.min.apply(null,groups[y].map(a=>order[a.sev]));return sx-sy||groups[y].length-groups[x].length;});const sumCard=(lab,val,sub,cls)=>`<div class="asum ${cls||''}"><div class="asum-v">${val}</div><div class="asum-l">${lab}</div>${sub?`<div class="asum-s">${sub}</div>`:''}</div>`;const fbtn=(s,l)=>`<button class="afilter ${sevf===s?'on':''}" onclick="setAlertFilter('${s}')">${l}</button>`;let html=`<div class="alert-summary">${sumCard('Alertas rojas',bad,'atención inmediata','bad')}${sumCard('Alertas ámbar',warn,'vigilar','warn')}${sumCard('Jugadores afectados',players,'de '+Object.keys(STATE.players).length)}${sumCard('Total alertas',all.length,Object.entries(byMod).map(([k,v])=>k+' '+v).join(' · '))}</div>`;html+=`<div class="alert-filters">${fbtn('all','Todas')}${fbtn('bad','Solo rojas')}${fbtn('warn','Solo ámbar')}</div>`;const _flagged=new Set(all.map(a=>a.name));const _wp=Object.values(STATE.players).filter(p=>p.readiness!=null&&p.sev==='ok'&&!_flagged.has(p.name)).sort((a,c)=>c.readiness-a.readiness);const wellHtml=_wp.length?`<div class="well-band"><div class="well-h"><span class="led ok"></span> En forma y disponibles · ${_wp.length}</div><div class="well-pills">${_wp.map(p=>`<span class="wpill ${p.readiness>=85?'top':''}" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')">${p.name} <b>${p.readiness}</b></span>`).join('')}</div></div>`:'';if(!names.length){html+='<p class="muted" style="padding:8px">Sin alertas en este filtro.</p>';b.innerHTML=html+wellHtml;return;}html+='<div class="alert-grid">'+names.map(nm=>{const p=STATE.players[nm]||{};const items=groups[nm].slice().sort((a,c)=>order[a.sev]-order[c.sev]);const worst=items[0].sev;const ph=(p.avatar||window.__AVATAR__);return `<div class="acard sev-${worst}" onclick="openPlayer('${nm.replace(/'/g,"\\'")}')">`+`<div class="acard-head">${ph?`<img class="acard-photo" src="${ph}" alt="">`:`<div class="acard-photo acard-ini">${nm.split(' ').slice(0,2).map(s=>s[0]||'').join('')}</div>`}<div style="min-width:0"><div class="acard-name">${nm}</div><div class="small muted">${p.pos||''}</div></div><span class="acard-count sev-${worst}">${items.length}</span></div>`+`<div class="acard-list">${items.map(a=>`<div class="arow"><span class="adot ${a.sev}"></span><span class="atype">${a.type}</span><span class="amod amod-${a.mod==='Físico'?'fis':a.mod==='Carga'?'car':'wel'}">${a.mod}</span></div>`).join('')}</div></div>`;}).join('')+'</div>';b.innerHTML=html+wellHtml;}
+function renderAlerts(){try{bdAlertas();}catch(e){console.error('bmnava · recuento de alertas',e);}const _tg=[document.getElementById('alerts-body'),document.getElementById('alerts-body-dispo')].filter(Boolean);if(!_tg.length)return;const b={set innerHTML(x){_tg.forEach(t=>t.innerHTML=x);}};const all=STATE.alerts||[];const sevf=FILTER.alertSev||'all';const A=all.filter(a=>sevf==='all'||a.sev===sevf);const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;const players=new Set(all.map(a=>a.name)).size;const byMod={};all.forEach(a=>byMod[a.mod]=(byMod[a.mod]||0)+1);const order={bad:0,warn:1};const groups={};A.forEach(a=>{(groups[a.name]=groups[a.name]||[]).push(a);});const names=Object.keys(groups).sort((x,y)=>{const sx=Math.min.apply(null,groups[x].map(a=>order[a.sev]));const sy=Math.min.apply(null,groups[y].map(a=>order[a.sev]));return sx-sy||groups[y].length-groups[x].length;});const sumCard=(lab,val,sub,cls)=>`<div class="asum ${cls||''}"><div class="asum-v">${val}</div><div class="asum-l">${lab}</div>${sub?`<div class="asum-s">${sub}</div>`:''}</div>`;const fbtn=(s,l)=>`<button class="afilter ${sevf===s?'on':''}" onclick="setAlertFilter('${s}')">${l}</button>`;let html=`<div class="alert-summary">${sumCard('Alertas rojas',bad,'atención inmediata','bad')}${sumCard('Alertas ámbar',warn,'vigilar','warn')}${sumCard('Jugadores afectados',players,'de '+Object.keys(STATE.players).length)}${sumCard('Total alertas',all.length,Object.entries(byMod).map(([k,v])=>k+' '+v).join(' · '))}</div>`;html+=`<div class="alert-filters">${fbtn('all','Todas')}${fbtn('bad','Solo rojas')}${fbtn('warn','Solo ámbar')}</div>`;const _flagged=new Set(all.map(a=>a.name));const _wp=Object.values(STATE.players).filter(p=>p.readiness!=null&&p.sev==='ok'&&!_flagged.has(p.name)).sort((a,c)=>c.readiness-a.readiness);const wellHtml=_wp.length?`<div class="well-band"><div class="well-h"><span class="led ok"></span> En forma y disponibles · ${_wp.length}</div><div class="well-pills">${_wp.map(p=>`<span class="wpill ${p.readiness>=85?'top':''}" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')">${p.name} <b>${p.readiness}</b></span>`).join('')}</div></div>`:'';if(!names.length){html+='<p class="muted" style="padding:8px">Sin alertas en este filtro.</p>';b.innerHTML=html+wellHtml;return;}html+='<div class="alert-grid">'+names.map(nm=>{const p=STATE.players[nm]||{};const items=groups[nm].slice().sort((a,c)=>order[a.sev]-order[c.sev]);const worst=items[0].sev;const ph=(p.avatar||window.__AVATAR__);return `<div class="acard sev-${worst}" onclick="openPlayer('${nm.replace(/'/g,"\\'")}')">`+`<div class="acard-head">${ph?`<img class="acard-photo" src="${ph}" alt="">`:`<div class="acard-photo acard-ini">${nm.split(' ').slice(0,2).map(s=>s[0]||'').join('')}</div>`}<div style="min-width:0"><div class="acard-name">${nm}</div><div class="small muted">${p.pos||''}</div></div><span class="acard-count sev-${worst}">${items.length}</span></div>`+`<div class="acard-list">${items.map(a=>`<div class="arow"><span class="adot ${a.sev}"></span><span class="atype">${a.type}</span><span class="amod amod-${a.mod==='Físico'?'fis':a.mod==='Carga'?'car':'wel'}">${a.mod}</span></div>`).join('')}</div></div>`;}).join('')+'</div>';b.innerHTML=html+wellHtml;}
 
 /* ===================== P2 · PERFIL FÍSICO (z-scores / TSA · Turner 2019) ===================== */
 const CATS=['Condición','Fuerza','Explosividad'];
@@ -21803,6 +21803,27 @@ function renderAvail(){
   const pillT=(lab,col)=>`<span class="pillT" style="color:${colTinta(col)};background:color-mix(in srgb,${col} 15%,transparent)"><span class="pillT-dot" style="background:${col}"></span><span class="pillT-tx">${lab}</span></span>`;
   const athFicha=a=>{const p=STATE.players[a.n];const rdv=p&&p.readiness!=null?p.readiness:null;const isReal=avReal(a.n);return `<div class="ath" title="${a.n.replace(/"/g,'&quot;')}" onclick="openPlayer('${esc(a.n)}')"><div class="ath-ph${isReal?' ath-ph--photo':''}">${ring(rdv!=null?rdv:100,a.col,74,5)}<img src="${av(a.n)}" class="ath-img${isReal?' ath-img--photo':''}"><span class="ath-rd" style="color:${colTexto(a.col)}">${rdv!=null?rdv:'—'}</span></div><div class="ath-nm">${a.n.split(' ')[0]}</div><div class="ath-pillwrap">${pillT(a.lab,a.col)}</div>${a.meta?`<div class="ath-mt">${a.meta}</div>`:''}${a.revisable?`<button class="ath-ok" title="Lo he mirado y no necesita nada hoy" onclick="event.stopPropagation();dispMarcarVisto('${esc(a.n)}')">✓ visto</button>`:''}</div>`;};
   const kpi=(val,lab,col,small)=>`<div class="kpi"><div class="kpi-v${small?' sm':''}"${col?` style="color:${colTinta(col)}"`:''}>${val}</div><div class="kpi-l">${lab}</div></div>`;
+  /* v535 · La plantilla por estado, para el móvil. Sale de `GRUPOS` y de
+     `estItems`, los mismos con los que se pintan la lista y los indicadores:
+     un jugador no puede estar en un grupo aquí y en otro dos bloques más
+     abajo. Quien tiene motivo va en pastilla con su foto y el motivo; los
+     disponibles, que no tienen nada que leer, en caras. El aro de la foto
+     lleva el color del estado (regla de la v465) y va con `border`. La zona
+     es texto libre: se escapa al pintar (§4.2). El CSS lo esconde fuera del
+     móvil, y va al FINAL del marcado para no cambiar quién es el primer hijo. */
+  const bdCorto=nm=>{const p=String(nm).split(' ');return p.length>2?p[0]+' '+p[1]:nm;};
+  const bdAv=(n,col)=>'<span class="bd-av" style="border-color:'+col+'">'+(avReal(n)?'<img src="'+av(n)+'" alt="" loading="lazy">':'<span class="bd-ini">'+bmEsc(String(n).trim().charAt(0))+'</span>')+'</span>';
+  const tablero='<section class="dsp-bd" aria-label="La plantilla hoy, por estado">'
+    +'<div class="bd-h"><b>La plantilla hoy</b><span>'+dispCount+' de '+roster.length+' disponibles</span></div>'
+    +GRUPOS.map(g=>{const list=estItems.filter(g.test);if(!list.length)return '';
+      const cab='<div class="bd-g-h"><i style="background:'+g.col+'"></i>'+g.lab+'<em>'+list.length+'</em></div>';
+      if(g.k==='ok')return '<div class="bd-g">'+cab+'<div class="bd-caras">'+list.map(o=>'<button type="button" class="bd-cara" onclick="openPlayer(\''+esc(o.n)+'\')" aria-label="'+bmEsc(o.n)+'">'+bdAv(o.n,g.col)+'<span>'+bmEsc(o.n.split(' ')[0])+'</span></button>').join('')+'</div></div>';
+      return '<div class="bd-g">'+cab+'<div class="bd-pills">'+list.map(o=>{const ev=cur[o.n].ev;const sM=PHYSTAT[o.st]||{lab:o.st,c:g.col};
+        const zona=ev&&ev.zone?ev.zone+(ev.side?' '+ev.side:''):'';
+        return '<button type="button" class="bd-pill" onclick="openPlayer(\''+esc(o.n)+'\')">'+bdAv(o.n,sM.c)+'<span class="bd-t"><b>'+bmEsc(bdCorto(o.n))+'</b><em>'+bmEsc(sM.lab+(zona?' · '+zona:''))+'</em></span></button>';}).join('')+'</div></div>';
+    }).join('')
+    +'<button type="button" class="bd-al" id="bd-al" onclick="go(\'alertas\')" hidden></button>'
+    +'</section>';
   box.innerHTML=`
   <div class="card-pro">
     <div class="pro-head"><div><div class="eyebrow">Disponibilidad</div><div class="pro-title">Atención hoy</div></div>
@@ -21862,8 +21883,17 @@ function renderAvail(){
       <div class="card-pro body-mini"><div class="mini-h" style="text-align:left">Mapa de incidencias</div>${bodyMapSVG(counts)}</div>
       <div class="card-pro"><details><summary class="pro-title sm">Matriz de disponibilidad · últimas 16 semanas</summary><div style="margin-top:12px">${availMatrix(roster)}</div></details></div>
     </div>
-  </div>`;
+  </div>`+tablero;
+  bdAlertas();
 }
+/* v535 · El recuento de alertas del tablero del móvil. Lee `STATE.alerts`, lo
+   mismo que cuenta la vista Alertas, y se repinta cuando ella se repinta. */
+function bdAlertas(){const b=document.getElementById('bd-al');if(!b)return;const all=STATE.alerts||[];
+  if(!all.length){b.hidden=true;return;}
+  const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;
+  b.hidden=false;
+  b.innerHTML='<span class="bd-al-t"><b>'+all.length+(all.length===1?' alerta activa':' alertas activas')+'</b><small>'
+    +[bad?bad+(bad===1?' roja':' rojas'):'',warn?warn+' ámbar':''].filter(Boolean).join(' · ')+'</small></span><span class="bd-al-c" aria-hidden="true">›</span>';}
 function medOpenEpisodeOf(name){const arr=(STATE.physioUser||{})[name]||[];return arr.find(x=>String(x._id||'').indexOf('med_')===0&&!x.to)||null;}
 function estadoGoMedico(injId){
  /* v485 · Hacía sólo `estadoTab('medico')`, que cambia de PESTAÑA pero no de
@@ -36963,6 +36993,59 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   #tsa-pane-jugador[data-mtab="datos"]>[data-mt]:not([data-mt="datos"]){display:none}
 }
 </style>
+<style id="movil-v535">
+/* ===== v535 · Disponibilidad en el móvil: la plantilla por estado =====
+   Medido a 375 px: 6.345 px. Para saber quién está fuera había que bajar hasta
+   «Estado actual de la plantilla», pasar el formulario de marcar y abrir un
+   plegable; y al final, 1.854 px de «Alertas activas», que es una copia de la
+   entrada Alertas del menú.
+   El tablero lo pinta `renderAvail` con SUS mismos grupos (`GRUPOS`), así que
+   el recuento de cada estado es el de la lista y el de los indicadores: no hay
+   un segundo criterio. En el ordenador está oculto y el resto no se mueve. */
+.dsp-bd{display:none}
+@media(max-width:760px){
+  #avail-body{display:flex;flex-direction:column;gap:12px}
+  #avail-body>*{margin-top:0;margin-bottom:0}
+  #avail-body>.wm-chip{order:-3}
+  #avail-body>.dsp-bd{order:-2;display:block;background:var(--panel);border-radius:18px;padding:14px 14px 12px;box-shadow:var(--lg-shadow)}
+  /* La evolución de 14 semanas es historia: va después de lo de hoy. */
+  #avail-body>#ev-slot{order:5}
+  /* Las alertas tienen su propia vista: aquí queda el recuento, que enlaza. */
+  #dispo-alertas{display:none}
+  .bd-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .bd-h b{font-size:var(--fs-h2);font-weight:600;letter-spacing:-.01em}
+  .bd-h span{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap}
+  .bd-g{padding-top:14px}
+  .bd-g-h{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);font-weight:600;color:var(--txt);margin-bottom:8px}
+  .bd-g-h i{width:9px;height:9px;border-radius:50%;flex:none}
+  .bd-g-h em{font-style:normal;color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums}
+  /* Una por fila: a dos columnas el motivo —que es lo que hay que leer— se
+     recortaba en «Baja / lesión · ro…». Suelen ser pocos. */
+  .bd-pills{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+  .bd-pill{display:flex;align-items:center;gap:9px;min-height:54px;min-width:0;padding:6px 9px;border:none;border-radius:14px;
+    background:var(--panel2);font:inherit;color:var(--txt);text-align:left;cursor:pointer;touch-action:manipulation}
+  .bd-av{width:40px;height:40px;flex:none;border-radius:50%;overflow:hidden;border:2.5px solid var(--muted2);background:var(--panel2);
+    display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+  .bd-av img{width:100%;height:100%;object-fit:cover;display:block}
+  .bd-ini{font-size:var(--fs-sm);font-weight:600;color:var(--muted)}
+  .bd-t{min-width:0;display:flex;flex-direction:column;line-height:1.25}
+  .bd-t b{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bd-t em{font-size:var(--fs-xs);font-style:normal;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Los disponibles no llevan motivo que leer: caras y nombre de pila. */
+  .bd-caras{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px 2px}
+  .bd-cara{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;min-height:44px;padding:0;border:none;
+    background:none;font:inherit;color:var(--txt);cursor:pointer;touch-action:manipulation}
+  .bd-cara>span:last-child{font-size:var(--fs-xs);color:var(--muted);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bd-pill:active,.bd-cara:active{opacity:.6}
+  .bd-al{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;margin-top:14px;padding:10px 2px 0;border:none;
+    border-top:.5px solid var(--hair);background:none;font:inherit;color:var(--txt);text-align:left;cursor:pointer;touch-action:manipulation}
+  .bd-al[hidden]{display:none}
+  .bd-al-t{flex:1;min-width:0}
+  .bd-al-t b{display:block;font-size:var(--fs-body);font-weight:600}
+  .bd-al-t small{font-size:var(--fs-sm);color:var(--muted)}
+  .bd-al-c{flex:none;color:var(--muted);font-size:17px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -40519,8 +40602,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.3*/
-const VER_ACTUAL='2026-11-11.3';
+/*BUILD:2026-11-11.4*/
+const VER_ACTUAL='2026-11-11.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
