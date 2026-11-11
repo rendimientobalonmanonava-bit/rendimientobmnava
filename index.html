@@ -13755,12 +13755,132 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.class
 /* v539 · ¿Se está en el diseño de móvil? Es la misma condición que la regla de
    ancho del CSS: lo que sólo debe pasar en el teléfono pregunta aquí. */
 const esMovil=()=>!!(window.matchMedia&&window.matchMedia('(max-width:760px)').matches);
+/* v566 · La hoja común del móvil. Compartir, elegir jugador, buscar y el menú
+   de mantener pulsado suben desde abajo con la MISMA pieza: una caja con asa,
+   título y aspa, que sigue al dedo al arrastrarla y se cierra al soltarla lejos
+   o deprisa. La abre sólo código que ya ha preguntado `esMovil()`, así que en
+   el ordenador no existe: no hay ni un nodo suyo en el marcado.
+   `bmHoja({id,titulo,html,clase,alCerrar})` la crea la primera vez y la reutiliza
+   después; `bmHojaCierra(id)` la cierra (sin id, la de arriba). */
+const BMH={pila:[]};
+const BMH_X='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+/* El arrastre vale para cualquier caja que suba desde abajo. Sólo empieza si
+   nada de lo que hay bajo el dedo está desplazado: con una lista a medias, el
+   gesto es de la lista. */
+function bmArrastre(caja,o){
+  o=o||{};let y0=null,x0=0,dy=0,t0=0,act=false,dec=false;
+  const alto=()=>caja.getBoundingClientRect().height||1;
+  caja.addEventListener('touchstart',e=>{
+    y0=null;if(e.touches.length!==1)return;
+    if(o.solo&&!o.solo())return;
+    const t=e.target;if(!t||!t.closest)return;
+    if(/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)||t.closest('canvas,[data-noarr]'))return;
+    for(let n=t;n&&n!==caja.parentElement;n=n.parentElement){
+      if(n.scrollTop>0&&n.scrollHeight>n.clientHeight+1)return;
+      if(n===caja)break;
+    }
+    y0=e.touches[0].clientY;x0=e.touches[0].clientX;dy=0;t0=performance.now();act=false;dec=false;
+  },{passive:true});
+  caja.addEventListener('touchmove',e=>{
+    if(y0==null)return;
+    const y=e.touches[0].clientY,x=e.touches[0].clientX;
+    if(!dec){const ay=Math.abs(y-y0),ax=Math.abs(x-x0);if(ay<8&&ax<8)return;
+      dec=true;act=(y-y0)>0&&ay>ax;if(!act){y0=null;return;}
+      caja.style.transition='none';if(o.fondo)o.fondo.style.transition='none';}
+    dy=Math.max(0,y-y0);
+    caja.style.transform='translateY('+dy+'px)';
+    if(o.fondo)o.fondo.style.opacity=String(Math.max(0,1-dy/alto()));
+    if(e.cancelable)e.preventDefault();
+  },{passive:false});
+  const suelta=()=>{
+    if(y0==null||!act){y0=null;return;}
+    const v=dy/Math.max(1,performance.now()-t0);
+    caja.style.transition='';if(o.fondo)o.fondo.style.transition='';
+    if(dy>Math.min(170,alto()*0.34)||(v>0.55&&dy>44)){
+      if(o.fondo)o.fondo.style.opacity='0';
+      caja.style.transform='translateY(105%)';
+      setTimeout(()=>{try{o.cerrar&&o.cerrar();}finally{caja.style.transform='';if(o.fondo)o.fondo.style.opacity='';}},210);
+    }else{caja.style.transform='';if(o.fondo)o.fondo.style.opacity='';}
+    y0=null;act=false;
+  };
+  caja.addEventListener('touchend',suelta);caja.addEventListener('touchcancel',suelta);
+}
+function bmHoja(o){
+  o=o||{};const id='bmh-'+(o.id||'x');
+  let h=document.getElementById(id);
+  if(!h){
+    h=document.createElement('div');h.id=id;h.setAttribute('role','dialog');h.setAttribute('aria-modal','true');
+    h.innerHTML='<div class="bmh-fondo"></div><div class="bmh-caja"><div class="bmh-asa" aria-hidden="true"></div>'
+      +'<div class="bmh-cab"><b class="bmh-tit"></b><button type="button" class="bmh-x" aria-label="Cerrar">'+BMH_X+'</button></div>'
+      +'<div class="bmh-cuerpo"></div></div>';
+    document.body.appendChild(h);
+    h.querySelector('.bmh-fondo').addEventListener('click',()=>bmHojaCierra(id));
+    h.querySelector('.bmh-x').addEventListener('click',()=>bmHojaCierra(id));
+    bmArrastre(h.querySelector('.bmh-caja'),{fondo:h.querySelector('.bmh-fondo'),cerrar:()=>bmHojaCierra(id)});
+  }
+  h.className='bmh'+(o.clase?' '+o.clase:'');
+  h.querySelector('.bmh-tit').textContent=o.titulo||'';
+  h.setAttribute('aria-label',o.titulo||'Hoja');
+  const c=h.querySelector('.bmh-cuerpo');if(o.html!=null)c.innerHTML=o.html;c.scrollTop=0;
+  h._alCerrar=o.alCerrar||null;
+  if(BMH.pila.indexOf(id)<0){h._foco=document.activeElement;BMH.pila.push(id);}
+  h.classList.add('on');void h.offsetWidth;h.classList.add('vis');
+  return h;
+}
+function bmHojaCierra(id){
+  id=id||BMH.pila[BMH.pila.length-1];if(!id)return false;
+  const h=document.getElementById(id);if(!h||!h.classList.contains('on'))return false;
+  BMH.pila=BMH.pila.filter(x=>x!==id);
+  h.classList.remove('vis');
+  setTimeout(()=>{if(BMH.pila.indexOf(id)<0)h.classList.remove('on');},320);
+  const f=h._alCerrar;h._alCerrar=null;
+  try{if(f)f();}catch(e){console.error('bmnava · hoja',e);}
+  try{if(h._foco&&h._foco.focus&&document.contains(h._foco))h._foco.focus({preventScroll:true});}catch(e){}
+  return true;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BMH.pila.length){e.stopPropagation();bmHojaCierra();}},true);
+/* v567 · Compartir. Todo lo que exporta una imagen acaba aquí. En el ordenador
+   hace lo de siempre —descargarla—. En el móvil enseña la imagen en una hoja
+   con «Compartir», que abre la hoja de compartir del teléfono (WhatsApp,
+   Mensajes, AirDrop, Guardar en Fotos), y «Guardar imagen».
+   Son dos toques y no uno a propósito: la imagen tarda uno o dos segundos en
+   montarse y el teléfono sólo deja abrir «compartir» justo después de un toque.
+   Con la hoja en medio, el toque es nuevo y además se ve lo que se va a mandar.
+   `__EXP_LOTE` es el lote de fichas: dieciocho imágenes seguidas se descargan,
+   no abren dieciocho hojas. */
+const BMC_IC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+function bmEntregaPNG(cv,filename){
+  const baja=href=>{const a=document.createElement('a');a.download=filename;a.href=href||cv.toDataURL('image/png');a.click();};
+  if(!esMovil()||window.__EXP_LOTE||!cv.toBlob){baja();return;}
+  cv.toBlob(blob=>{
+    if(!blob){baja();return;}
+    let file=null,puede=false;
+    try{file=new File([blob],filename,{type:'image/png'});puede=!!(navigator.canShare&&navigator.canShare({files:[file]}));}catch(e){puede=false;}
+    const url=URL.createObjectURL(blob);
+    const kb=Math.max(1,Math.round(blob.size/1024));
+    const peso=kb>=1024?fmt(kb/1024,1)+' MB':kb+' KB';
+    const h=bmHoja({id:'comp',titulo:'Imagen lista',clase:'bmc',
+      html:'<div class="bmc-prev"><img alt="Vista previa de la imagen" src="'+url+'"></div>'
+        +'<p class="bmc-n">'+cv.width+' × '+cv.height+' px · '+peso+'</p>'
+        +(puede?'<button type="button" class="bmh-btn pri" data-bmc="comp">'+BMC_IC+'Compartir</button>':'')
+        +'<button type="button" class="bmh-btn'+(puede?'':' pri')+'" data-bmc="guarda">Guardar imagen</button>',
+      alCerrar:()=>{setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}},1500);}});
+    const bc=h.querySelector('[data-bmc="comp"]'),bg=h.querySelector('[data-bmc="guarda"]');
+    if(bc)bc.onclick=async()=>{
+      try{await navigator.share({files:[file]});bmHojaCierra('bmh-comp');}
+      catch(e){if(e&&e.name==='AbortError')return;   /* la cerró sin mandar: la hoja sigue ahí */
+        console.error('bmnava · compartir',e);toast('No se pudo abrir «Compartir». Guarda la imagen.');}
+    };
+    if(bg)bg.onclick=()=>{baja(url);toast('Imagen guardada');bmHojaCierra('bmh-comp');};
+  },'image/png');
+}
 /* Cierra lo que haya abierto ENCIMA de la pantalla, de arriba abajo, y dice si
    había algo. Lo usa el gesto «atrás»: con un diálogo abierto, atrás lo
    cierra; no cambia de pantalla por debajo de él. */
 function bmCierraCapa(){
   const vis=id=>{const e=document.getElementById(id);return e&&getComputedStyle(e).display!=='none'?e:null;};
   let e;
+  if(BMH.pila.length){bmHojaCierra();return true;}
   if((e=vis('iso-overlay'))){if(typeof isoCerrar==='function')isoCerrar();else e.style.display='none';return true;}
   if((e=vis('ficha-overlay'))){e.style.display='none';return true;}
   if((e=vis('ph-overlay'))){e.style.display='none';return true;}
@@ -20280,7 +20400,7 @@ async function exportFichaPNG(){
   }catch(e){if(msg)msg.textContent='No se pudo generar PNG; usa Imprimir → Guardar como PDF.';}
 }
 function squadAvgZ(scope,pos){const stt=testStats();const names=Object.keys(STATE.players).filter(nm=>scope==='pos'?posOf(nm)===pos:true);const out={};TESTS.filter(t=>t.incTSA!==false).forEach(t=>{const zs=names.map(nm=>{const v=(STATE.tests[nm]||{})[t.k];if(v==null||!(stt[t.k].s>0))return null;let z=(v-stt[t.k].m)/stt[t.k].s;return t.lowerBetter?-z:z;}).filter(z=>z!=null);out[t.k]=zs.length?mean(zs):null;});return out;}
-async function exportAllFichas(){const names=Object.keys(STATE.players);const msg=document.getElementById('ficha-msg');for(let i=0;i<names.length;i++){if(msg)msg.textContent='Exportando '+(i+1)+'/'+names.length+'…';openFicha(names[i]);await new Promise(r=>setTimeout(r,400));await exportFichaPNG();await new Promise(r=>setTimeout(r,300));}if(msg)msg.textContent='Plantilla exportada.';}
+async function exportAllFichas(){const names=Object.keys(STATE.players);const msg=document.getElementById('ficha-msg');window.__EXP_LOTE=true;try{for(let i=0;i<names.length;i++){if(msg)msg.textContent='Exportando '+(i+1)+'/'+names.length+'…';openFicha(names[i]);await new Promise(r=>setTimeout(r,400));await exportFichaPNG();await new Promise(r=>setTimeout(r,300));}}finally{window.__EXP_LOTE=false;}if(msg)msg.textContent='Plantilla exportada.';}
 function fichaPosAgg(name,getter,lowerBetter){
   const pos=posOf(name);const names=Object.keys(STATE.players).filter(nm=>posOf(nm)===pos);
   const vals=names.map(getter).filter(v=>v!=null&&!isNaN(v));
@@ -25105,7 +25225,14 @@ function exportNodePNG(id,filename,opts){
      retiraba el `box-shadow: inset`, que html2canvas pinta como un relleno:
      la columna de hoy salía como un bloque índigo macizo. Es el síntoma que la
      v413 creyó haber arreglado —y el arreglo estaba bien: no llegaba a correr. */
-  return html2canvas(el,{scale:2,useCORS:true,backgroundColor:(opts&&opts.bg)||cssVar('--bg')||'#ffffff',logging:false,
+  /* v567 · Lo que se exporta desde el teléfono sale con la forma del ORDENADOR.
+     Un parte montado a 343 px de ancho es una tira de 686 × 4878: al mandarla,
+     WhatsApp la reduce a 1600 px de alto y la deja en 225 de ancho, ilegible.
+     html2canvas monta su copia en una ventana del ancho que se le diga, así
+     que las reglas de móvil no se aplican en ella y el documento sale igual
+     que desde el ordenador. En el ordenador `anchoDoc` vale 0 y no cambia nada. */
+  const anchoDoc=(opts&&opts.ancho)||(esMovil()?1180:0);
+  return html2canvas(el,Object.assign({scale:2,useCORS:true,backgroundColor:(opts&&opts.bg)||cssVar('--bg')||'#ffffff',logging:false},anchoDoc?{windowWidth:anchoDoc}:{},{
     onclone:(doc)=>{try{const c=doc.getElementById(id);if(!c)return;
       /* v222 · El emparejado original↔copia es por índice, así que la copia debe
          tener exactamente la misma estructura mientras se copian los estilos. Antes
@@ -25114,7 +25241,7 @@ function exportNodePNG(id,filename,opts){
          lo que rompía el PNG de media tabla para abajo. Ahora se borran al final. */
       const _cv=document.createElement('canvas');_cv.width=_cv.height=1;const _cx=_cv.getContext('2d');
       const MOD=/\b(color|oklch|oklab|lab|lch|hwb|color-mix)\(/;
-      const toRGB=(col)=>{if(!col||!MOD.test(col))return col;try{_cx.fillStyle='#000';_cx.fillStyle=col;_cx.fillRect(0,0,1,1);const d=_cx.getImageData(0,0,1,1).data;return 'rgba('+d[0]+','+d[1]+','+d[2]+','+(d[3]/255)+')';}catch(_){return col;}};
+      const toRGB=(col)=>{if(!col||!MOD.test(col))return col;try{_cx.clearRect(0,0,1,1);_cx.fillStyle='#000';_cx.fillStyle=col;_cx.fillRect(0,0,1,1);const d=_cx.getImageData(0,0,1,1).data;return 'rgba('+d[0]+','+d[1]+','+d[2]+','+(d[3]/255)+')';}catch(_){return col;}};
       const mapa={};c.querySelectorAll('[data-x2p]').forEach(d=>{mapa[d.getAttribute('data-x2p')]=d;});
       const RVARS=['--c','--cwc','--vc','--pc','--ic','--accent','--bad','--ok','--warn','--line','--hair','--muted','--muted2','--txt','--panel','--panel2','--bg','--dc','--tl-off','--tl-body','--tl-edge','--c-data','--sv'];
       const ap=(s,d)=>{if(!s||!d||!d.style)return;const cs=getComputedStyle(s);
@@ -25164,8 +25291,31 @@ function exportNodePNG(id,filename,opts){
       /* ya copiados los estilos, se pueden quitar las imágenes vacías sin
          descuadrar nada */
       c.querySelectorAll('img').forEach(im=>{const v=im.getAttribute('src')||'';if(!v||v==='about:blank')im.remove();});
+      /* v567 · Con otro ancho de ventana el hueco de cada gráfico cambia, pero su
+         lienzo es un mapa de bits hecho a la medida del teléfono: saldría
+         estrecho, con media tarjeta en blanco. Se vuelve a dibujar el MISMO
+         gráfico —mismos datos, mismas opciones— a la medida del hueco de la
+         copia, y se vuelca sobre el lienzo copiado. */
+      if(anchoDoc){Object.keys(charts||{}).forEach(k=>{const ch=charts[k];let t=null;
+        try{
+          if(!ch||!ch.canvas||!el.contains(ch.canvas))return;
+          const cc=mapa[ch.canvas.getAttribute('data-x2p')],pa=cc&&cc.parentElement;if(!pa)return;
+          const pcs=doc.defaultView.getComputedStyle(pa),r0=ch.canvas.getBoundingClientRect();
+          const w=Math.round(pa.clientWidth-parseFloat(pcs.paddingLeft||0)-parseFloat(pcs.paddingRight||0));
+          const ph=Math.round(pa.clientHeight-parseFloat(pcs.paddingTop||0)-parseFloat(pcs.paddingBottom||0));
+          const h=(ph>40&&Math.abs(ph-r0.height)>2&&pcs.height!=='auto')?ph:Math.round(r0.height);
+          if(!(w>40&&h>40)||(Math.abs(w-r0.width)<2&&Math.abs(h-r0.height)<2))return;
+          const tmp=document.createElement('canvas');tmp.width=w;tmp.height=h;
+          t=new Chart(tmp,{type:ch.config.type,data:ch.config.data,plugins:ch.config.plugins||[],
+            options:Object.assign({},ch.config.options,{responsive:false,maintainAspectRatio:false,animation:false,devicePixelRatio:2})});
+          t.draw();
+          cc.width=tmp.width;cc.height=tmp.height;cc.style.width=w+'px';cc.style.height=h+'px';
+          cc.getContext('2d').drawImage(tmp,0,0);
+        }catch(e){console.error('bmnava · gráfico al exportar',e);}
+        finally{try{if(t)t.destroy();}catch(_){}}
+      });}
     }catch(e){}}
-  }).then(cv=>{desmarcar();const a=document.createElement('a');a.download=filename;a.href=cv.toDataURL('image/png');a.click();})
+  })).then(cv=>{desmarcar();bmEntregaPNG(cv,filename);})
    .catch(e=>{desmarcar();alert('No se pudo generar el PNG ('+((e&&e.message)||e)+'). Como alternativa, usa Imprimir → Guardar como PDF.');});
 }
 /* v503 · Quien exporta tiene que esperar a que el parte este ENTERO.
@@ -32960,7 +33110,7 @@ function focusSearch(){
 }
 
 /* --- Exportar gráfico a PNG --- */
-function exportChartPNG(id){const ch=charts[id];if(!ch){toast('Este gráfico aún no está dibujado');return;}const src=ch.canvas;const tmp=document.createElement('canvas');tmp.width=src.width;tmp.height=src.height;const cx=tmp.getContext('2d');cx.fillStyle=(getComputedStyle(document.documentElement).getPropertyValue('--panel')||'#fff').trim();cx.fillRect(0,0,tmp.width,tmp.height);cx.drawImage(src,0,0);const a=document.createElement('a');a.download='bmnava_'+id+'.png';a.href=tmp.toDataURL('image/png');a.click();toast('Imagen exportada');}
+function exportChartPNG(id){const ch=charts[id];if(!ch){toast('Este gráfico aún no está dibujado');return;}const src=ch.canvas;const tmp=document.createElement('canvas');tmp.width=src.width;tmp.height=src.height;const cx=tmp.getContext('2d');cx.fillStyle=(getComputedStyle(document.documentElement).getPropertyValue('--panel')||'#fff').trim();cx.fillRect(0,0,tmp.width,tmp.height);cx.drawImage(src,0,0);const _mv=esMovil();bmEntregaPNG(tmp,'bmnava_'+id+'.png');if(!_mv)toast('Imagen exportada');}
 
 /* --- Exportar tabla a CSV --- */
 function exportTableCSV(table,name){if(!table){toast('Tabla no encontrada');return;}const rows=[...table.querySelectorAll('tr')].filter(r=>r.querySelector('th,td'));const lines=rows.map(r=>[...r.children].map(c=>{let t=(c.innerText||c.textContent||'').replace(/\s+/g,' ').trim();if(/[";\n]/.test(t))t='"'+t.replace(/"/g,'""')+'"';return t;}).join(';'));const csv='\ufeff'+lines.join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.download=(name||'tabla')+'.csv';a.href=URL.createObjectURL(blob);a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);toast('CSV exportado');}
@@ -38304,6 +38454,72 @@ html[data-theme="dark"]{--seg-carril:rgba(118,118,128,.28);--seg-on:#636366;--se
     top:-240px!important;border-top:240px solid transparent!important;background-clip:border-box}
 }
 </style>
+<style id="movil-v566">
+/* ===== v566 · La hoja común =====
+   Una sola pieza para todo lo que sube desde abajo en el móvil a partir de
+   aquí: compartir, elegir jugador, buscar, el menú de mantener pulsado. Sigue
+   al dedo al arrastrarla (HIG · Gestures: la respuesta acompaña al gesto) y
+   lleva asa, título y aspa (HIG · Modality: una forma evidente de cerrar).
+   Estas reglas NO van dentro de la regla de ancho, y es a propósito: la hoja
+   no está en el marcado —la crea el código, que antes pregunta `esMovil()`—,
+   así que en el ordenador no hay nada a lo que aplicarlas. Si una hoja queda
+   abierta y se gira el teléfono, tiene que seguir viéndose bien.
+   Dos colores nuevos, declarados en los dos temas: el fondo de la hoja y el de
+   sus celdas, que en oscuro son los grises elevados del sistema. */
+:root{--bmh-bg:#f2f2f7;--bmh-celda:#ffffff;--bmh-velo:rgba(0,0,0,.4)}
+html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0,0,.58)}
+.bmh{position:fixed;inset:0;z-index:10050;display:none}
+.bmh.on{display:block}
+/* El velo sube 240 px por encima de la pantalla: es la franja del reloj (v565). */
+.bmh-fondo{position:absolute;left:0;right:0;bottom:0;top:-240px;background:var(--bmh-velo);opacity:0;transition:opacity .28s ease}
+.bmh.vis .bmh-fondo{opacity:1}
+.bmh-caja{position:absolute;left:0;right:0;bottom:var(--kb,0px);max-height:calc(100dvh - 52px - var(--kb,0px));
+  display:flex;flex-direction:column;background:var(--bmh-bg);color:var(--txt);border-radius:16px 16px 0 0;
+  box-shadow:0 -12px 40px rgba(0,0,0,.24);transform:translateY(105%);transition:transform .36s cubic-bezier(.32,.72,0,1);
+  padding-bottom:env(safe-area-inset-bottom);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif}
+.bmh.vis .bmh-caja{transform:none}
+.bmh-asa{width:36px;height:5px;border-radius:3px;background:var(--muted2);opacity:.45;margin:8px auto 0;flex:none}
+.bmh-cab{display:flex;align-items:center;gap:10px;padding:10px 16px 12px;flex:none}
+.bmh-tit{flex:1;min-width:0;font-size:17px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bmh-x{position:relative;flex:none;width:30px;height:30px;border-radius:50%;border:none;padding:0;cursor:pointer;
+  background:var(--seg-carril,rgba(118,118,128,.14));color:var(--muted);display:grid;place-items:center;-webkit-tap-highlight-color:transparent}
+.bmh-x::after{content:"";position:absolute;inset:-7px}   /* 44 px al dedo */
+.bmh-cuerpo{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 16px 18px}
+/* Botones de hoja: uno relleno (la acción) y los demás en celda. */
+.bmh-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;border:none;border-radius:14px;
+  padding:0 16px;font:600 17px/1.2 inherit;font-family:inherit;cursor:pointer;background:var(--bmh-celda);color:var(--accent);
+  -webkit-tap-highlight-color:transparent;transition:opacity .15s ease,transform .15s ease}
+.bmh-btn+.bmh-btn{margin-top:10px}
+.bmh-btn.pri{background:var(--accent);color:var(--on-accent,#fff)}
+.bmh-btn:active{opacity:.72;transform:scale(.985)}
+.bmh-btn[disabled]{opacity:.45}
+.bmh-btn svg{width:20px;height:20px;flex:none}
+/* Lista agrupada: celdas con separador que no llega al borde (§3). */
+.bmh-grupo{background:var(--bmh-celda);border-radius:12px;overflow:hidden}
+.bmh-grupo+.bmh-grupo{margin-top:16px}
+.bmh-rot{font-size:12.5px;color:var(--muted);margin:16px 4px 6px;font-weight:500}
+.bmh-rot:first-child{margin-top:2px}
+.bmh-fila{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:8px 14px;border:none;background:none;
+  color:var(--txt);font:400 17px/1.25 inherit;font-family:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.bmh-fila+.bmh-fila::before{content:"";position:absolute;left:14px;right:0;top:0;height:.5px;background:var(--line)}
+.bmh-fila:active{background:var(--seg-carril,rgba(118,118,128,.14))}
+.bmh-fila .ic{flex:none;width:28px;height:28px;display:grid;place-items:center;color:var(--accent)}
+.bmh-fila .ic svg{width:22px;height:22px}
+.bmh-fila .tx{flex:1;min-width:0}
+.bmh-fila .tx small{display:block;font-size:12.5px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bmh-fila .ch{flex:none;color:var(--muted2);font-size:17px}
+.bmh-fila.pel{color:var(--bad-text)}
+.bmh-fila.pel .ic{color:var(--bad-text)}
+@media(prefers-reduced-motion:reduce){.bmh-caja,.bmh-fondo,.bmh-btn{transition:none}}
+</style>
+<style id="movil-v567">
+/* ===== v567 · Compartir =====
+   La hoja que enseña la imagen antes de mandarla. Sólo existe en el móvil:
+   la abre `bmEntregaPNG` tras preguntar `esMovil()`. */
+.bmc-prev{background:var(--bmh-celda);border-radius:12px;padding:10px;display:grid;place-items:center;overflow:hidden}
+.bmc-prev img{display:block;max-width:100%;max-height:44dvh;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.bmc-n{margin:8px 4px 14px;font-size:12.5px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -41869,8 +42085,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.30*/
-const VER_ACTUAL='2026-11-11.30';
+/*BUILD:2026-11-11.31*/
+const VER_ACTUAL='2026-11-11.31';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
