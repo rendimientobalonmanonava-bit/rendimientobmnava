@@ -6633,7 +6633,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 </div>
         <div class="panel" id="team-ultimas" style="cursor:pointer" onclick="go('hr')"><h2>Últimas sesiones <span class="r muted">nivel, zonas y contacto ›</span></h2><div id="eq-ultimas"></div></div>
         <div class="panel" id="team-next"></div>
-        <div class="panel"><h2>Intensidad de la sesión <span class="r muted">última</span></h2><div id="team-intensity"></div></div>
+        <div class="panel" id="team-int-panel"><h2>Intensidad de la sesión <span class="r muted">última</span></h2><div id="team-intensity"></div></div>
         <div class="panel" id="team-hr-panel" style="cursor:pointer" onclick="go('hr')">
         <h2>Resumen de pulso · zonas de FC <span class="r muted">interna + externa ›</span></h2>
         <div id="team-hr"></div>
@@ -6644,12 +6644,14 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
         <div class="panel" id="team-rings"></div>
         <div class="panel" id="team-fisio"></div>
         <div class="panel" id="team-reuniones"></div>
-        <div class="panel"><h2>Estado de carga del equipo</h2><div id="team-meters"></div></div>
+        <div class="panel" id="team-meters-panel"><h2>Estado de carga del equipo</h2><div id="team-meters"></div></div>
       </div>
     </div>
     <!-- v340 · Reparto de la fila inferior: la clasificación, que es ancha, a la
          izquierda; y a su lado los dos repartos del equipo, que son bajos. Antes
          iban en una fila propia de dos columnas que quedaba a medio llenar. -->
+    <!-- v533 · Sólo en el móvil: abre y cierra el análisis de la última sesión. -->
+    <button type="button" class="eq-fold" id="eq-fold" aria-expanded="false" onclick="eqFold()"><span class="eq-fold-t">Análisis de la última sesión<small>Últimas sesiones, intensidad, pulso y clasificación</small></span><span class="eq-fold-c" aria-hidden="true">›</span></button>
     <div class="eq-ancho">
     <div class="panel" id="team-class-panel" style="cursor:pointer" onclick="go('hr')">
     <h2>Clasificación de la última sesión · Pulso + RPE <span class="r muted" id="team-hr-when">ver detalle ›</span></h2>
@@ -13682,6 +13684,13 @@ function tbGo(v){const abierta=document.body.classList.contains('sb-open');sbTog
   if(!ya)go(v);}
 /* Lo que no es uno de los cuatro destinos se alcanza desde «Más», así que es
    «Más» la que queda marcada. */
+/* v533 · El pliegue del análisis de la última sesión en el Resumen del móvil.
+   Sólo pone y quita una clase; quien oculta es el CSS, dentro de su regla de
+   ancho. Al abrir se reajustan los gráficos: Chart.js mide el contenedor al
+   crear el gráfico y uno nacido oculto sale de tamaño cero (regla de la v464). */
+function eqFold(){const v=document.getElementById('v-equipo'),b=document.getElementById('eq-fold');if(!v)return;
+  const ab=v.classList.toggle('eq-an');if(b)b.setAttribute('aria-expanded',ab?'true':'false');
+  if(ab)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(c=>{if(c&&c.canvas&&c.canvas.closest('#v-equipo'))c.resize();});}catch(e){console.error('bmnava · pliegue del resumen',e);}},0);}
 function tbMark(v){const eff=v==='estado'?'dispo':v;const fijo=TABBAR.some(t=>t[0]===eff);
   document.querySelectorAll('#tabbar .tb-i').forEach(b=>{const on=fijo?b.dataset.v===eff:b.dataset.v==='_mas';
     b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
@@ -36838,6 +36847,70 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
 @media(max-width:335px){.lockup{display:none}}
 @media print{#tabbar{display:none!important}}
 </style>
+<style id="movil-v533">
+/* ===== v533 · El Resumen en el móvil, en el orden de Daniel =====
+   Medido a 390 px: 7,5 pantallas y 17 bloques apilados en el orden de las tres
+   columnas del ordenador, así que «A vigilar y destacados» caía en la quinta.
+   Preguntado el 11/11/2026, el orden lo dio él: «estado del equipo, luego
+   avisos» — readiness y titulares · «Ojo hoy» y «A vigilar» · próximas
+   sesiones · carga y wellness · y el análisis de la última sesión plegado.
+   No se mueve ni un nodo: las columnas se deshacen con `display:contents` y
+   cada bloque lleva su `order`, así que el ordenador sigue leyendo el mismo
+   marcado en sus tres columnas y ninguna función de pintado se entera. */
+.eq-fold{display:none}
+@media(max-width:760px){
+  #v-equipo.on{display:flex;flex-direction:column;gap:12px}
+  #v-equipo .eq-top,#v-equipo .eq-r3,#v-equipo .eq-col,#v-equipo .eq-ancho{display:contents}
+  #v-equipo .eq-cab{display:none}
+  #v-equipo>.pagehead{order:0;margin-bottom:0}
+  /* El día que se está viendo: una línea de contexto bajo el título, sin
+     tarjeta y sin el rótulo «Día seleccionado», que arriba ya es el selector. */
+  #v-equipo>.ctrlrow{order:1;margin:-4px 0 0;padding:0;background:none;border:none;box-shadow:none;
+    -webkit-backdrop-filter:none;backdrop-filter:none}
+  #v-equipo>.ctrlrow>.tag{display:none}
+  #v-equipo #team-hero{order:10}
+  #v-equipo #team-strip{order:11}
+  #v-equipo #team-ojo{order:12}
+  #v-equipo #team-rings{order:13}
+  #v-equipo #team-next{order:20}
+  #v-equipo #eq-semana{order:30}
+  #v-equipo #team-welllights{order:31}
+  #v-equipo #team-posband{order:40}
+  #v-equipo #team-citas{order:41}
+  #v-equipo #team-fisio{order:42}
+  #v-equipo #team-reuniones{order:43}
+  #v-equipo #team-meters-panel{order:44}
+  #v-equipo .eq-fold{order:50}
+  #v-equipo #team-ultimas{order:51}
+  #v-equipo #team-int-panel{order:52}
+  #v-equipo #team-hr-panel{order:53}
+  #v-equipo #team-class-panel{order:54}
+  #v-equipo #eq-plantilla{order:60}
+  /* El hueco lo pone el `gap` del contenedor: los márgenes propios de cada
+     bloque sumarían encima. */
+  #v-equipo .eq-strip,#v-equipo #team-ojo>.panel,#v-equipo #team-hero>.panel,
+  #v-equipo .eq-col>.panel,#v-equipo .eq-ancho>.panel,#v-equipo #eq-plantilla,
+  #v-equipo #team-posband>*{margin-top:0;margin-bottom:0}
+  #v-equipo #team-posband>*+*{margin-top:12px}
+  /* Los seis titulares, en 3 × 2: lo mismo en la mitad de alto. */
+  #v-equipo .eq-strip,#v-equipo .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  #v-equipo .eq-tile{padding:9px 10px 8px}
+  #v-equipo .eq-l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em}
+  #v-equipo .eq-v{font-size:22px;margin-top:2px}
+  /* El análisis de la última sesión —últimas sesiones, intensidad, pulso y
+     clasificación, 2.100 px— queda detrás de un botón. Describe lo que ya pasó;
+     lo de arriba dice qué hacer hoy. */
+  #v-equipo .eq-fold{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:12px 16px;
+    border:none;border-radius:16px;background:var(--panel);color:var(--txt);font:inherit;font-size:var(--fs-body);
+    font-weight:600;text-align:left;cursor:pointer;box-shadow:var(--lg-shadow);touch-action:manipulation}
+  #v-equipo .eq-fold small{display:block;font-size:var(--fs-sm);font-weight:400;color:var(--muted);margin-top:1px}
+  #v-equipo .eq-fold .eq-fold-t{flex:1;min-width:0}
+  #v-equipo .eq-fold .eq-fold-c{flex:none;color:var(--muted);font-size:17px;transition:transform .25s cubic-bezier(.32,.72,0,1)}
+  #v-equipo.eq-an .eq-fold .eq-fold-c{transform:rotate(90deg)}
+  #v-equipo:not(.eq-an) #team-ultimas,#v-equipo:not(.eq-an) #team-int-panel,
+  #v-equipo:not(.eq-an) #team-hr-panel,#v-equipo:not(.eq-an) #team-class-panel{display:none}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -40394,8 +40467,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.1*/
-const VER_ACTUAL='2026-11-11.1';
+/*BUILD:2026-11-11.2*/
+const VER_ACTUAL='2026-11-11.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
