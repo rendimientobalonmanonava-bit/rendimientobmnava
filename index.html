@@ -13,6 +13,17 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="BM Nava">
 <link rel="apple-touch-icon" href="icono-180.png">
+<!-- v558 · Pantalla de arranque al abrirla instalada en un iPhone: el escudo sobre
+     el mismo fondo que la pantalla de carga de la app, para que no haya un
+     fogonazo en blanco. iOS sólo usa la que casa con su pantalla. -->
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="arranque/arranque-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="arranque/arranque-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="arranque/arranque-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="arranque/arranque-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="arranque/arranque-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="arranque/arranque-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="arranque/arranque-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="arranque/arranque-750x1334.png">
 <title>BM Nava · Control de cargas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
@@ -13895,6 +13906,11 @@ window.addEventListener('scroll',()=>{
   const pegada=b.getBoundingClientRect().top<=(parseFloat(getComputedStyle(b).top)||0)+1;
   if(pegada!==b.classList.contains('plt-pegada')){b.classList.toggle('plt-pegada',pegada);b.dataset.nom=(STATE.curPlayer||'');}
 },{passive:true});
+/* v559 · Un campo de número pide el teclado de cifras con su coma. Se pone al
+   entrar en el campo, para todos a la vez —también los que pinte un formulario
+   nuevo—; con teclado físico no cambia nada. */
+document.addEventListener('focusin',e=>{const t=e.target;
+  if(t&&t.tagName==='INPUT'&&t.type==='number'&&!t.hasAttribute('inputmode'))t.setAttribute('inputmode','decimal');},true);
 document.addEventListener('click',e=>{
   if(!esMovil())return;
   const h=e.target&&e.target.closest?e.target.closest('#v-jugador .hint'):null;
@@ -14378,6 +14394,20 @@ function buildChartTheme(){
         afterDatasetDraw(chart,args){const m=chart.getDatasetMeta(args.index);if(!m||m.type!=='line')return;const ds=chart.data.datasets[args.index];if(typeof ds.borderColor!=='string')return;chart.ctx.restore();}});
     }
     C.elements.line.borderWidth=2.8;
+    /* v557 · En el móvil los gráficos se leen con el dedo, no con el ratón. El
+       valor sale al tocar CERCA de un punto —acertar con uno de 3 px es cosa
+       de puntero—, cada punto tiene un área de toque de dedo, la leyenda va
+       debajo para no robar ancho y el cartel del valor es más grande. Son los
+       valores por defecto de Chart.js: un gráfico que fije los suyos manda.
+       Va al FINAL de la función: unas líneas más arriba se fijan el área de
+       toque y la letra del cartel para todos, y puesto antes lo pisaban. */
+    if(esMovil()){
+      C.interaction.mode='nearest';C.interaction.intersect=false;
+      C.elements.point.hitRadius=18;
+      C.plugins.legend.position='bottom';
+      C.plugins.tooltip.padding=10;C.plugins.tooltip.caretSize=6;C.plugins.tooltip.boxPadding=4;
+      C.plugins.tooltip.bodyFont={family:'Inter',size:13};C.plugins.tooltip.titleFont={family:'Inter',size:12,weight:'600'};
+    }
   }
 }
 buildChartTheme();
@@ -32780,7 +32810,7 @@ function themeRepaint(){
   try{rerenderCurrent();}catch(e){}
 }
 window.themeRepaint=themeRepaint;
-function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';applyTheme(cur==='dark'?'light':'dark');themeRepaint();}
+function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';try{lsSet('bmnava-theme-manual','1');}catch(e){}applyTheme(cur==='dark'?'light':'dark');themeRepaint();}
 function rerenderCurrent(){try{renderTeam();renderPos&&renderPos();renderAlerts&&renderAlerts();}catch(e){}const on=id=>document.getElementById(id)&&document.getElementById(id).classList.contains('on');if(on('v-carga'))renderLoad();if(on('v-hr'))renderHR();if(on('v-jugador')&&STATE.curPlayer)renderPlayer(STATE.curPlayer);
   /* v378 · faltaban la mitad de las vistas: al cambiar de tema desde Perfil
      físico, Disponibilidad o el Calendario no se repintaba nada de lo que se
@@ -32941,7 +32971,18 @@ setInterval(function(){
 },60000);
 
 /* aplica el tema guardado antes del primer render */
-applyTheme(lsGet('bmnava-theme')==='dark'?'dark':'light');
+/* v558 · En el móvil el tema sigue al del teléfono mientras no se haya elegido
+   uno a mano con el botón: `bmnava-theme` se escribe en cada arranque, así que
+   no sirve para saber si alguien lo eligió; lo dice `bmnava-theme-manual`, que
+   sólo pone `toggleTheme`. En el ordenador, el tema guardado, como siempre. */
+function temaInicial(){
+  try{if(esMovil()&&lsGet('bmnava-theme-manual')!=='1'&&window.matchMedia)
+    return window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}catch(e){}
+  return lsGet('bmnava-theme')==='dark'?'dark':'light';
+}
+applyTheme(temaInicial());
+try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',e=>{
+  if(esMovil()&&lsGet('bmnava-theme-manual')!=='1'){applyTheme(e.matches?'dark':'light');themeRepaint();}});}catch(e){}
 try{perfApply();perfProbe();perfVigilarScroll();}catch(e){}
 try{modalWatchAll();modalWatchBody();}catch(e){}
 
@@ -41535,8 +41576,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.23*/
-const VER_ACTUAL='2026-11-11.23';
+/*BUILD:2026-11-11.24*/
+const VER_ACTUAL='2026-11-11.24';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
