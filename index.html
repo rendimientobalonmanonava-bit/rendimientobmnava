@@ -13907,6 +13907,225 @@ function bmHojaCierra(id){
   return true;
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BMH.pila.length){e.stopPropagation();bmHojaCierra();}},true);
+/* v570 · Elegir jugador por la cara. En el móvil, cualquier desplegable cuyas
+   opciones son la plantilla deja de abrir la rueda de dieciocho nombres: en su
+   sitio va un botón con la foto y el nombre, y al tocarlo sube una hoja con
+   las caras por puesto, un buscador y los últimos elegidos (HIG · Entering
+   data: ofrecer opciones en vez de pedir texto).
+   El `<select>` NO se quita: sigue en su sitio, fuera de la vista, con su
+   valor y sus oyentes. Elegir una cara le pone el valor y dispara `change`,
+   así que todo lo que cuelga de él funciona igual. Por eso vale para todos los
+   formularios sin tocar ninguno.
+   Es de jugadores el desplegable con seis opciones o más en el que al menos
+   siete de cada diez son nombres de `STATE.players`. Las que no lo son
+   («— sin emparejar —», «Todos») salen como filas de texto arriba. */
+const BMJ_REC='bmnava-jugrec';
+const BMJ_CH='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+const bmjEsc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function bmjRecientes(){try{return (JSON.parse(localStorage.getItem(BMJ_REC)||'[]')||[]).filter(n=>STATE.players&&STATE.players[n]);}catch(e){return [];}}
+function bmjUsa(n){try{const r=bmjRecientes().filter(x=>x!==n);r.unshift(n);localStorage.setItem(BMJ_REC,JSON.stringify(r.slice(0,4)));}catch(e){}}
+function bmjCara(n,cls){
+  const f=photoFor(n),ini=String(n).split(/\s+/).slice(0,2).map(x=>x.charAt(0)).join('').toUpperCase();
+  return '<span class="bmj-av'+(cls?' '+cls:'')+'"><i>'+bmjEsc(ini)+'</i>'+(f?'<img src="'+bmjEsc(f)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</span>';
+}
+/* «David F.» y «David R.»: el nombre y la inicial del apellido. */
+const bmjCorto=n=>{const p=String(n).trim().split(/\s+/);return p.length>1?p[0]+' '+p[1].charAt(0)+'.':p[0];};
+function bmjOpciones(sel){
+  if(!sel||sel.multiple)return null;
+  const P=STATE.players||{},ops=[...sel.options];if(ops.length<6)return null;
+  let n=0;const m=ops.map(op=>{const v=op.value,t=(op.textContent||'').trim(),k=P[v]?v:(P[t]?t:null);if(k)n++;return {v:v,t:t,n:k,dis:op.disabled};});
+  return (n>=5&&n>=ops.length*0.7)?m:null;
+}
+function bmEligeJugador(o){
+  const ops=o.opciones||[],jug=ops.filter(x=>x.n&&!x.dis),otras=ops.filter(x=>!x.n&&!x.dis);
+  const G=['Portero','1ª Línea','Extremo','Pivote'],GN={'Portero':'Porteros','1ª Línea':'Primera línea','Extremo':'Extremos','Pivote':'Pivotes'};
+  const celda=x=>'<button type="button" class="bmj-c'+(x.v===o.valor?' on':'')+'" data-v="'+bmjEsc(x.v)+'" data-n="'+bmjEsc(x.n)+'" data-q="'+bmjEsc(normH(x.n))+'">'
+    +bmjCara(x.n)+'<span>'+bmjEsc(bmjCorto(x.n))+'</span></button>';
+  let h='<div class="bmj-busca"><input type="search" class="bmj-in" placeholder="Buscar jugador" aria-label="Buscar jugador" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></div>';
+  if(otras.length)h+='<div class="bmh-grupo bmj-otras">'+otras.map(x=>'<button type="button" class="bmh-fila'+(x.v===o.valor?' on':'')+'" data-v="'+bmjEsc(x.v)+'"><span class="tx">'+bmjEsc(x.t||'—')+'</span>'+(x.v===o.valor?'<span class="ch">✓</span>':'')+'</button>').join('')+'</div>';
+  const rec=bmjRecientes().map(n=>jug.find(x=>x.n===n)).filter(Boolean);
+  if(rec.length>1)h+='<div class="bmj-sec" data-rec="1"><div class="bmh-rot">Recientes</div><div class="bmj-g">'+rec.map(celda).join('')+'</div></div>';
+  const usados=new Set();
+  G.forEach(g=>{const xs=jug.filter(x=>posGroup((STATE.players[x.n]||{}).pos)===g);xs.forEach(x=>usados.add(x.n));
+    if(xs.length)h+='<div class="bmj-sec"><div class="bmh-rot">'+GN[g]+'</div><div class="bmj-g">'+xs.map(celda).join('')+'</div></div>';});
+  const resto=jug.filter(x=>!usados.has(x.n));
+  if(resto.length)h+='<div class="bmj-sec"><div class="bmh-rot">Otros</div><div class="bmj-g">'+resto.map(celda).join('')+'</div></div>';
+  h+='<p class="bmj-nada" hidden>Nadie con ese nombre.</p>';
+  const hoja=bmHoja({id:'jug',titulo:o.titulo||'Elegir jugador',clase:'bmj',html:h});
+  const c=hoja.querySelector('.bmh-cuerpo'),inp=c.querySelector('.bmj-in');
+  inp.oninput=()=>{const q=normH(inp.value).trim();let hay=0;
+    c.querySelectorAll('.bmj-sec').forEach(sec=>{let n=0;
+      if(q&&sec.dataset.rec){sec.hidden=true;return;}
+      sec.querySelectorAll('.bmj-c').forEach(b=>{const ok=!q||b.dataset.q.indexOf(q)>=0;b.hidden=!ok;if(ok)n++;});
+      sec.hidden=!n;hay+=n;});
+    const ot=c.querySelector('.bmj-otras');if(ot)ot.hidden=!!q;
+    c.querySelector('.bmj-nada').hidden=hay>0;};
+  c.onclick=e=>{const b=e.target.closest('[data-v]');if(!b||!c.contains(b))return;
+    if(b.dataset.n)bmjUsa(b.dataset.n);
+    bmHojaCierra('bmh-jug');
+    try{o.alElegir&&o.alElegir(b.dataset.v);}catch(err){console.error('bmnava · elegir jugador',err);}};
+  return hoja;
+}
+function bmjMonta(sel){
+  const b=document.createElement('button');b.type='button';b.className='bm-jsel';b.setAttribute('aria-haspopup','dialog');
+  sel.parentNode.insertBefore(b,sel);sel.classList.add('bm-oc');sel.dataset.bmf='jug';
+  const pinta=()=>{const op=sel.options[sel.selectedIndex],v=op?op.value:'',t=op?(op.textContent||'').trim():'',P=STATE.players||{},k=P[v]?v:(P[t]?t:null);
+    const sig=(k||'')+'|'+t+'|'+(sel.disabled?1:0);if(b._sig===sig)return;b._sig=sig;
+    b.innerHTML=(k?bmjCara(k):'<span class="bmj-av vac" aria-hidden="true"></span>')+'<span class="bm-jsel-t'+(k?'':' vac')+'">'+bmjEsc(k||t||'Elegir jugador')+'</span><span class="bm-jsel-ch">'+BMJ_CH+'</span>';
+    b.disabled=sel.disabled;};
+  sel._bmPinta=pinta;pinta();sel.addEventListener('change',pinta);
+  b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();
+    const m=bmjOpciones(sel);if(!m)return;
+    const lab=sel.closest('label');let tit='';
+    if(lab)[...lab.childNodes].forEach(nd=>{if(nd.nodeType===3&&!tit)tit=nd.textContent.trim();});
+    bmEligeJugador({titulo:tit||sel.getAttribute('aria-label')||'Elegir jugador',opciones:m,valor:sel.value,alElegir:v=>{
+      sel.value=v;sel.dispatchEvent(new Event('input',{bubbles:true}));sel.dispatchEvent(new Event('change',{bubbles:true}));pinta();}});});
+}
+/* v571 · Formularios de teléfono. Los formularios que suben en una hoja eran
+   los del ordenador metidos en ella: desplegables para elegir entre tres
+   cosas, un campo numérico para el dolor, la fecha a teclear. En el móvil:
+     · un desplegable de dos a cinco opciones cortas pasa a ser un control de
+       segmentos: se ve todo y se elige de un toque;
+     · el dolor de 0 a 10 es una escala de once casillas;
+     · la fecha lleva «Hoy» y «Ayer» al lado, que es lo que se apunta casi siempre;
+     · el botón de guardar se queda pegado abajo, a la vista, y la hoja se
+       encoge cuando sale el teclado para que no lo tape.
+   Igual que con el jugador, el control original NO se quita: se esconde, y lo
+   nuevo le pone el valor y dispara `input` y `change`. Ningún formulario se
+   entera, y por eso vale para todos sin tocar ninguno.
+   Las piezas nuevas son `<span role="radio">`, no `<button>`: dentro de un
+   `<label>`, tocar el rótulo activa el primer control que encuentra, y con
+   botones «Dolor (0–10)» habría marcado un cero. */
+const BMF_CONT='#ph-body,#med-modal-body,.info-modal';
+const bmfDispara=e=>{e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));};
+function bmfSelect(sel){
+  if(!sel.closest(BMF_CONT))return;
+  const vale=()=>{if(sel.multiple||sel.querySelector('optgroup'))return null;
+    const ops=[...sel.options];if(ops.length<2||ops.length>5)return null;
+    const tx=ops.map(o=>(o.textContent||'').trim());
+    if(tx.some(t=>t.length>18)||tx.join('').length>44)return null;return ops;};
+  if(!vale()){if(sel.options.length>5||sel.multiple)sel.dataset.bmf='no';return;}
+  sel.dataset.bmf='seg';
+  const d=document.createElement('span');d.className='bmf-seg';d.setAttribute('role','radiogroup');
+  sel.parentNode.insertBefore(d,sel);sel.classList.add('bm-oc');
+  const pinta=()=>{const ops=vale();
+    if(!ops){d.remove();sel.classList.remove('bm-oc');sel.dataset.bmf='no';sel._bmPinta=null;return;}   /* ya no cabe: vuelve el desplegable */
+    const sig=ops.map(o=>o.value+'\u0001'+o.textContent+(o.disabled?'x':'')).join('\u0002');
+    if(d._sig!==sig){d._sig=sig;
+      d.innerHTML=ops.map((o,i)=>'<span role="radio" tabindex="0" data-i="'+i+'"'+(o.disabled?' aria-disabled="true"':'')+'>'+bmjEsc((o.textContent||'').trim()||'—')+'</span>').join('');
+      const lt=ops.map(o=>(o.textContent||'').trim().length),largo=lt.reduce((x,y)=>x+y,0),col=(ops.length>=3&&Math.max.apply(null,lt)>12)||largo>34;
+      /* rótulos largos: una opción por fila, como una lista; muchas y cortas: tres por fila */
+      d.classList.toggle('bmf-seg--col',col);
+      d.classList.toggle('bmf-seg--v',!col&&ops.length>4);
+      /* tres opciones no caben en media columna: el campo pasa a ocupar la fila */
+      d.classList.toggle('bmf-seg--a',ops.length>=3||largo>12);}
+    [...d.children].forEach((b,i)=>{const on=i===sel.selectedIndex;b.classList.toggle('on',on);b.setAttribute('aria-checked',on?'true':'false');});};
+  d.addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b||b.getAttribute('aria-disabled')==='true')return;e.preventDefault();
+    sel.selectedIndex=+b.dataset.i;bmfDispara(sel);pinta();});
+  sel._bmPinta=pinta;pinta();sel.addEventListener('change',pinta);
+}
+function bmfEscala(inp){
+  inp.dataset.bmf='esc';
+  const d=document.createElement('span');d.className='bmf-esc';d.setAttribute('role','radiogroup');
+  d.innerHTML=Array.from({length:11},(_,i)=>'<span role="radio" tabindex="0" data-v="'+i+'">'+i+'</span>').join('');
+  inp.parentNode.insertBefore(d,inp);inp.classList.add('bm-oc');
+  const pinta=()=>{const v=inp.value===''?null:Math.round(+inp.value);
+    [...d.children].forEach(b=>{const n=+b.dataset.v;b.classList.toggle('on',v!=null&&n===v);b.classList.toggle('hasta',v!=null&&n<v);b.setAttribute('aria-checked',v!=null&&n===v?'true':'false');});};
+  /* Tocar la casilla que ya está marcada la quita: «sin dolor apuntado» no es un cero. */
+  d.addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(!b)return;e.preventDefault();
+    inp.value=(inp.value!==''&&Math.round(+inp.value)===+b.dataset.v)?'':b.dataset.v;bmfDispara(inp);pinta();});
+  inp._bmPinta=pinta;pinta();inp.addEventListener('change',pinta);
+}
+function bmfFecha(inp){
+  inp.dataset.bmf='fec';
+  const d=document.createElement('span');d.className='bmf-dias';
+  d.innerHTML='<span role="button" tabindex="0" data-d="0">Hoy</span><span role="button" tabindex="0" data-d="-1">Ayer</span>';
+  inp.parentNode.insertBefore(d,inp);
+  /* El rótulo en su línea y, debajo, «Hoy · Ayer» y la fecha en la misma fila.
+     El salto lo da un elemento vacío: al texto del rótulo no se le puede dar ancho. */
+  const br=document.createElement('i');br.className='bmf-br';br.setAttribute('aria-hidden','true');inp.parentNode.insertBefore(br,d);
+  const lf=inp.closest('label');if(lf)lf.classList.add('bmf-fec','bmf-ancho');
+  const dia=n=>{const x=new Date();x.setDate(x.getDate()+n);return dkey(x);};
+  const pinta=()=>{[...d.children].forEach(b=>b.classList.toggle('on',inp.value===dia(+b.dataset.d)));};
+  d.addEventListener('click',e=>{const b=e.target.closest('[data-d]');if(!b)return;e.preventDefault();
+    const v=dia(+b.dataset.d);if(inp.max&&v>inp.max)return;if(inp.min&&v<inp.min)return;
+    inp.value=v;bmfDispara(inp);pinta();});
+  inp._bmPinta=pinta;pinta();inp.addEventListener('change',pinta);inp.addEventListener('input',pinta);
+}
+function bmfHojas(){
+  document.querySelectorAll(BMF_CONT).forEach(c=>{
+    if(!c.checkVisibility||!c.checkVisibility())return;
+    c.classList.add('bmf');
+    c.querySelectorAll('label').forEach(l=>{
+      if(l.dataset.bmf)return;
+      const cs=l.querySelectorAll('select,input,textarea');
+      if(cs.length!==1||/^(checkbox|radio|file|hidden|color|range)$/.test(cs[0].type)){l.dataset.bmf='x';return;}
+      const e=cs[0];l.dataset.bmf='1';l.classList.add('bmf-l');
+      let rot='';[...l.childNodes].forEach(n=>{if(n.nodeType===3)rot+=n.textContent;});
+      if(e.type==='number'&&!e.dataset.bmf&&(/0\s*[–\-]\s*10/.test(rot)||(e.min==='0'&&e.max==='10'))){bmfEscala(e);l.classList.add('bmf-ancho');}
+      else if(e.type==='date'&&!e.dataset.bmf)bmfFecha(e);
+    });
+    /* lo ya montado se pone al día: el formulario puede haber cambiado un valor sin avisar */
+    c.querySelectorAll('[data-bmf="seg"],[data-bmf="esc"],[data-bmf="fec"]').forEach(e=>{if(e._bmPinta)e._bmPinta();});
+    c.querySelectorAll('.bmf-seg--a,.bmf-seg--v').forEach(d=>{const l=d.closest('label');if(l)l.classList.add('bmf-ancho');});
+    /* El pie con el botón de guardar se queda pegado abajo. Sólo cuando es
+       inequívoco: el último bloque del formulario y con un botón relleno. */
+    const f=c.querySelector('.ph-f');
+    if(f&&!f.querySelector('.bmf-pie')){
+      const hijos=[...f.children].filter(x=>x.tagName==='DIV');
+      const pie=hijos.reverse().find(x=>x.querySelector(':scope>.btn:not(.ghost)')&&!x.querySelector('label,input,select,textarea'));
+      if(pie)pie.classList.add('bmf-pie');
+    }
+  });
+}
+/* El teclado. En el iPhone no cambia el alto de la página: tapa su parte de
+   abajo. Se mide lo que tapa y se deja en `--kb`; las hojas se suben esa
+   distancia y se encogen, así el botón de guardar queda encima del teclado. */
+(function(){
+  const vv=window.visualViewport;if(!vv)return;
+  const pon=()=>{
+    if(!esMovil()){document.documentElement.style.removeProperty('--kb');return;}
+    const kb=Math.max(0,Math.round(window.innerHeight-vv.height-vv.offsetTop));
+    if(kb>90)document.documentElement.style.setProperty('--kb',kb+'px');else document.documentElement.style.removeProperty('--kb');
+  };
+  vv.addEventListener('resize',pon);vv.addEventListener('scroll',pon);
+  /* Al entrar en un campo dentro de una hoja, se lleva a la vista cuando el teclado ya ha salido. */
+  document.addEventListener('focusin',e=>{const t=e.target;
+    if(!esMovil()||!t||!/^(INPUT|TEXTAREA)$/.test(t.tagName)||!t.closest||!t.closest(BMF_CONT+',.bmh-cuerpo'))return;
+    setTimeout(()=>{try{if(document.activeElement===t)t.scrollIntoView({block:'center',behavior:'auto'});}catch(_){}},340);});
+})();
+/* La pasada que mejora los formularios del móvil. Corre sola cuando cambia el
+   marcado —con un observador que sólo existe mientras se está en el diseño de
+   móvil— y no hace nada si no hay nada nuevo. */
+let BMF_T=null,BMF_OBS=null;
+function bmFormas(){
+  if(!esMovil())return;
+  try{
+    document.querySelectorAll('select').forEach(sel=>{
+      const st=sel.dataset.bmf;
+      if(st==='jug'){if(sel._bmPinta)sel._bmPinta();
+        const b=sel.previousElementSibling;if(b&&b.classList.contains('bm-jsel'))b.hidden=(sel.style.display==='none'||sel.hidden);
+        return;}
+      if(st)return;
+      /* Ya se miró con estas mismas opciones y no era ni de jugadores ni de segmentos:
+         no se vuelve a mirar hasta que cambien. */
+      const n=sel.options.length;if(sel._bmNo===n)return;
+      if(sel.closest('.ficha-card,.sa-page,.pt-card,.iso-hoja,#sy-gate')){sel._bmNo=n;return;}
+      if(bmjOpciones(sel)){bmjMonta(sel);return;}
+      if(typeof bmfSelect==='function')bmfSelect(sel);
+      if(!sel.dataset.bmf)sel._bmNo=n;
+    });
+    if(typeof bmfHojas==='function')bmfHojas();
+  }catch(e){console.error('bmnava · formularios de móvil',e);}
+}
+function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(bmFormas,80);}
+(function(){
+  let mq=null;try{mq=window.matchMedia('(max-width:760px)');}catch(e){}
+  const arma=()=>{if(!mq||!mq.matches||BMF_OBS||!document.body)return;
+    BMF_OBS=new MutationObserver(bmFormasYa);BMF_OBS.observe(document.body,{childList:true,subtree:true});bmFormasYa();};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arma);else arma();
+  try{if(mq)mq.addEventListener('change',arma);}catch(e){}
+})();
 /* v568 · Abrir donde se dejó. La app instalada arranca siempre sin dirección,
    así que abría en el Resumen aunque se hubiera cerrado en Fisioterapia. En el
    móvil se recuerda la última pantalla, el jugador de la ficha, su pestaña, las
@@ -38638,6 +38857,124 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
 .bmc-prev img{display:block;max-width:100%;max-height:44dvh;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
 .bmc-n{margin:8px 4px 14px;font-size:12.5px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
 </style>
+<style id="movil-v570">
+/* ===== v570 · Elegir jugador por la cara =====
+   El botón que sustituye al desplegable sólo se ve en el móvil; fuera de la
+   regla de ancho está oculto y el desplegable se ve como siempre. La hoja de
+   caras es una `bmHoja`: no existe en el ordenador. */
+.bm-jsel{display:none}
+.bmj-av{position:relative;flex:none;width:30px;height:30px;border-radius:50%;overflow:hidden;display:grid;place-items:center;
+  background:var(--seg-carril,rgba(118,118,128,.14));color:var(--muted);font:600 11px/1 inherit;font-style:normal}
+.bmj-av i{font-style:normal}
+.bmj-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 12%;background:var(--bmh-bg)}
+.bmj-av.vac{background:none;border:1.5px dashed var(--line)}
+.bmj-busca{position:sticky;top:0;z-index:2;background:var(--bmh-bg);padding:0 0 10px}
+.bmj-in{width:100%;height:38px;border:none;border-radius:11px;padding:0 12px 0 34px;font:400 17px/1 inherit;font-family:inherit;color:var(--txt);
+  background:var(--seg-carril,rgba(118,118,128,.14)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E") 10px 50%/17px no-repeat;
+  -webkit-appearance:none;appearance:none;outline:none}
+.bmj-in::placeholder{color:var(--muted)}
+.bmj-g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 2px;background:var(--bmh-celda);border-radius:12px;padding:10px 6px}
+.bmj-c{display:flex;flex-direction:column;align-items:center;gap:5px;min-height:84px;padding:6px 2px;border:none;border-radius:10px;background:none;
+  color:var(--txt);font:400 12.5px/1.15 inherit;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:0}
+.bmj-c[hidden],.bmj-sec[hidden],.bmj-otras[hidden]{display:none}
+.bmj-c .bmj-av{width:52px;height:52px;font-size:15px;box-shadow:0 0 0 2px var(--bmh-celda),0 0 0 3.5px transparent}
+.bmj-c.on .bmj-av{box-shadow:0 0 0 2px var(--bmh-celda),0 0 0 4.5px var(--accent)}
+.bmj-c.on{color:var(--accent);font-weight:600}
+.bmj-c span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bmj-c:active{background:var(--seg-carril,rgba(118,118,128,.14))}
+.bmj-otras{margin-bottom:4px}
+.bmj-otras .bmh-fila.on{color:var(--accent);font-weight:600}
+.bmj-nada{text-align:center;color:var(--muted);font-size:14px;margin:26px 0}
+.bmh.bmj .bmh-cuerpo{min-height:46dvh}
+@media(max-width:760px){
+  /* El desplegable sigue ahí, con su valor y sus oyentes, pero no se ve ni se toca. */
+  select.bm-oc{position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;opacity:0!important;pointer-events:none!important;
+    margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}
+  .bm-jsel{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:5px 10px 5px 7px;border:1px solid var(--line);border-radius:12px;
+    background:var(--panel);color:var(--txt);font:500 16px/1.2 inherit;font-family:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:0}
+  .bm-jsel[hidden]{display:none}
+  .bm-jsel[disabled]{opacity:.5}
+  .bm-jsel-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bm-jsel-t.vac{color:var(--muted);font-weight:400}
+  .bm-jsel-ch{flex:none;color:var(--muted2);display:grid;place-items:center}
+  .bm-jsel:active{background:var(--panel2)}
+}
+</style>
+<style id="movil-v571">
+/* ===== v571 · Formularios de teléfono =====
+   Sólo dentro de las hojas (`#ph-body`, `#med-modal-body`, `.info-modal`), que
+   en el móvil llevan la clase `bmf`. Los campos pasan a ser los de un
+   teléfono: rótulo pequeño encima y un campo relleno, alto y de 17 px, sobre
+   el fondo agrupado. No se cambia la estructura de ningún formulario —hay
+   cinco distintas— sino cómo se ve cada campo.
+   Fuera de la regla de ancho, lo nuevo no se ve y lo de siempre no se esconde. */
+.bmf-seg,.bmf-esc,.bmf-dias,.bmf-br{display:none}
+@media(max-width:760px){
+  .bm-oc{position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;opacity:0!important;pointer-events:none!important;
+    margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}
+  /* La hoja */
+  .med-overlay>.med-modal.bmf,.info-overlay>.info-modal.bmf{background:var(--bmh-bg)}
+  .med-overlay>.med-modal{max-height:calc(92dvh - var(--kb,0px));margin-bottom:var(--kb,0px)}
+  /* El día del calendario era una ventana centrada: sube desde abajo como las demás. */
+  .info-overlay{padding:0;align-items:flex-end}
+  .info-overlay>.info-modal{max-width:none;width:100%;max-height:calc(92dvh - var(--kb,0px));margin-bottom:var(--kb,0px);border:none;border-radius:22px 22px 0 0;
+    overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -18px 50px rgba(0,0,0,.3)}
+  .info-overlay>.info-modal .info-mhead{background:var(--bmh-bg);border-bottom:none;padding:14px 16px 10px}
+  .info-overlay>.info-modal .info-mhead::before{content:"";position:absolute;left:50%;top:6px;width:38px;height:5px;margin-left:-19px;border-radius:3px;background:var(--line)}
+  /* Cabecera: el título se queda arriba y «Cerrar ✕» pasa a ser el aspa redonda. */
+  .med-modal.bmf>h2{position:sticky;top:-8px;z-index:3;background:var(--bmh-bg);margin:0 -16px 6px;padding:10px 16px 10px;font-size:17px;font-weight:600;
+    letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  .med-modal.bmf>h2>.r{margin-left:auto;float:none;flex:none}
+  .med-modal.bmf>h2 .r .btn.ghost,.info-modal.bmf .info-mhead .btn.ghost{position:relative;width:30px;height:30px;min-width:0;min-height:0;padding:0;border:none;
+    border-radius:50%;font-size:0;line-height:0;color:transparent;background:var(--seg-carril) no-repeat 50%/13px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");box-shadow:none}
+  .med-modal.bmf>h2 .r .btn.ghost::after,.info-modal.bmf .info-mhead .btn.ghost::after{content:"";position:absolute;inset:-7px}
+  /* El campo */
+  .bmf label.bmf-l{display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:500;color:var(--muted);letter-spacing:0;text-transform:none;min-width:0}
+  .bmf label.bmf-l>input:not(.bm-oc),.bmf label.bmf-l>select:not(.bm-oc),.bmf label.bmf-l>textarea,
+  .bmf .ph-f>input,.bmf .ph-f>textarea{width:100%;min-height:48px;padding:0 14px;border:none;border-radius:12px;background:var(--bmh-celda);color:var(--txt);
+    font-size:17px;font-weight:400;font-family:inherit;box-shadow:none;-webkit-appearance:none;appearance:none;min-width:0}
+  .bmf label.bmf-l>textarea,.bmf .ph-f>textarea{padding:12px 14px;min-height:96px;line-height:1.35}
+  .bmf label.bmf-l>select:not(.bm-oc){padding-right:34px;background:var(--bmh-celda) no-repeat right 12px center/12px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+  .bmf label.bmf-l>input::placeholder,.bmf label.bmf-l>textarea::placeholder{color:var(--muted2)}
+  .bmf label.bmf-l>input:focus,.bmf label.bmf-l>select:focus,.bmf label.bmf-l>textarea:focus{outline:2px solid var(--accent);outline-offset:-2px}
+  .bmf label.bmf-l .bm-jsel{min-height:48px;border:none;border-radius:12px;background:var(--bmh-celda);font-size:17px;font-weight:400;padding:6px 12px 6px 9px}
+  .bmf label.bmf-l .bm-jsel .bmj-av{width:34px;height:34px}
+  .bmf .parte-grid,.bmf .cal-form-grid{gap:14px 10px}
+  .bmf .bmf-ancho{grid-column:1/-1}
+  /* Segmentos */
+  .bmf-seg{display:flex;gap:0;padding:2px;border-radius:11px;background:var(--seg-carril);min-height:48px}
+  .bmf-seg>span{flex:1 1 0;min-width:0;display:grid;place-items:center;text-align:center;padding:0 6px;border-radius:9px;font-size:15px;font-weight:500;color:var(--txt);
+    cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .18s ease}
+  .bmf-seg>span.on{background:var(--seg-on);box-shadow:var(--seg-on-sombra,0 1px 3px rgba(0,0,0,.12));font-weight:600}
+  .bmf-seg>span[aria-disabled="true"]{opacity:.4}
+  .bmf-seg--v{flex-wrap:wrap}
+  .bmf-seg--v>span{flex:1 1 30%;min-height:40px}
+  .bmf-seg--col{flex-direction:column}
+  .bmf-seg--col>span{flex:none;min-height:42px;white-space:normal}
+  /* Dolor 0–10 */
+  .bmf-esc{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:3px;min-height:48px}
+  .bmf-esc>span{display:grid;place-items:center;border-radius:9px;background:var(--bmh-celda);font-size:15px;font-weight:600;color:var(--txt);
+    font-variant-numeric:tabular-nums;cursor:pointer;-webkit-tap-highlight-color:transparent;min-height:48px}
+  .bmf-esc>span.hasta{background:color-mix(in srgb,var(--accent) 22%,var(--bmh-celda))}
+  .bmf-esc>span.on{background:var(--accent);color:var(--on-accent,#fff)}
+  /* Hoy · Ayer */
+  .bmf label.bmf-fec{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 8px}
+  .bmf-br{flex:0 0 100%;height:0;margin:0;display:block}
+  .bmf label.bmf-fec>input{flex:1 1 0;width:auto}
+  .bmf-dias{display:flex;gap:6px;flex:none}
+  .bmf-dias>span{display:grid;place-items:center;min-height:48px;padding:0 16px;border-radius:10px;background:var(--seg-carril);font-size:14px;font-weight:500;color:var(--txt);
+    cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bmf-dias>span.on{background:var(--accent);color:var(--on-accent,#fff);font-weight:600}
+  /* El pie con «Guardar», pegado abajo */
+  .bmf .bmf-pie{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom));z-index:3;margin:14px -16px 0!important;padding:10px 16px calc(12px + env(safe-area-inset-bottom));
+    background:var(--bmh-bg);box-shadow:0 -.5px 0 var(--line);display:flex;flex-wrap:nowrap;gap:10px}
+  .bmf .bmf-pie>.btn{flex:1 1 0;min-height:50px;border-radius:14px;font-size:17px;font-weight:600;justify-content:center;text-align:center;white-space:nowrap;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;padding:0 12px}
+  .bmf .bmf-pie>.btn.ghost{flex:1.25 1 0;background:var(--bmh-celda);border:none;color:var(--accent);font-size:15px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -42203,8 +42540,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.33*/
-const VER_ACTUAL='2026-11-11.33';
+/*BUILD:2026-11-11.35*/
+const VER_ACTUAL='2026-11-11.35';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
