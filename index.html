@@ -13694,7 +13694,7 @@ function buildTabbar(){const tb=document.getElementById('tabbar');if(!tb)return;
 function tbGo(v){const abierta=document.body.classList.contains('sb-open');sbToggleMobile(false);
   const ya=STATE.view===v||(v==='dispo'&&STATE.view==='estado');
   if(ya&&!abierta){window.scrollTo({top:0,behavior:'smooth'});return;}
-  if(!ya)go(v);}
+  if(!ya){window.__BM_TAB=true;try{go(v);}finally{window.__BM_TAB=false;}}}
 /* Lo que no es uno de los cuatro destinos se alcanza desde «Más», así que es
    «Más» la que queda marcada. */
 /* v533 · El pliegue del análisis de la última sesión en el Resumen del móvil.
@@ -13708,6 +13708,37 @@ function tbMark(v){const eff=v==='estado'?'dispo':v;const fijo=TABBAR.some(t=>t[
   document.querySelectorAll('#tabbar .tb-i').forEach(b=>{const on=fijo?b.dataset.v===eff:b.dataset.v==='_mas';
     b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('sb-open'))sbToggleMobile(false);});
+/* v539 · ¿Se está en el diseño de móvil? Es la misma condición que la regla de
+   ancho del CSS: lo que sólo debe pasar en el teléfono pregunta aquí. */
+const esMovil=()=>!!(window.matchMedia&&window.matchMedia('(max-width:760px)').matches);
+/* Cierra lo que haya abierto ENCIMA de la pantalla, de arriba abajo, y dice si
+   había algo. Lo usa el gesto «atrás»: con un diálogo abierto, atrás lo
+   cierra; no cambia de pantalla por debajo de él. */
+function bmCierraCapa(){
+  const vis=id=>{const e=document.getElementById(id);return e&&getComputedStyle(e).display!=='none'?e:null;};
+  let e;
+  if((e=vis('iso-overlay'))){if(typeof isoCerrar==='function')isoCerrar();else e.style.display='none';return true;}
+  if((e=vis('ficha-overlay'))){e.style.display='none';return true;}
+  if((e=vis('ph-overlay'))){e.style.display='none';return true;}
+  if((e=vis('med-overlay'))){e.style.display='none';return true;}
+  const d=document.getElementById('drawer');if(d&&d.classList.contains('on')){closeDrawer();return true;}
+  const am=document.getElementById('add-menu');if(am&&am.classList.contains('open')){closeAddData();return true;}
+  const dp=document.getElementById('dp-pop');if(dp&&!dp.hidden){dpClose();return true;}
+  if(document.body.classList.contains('sb-open')){sbToggleMobile(false);return true;}
+  return false;
+}
+window.addEventListener('popstate',e=>{
+  if(!esMovil())return;
+  if(window.__BM_VUELVE){window.__BM_VUELVE=false;return;}
+  /* Había algo abierto: se cierra y se deshace el paso atrás, para quedarse en
+     la pantalla en la que se estaba. */
+  if(bmCierraCapa()){window.__BM_VUELVE=true;try{history.forward();}catch(_){}
+    setTimeout(()=>{window.__BM_VUELVE=false;},700);return;}
+  const r=readHash();if(!r||r.view===STATE.view)return;
+  window.__BM_POP=true;
+  try{go(r.view);}catch(err){console.error('bmnava · atrás',err);}finally{window.__BM_POP=false;}
+  const y=e.state&&e.state.y;if(y)setTimeout(()=>window.scrollTo(0,y),0);
+});
 /* La hoja se cierra arrastrándola hacia abajo, que es lo que el dedo espera de
    una hoja. Sólo cuenta si la lista está arriba del todo: si no, el gesto es
    desplazar la lista. En el ordenador `sb-open` no se pone nunca. */
@@ -13722,7 +13753,7 @@ function injectPageHeads(){document.querySelectorAll('.view').forEach(sec=>{cons
   const el=document.createElement('div');el.className='pagehead';el.innerHTML=`<h1>${m.t}</h1><div class="ph-sub">${m.s}</div>${ban}`;
   sec.insertBefore(el,sec.firstChild);});}
 function phDismiss(v){try{localStorage.setItem('bmnava_ban_'+v,'1');}catch(e){}const b=document.getElementById('phb-'+v);if(b)b.remove();}
-function go(v){const ESUB={dispo:1,medico:1,parte:1,fisio:1};let realV=ESUB[v]?'estado':v;
+function go(v){const _y0=window.scrollY||0;const ESUB={dispo:1,medico:1,parte:1,fisio:1};let realV=ESUB[v]?'estado':v;
   /* v334 · go() apaga todas las vistas y enciende la pedida. Si el nombre no
      existe no enciende ninguna y la app se queda EN BLANCO, con el menú pintado
      y el centro vacío: no hay error, no hay aviso, no hay forma de volver salvo
@@ -13736,12 +13767,21 @@ function go(v){const ESUB={dispo:1,medico:1,parte:1,fisio:1};let realV=ESUB[v]?'
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
-  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}if(FILTER.cargaTab==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='nutri'){try{renderNutri();}catch(e){console.error('bmnava · nutrición',e);}}if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();STATE.view=v;writeHash();try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
-function writeHash(){
+  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}if(FILTER.cargaTab==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='nutri'){try{renderNutri();}catch(e){console.error('bmnava · nutrición',e);}}if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();const _pv=STATE.view;STATE.view=v;try{document.documentElement.dataset.nav=window.__BM_POP?'atr':(window.__BM_TAB?'tab':'ade');}catch(e){}writeHash(!!_pv&&_pv!==v,_y0);try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');}
+function writeHash(push,y0){
   /* v388 · Lo mismo con la dirección: si se escribía durante el recorrido, la
      URL se quedaba con un día de paso y al recargar se abría en él. */
   if(window.__RD_CALC)return;
-  const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){history.replaceState(null,'',h);}}
+  const v=STATE.view||'equipo';const d=STATE.refDate?dkey(REF()):'';const h='#'+v+(d?'/'+d:'');if(location.hash!==h){
+    /* v539 · En el móvil, cambiar de VISTA deja una entrada en el historial, así
+       que el gesto «atrás» vuelve a la pantalla anterior en vez de sacar de la
+       app. Cambiar de día sigue reemplazando, como siempre. La entrada que se
+       deja atrás se lleva su desplazamiento para poder volver a él. */
+    if(push&&window.__BM_LISTO&&!window.__BM_POP&&esMovil()){
+      try{history.replaceState({y:y0||0},'');}catch(e){}
+      history.pushState(null,'',h);
+    }else history.replaceState(null,'',h);
+  }}
 function readHash(){const h=decodeURIComponent(location.hash.replace(/^#/,''));if(!h)return null;const p=h.split('/');const v=p[0];if(!TABS.some(t=>t[0]===v))return null;return{view:v,date:p[1]||null};}
 const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["parte","Parte wellness"],["fisio","Fisioterapia"],["nutri","Nutrición"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
 const NAV=[
@@ -33134,6 +33174,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   }catch(e){}
   injectPanelActions();
   restoreFromHash();
+  window.__BM_LISTO=true;   /* v539 · a partir de aquí, navegar deja historial en el móvil */
   /* v388 · La barra del día se pinta varias veces durante el arranque, y la
      última que quedaba podía ser de antes de fijar la fecha: salía el aviso de
      «No es hoy» nada más abrir, estando en hoy. Se repinta al final, ya con la
@@ -40673,8 +40714,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.8*/
-const VER_ACTUAL='2026-11-11.8';
+/*BUILD:2026-11-11.9*/
+const VER_ACTUAL='2026-11-11.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
