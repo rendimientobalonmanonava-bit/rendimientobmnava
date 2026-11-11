@@ -13842,6 +13842,7 @@ function bmArrastre(caja,o){
   caja.addEventListener('touchstart',e=>{
     y0=null;if(e.touches.length!==1)return;
     if(o.solo&&!o.solo())return;
+    if(o.zona&&!o.zona(e,caja))return;
     const t=e.target;if(!t||!t.closest)return;
     if(/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)||t.closest('canvas,[data-noarr]'))return;
     for(let n=t;n&&n!==caja.parentElement;n=n.parentElement){
@@ -14845,11 +14846,54 @@ document.addEventListener('click',e=>{
 /* La hoja se cierra arrastrándola hacia abajo, que es lo que el dedo espera de
    una hoja. Sólo cuenta si la lista está arriba del todo: si no, el gesto es
    desplazar la lista. En el ordenador `sb-open` no se pone nunca. */
-(function(){const sb=document.getElementById('sidebar');if(!sb)return;let y0=null;
-  sb.addEventListener('touchstart',e=>{const n=document.getElementById('sb-nav');y0=(n&&n.scrollTop>0)?null:e.touches[0].clientY;},{passive:true});
-  sb.addEventListener('touchmove',e=>{if(y0==null||!document.body.classList.contains('sb-open'))return;
-    if(e.touches[0].clientY-y0>70){y0=null;sbToggleMobile(false);}},{passive:true});
+/* v576 · Ya no se cierra al pasar de 70 px: sigue al dedo y, al soltar, se
+   cierra o vuelve a su sitio (`bmArrastre`, la misma pieza de la hoja común). */
+(function(){const sb=document.getElementById('sidebar');if(!sb)return;
+  bmArrastre(sb,{solo:()=>esMovil()&&document.body.classList.contains('sb-open'),fondo:document.getElementById('sb-scrim'),cerrar:()=>sbToggleMobile(false)});
 })();
+/* v576 · Las hojas de siempre —formularios, día del calendario, ajustes—
+   también siguen al dedo. En éstas sólo desde la franja de arriba, la del
+   tirador y el título: son formularios, y un arrastre por en medio que se
+   lleve la hoja se lleva también lo que se había escrito. El oyente se cuelga
+   la primera vez que se toca cada una, en la fase de captura, para que ese
+   primer toque ya cuente. */
+(function(){
+  const cierra=m=>{
+    if(m.id==='drawer'){closeDrawer();return;}
+    const ov=m.parentElement;
+    if(ov&&ov.id==='ph-overlay'&&window.closeHeroForm){closeHeroForm();return;}
+    if(ov&&ov.id==='med-overlay'&&window.closeMedAgenda){closeMedAgenda();return;}
+    if(ov&&ov.classList.contains('info-overlay')&&typeof closeInfoEdit==='function'){closeInfoEdit();return;}
+    if(ov)ov.style.display='none';
+  };
+  document.addEventListener('touchstart',e=>{
+    if(!esMovil()||!e.target||!e.target.closest)return;
+    const m=e.target.closest('.med-overlay>.med-modal,.info-overlay>.info-modal,#drawer');
+    if(!m||m._bmArr)return;m._bmArr=true;
+    bmArrastre(m,{solo:esMovil,zona:(ev,c)=>(ev.touches[0].clientY-c.getBoundingClientRect().top)<64,cerrar:()=>cierra(m)});
+  },{capture:true,passive:true});
+})();
+/* v576 · La foto vuela de la lista a la ficha. Al tocar a un jugador, su foto
+   viaja hasta el sitio que ocupa en la cabecera de la ficha en vez de
+   desaparecer y aparecer (HIG · Motion: el movimiento enseña de dónde viene
+   cada cosa). Lo hace el navegador con una transición de vista: se le dice qué
+   elemento es «el mismo» antes y después.
+   Sólo cuando lo que abre la ficha es un toque directo sobre algo con foto,
+   dentro del contenido; sin esa función en el navegador, o con «reducir
+   movimiento», la ficha se abre como siempre. */
+const BMV={t:null,ts:0};
+document.addEventListener('pointerdown',e=>{BMV.t=e.target;BMV.ts=Date.now();},{capture:true,passive:true});
+function bmvFoto(){
+  try{
+    if(!esMovil()||!document.startViewTransition||Date.now()-BMV.ts>900||!BMV.t||!BMV.t.closest)return null;
+    if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches)return null;
+    const c=BMV.t.closest('main [onclick*="openPlayer("]');if(!c)return null;
+    const im=(BMV.t.tagName==='IMG'&&c.contains(BMV.t))?BMV.t:c.querySelector('img');
+    if(!im||!im.complete||!im.naturalWidth||!im.checkVisibility||!im.checkVisibility())return null;
+    const r=im.getBoundingClientRect();if(r.width<20||r.bottom<0||r.top>window.innerHeight)return null;
+    return im;
+  }catch(e){return null;}
+}
 function injectPageHeads(){document.querySelectorAll('.view').forEach(sec=>{const v=sec.id.replace(/^v-/,'');const m=VIEW_META[v];if(!m||sec.querySelector('.pagehead'))return;
   let dis=false;try{dis=localStorage.getItem('bmnava_ban_'+v)==='1';}catch(e){}
   const ban=(m.b&&!dis)?`<div class="ph-banner" id="phb-${v}"><i class="ph-ico">i</i><div>${m.b}</div><button class="ph-x" onclick="phDismiss('${v}')" title="No volver a mostrar">✕</button></div>`:'';
@@ -15278,7 +15322,27 @@ function drawAvail(){
 }
 function wellnessChip(p){const m=mean(["fatiga","sueno","doms","stress","mood"].map(k=>p.last[k]).filter(x=>!isNaN(x)));const sev=m<=2.2?"ok":m<=3.2?"warn":"bad";return`<span class="chip ${sev}">${fmt(m,1)}/5</span>`;}
 
-function openPlayer(name){STATE.curPlayer=name;go('jugador');renderPlayer(name);renderPlayerReadiness(name);if(window.medRenderPlayer)medRenderPlayer(name);if(window.renderPlayerHero)renderPlayerHero(name);}
+function openPlayerYa(name){STATE.curPlayer=name;go('jugador');renderPlayer(name);renderPlayerReadiness(name);if(window.medRenderPlayer)medRenderPlayer(name);if(window.renderPlayerHero)renderPlayerHero(name);}
+function openPlayer(name){
+  const im=bmvFoto();
+  if(!im){openPlayerYa(name);return;}
+  BMV.ts=0;
+  let dest=null;
+  const quita=()=>{try{im.style.viewTransitionName='';if(dest)dest.style.viewTransitionName='';}catch(e){}};
+  try{
+    im.style.viewTransitionName='bm-foto';
+    const vt=document.startViewTransition(()=>{
+      im.style.viewTransitionName='';
+      openPlayerYa(name);
+      dest=document.querySelector('#v-jugador img.phero-photo');
+      if(dest&&dest.checkVisibility&&dest.checkVisibility())dest.style.viewTransitionName='bm-foto';else dest=null;
+    });
+    vt.finished.then(quita,quita);
+    /* Si el navegador abandona la transición (la app en segundo plano, otra en curso), la ficha
+       se abre igual; lo único que no hay que dejar es una promesa rechazada sin recoger. */
+    try{vt.ready.catch(()=>{});vt.updateCallbackDone.catch(()=>{});}catch(_){}
+  }catch(e){quita();openPlayerYa(name);}
+}
 let charts={};
 function killCharts(ids){ids.forEach(id=>{if(charts[id]){charts[id].destroy();delete charts[id];}});}
 const yBand=(lo,hi,c)=>({id:'yb',beforeDatasetsDraw(ch){const{ctx,chartArea:{left,right},scales:{y}}=ch;const a=y.getPixelForValue(lo),b=y.getPixelForValue(hi);ctx.save();ctx.fillStyle=c;ctx.fillRect(left,Math.min(a,b),right-left,Math.abs(b-a));ctx.restore();}});
@@ -39541,6 +39605,17 @@ header,#tabbar,.sb-tools,svg,
   html.bml-g .bmf .bmf-pie>.btn{flex:1 1 100%}
 }
 </style>
+<style id="movil-v576">
+/* ===== v576 · Movimiento con continuidad =====
+   La transición de vista sólo se lanza desde el móvil (`bmvFoto` pregunta
+   `esMovil()`), así que estas reglas no tienen a qué aplicarse en el ordenador.
+   El fundido de la página entera se quita: la pantalla ya entra con su propio
+   movimiento (v540) y dos a la vez se pisan. La que viaja es la foto. */
+::view-transition-old(root){animation:none;opacity:0}
+::view-transition-new(root){animation:none}
+::view-transition-group(bm-foto){animation-duration:.44s;animation-timing-function:cubic-bezier(.32,.72,0,1)}
+::view-transition-old(bm-foto),::view-transition-new(bm-foto){animation-duration:.2s;height:100%;width:100%;object-fit:cover}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43106,8 +43181,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.39*/
-const VER_ACTUAL='2026-11-11.39';
+/*BUILD:2026-11-11.40*/
+const VER_ACTUAL='2026-11-11.40';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
