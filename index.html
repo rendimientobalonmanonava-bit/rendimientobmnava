@@ -13902,7 +13902,11 @@ window.addEventListener('popstate',e=>{
      siguen ahí enteras, pero no ocupan media pantalla antes del dato. */
 window.addEventListener('scroll',()=>{
   if(!esMovil())return;
-  document.body.classList.toggle('tit-arriba',(window.scrollY||0)>64);   /* v562 */
+  /* v564 · El paso del título grande al pequeño acompaña al dedo: `--tp` va de 0
+     a 1 en los primeros 64 px, en escalones de 0,05 para no escribir el estilo
+     en cada píxel. El título grande encoge y se apaga; el de la cápsula aparece. */
+  const tp=Math.round(Math.max(0,Math.min(1,((window.scrollY||0)-8)/56))*20)/20;
+  if(window.__TP!==tp){window.__TP=tp;document.documentElement.style.setProperty('--tp',tp);}
   const b=document.getElementById('plt-bar');if(!b||!b.offsetParent)return;
   const pegada=b.getBoundingClientRect().top<=(parseFloat(getComputedStyle(b).top)||0)+1;
   if(pegada!==b.classList.contains('plt-pegada')){b.classList.toggle('plt-pegada',pegada);b.dataset.nom=(STATE.curPlayer||'');}
@@ -13945,12 +13949,33 @@ function go(v){const _y0=window.scrollY||0;const ESUB={dispo:1,medico:1,parte:1,
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
-  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}if(FILTER.cargaTab==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='nutri'){try{renderNutri();}catch(e){console.error('bmnava · nutrición',e);}}if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();const _pv=STATE.view;STATE.view=v;try{document.documentElement.dataset.nav=window.__BM_POP?'atr':(window.__BM_TAB?'tab':'ade');}catch(e){}writeHash(!!_pv&&_pv!==v,_y0);try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');try{bmTitulo(v);}catch(e){}}
+  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}if(FILTER.cargaTab==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='nutri'){try{renderNutri();}catch(e){console.error('bmnava · nutrición',e);}}if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();const _pv=STATE.view;STATE.view=v;try{document.documentElement.dataset.nav=window.__BM_POP?'atr':(window.__BM_TAB?'tab':'ade');}catch(e){}writeHash(!!_pv&&_pv!==v,_y0);try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');try{bmTitulo(v);}catch(e){}try{setTimeout(bmVacios,80);setTimeout(bmVacios,900);}catch(e){}}
 /* v562 · El título de la pantalla, en corto, dentro de la cápsula del día. En
    el móvil aparece ahí cuando el título grande se ha ido por arriba: es el
    gesto de cualquier app de teléfono, y evita no saber en qué pantalla se
    está a mitad de una larga. El nombre sale del menú (`NAV`); en la ficha,
    del jugador. En el ordenador el hueco está oculto. */
+/* v564 · Estados vacíos, completos. La regla de CSS de la v563 sólo alcanza la
+   frase que va justo detrás del título. Esta pasada marca cualquier frase de
+   «sin datos» que se haya quedado SOLA en su bloque —empieza por Sin, No hay,
+   Nadie, Ningún, Aún no o Todavía no, y no tiene al lado nada más que el
+   rótulo—, y el CSS la pinta igual. Sólo en el móvil, sólo en la vista que se
+   ve, y no toca el texto: pone una clase. */
+function bmVacios(){
+  if(!esMovil())return;
+  const v=document.querySelector('main .view.on');if(!v)return;
+  const re=/^(Sin |No hay |Nadie |Ningún |Ninguna |Aún no |Todavía no )/;
+  const rot=c=>/^(H2|H3|SUMMARY)$/.test(c.tagName)||/(^| )(pro-title|pro-sub|mini-h|cgr-card-h|eyebrow)( |$)/.test(c.className||'');
+  v.querySelectorAll('p,div.small,span.small,div.muted,span.hint').forEach(e=>{
+    if(e.classList.contains('bm-vacio')||e.closest('.pt-card,.ficha-card,.sa-page,table'))return;
+    if(e.querySelector('p,div,table,button,canvas,svg,img,input,select'))return;
+    const t=(e.textContent||'').trim();if(t.length<8||t.length>170||!re.test(t))return;
+    const pa=e.parentElement;if(!pa)return;
+    if([...pa.children].some(c=>c!==e&&!rot(c)&&(!c.checkVisibility||c.checkVisibility())))return;
+    e.classList.add('bm-vacio');
+  });
+}
+document.addEventListener('click',()=>{if(esMovil())setTimeout(bmVacios,380);});
 function bmTitulo(v){
   const t=document.getElementById('dp-tit');if(!t)return;
   let n='';
@@ -14426,6 +14451,22 @@ function buildChartTheme(){
       C.elements.bar.borderRadius=5;
       C.plugins.tooltip.cornerRadius=10;C.plugins.tooltip.displayColors=true;
       try{AX.grid.lineWidth=.5;AX.ticks.maxTicksLimit=6;AX.ticks.padding=6;}catch(e){}
+      /* v564 · Los valores por defecto no alcanzan a los gráficos que fijan los
+         suyos, que son la mayoría. Este plugin los iguala al crearlos: leyenda
+         debajo, valor al tocar cerca y barras redondeadas —salvo las apiladas,
+         donde redondear cada tramo las separa—. Sólo actúa en el móvil. */
+      if(!Chart.registry.plugins.get('bmMovil')){
+        Chart.register({id:'bmMovil',beforeInit(chart){
+          if(!esMovil())return;
+          try{
+            const o=chart.options||{};
+            if(o.plugins&&o.plugins.legend)o.plugins.legend.position='bottom';
+            if(o.interaction)o.interaction.intersect=false;
+            const ap=!!(o.scales&&((o.scales.x&&o.scales.x.stacked)||(o.scales.y&&o.scales.y.stacked)));
+            if(!ap)(chart.data.datasets||[]).forEach(ds=>{if((ds.type||chart.config.type)==='bar')ds.borderRadius=5;});
+          }catch(e){}
+        }});
+      }
     }
   }
 }
@@ -35223,7 +35264,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
     general de fisio. Abre el formulario ligero directamente, con su propio
     desplegable de jugador (openHeroForm ya lo añade cuando no hay nombre). */
  function medCoachQuickBar(){
-  return '<div class="mcx-quick"><button class="btn" onclick="openHeroForm(\'incidencia\',\'\')">📋 Parte del día / incidencia</button>'
+  return '<div class="mcx-quick"><button class="btn" onclick="openHeroForm(\'incidencia\',\'\')"><span class="emo">📋 </span>Parte del día / incidencia</button>'
    +'<span class="small muted">Molestias que cuenta el jugador, sin que falte al entreno.</span></div>';
  }
  window.medCoachRender=function(){
@@ -36449,7 +36490,7 @@ html[data-theme="dark"] .wm-miss-pill i{background:#2a303c;color:#c7ccd4;border-
  // botón en la vista de Calendario (estable, no lo borra renderCalendar)
  function ensureBtn(){var host=document.getElementById('v-cal');if(!host)return;if(document.getElementById('cal-ics-bar'))return;
   var bar=document.createElement('div');bar.id='cal-ics-bar';bar.className='cal-ics-bar';
-  bar.innerHTML='<button class="btn ghost" onclick="calExportICS()">📅 Exportar a Google Calendar (.ics)</button><span class="small muted">Descarga un archivo importable en Google Calendar, Apple o Outlook (Ajustes › Importar y exportar).</span>';
+  bar.innerHTML='<button class="btn ghost" onclick="calExportICS()"><span class="emo">📅 </span>Exportar a Google Calendar (.ics)</button><span class="small muted">Descarga un archivo importable en Google Calendar, Apple o Outlook (Ajustes › Importar y exportar).</span>';
   host.insertBefore(bar,host.firstChild);
  }
  var _rc=window.renderCalendar;
@@ -38193,6 +38234,48 @@ html[data-theme="dark"]{--seg-carril:rgba(118,118,128,.28);--seg-on:#636366;--se
 }
 @keyframes calcLate{0%,100%{opacity:.55}50%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.calc-s i{animation:none}}
+</style>
+<style id="movil-v564">
+/* ===== v564 · Lo que quedó corto de las nueve mejoras =====
+   Daniel, 11/11/2026: «completa todo».
+   · El título no saltaba: ahora encoge y se apaga con el desplazamiento, y el
+     de la cápsula aparece al mismo ritmo (`--tp`, de 0 a 1).
+   · Pastillas: había una docena de variantes (10 a 14 px, pesos de 400 a 800,
+     radios de 6 a 999, algunas en versalitas). Quedan DOS: la etiqueta de estado
+     (11 px) y la pastilla que se pulsa (12,5 px), las dos a peso 600, redondas y
+     en frase. El Parte de wellness no entra: es un documento.
+   · Gráficos: la altura normal pasa a ser una —230 px— para los que medían de
+     190 a 260. Los que necesitan más (300, 420) y los minigráficos se quedan.
+   · Emojis: los tres que quedaban a la vista se ocultan en el móvil, y el icono
+     de los estados vacíos pasa a ser el dibujo de siempre.
+   · Estados vacíos: la clase `bm-vacio` la pone `bmVacios` y se pinta como los
+     de la v563. */
+@media(max-width:760px){
+  .emo{display:none}
+  .vac-ic{font-size:0!important;line-height:0}
+  .vac-ic::before,.bm-vacio::before{content:"";display:block;width:30px;height:30px;margin:0 auto 8px;background:var(--muted2);opacity:.65;
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 13h4l1.5 3h5L16 13h4'/%3E%3Cpath d='M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z'/%3E%3C/svg%3E") center/contain no-repeat;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 13h4l1.5 3h5L16 13h4'/%3E%3Cpath d='M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z'/%3E%3C/svg%3E") center/contain no-repeat}
+  .vac-ic::before{margin-bottom:2px}
+  .bm-vacio{display:block;text-align:center;padding:12px 12px 10px;margin:0;color:var(--muted);font-size:var(--fs-body);line-height:1.4}
+
+  /* ── El título, progresivo ── */
+  .pagehead h1{transform-origin:left center;transform:scale(calc(1 - .16*var(--tp,0)));opacity:calc(1 - var(--tp,0))}
+  .dp-tit:not(:empty){max-height:calc(15px*var(--tp,0));opacity:var(--tp,0);transition:none}
+  .dp-tit:not(:empty)+.dp-label{font-size:calc(15px - 2.5px*var(--tp,0));transition:none}
+
+  /* ── Dos pastillas ── */
+  main :is(.flag,.pillT,.fh-m,.tag,.chip,.cw-md-tag,.mc-hero-d,.hrn-b,.amod,.cal-dia-hoy,.vd-chip,.wm-chip-b,.phero-tag,.estado-cnt){
+    font-size:var(--fs-xs)!important;font-weight:600!important;border-radius:999px!important;text-transform:none!important;
+    letter-spacing:0!important;line-height:1.35}
+  main :is(.amod,.cw-md-tag){padding-left:7px;padding-right:7px}
+  main :is(.med-chip,.tl-chip,.tsat-chip,.wpill,.dsp-chip){font-size:var(--fs-sm)!important;font-weight:600!important;border-radius:999px!important;
+    text-transform:none!important;letter-spacing:0!important}
+
+  /* ── Una altura de gráfico ── */
+  :is([style*="height:190px"],[style*="height:200px"],[style*="height:210px"],[style*="height:220px"],[style*="height:240px"],
+      [style*="height:250px"],[style*="height:260px"]):has(>canvas){height:230px!important}
+}
 </style>
 <script>
 /* ============================================================
@@ -41759,8 +41842,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.28*/
-const VER_ACTUAL='2026-11-11.28';
+/*BUILD:2026-11-11.29*/
+const VER_ACTUAL='2026-11-11.29';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
