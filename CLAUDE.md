@@ -8,7 +8,7 @@ Contexto permanente del proyecto. Léelo entero antes de tocar nada.
 
 Dashboard de monitorización de carga y disponibilidad del **Club Balonmano Nava** (liga ASOBAL, España).
 
-- **Archivo único**: `index.html`. Autocontenido, sin build, sin dependencias de servidor.
+- **Archivo único**: `index.html`. Autocontenido, sin build, sin dependencias de servidor. *Desde la v546 lo acompañan cuatro archivos estáticos que no llevan lógica de la app: `manifest.webmanifest` y `icono-180/192/512.png` (instalable en el teléfono) y `sw.js` (copia para abrir sin red). Ver §6.12.1.*
 - **Despliegue**: GitHub Pages.
 - **Responsable**: Daniel Gutiérrez, preparador físico y analista.
 - **Usuarios**: Daniel y Virginia (fisioterapeuta, perfil técnico) · Carlos (primer entrenador, usa móvil, necesita información visual a simple vista).
@@ -819,7 +819,34 @@ Daniel, 11/11/2026: *«vamos a mejorar mucho la parte para dispositivos móviles
 1. **Estático**: se extraen los bloques de estilo nuevos, se quitan los `@media` con `max-width` y se mira qué queda — sólo las reglas que ocultan las piezas nuevas y el token. Y los **12 bloques de estilo anteriores, idénticos byte a byte**.
 2. **En vivo, a 1440 px**: huella de POSICIONES (izquierda, arriba, ancho y alto de cada elemento visible) de la versión anterior y de la nueva. Idéntica en la cabecera y el menú (122 elementos), el Resumen (760), las tres pestañas de Perfil físico (1.970 · 1.198 · 1.195), Disponibilidad (423), Alertas (214) y el Calendario.
 
-**Lo que NO se hizo, y queda propuesto:** Pulsómetros › Equipo por pestañas (15,6 pantallas en móvil), los gráficos legibles sin color (frase de lectura, etiquetas directas, texto alternativo) y la pasada de escala tipográfica. Y las mejoras de «parecer nativa» que se le propusieron el 11/11/2026 y esperan su decisión.
+**Lo que NO se hizo, y queda propuesto:** los gráficos legibles sin color (frase de lectura, etiquetas directas, texto alternativo) y la pasada de escala tipográfica. Pulsómetros › Equipo por pestañas y las mejoras de «parecer nativa» se hicieron el mismo día: §6.12.1.
+
+---
+
+#### 6.12.1 Segunda tanda · las diez letras (v538–v547)
+
+Daniel, 11/11/2026, al ver las diez propuestas A–J: *«vamos con todas las letras, dale»*. Todo sigue dentro de la regla de ancho, **salvo dos cosas que valen también en el ordenador y sólo se notan cuando falla la red**: la copia de las hojas y `sw.js`.
+
+| Elemento | Regla |
+|---|---|
+| H · El número de alertas en la barra (v538) | `bdAlertas` escribe el recuento sobre «Más» —por donde se llega a Alertas— y sobre la entrada de la hoja. **Aquí el rojo SÍ es el de alertas**: rojo si hay alguna roja, ámbar si no. Mismo `STATE.alerts` que la vista |
+| B · «Atrás» vuelve a la pantalla anterior (v539) | `writeHash(push,y0)`: en el móvil, cambiar de VISTA hace `pushState`; cambiar de día sigue reemplazando. La entrada que se deja atrás guarda su desplazamiento y al volver se recupera. **Con algo abierto encima, atrás lo cierra y se queda** (`bmCierraCapa` + `history.forward()`). `__BM_LISTO` se pone al final de `boot`: antes de eso navegar no deja historial, o el arranque con una dirección guardada metería una entrada de más. **`esMovil()` es el punto único** para «¿se está en el diseño de móvil?»: la misma condición que la regla de ancho del CSS |
+| F · Transiciones (v540) | `go()` deja el sentido en `html[data-nav]`: `ade` entra desde la derecha, `atr` desde la izquierda, `tab` sube. Las pestañas de dentro sólo funden. Nada con `prefers-reduced-motion`. `main{overflow-x:clip}` para que los 22 px de entrada no asomen; `clip` y no `hidden`, que rompería las barras pegadas |
+| C · Los diálogos, como hojas (v541) | `#med-overlay` y `#ph-overlay` suben desde abajo a todo el ancho, con tirador y el contenido desplazable dentro. **Sólo CSS: no se toca lo que cada formulario pinta.** Los ajustes y el menú de añadir también salen de abajo. **Los documentos A4 no**: la ficha exportable y el informe isocinético se quedan como están |
+| E · Tirar para actualizar (v542) | Llama a `refreshAll()`, lo mismo que ⟳: no hay una segunda forma de actualizar. Sólo con la página arriba del todo, nada abierto y el dedo fuera de algo con desplazamiento propio. Oyentes pasivos. `overscroll-behavior-y:contain` quita el rebote del navegador, que recargaría la página entera. **El botón ⟳ NO se ha quitado**: el gesto está probado con toques simulados, no en un teléfono |
+| G · Deslizar una fila (v543) | La fila dice con `data-sw` **cuál de SUS botones** se pulsa al soltar, y con `data-sw-lab` qué se lee al arrastrar. Deslizar no hace nada que no hiciera ya ese botón: **la confirmación con la cifra del cobro sigue saliendo**. Un solo ayudante por delegación. Hoy lo llevan las tarjetas de cobro de Nutrición y los avisos «Ojo hoy». El rótulo es un `::after` pegado al borde derecho de la fila: no hay marcado nuevo |
+| I · Pulsómetros › Equipo por pestañas (v544) | 13.103 px y 22 bloques → Sesión · Jugadores · Modelo · Comparar · Datos, con el selector de sesión arriba porque vale para todas. `mtCambia(panel,barra,pestaña)` sirve a los dos paneles con pestañas de móvil |
+| J · Tarjetas y texto (v545) | **262 textos por debajo de 11 px → 15**, y 13 son marcas de escala de los medidores. La regla lleva `!important` **a propósito y sólo ahí**: es un suelo, y varias clases fijan su tamaño con más especificidad o en línea. Las semanas de Cargas pasan a una tarjeta por semana: cada celda lleva un `<i class="cg-lb">` con su rótulo, oculto en el ordenador —la marca de la monotonía y de la aguda ya usa `::before`, así que el rótulo no podía ser un pseudo-elemento—. El resumen semanal del Calendario sí va con `td::before`. La plantilla del Resumen abre en tarjetas. **El Parte de wellness no se toca**: es un documento |
+| A · Instalable (v546) | `manifest.webmanifest` + iconos + metas. El icono es `escudo.png` sobre el azul del menú, **sin transparencia** —iOS pinta de negro lo transparente— y con margen para las máscaras redondas. Hecho con `sips` (no hay PIL en este Mac): reducir, rellenar a cuadrado con color, pasar por JPEG para aplanar el alfa y volver a PNG; el fondo se comprobó leyendo el píxel de un BMP. **No se añadió icono de pestaña**: sería un cambio en el ordenador |
+| D · La última copia de las hojas (v547) | `fetchCSVReal` y `vhTexto` guardan cada hoja leída bien y, si la siguiente lectura falla, usan la copia y `#bm-copia` dice de cuándo es. **La red va siempre primero**, así que «Actualizar» sigue trayendo datos nuevos. **Vive en `caches`, no en `localStorage`**: lo que empieza por `bmnava_` se sincroniza, y la copia de una hoja no es un dato que mandar a nadie. **Una respuesta que parece HTML no se guarda**. Sustituye a la muestra de ejemplo cuando hay copia |
+| D · Arranque con copia, sólo en el móvil (v547) | Si hay copia, `boot` pone `__BM_SOLO_COPIA`, llama al MISMO `connect()` —que entonces lee la copia sin tocar la red— y pinta; después `bmRefrescoArranque` trae lo nuevo. *Medido: 297 ms y 0 peticiones.* El aviso dice «actualizando…» mientras tanto. **Se reutiliza `connect` en vez de escribir un segundo camino de carga**: dos caminos se desincronizan |
+| D · `sw.js` | Guarda la página, las fotos y las librerías de fuera. **Siempre red primero**; no toca las hojas ni Supabase, ni POST ni HEAD; la página se guarda bajo una sola clave, sin lo de detrás del `?`; un 404 no pisa la copia; si la caché falla, la petición sale igual. Para retirarlo: borrar el archivo y la línea que lo registra |
+
+**Lo que NO está probado, y hay que decirlo cada vez:**
+
+- **Nada de esto se ha visto en un teléfono real.** Todo se probó en la emulación de 375 × 812 del navegador integrado, con toques simulados para los gestos.
+- **`sw.js` no se puede registrar en el navegador integrado** («An unknown error occurred when fetching the script», con el servidor sirviéndolo bien). Se probó con red y caché simuladas en JavaScriptCore: 15 comprobaciones.
+- **Sin red, la app todavía NO abre.** `syEnsureAuth` hace `syPull()` y, si falla, enseña la pantalla de acceso. Dejar pasar sin red a quien ya tenía sesión en ese aparato es cambiar la puerta de entrada: **pendiente de decisión de Daniel**, no se ha tocado.
 
 ---
 
@@ -840,6 +867,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 ## 8. Pendientes abiertos
 
 **Esperando decisión de Daniel:**
+- **Abrir sin red**: hoy la app se para en la pantalla de acceso si no puede comprobar la sesión. Para que abra sin cobertura hay que dejar pasar a quien ya tenía sesión en ese aparato, con los datos que tiene guardados. Es la puerta de entrada: no se toca sin su visto bueno (§6.12.1)
 - CMJ anómalos del 2026-03-09 — borrar o mantener
 - Dirección de los tres tests sin confirmar
 - Los dos valores sospechosos de Óscar
@@ -850,7 +878,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - **La monotonía tiene DOS umbrales y no coinciden.** `CONFIG.load.monoHi` vale **1,5** —es la línea que dibuja el gráfico ⑤ y la marca de la celda en el dashboard de cargas— y `calMonoTier` dice «ok» hasta **2** y «elevada» por encima, que es lo que usan el calendario y «Cada jugador, esta semana». *Medido el 9/11/2026 sobre los 14 días: **5 de los 11 días con dato** salen verdes con un criterio y pasados con el otro.* Preguntado, Daniel dijo que **manda 1,5**, pero **no se ha tocado `calMonoTier`**: cambiarlo reclasifica el calendario y el panel por jugador, que es un cambio de criterio con efecto en dos pantallas más y necesita su visto bueno expreso. Mientras tanto, la columna de monotonía del dashboard **no lleva color** —solo la marca del 1,5—, para que ninguna pantalla afirme lo que la otra niega
 
 **Trabajo pendiente:**
-- **Móvil, lo propuesto el 11/11/2026 y sin decidir**: instalable en la pantalla de inicio (manifiesto e icono), transiciones entre vistas, tirar para actualizar, filas deslizables en Nutrición y Fisioterapia, diálogos como hojas, esqueletos de carga y aviso de sin conexión. Ver §6.12
+- **Móvil, pendiente tras la v547**: probarlo todo en un teléfono real; quitar el botón ⟳ de la cabecera cuando Daniel confirme que tirar para actualizar le funciona; y más filas deslizables si las usa. Ver §6.12.1
 - ~~La duración de un bloque sin minutos se realimenta.~~ **Resuelto en v507**: `lbDayAll` lee solo `dur0`. Ver §6.1.1
 
 - ~~La app calcula DOS ACWR y no lo dice.~~ **Resuelto en v452**: los cuatro paneles que calculaban con `ewma` rotulándolo «ACWR» pasan a `ratio`, y la tabla de cálculos bloqueados dice ya lo que de verdad se usa. La exponencial sigue viva pero solo donde está rotulada.
@@ -994,6 +1022,10 @@ No los repitas.
 | Meter un `<div>` oculto delante de algo que usa `:first-of-type` | La barra de pestañas de Perfil físico se insertó como primer hijo del panel, oculta en el ordenador. `.sec-tit:first-of-type` da su margen al primer `<div>`, así que el rótulo de debajo dejó de serlo y **bajó 10 px en una vista que no se había tocado**. `display:none` quita la caja, no el sitio en el árbol: `:first-child`, `:first-of-type` y `:nth-child` siguen contando el nodo. **Antes de insertar un nodo, buscar esos selectores sobre sus hermanos**; si los hay, otra etiqueta o al final |
 | Comparar dos cargas con el panel del navegador en segundo plano | Tres trampas en una tarde. **(1)** Una carga no llegó a traer las hojas y pintó con los datos de respaldo —1.409 registros de wellness en vez de 3.266—: las huellas no coincidían y había **cientos de elementos menos**, que es la pista. **(2)** `requestAnimationFrame` no se dispara y los temporizadores se frenan, así que una tanda de diez pantallas se cuelga. **(3)** La cabecera cambia de ancho con el texto de «actualizado hace…», y metida en la huella de cada pantalla las hacía fallar todas, también las que no se habían tocado. **Antes de comparar, mirar que las dos cargas tienen los mismos registros; la cabecera se huella aparte; y si el panel está oculto, tandas cortas o prueba estática** |
 | Leer `innerWidth` en la emulación de móvil como si fuera el ancho del teléfono | Cuando algo desborda, el navegador ensancha el área de trazado para que quepa: `innerWidth` daba **429 en un teléfono de 375**. Si se compara `scrollWidth` contra `innerWidth` el desborde no aparece nunca, porque los dos crecen juntos. **Se compara contra el ancho que se pidió** |
+| Convertir una barra en `<nav>` sin mirar las reglas de `nav` | La barra de pestañas de móvil pasó de `<div>` a `<nav>` para no romper un `:first-of-type` (v534), y **empezó a partir en dos filas**: la hoja trae `nav{display:flex;flex-wrap:wrap;max-width:1500px}` y `nav button{…}` del menú superior antiguo, que ya ni se ve. Cambiar de etiqueta es cambiar de reglas heredadas. **Antes de usar una etiqueta semántica, buscar sus selectores de elemento en la hoja** |
+| Fiarse de una captura con el panel del navegador en segundo plano | La captura enseñaba «Resumen» marcado en la barra estando en Pulsómetros, y una vista a medio fundir. El DOM decía otra cosa: marcada estaba «Más». Con el panel oculto no corren los fotogramas, así que la captura es de antes del último pintado y las animaciones se quedan en su primer instante. **Con el panel oculto se pregunta al DOM, no a la imagen** |
+| Dar por hecho que la copia de prueba termina de arrancar | `prueba.html` nunca llega al final de `boot`: `syEnsureAuth` es de verdad y se queda en la pantalla de acceso. Todo lo que se active al final del arranque —`__BM_LISTO`, el refresco tras la copia— no existe en la copia y hay que ponerlo a mano para probarlo. Costó tres intentos ver por qué «atrás» sacaba de la página |
+| Comparar dos cargas mientras la app se devuelve sola al día de hoy | El primer pintado tardío pone el día en hoy; según cuándo llegue, una carga quedaba en el día fijado y la otra no, y Cargas daba 661 elementos contra 674. **El día se fija antes de CADA pantalla**, no una vez al principio; y cuando dos huellas no coinciden, se compara bloque a bloque antes de buscar la causa en el código |
 
 ---
 
