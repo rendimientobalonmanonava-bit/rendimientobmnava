@@ -14110,6 +14110,179 @@ function bmlpMenu(x){
   /* El menú del sistema (copiar, guardar imagen) no sale sobre lo que tiene el nuestro. */
   document.addEventListener('contextmenu',e=>{if(esMovil()&&e.target.closest&&e.target.closest(BMLP_SEL))e.preventDefault();});
 })();
+/* v574 · Gráficos para el dedo, en el móvil. Tres cosas:
+   1 · La lectura en una frase, encima de cada gráfico (HIG · Charting data:
+       texto que diga lo importante). Sale de los propios datos del gráfico: el
+       último valor, la media y el máximo de la serie; en un gráfico por
+       categorías, el más alto y el más bajo; en uno de sectores, el mayor. No
+       se interpreta nada ni se inventa un umbral: son las cifras, dichas. Se
+       salta las series que no varían —una línea de referencia es constante— y
+       las que se llaman banda, umbral u objetivo. Si no hay nada claro que
+       decir, no dice nada. La misma frase es la descripción para VoiceOver.
+   2 · Al arrastrar el dedo por un gráfico de ejes, el valor lo sigue y una
+       regla vertical marca el punto. `touch-action:pan-y` deja al gráfico el
+       movimiento de lado y a la página el de arriba abajo.
+   3 · Un botón para verlo grande. Dentro, al girar el teléfono, el gráfico
+       ocupa la pantalla entera. Y si se gira el teléfono con un gráfico a la
+       vista, se abre solo y se cierra al enderezarlo.
+   Los documentos —parte, ficha, láminas— no llevan ni frase ni botón. */
+const BMG={vis:null,obs:null,auto:false,ch:null,era:false};
+const BMG_DOC='#parte-card,.pt-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page,#sescal-a4-page,#fis-cap-png';
+const BMG_IC='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/></svg>';
+function bmgFrase(chart){
+  try{
+    const tp=chart.config.type,D=chart.data||{},L=(D.labels||[]).map(x=>Array.isArray(x)?x.join(' '):String(x==null?'':x));
+    const num=v=>(v!=null&&typeof v==='object')?(('y' in v)?+v.y:NaN):((v==null||v==='')?NaN:+v);
+    const F=v=>{const m=Math.abs(v),d=m>=100?0:(m>=10?1:2);return fmt(v,d).replace(/(,\d*?)0+$/,'$1').replace(/,$/,'');};
+    const DS=D.datasets||[];
+    if(tp==='doughnut'||tp==='pie'){
+      const vs=((DS[0]||{}).data||[]).map(num),tot=vs.reduce((x,y)=>x+(isFinite(y)?y:0),0);if(!(tot>0)||!L.length)return '';
+      let i=0;vs.forEach((v,k)=>{if(isFinite(v)&&!(vs[i]>=v))i=k;});
+      return 'La mayor parte: '+L[i]+', '+Math.round(vs[i]/tot*100)+' %.';
+    }
+    /* Un gráfico mixto no lleva tipo arriba: lo lleva cada serie. */
+    const tipo=ds=>ds.type||tp;
+    if(!DS.length||DS.some(ds=>{const t=tipo(ds);return t!=='line'&&t!=='bar';}))return '';
+    const sc=(chart.options&&chart.options.scales)||{},apil=!!((sc.x&&sc.x.stacked)||(sc.y&&sc.y.stacked));
+    const NO=/banda|umbral|l[ií]mite|objetivo|referencia|techo|suelo|zona [óo]ptima|plan\b/i;
+    let serie=null,nombre='';
+    const vis=DS.map((ds,i)=>({ds:ds,i:i})).filter(x=>chart.isDatasetVisible(x.i));
+    const barras=vis.filter(x=>tipo(x.ds)==='bar');
+    if(apil&&barras.length>1){
+      /* Sólo se suma si todas las barras van en UNA pila. Con dos pilas —plan
+         al lado de real— la suma no es de nadie, y no se dice. */
+      if(new Set(barras.map(x=>x.ds.stack==null?'':String(x.ds.stack))).size>1)return '';
+      const bs=barras,n=Math.max.apply(null,bs.map(x=>(x.ds.data||[]).length));
+      serie=Array.from({length:n},(_,k)=>{let t=0,hay=false;bs.forEach(x=>{const v=num(x.ds.data[k]);if(isFinite(v)){t+=v;hay=true;}});return hay?t:NaN;});nombre='Total';
+    }else{
+      for(const x of vis){if(NO.test(x.ds.label||''))continue;
+        const vs=(x.ds.data||[]).map(num),ok=vs.filter(isFinite);if(ok.length<3)continue;
+        if(Math.max.apply(null,ok)-Math.min.apply(null,ok)<1e-9)continue;
+        serie=vs;nombre=(vis.length>1&&x.ds.label)?String(x.ds.label):'';break;}
+    }
+    if(!serie)return '';
+    const pares=serie.map((v,k)=>[v,k]).filter(q=>isFinite(q[0]));if(pares.length<3)return '';
+    const mx=pares.reduce((a,q)=>q[0]>a[0]?q:a),mn=pares.reduce((a,q)=>q[0]<a[0]?q:a),med=pares.reduce((a,q)=>a+q[0],0)/pares.length;
+    /* Un cero al final suele ser «hoy, todavía sin datos»: se dice el último
+       que tiene registro, y se dice con esas palabras. */
+    let ul=pares[pares.length-1],reg=false;
+    if(ul[0]===0){const con=pares.filter(q=>q[0]!==0);if(con.length){ul=con[con.length-1];reg=true;}}
+    const et=k=>L[k]?' ('+L[k]+')':'';
+    /* Una barra «Total» entre las categorías es un desglose: su máximo es el propio total. */
+    if(L.some(x=>/^total$/i.test(x.trim())))return '';
+    const tiempo=L.length&&L.filter(x=>/^(\d{1,2}[\/\-.]\d{1,2}|\d{4}-\d{2}|\d{1,2}$|(lun|mar|mi[eé]|jue|vie|s[aá]b|dom)\b|(ene|feb|abr|may|jun|jul|ago|sep|oct|nov|dic)\b|hoy\b|ayer\b|sem\b|s\d+\b|md\b|md[+\-]\d)/i.test(x.trim())).length>=L.length*0.6;
+    const pre=(nombre&&nombre.length>3&&!/^(valor|datos?|serie)$/i.test(nombre))?nombre+' · ':'';
+    return tiempo||!L.length
+      ?pre+(reg?'Último registro ':'Último ')+F(ul[0])+et(ul[1])+' · media '+F(med)+' · máximo '+F(mx[0])+et(mx[1])+'.'
+      :pre+'Más alto: '+(L[mx[1]]||'')+' '+F(mx[0])+' · más bajo: '+(L[mn[1]]||'')+' '+F(mn[0])+' · media '+F(med)+'.';
+  }catch(e){return '';}
+}
+function bmgTitulo(cv){
+  for(let n=cv.parentElement,i=0;n&&i<6;n=n.parentElement,i++){
+    const h=n.querySelector(':scope>h2,:scope>h3,:scope>.pro-title,:scope>.mini-h,:scope>.cgr-card-h,:scope>.eyebrow,:scope>summary');
+    if(h){let t='';h.childNodes.forEach(x=>{if(x.nodeType===3)t+=x.textContent;});
+      t=t.trim()||((h.firstElementChild&&h.firstElementChild.textContent)||h.textContent).trim();if(t)return t.replace(/\s+/g,' ').slice(0,60);}
+    if(n.classList.contains('panel'))break;
+  }
+  return 'Gráfico';
+}
+const bmgPlugin={id:'bmGraf',
+  beforeInit(chart){
+    const cv=chart.canvas;if(!cv||!cv.closest)return;
+    const visor=!!cv.closest('#bm-gv');
+    if(!visor&&(!esMovil()||cv.closest(BMG_DOC)))return;
+    chart.$bmg=true;
+    /* El dedo recorre el eje: el valor que sale es el de esa posición, con todas
+       sus series. Se pone en la configuración —no en las opciones ya resueltas,
+       que se rehacen al dibujar— y sólo en los gráficos de ejes verticales. */
+    try{const cf=chart.config,DS=(cf.data&&cf.data.datasets)||[],ejes=DS.length&&DS.every(d=>{const t=d.type||cf.type;return t==='line'||t==='bar';});
+      const co=cf.options||(cf.options={});
+      if(ejes&&co.indexAxis!=='y')co.interaction=Object.assign({},co.interaction,{mode:'index',intersect:false});
+    }catch(e){}
+  },
+  afterInit(chart){
+    if(!chart.$bmg)return;const cv=chart.canvas;
+    cv.classList.add('bm-gc');
+    if(cv.closest('#bm-gv'))return;
+    const pa=cv.parentElement;if(!pa)return;
+    pa.classList.add('bm-gw');
+    if(!pa.querySelector(':scope>.bm-gx')){const b=document.createElement('button');b.type='button';b.className='bm-gx';b.setAttribute('aria-label','Ver el gráfico grande');b.innerHTML=BMG_IC;
+      b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();bmgAbre(chart,false);});pa.appendChild(b);}
+    try{if(!BMG.obs&&'IntersectionObserver' in window)BMG.obs=new IntersectionObserver(es=>{es.forEach(en=>{
+      if(en.intersectionRatio>=0.6)BMG.vis=en.target;else if(BMG.vis===en.target)BMG.vis=null;});},{threshold:[0,0.6,1]});
+      if(BMG.obs)BMG.obs.observe(cv);}catch(e){}
+  },
+  afterUpdate(chart){
+    if(!chart.$bmg)return;const cv=chart.canvas,fr=bmgFrase(chart);
+    chart.$bmgFrase=fr;
+    try{cv.setAttribute('role','img');cv.setAttribute('aria-label',(bmgTitulo(cv)+'. '+(fr||'Gráfico sin lectura automática.')).trim());}catch(e){}
+    if(cv.closest('#bm-gv'))return;
+    const pa=cv.parentElement;if(!pa)return;
+    /* La frase va ENCIMA del hueco del gráfico, no dentro: dentro le quitaría alto. */
+    const envoltorio=pa.children.length<=3&&pa.clientHeight<=cv.clientHeight+44,ref=envoltorio?pa:cv;
+    let p=ref.previousElementSibling;
+    if(!p||!p.classList.contains('bm-lee')){if(!fr)return;p=document.createElement('p');p.className='bm-lee';ref.parentNode.insertBefore(p,ref);}
+    if(p.textContent!==fr)p.textContent=fr;
+    p.hidden=!fr;
+  },
+  afterDatasetsDraw(chart){
+    if(!chart.$bmg)return;
+    const act=(chart.tooltip&&chart.tooltip.getActiveElements&&chart.tooltip.getActiveElements())||[];
+    if(!act.length||!chart.scales||!chart.scales.x||chart.options.indexAxis==='y')return;
+    const x=act[0].element&&act[0].element.x,a=chart.chartArea;if(!(x>=a.left&&x<=a.right))return;
+    const c=chart.ctx;c.save();c.beginPath();c.moveTo(Math.round(x)+.5,a.top);c.lineTo(Math.round(x)+.5,a.bottom);
+    c.lineWidth=1;c.strokeStyle=cssVar('--muted2')||'#8e8e93';c.globalAlpha=.55;c.stroke();c.restore();
+  },
+  afterDestroy(chart){
+    if(!chart.$bmg)return;const cv=chart.canvas;
+    try{if(BMG.obs&&cv)BMG.obs.unobserve(cv);if(BMG.vis===cv)BMG.vis=null;}catch(e){}
+    try{if(cv&&cv.parentElement&&!cv.closest('#bm-gv')){const pa=cv.parentElement;
+      [pa.previousElementSibling,cv.previousElementSibling].forEach(p=>{if(p&&p.classList&&p.classList.contains('bm-lee'))p.remove();});}}catch(e){}
+  }
+};
+/* El visor. Vuelve a dibujar el MISMO gráfico —mismos datos y opciones— en un
+   lienzo que ocupa la pantalla; no es una imagen estirada. */
+function bmgAbre(chart,auto){
+  if(!chart||!chart.config||BMG.ch)return;
+  let v=document.getElementById('bm-gv');
+  if(!v){v=document.createElement('div');v.id='bm-gv';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');
+    v.innerHTML='<div class="bm-gv-cab"><div class="bm-gv-t"><b></b><span></span></div><button type="button" class="bmh-x" aria-label="Cerrar">'+BMH_X+'</button></div>'
+      +'<div class="bm-gv-c"><canvas></canvas></div><p class="bm-gv-gira">Gira el teléfono para verlo más grande</p>';
+    document.body.appendChild(v);
+    v.querySelector('.bmh-x').addEventListener('click',()=>bmgCierra());}
+  const tit=bmgTitulo(chart.canvas);
+  v.querySelector('.bm-gv-t b').textContent=tit;v.querySelector('.bm-gv-t span').textContent=chart.$bmgFrase||'';
+  v.setAttribute('aria-label',tit);
+  v.classList.add('on');BMG.auto=!!auto;BMG.y=window.scrollY||0;
+  const cv=v.querySelector('canvas');
+  try{BMG.ch=new Chart(cv,{type:chart.config.type,data:chart.config.data,plugins:chart.config.plugins||[],
+    options:Object.assign({},chart.config.options,{responsive:true,maintainAspectRatio:false,animation:false})});}
+  catch(e){console.error('bmnava · gráfico grande',e);BMG.ch=null;v.classList.remove('on');}
+}
+function bmgCierra(){
+  const v=document.getElementById('bm-gv');if(!v||!v.classList.contains('on'))return false;
+  try{if(BMG.ch)BMG.ch.destroy();}catch(e){}BMG.ch=null;BMG.auto=false;
+  v.classList.remove('on');
+  const y=BMG.y;if(y)setTimeout(()=>window.scrollTo(0,y),60);
+  return true;
+}
+(function(){
+  let mq=null;try{mq=window.matchMedia('(orientation:landscape)');}catch(e){}
+  const mira=()=>{try{BMG.era=esMovil();}catch(e){}};
+  window.addEventListener('scroll',mira,{passive:true});document.addEventListener('touchstart',mira,{passive:true});
+  const gira=()=>{
+    const tumbado=!!(mq&&mq.matches),tel=Math.min(screen.width||9999,screen.height||9999)<=500;
+    if(BMG.ch){setTimeout(()=>{try{BMG.ch&&BMG.ch.resize();}catch(e){}},120);
+      if(!tumbado&&BMG.auto)bmgCierra();return;}
+    /* Se gira con un gráfico a la vista, estando en el diseño de móvil: se abre solo. */
+    if(tumbado&&tel&&BMG.era&&BMG.vis&&document.contains(BMG.vis)&&!BMH.pila.length){
+      const ch=Object.values((window.Chart&&Chart.instances)||{}).find(c=>c&&c.canvas===BMG.vis);
+      if(ch)bmgAbre(ch,true);}
+  };
+  try{if(mq)mq.addEventListener('change',gira);}catch(e){}
+  window.addEventListener('resize',()=>{if(BMG.ch)setTimeout(()=>{try{BMG.ch&&BMG.ch.resize();}catch(e){}},120);});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BMG.ch)bmgCierra();});
+})();
 /* v570 · Elegir jugador por la cara. En el móvil, cualquier desplegable cuyas
    opciones son la plantilla deja de abrir la rueda de dieciocho nombres: en su
    sitio va un botón con la foto y el nombre, y al tocarlo sube una hoja con
@@ -14412,6 +14585,7 @@ function bmEntregaPNG(cv,filename){
 function bmCierraCapa(){
   const vis=id=>{const e=document.getElementById(id);return e&&getComputedStyle(e).display!=='none'?e:null;};
   let e;
+  if(BMG.ch){bmgCierra();return true;}
   if(BMH.pila.length){bmHojaCierra();return true;}
   if((e=vis('iso-overlay'))){if(typeof isoCerrar==='function')isoCerrar();else e.style.display='none';return true;}
   if((e=vis('ficha-overlay'))){e.style.display='none';return true;}
@@ -15119,6 +15293,9 @@ function buildChartTheme(){
           }catch(e){}
         }});
       }
+      /* v574 · Gráficos para el dedo: la frase de lectura, la regla que sigue al
+         dedo y el botón de verlo grande. Todo vive en `bmgPlugin`. */
+      if(!Chart.registry.plugins.get('bmGraf'))Chart.register(bmgPlugin);
     }
   }
 }
@@ -39205,6 +39382,41 @@ html[data-theme="dark"]{--bmh-bg:#1c1c1e;--bmh-celda:#2c2c2e;--bmh-velo:rgba(0,0
   .bm-lp{transform:scale(.965);opacity:.82;transition:transform .32s cubic-bezier(.32,.72,0,1),opacity .32s ease}
 }
 </style>
+<style id="movil-v574">
+/* ===== v574 · Gráficos para el dedo =====
+   La frase y el botón sólo se ven dentro de la regla de ancho. El visor es
+   suyo aparte: lo crea el código y tiene que verse bien con el teléfono
+   tumbado, que ya no es «móvil» para la regla de ancho. */
+.bm-lee,.bm-gx{display:none}
+#bm-gv{position:fixed;inset:0;z-index:10060;display:none;flex-direction:column;background:var(--bg);color:var(--txt);
+  padding:calc(8px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif}
+#bm-gv.on{display:flex}
+/* la franja del reloj (v565) */
+#bm-gv::before{content:"";position:absolute;left:0;right:0;top:-240px;height:240px;background:var(--bg)}
+.bm-gv-cab{display:flex;align-items:flex-start;gap:12px;flex:none;padding:4px 2px 10px}
+.bm-gv-t{flex:1;min-width:0}
+.bm-gv-t b{display:block;font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+.bm-gv-t span{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.35}
+.bm-gv-c{position:relative;flex:1 1 auto;min-height:0;background:var(--panel);border-radius:14px;padding:10px 8px 6px}
+.bm-gv-c canvas{touch-action:pan-y}
+.bm-gv-gira{flex:none;margin:10px 0 0;text-align:center;font-size:12.5px;color:var(--muted)}
+@media(orientation:landscape){
+  .bm-gv-gira{display:none}
+  .bm-gv-cab{padding-bottom:6px}
+  .bm-gv-t span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+@media(max-width:760px){
+  canvas.bm-gc{touch-action:pan-y}
+  .bm-gw{position:relative}
+  .bm-lee{display:block;margin:0 0 8px;font-size:12.5px;line-height:1.4;color:var(--muted);font-variant-numeric:tabular-nums}
+  .bm-lee[hidden]{display:none}
+  .bm-gx{display:grid;place-items:center;position:absolute;top:2px;right:2px;z-index:2;width:30px;height:30px;padding:0;border:none;border-radius:50%;
+    background:var(--tb-bg,rgba(255,255,255,.92));color:var(--muted);box-shadow:0 1px 4px rgba(0,0,0,.14);cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bm-gx::after{content:"";position:absolute;inset:-7px}
+  .bm-gx:active{transform:scale(.92)}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -42770,8 +42982,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.37*/
-const VER_ACTUAL='2026-11-11.37';
+/*BUILD:2026-11-11.38*/
+const VER_ACTUAL='2026-11-11.38';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
