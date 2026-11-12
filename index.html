@@ -11440,7 +11440,7 @@ function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)retur
   const fuera=c.dk!==hoyReal
     ? ` <button class="day-hoy" onclick="goToday();try{syncDatePicker();}catch(e){};rerenderCurrent();" title="Volver al día de hoy">No es hoy · ir a hoy</button>`
     : '';
-  el.innerHTML=`<span class="tag">${wd} ${a[2]}/${a[1]}</span> <span class="chip">${c.mdx}</span> ${matchChip} <span class="muted small">${c.nWell} wellness · ${cuenta}</span>${fuera}`;}
+  el.innerHTML=`<span class="tag">${wd} ${a[2]}/${a[1]}</span> <span class="chip${c.mdx==='—'?' md-vacio':''}">${c.mdx}</span> ${matchChip} <span class="muted small">${c.nWell} wellness · ${cuenta}</span>${fuera}`;}
 
 /* ===================== MOTOR ===================== */
 function zIntra(value,history,sdMin){
@@ -14758,7 +14758,24 @@ function bmFormas(){
     if(BML.hecho)bmlEnLinea();
   }catch(e){console.error('bmnava · formularios de móvil',e);}
 }
-function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(()=>{bmFormas();try{bmTablas();}catch(e){}},80);}
+/* v591 · La pasada de acabado del móvil. Corre tras cada pintado (con la de
+   los formularios, `bmFormasYa`) y sólo en el diseño de móvil. No cambia
+   ningún dato: acorta rótulos que no caben y deja el nombre entero en
+   `aria-label`, para que VoiceOver lo diga completo. */
+const BMP_ROT=[
+  ['.estado-seg>button[data-k="parte"]','Parte'],['.estado-seg>button[data-k="fisio"]','Fisio'],
+  ['.cargas-seg>button[data-k="pulso"]','Pulso'],['.cargas-seg>button[data-k="partidos"]','Partido'],
+  ['#team-rings .ath-st>span',{FAT:'Fatiga',MOOD:'Ánimo'}]];
+function bmPulido(){
+  if(!esMovil())return;
+  BMP_ROT.forEach(([sel,nuevo])=>{document.querySelectorAll(sel).forEach(b=>{
+    const t=b.textContent.trim(),n=typeof nuevo==='string'?nuevo:nuevo[t];
+    if(!n||t===n)return;
+    if(typeof nuevo==='string'&&!b.getAttribute('aria-label'))b.setAttribute('aria-label',t);
+    b.textContent=n;});});
+  try{if(typeof bmPulidoMas==='function')bmPulidoMas();}catch(e){console.error('bmnava · acabado',e);}
+}
+function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(()=>{bmFormas();try{bmTablas();}catch(e){}try{bmPulido();}catch(e){}},80);}
 (function(){
   let mq=null;try{mq=window.matchMedia('(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse)');}catch(e){}
   const arma=()=>{if(!mq||!mq.matches||BMF_OBS||!document.body)return;
@@ -40409,6 +40426,61 @@ body.sb-open #bm-pista,body.modal-open #bm-pista{display:none}
   body.con-pri #bm-pista{bottom:calc(72px + env(safe-area-inset-bottom))}
 }
 </style>
+<style id="movil-v591">
+/* v591 · Propuestas 1, 2 y 3 de la pasada estética (12/11/2026). Todo dentro de
+   la condición de móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  /* 1 · La cabecera del Resumen. La fecha ya está en la cápsula de arriba; el
+     chip del microciclo sin partido de referencia decía «—»; y lo que queda
+     cabe en una línea, con «ir a hoy» debajo cuando no es hoy. */
+  #day-ctx{display:flex;flex-wrap:wrap;align-items:center;gap:8px 8px}
+  #day-ctx>.tag,#day-ctx>.chip.md-vacio{display:none}
+  #day-ctx>.muted.small{font-size:13px;line-height:1.3}
+  #day-ctx>.day-hoy{position:relative;min-height:0;height:30px;padding:0 13px;border:0;border-radius:999px;
+    background:var(--warn-bg);color:var(--warn-text);font-size:13px;font-weight:600}
+  #day-ctx>.day-hoy::after{content:"";position:absolute;left:0;right:0;top:-7px;bottom:-7px}
+  /* el anillo al lado de su lectura, no encima: era una columna de 201 px */
+  #v-equipo .hero-rec{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px;row-gap:14px;align-items:center}
+  #v-equipo .hero-rec>.recstrip-wrap{grid-column:1/-1}
+  #v-equipo .hero-rec>.hero-txt{min-width:0}
+  /* el readiness medio ya es el anillo: el titular que lo repetía sobra, y los
+     dos últimos, que eran los que se cortaban, ganan ancho */
+  #v-equipo .eq-strip{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+  #v-equipo .eq-strip>.eq-tile{grid-column:span 2;min-width:0}
+  #v-equipo .eq-strip>.eq-tile:first-child{display:none}
+  #v-equipo .eq-strip>.eq-tile:nth-child(5),#v-equipo .eq-strip>.eq-tile:nth-child(6){grid-column:span 3}
+  #v-equipo .eq-tile .eq-s{white-space:normal!important;overflow:hidden;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+  /* 2 · «A vigilar y destacados» como lista: una fila por jugador con su foto,
+     su nombre a tamaño de lectura y sus cuatro cifras sin cajas ni letra de
+     máquina de escribir. */
+  #team-rings .ath-grid{display:block!important;margin-top:0!important}
+  #team-rings .ath:first-child{padding-top:2px}
+  /* la cifra del anillo, que con el zoom bajaría a 9 px */
+  #team-rings .ath-rd{font-size:13.75px!important}
+  #team-rings .ath{position:relative;display:grid;grid-template-columns:64px auto minmax(0,1fr);
+    grid-template-areas:"ph nm nm" "ph pi rs" "ph st st";column-gap:12px;row-gap:3px;align-items:center;
+    width:auto!important;max-width:none;padding:12px 0;text-align:left}
+  #team-rings .ath+.ath::before{content:"";position:absolute;top:0;left:76px;right:0;height:.5px;background:var(--hair)}
+  #team-rings .ath:active{transform:none;opacity:.6}
+  #team-rings .ath-ph{grid-area:ph;zoom:.8;align-self:center;margin:0}
+  #team-rings .ath-nm{grid-area:nm;font-size:17px!important;font-weight:600;line-height:1.2;margin:0;text-align:left;color:var(--txt)}
+  #team-rings .ath-pillwrap{grid-area:pi;justify-content:flex-start;margin:0}
+  #team-rings .ath-rsn{grid-area:rs;font-size:13px!important;line-height:1.25;color:var(--muted);text-align:left;margin:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #team-rings .ath-stats{grid-area:st;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 8px;margin:4px 0 0;width:auto}
+  #team-rings .ath-st{display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:none;border:0;border-radius:0;padding:0;min-width:0}
+  #team-rings .ath-st span{font-size:11px!important;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);font-family:inherit}
+  #team-rings .ath-st b{font-size:15px;font-weight:600;line-height:1.2;font-family:inherit;font-variant-numeric:tabular-nums}
+
+  /* 3 · Pestañas que caben: nada parte en dos líneas, y las barras de Estado y
+     de Cargas reparten el ancho por lo que mide cada rótulo (los largos se
+     acortan en `bmPulido`) en vez de desbordar o recortar. */
+  .seg button,.seg-window button,.med-seg button,.estado-seg button{white-space:nowrap}
+  .estado-seg:not(.fc-seg):not(.fis-tabs)>button,.cargas-tabwrap .cargas-seg>button{flex:1 1 auto;min-width:0;padding-left:8px;padding-right:8px}
+  .cargas-tabwrap .cargas-seg{overflow-x:visible}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43974,8 +44046,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.13*/
-const VER_ACTUAL='2026-11-12.13';
+/*BUILD:2026-11-12.14*/
+const VER_ACTUAL='2026-11-12.14';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
