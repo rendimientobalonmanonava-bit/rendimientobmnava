@@ -13894,7 +13894,7 @@ function bmHoja(o){
       +'<div class="bmh-cab"><b class="bmh-tit"></b><button type="button" class="bmh-x" aria-label="Cerrar">'+BMH_X+'</button></div>'
       +'<div class="bmh-cuerpo"></div></div>';
     document.body.appendChild(h);
-    h.querySelector('.bmh-fondo').addEventListener('click',()=>bmHojaCierra(id));
+    h.querySelector('.bmh-fondo').addEventListener('click',()=>{if(h._fija)return;bmHojaCierra(id);});
     h.querySelector('.bmh-x').addEventListener('click',()=>bmHojaCierra(id));
     bmArrastre(h.querySelector('.bmh-caja'),{fondo:h.querySelector('.bmh-fondo'),cerrar:()=>bmHojaCierra(id)});
   }
@@ -13902,7 +13902,7 @@ function bmHoja(o){
   h.querySelector('.bmh-tit').textContent=o.titulo||'';
   h.setAttribute('aria-label',o.titulo||'Hoja');
   const c=h.querySelector('.bmh-cuerpo');if(o.html!=null)c.innerHTML=o.html;c.scrollTop=0;
-  h._alCerrar=o.alCerrar||null;
+  h._alCerrar=o.alCerrar||null;h._fija=!!o.fija;
   if(BMH.pila.indexOf(id)<0){h._foco=document.activeElement;BMH.pila.push(id);}
   h.classList.add('on');void h.offsetWidth;h.classList.add('vis');
   return h;
@@ -14740,11 +14740,69 @@ function bmUltAbre(){
    `__EXP_LOTE` es el lote de fichas: dieciocho imágenes seguidas se descargan,
    no abren dieciocho hojas. */
 const BMC_IC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+/* v580 · Exportar desde el teléfono: rápido y diciendo que está en ello.
+   Daniel, 12/11/2026: compartir el parte a WhatsApp no le funcionaba. Medido
+   en WebKit, que es el motor del iPhone: la exportación tardaba de 10 a 13
+   segundos —en Chromium, 2,4— y casi todo se iba en que html2canvas CLONA EL
+   DOCUMENTO ENTERO, 9.578 elementos, para capturar un nodo de 311. Y en ese
+   rato la pantalla no decía nada: el botón sólo cambiaba a «Preparando» si
+   faltaba la serie de 14 días.
+   Dos cosas, las dos sólo en el diseño de móvil:
+   · `bmExpPoda` le dice a html2canvas qué no hace falta clonar. Se queda el
+     camino de antepasados del nodo, el nodo entero, la cabecera con sus
+     estilos y, de cada antepasado, sus hijos directos como CASCARONES vacíos:
+     así no cambian ni el número de hermanos ni las columnas de una rejilla, y
+     lo que se va es lo de dentro de las demás pantallas. También se queda lo
+     que el nodo use de fuera por su id (un símbolo, un degradado).
+     Medido en el parte: 9.578 → 432 elementos, de 10 s a 1,3, y la misma
+     imagen píxel a píxel.
+   · `bmExpEspera` sube la hoja en cuanto se toca, con «Preparando la imagen».
+     Mientras prepara no se cierra tocando fuera —un segundo toque impaciente
+     caería ahí—; con el aspa o arrastrando sí, y entonces la imagen no vuelve
+     a abrirla al llegar. */
+function bmExpPoda(el){
+  const camino=new Set();for(let n=el;n;n=n.parentElement)camino.add(n);
+  const fuera=[];
+  try{
+    const ids=new Set(),deUrl=v=>{const m=/url\(\s*["']?#([^"')\s]+)/.exec(v||'');if(m)ids.add(m[1]);};
+    el.querySelectorAll('use').forEach(u=>{const h=u.getAttribute('href')||u.getAttribute('xlink:href')||'';if(h.charAt(0)==='#')ids.add(h.slice(1));});
+    el.querySelectorAll('[fill^="url("],[stroke^="url("],[clip-path^="url("],[mask^="url("],[filter^="url("],[style*="url(#"]').forEach(n=>{
+      ['fill','stroke','clip-path','mask','filter','style'].forEach(a=>deUrl(n.getAttribute(a)));});
+    ids.forEach(id=>{const n=document.getElementById(id);if(n&&!el.contains(n)){fuera.push(n);for(let a=n;a;a=a.parentElement)camino.add(a);}});
+  }catch(e){}
+  return function(x){
+    if(camino.has(x)||el.contains(x))return false;
+    if(x===document.head||document.head.contains(x))return false;
+    for(let i=0;i<fuera.length;i++)if(fuera[i].contains(x))return false;
+    const p=x.parentElement;return !!p&&!camino.has(p);
+  };
+}
+function bmExpEspera(){
+  if(!esMovil()||window.__EXP_LOTE)return;
+  const h0=document.getElementById('bmh-comp');
+  if(h0&&h0.classList.contains('on')&&h0._espera)return;
+  window.__EXP_CANC=false;
+  const h=bmHoja({id:'comp',titulo:'Preparando la imagen…',clase:'bmc',fija:true,
+    html:'<div class="bmc-prev bmc-esp" role="status" aria-live="polite"><span class="bmc-rueda" aria-hidden="true"></span><span class="bmc-esp-t">Montando el documento</span></div>'
+        +'<p class="bmc-n">Tarda un par de segundos.</p>',
+    alCerrar:()=>{window.__EXP_CANC=true;}});
+  h._espera=true;
+}
+function bmExpFallo(msg){
+  window.__EXP_CURSO=0;
+  if(window.__EXP_CANC){window.__EXP_CANC=false;return;}
+  const t=String(msg||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const h=bmHoja({id:'comp',titulo:'No se pudo preparar',clase:'bmc',
+    html:'<p class="bmc-err">'+t+'</p><button type="button" class="bmh-btn pri" data-bmc="cierra">Cerrar</button>'});
+  h._espera=false;
+  h.querySelector('[data-bmc="cierra"]').onclick=()=>bmHojaCierra('bmh-comp');
+}
 function bmEntregaPNG(cv,filename){
   const baja=href=>{const a=document.createElement('a');a.download=filename;a.href=href||cv.toDataURL('image/png');a.click();};
   if(!esMovil()||window.__EXP_LOTE||!cv.toBlob){baja();return;}
+  if(window.__EXP_CANC){window.__EXP_CANC=false;return;}   /* cerró la hoja mientras se preparaba */
   cv.toBlob(blob=>{
-    if(!blob){baja();return;}
+    if(!blob){bmHojaCierra('bmh-comp');baja();return;}
     let file=null,puede=false;
     try{file=new File([blob],filename,{type:'image/png'});puede=!!(navigator.canShare&&navigator.canShare({files:[file]}));}catch(e){puede=false;}
     const url=URL.createObjectURL(blob);
@@ -14756,11 +14814,12 @@ function bmEntregaPNG(cv,filename){
         +(puede?'<button type="button" class="bmh-btn pri" data-bmc="comp">'+BMC_IC+'Compartir</button>':'')
         +'<button type="button" class="bmh-btn'+(puede?'':' pri')+'" data-bmc="guarda">Guardar imagen</button>',
       alCerrar:()=>{setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}},1500);}});
+    h._espera=false;
     const bc=h.querySelector('[data-bmc="comp"]'),bg=h.querySelector('[data-bmc="guarda"]');
     if(bc)bc.onclick=async()=>{
       try{await navigator.share({files:[file]});bmHojaCierra('bmh-comp');}
       catch(e){if(e&&e.name==='AbortError')return;   /* la cerró sin mandar: la hoja sigue ahí */
-        console.error('bmnava · compartir',e);toast('No se pudo abrir «Compartir». Guarda la imagen.');}
+        console.error('bmnava · compartir',e);toast('No se pudo abrir «Compartir»'+(e&&e.name?' ('+e.name+')':'')+'. Guarda la imagen.');}
     };
     if(bg)bg.onclick=()=>{baja(url);toast('Imagen guardada');bmHojaCierra('bmh-comp');};
   },'image/png');
@@ -26147,8 +26206,16 @@ const barCol=v=>v==null?'#cbd5e1':v>=75?'#16a34a':v>=55?'#e0a800':'#dc2626';
 }
 function exportNodePNG(id,filename,opts){
   const el=document.getElementById(id);
-  if(!el){alert('No hay nada que exportar todavía.');return;}
-  if(!window.html2canvas){alert('El exportador no está disponible en este entorno (sin conexión). Alternativa: Imprimir → Guardar como PDF.');return;}
+  if(!el){if(esMovil()&&!window.__EXP_LOTE)bmExpFallo('No hay nada que exportar todavía.');else alert('No hay nada que exportar todavía.');return;}
+  if(!window.html2canvas){if(esMovil()&&!window.__EXP_LOTE)bmExpFallo('El exportador no está disponible ahora mismo (sin conexión).');else alert('El exportador no está disponible en este entorno (sin conexión). Alternativa: Imprimir → Guardar como PDF.');return;}
+  /* v580 · En el móvil: la hoja de espera sube YA, se le dejan 260 ms para que
+     termine de subir —html2canvas ocupa el hilo y la dejaría a medias— y no
+     se lanza una segunda exportación con otra en marcha. */
+  if(esMovil()&&!window.__EXP_LOTE&&!(opts&&opts.__ya)){
+    if(window.__EXP_CURSO&&Date.now()-window.__EXP_CURSO<40000)return Promise.resolve(null);
+    window.__EXP_CURSO=Date.now();bmExpEspera();
+    return new Promise(r=>setTimeout(r,260)).then(()=>exportNodePNG(id,filename,Object.assign({},opts||{},{__ya:true})));
+  }
   /* v413 · El emparejado original↔copia se hacía por índice sobre dos listas
      planas. html2canvas inserta nodos propios en la copia para representar los
      `::before`/`::after`, así que la copia puede tener MÁS elementos que el
@@ -26194,7 +26261,7 @@ function exportNodePNG(id,filename,opts){
      que las reglas de móvil no se aplican en ella y el documento sale igual
      que desde el ordenador. En el ordenador `anchoDoc` vale 0 y no cambia nada. */
   const anchoDoc=(opts&&opts.ancho)||(esMovil()?1180:0);
-  return html2canvas(el,Object.assign({scale:2,useCORS:true,backgroundColor:(opts&&opts.bg)||cssVar('--bg')||'#ffffff',logging:false},anchoDoc?{windowWidth:anchoDoc}:{},{
+  return html2canvas(el,Object.assign({scale:2,useCORS:true,backgroundColor:(opts&&opts.bg)||cssVar('--bg')||'#ffffff',logging:false},anchoDoc?{windowWidth:anchoDoc}:{},esMovil()?{ignoreElements:bmExpPoda(el)}:{},{
     onclone:(doc)=>{try{const c=doc.getElementById(id);if(!c)return;
       /* v222 · El emparejado original↔copia es por índice, así que la copia debe
          tener exactamente la misma estructura mientras se copian los estilos. Antes
@@ -26277,8 +26344,10 @@ function exportNodePNG(id,filename,opts){
         finally{try{if(t)t.destroy();}catch(_){}}
       });}
     }catch(e){}}
-  })).then(cv=>{desmarcar();bmEntregaPNG(cv,filename);})
-   .catch(e=>{desmarcar();alert('No se pudo generar el PNG ('+((e&&e.message)||e)+'). Como alternativa, usa Imprimir → Guardar como PDF.');});
+  })).then(cv=>{desmarcar();window.__EXP_CURSO=0;bmEntregaPNG(cv,filename);})
+   .catch(e=>{desmarcar();window.__EXP_CURSO=0;
+     if(esMovil()&&!window.__EXP_LOTE){console.error('bmnava · exportar',e);bmExpFallo('No se pudo generar la imagen ('+((e&&e.message)||e)+').');}
+     else alert('No se pudo generar el PNG ('+((e&&e.message)||e)+'). Como alternativa, usa Imprimir → Guardar como PDF.');});
 }
 /* v503 · Quien exporta tiene que esperar a que el parte este ENTERO.
    Daniel, 4/11/2026, con el PNG delante: el grafico de readiness salia en
@@ -26304,9 +26373,11 @@ async function exportParte(){
     &&(typeof teamReadinessSerieAsync==='function');
   if(falta){
     if(btn){btn.disabled=true;btn.textContent='Preparando\u2026';}
+    bmExpEspera();
     try{await teamReadinessSerieAsync(14);}catch(e){console.error('bmnava · serie para el parte',e);}
     try{renderParte();}catch(e){console.error('bmnava · repintar parte',e);}
     await new Promise(r=>setTimeout(r,60));
+    if(window.__EXP_CANC){window.__EXP_CANC=false;if(btn){btn.disabled=false;btn.textContent=txt;}return;}
   }
   /* el grafico lo deja en su fotograma final `exportNodePNG`, que es quien
      captura: aqui solo se espera al DATO. */
@@ -39752,6 +39823,16 @@ header,#tabbar,.sb-tools,svg,
   .plan-form input,.plan-form select{min-width:0;width:100%}
 }
 </style>
+<style id="movil-v580">
+/* v580 · La hoja de «Preparando la imagen». Sólo la crea código que antes
+   pregunta esMovil(), así que no va dentro de la regla de ancho. */
+.bmc-esp{min-height:min(40dvh,320px);gap:14px;align-content:center;justify-items:center;color:var(--muted)}
+.bmc-rueda{width:30px;height:30px;border-radius:50%;border:3px solid var(--hair);border-top-color:var(--accent);animation:bmcGira .8s linear infinite}
+.bmc-esp-t{font-size:14px;font-weight:600}
+.bmc-err{margin:4px 4px 16px;font-size:14px;line-height:1.4;color:var(--txt)}
+@keyframes bmcGira{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.bmc-rueda{animation-duration:2.4s}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43317,8 +43398,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-11.43*/
-const VER_ACTUAL='2026-11-11.43';
+/*BUILD:2026-11-12.1*/
+const VER_ACTUAL='2026-11-12.1';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
