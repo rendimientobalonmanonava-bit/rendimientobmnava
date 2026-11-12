@@ -13858,6 +13858,7 @@ function tbMark(v){let eff=v==='estado'?'dispo':v;const ks=TABBAR.map(t=>t[0]);
   if(eff==='fisio'&&ks.indexOf('fisio')<0&&ks.indexOf('vend')>=0)eff='vend';
   if(eff==='jugador'&&ks.indexOf('jugadores')>=0)eff='jugadores';
   window.__TB_ON=eff;window.__TB_V=v;
+  try{if(typeof bmPriPinta==='function')bmPriPinta();}catch(e){}
   const fijo=ks.indexOf(eff)>=0;
   document.querySelectorAll('#tabbar .tb-i').forEach(b=>{const on=fijo?b.dataset.v===eff:b.dataset.v==='_mas';
     b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
@@ -14867,6 +14868,37 @@ function bmEntregaPNG(cv,filename){
     if(bg)bg.onclick=()=>{baja(url);toast('Imagen guardada');bmHojaCierra('bmh-comp');};
   },'image/png');
 }
+/* v584 · La acción principal de la pantalla, sobre la barra y a la derecha: al
+   alcance del pulgar. El «+» de la cabecera queda en la esquina más lejana
+   de un teléfono de 6 pulgadas y además es el mismo en todas partes.
+   No inventa ninguna acción: cada una llama a la función que ya abría esa
+   pantalla desde el menú de añadir o desde mantener pulsado. Las pantallas
+   que son para leer (Resumen, Cargas, Alertas…) no llevan botón.
+   El botón sólo existe en el diseño de móvil —lo crea este código— y se
+   encoge al bajar por la página para tapar menos. */
+const BMP_IC={mas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',comp:BMC_IC};
+function bmPriDe(){
+  const v=window.__TB_V||STATE.view;
+  if(v==='cal')return {l:'Planificar',ic:'mas',fn:()=>calOpenDay((typeof CAL_SEL!=='undefined'&&CAL_SEL)||dkey(new Date()))};
+  if(v==='dispo'||v==='estado'||v==='medico')return window.openFisioReg?{l:'Registrar',ic:'mas',fn:()=>openFisioReg()}:null;
+  if(v==='fisio'){let sub='';try{sub=localStorage.getItem('bmnava_fisiotab')||'';}catch(e){}
+    return (sub==='vend'||!window.openFisioReg)?null:{l:'Registrar',ic:'mas',fn:()=>openFisioReg()};}
+  if(v==='parte')return {l:'Compartir',ic:'comp',fn:()=>exportParte()};
+  if(v==='jugador'&&window.openHeroForm&&STATE.curPlayer){const n=STATE.curPlayer;
+    return {l:'Parte del día',ic:'mas',fn:()=>openHeroForm('incidencia',n)};}
+  return null;
+}
+function bmPriPinta(){
+  let b=document.getElementById('bm-pri');
+  const d=esMovil()?bmPriDe():null;
+  if(!d){if(b)b.classList.remove('on');document.body.classList.remove('con-pri');return;}
+  if(!b){b=document.createElement('button');b.type='button';b.id='bm-pri';document.body.appendChild(b);
+    b.addEventListener('click',()=>{try{if(b._fn)b._fn();}catch(e){console.error('bmnava · acción principal',e);}});}
+  b._fn=d.fn;b.innerHTML=BMP_IC[d.ic]+'<span>'+d.l+'</span>';b.setAttribute('aria-label',d.l);
+  b.classList.add('on');b.classList.remove('min');document.body.classList.add('con-pri');
+}
+(function(){let y0=0;window.addEventListener('scroll',()=>{const b=document.getElementById('bm-pri');
+  const y=window.scrollY||0;if(b&&b.classList.contains('on')){if(y>y0+10&&y>140)b.classList.add('min');else if(y<y0-10||y<60)b.classList.remove('min');}y0=y;},{passive:true});})();
 /* Cierra lo que haya abierto ENCIMA de la pantalla, de arriba abajo, y dice si
    había algo. Lo usa el gesto «atrás»: con un diálogo abierto, atrás lo
    cierra; no cambia de pantalla por debajo de él. */
@@ -25449,6 +25481,7 @@ window.fisTab=function(k){
   FIS_TAB=['hoy','cal','vend','datos'].indexOf(k)>=0?k:'hoy';
   try{localStorage.setItem(FIS_TAB_LS,FIS_TAB);}catch(e){}
   renderFisio();
+  try{if(window.bmPriPinta)bmPriPinta();}catch(e){}
   try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}
 };
 function fisBarraTabs(){
@@ -39915,6 +39948,28 @@ html[data-theme="dark"]{--toast-acc:#2747b0}
 .tb-cap .tb-i{position:relative}
 .tb-cap .tb-bdg{top:2px;left:calc(50% + 4px)}
 </style>
+<style id="movil-v584">
+/* v584 · El botón de la acción principal. Va por debajo de las hojas y del
+   menú «Más», y el aviso sube para no taparlo. */
+@media(max-width:760px){
+  #bm-pri{position:fixed;z-index:60;right:max(14px,env(safe-area-inset-right));bottom:calc(84px + env(safe-area-inset-bottom));
+    display:none;align-items:center;gap:8px;height:50px;padding:0 18px 0 14px;border:0;border-radius:25px;
+    background:var(--accent);color:var(--on-accent);font-family:inherit;font-size:15px;font-weight:600;letter-spacing:-.01em;
+    box-shadow:0 8px 22px rgba(0,0,0,.22),0 1px 3px rgba(0,0,0,.12);-webkit-tap-highlight-color:transparent;
+    transition:padding .22s cubic-bezier(.32,.72,0,1),transform .12s ease}
+  #bm-pri.on{display:inline-flex}
+  #bm-pri svg{width:22px;height:22px;flex:none}
+  #bm-pri span{display:inline-block;max-width:150px;overflow:hidden;white-space:nowrap;
+    transition:max-width .22s cubic-bezier(.32,.72,0,1),opacity .15s ease,margin .22s cubic-bezier(.32,.72,0,1)}
+  #bm-pri.min{padding:0 14px}
+  #bm-pri.min span{max-width:0;opacity:0;margin-left:-8px}
+  #bm-pri:active{transform:scale(.96)}
+  body.sb-open #bm-pri,body.modal-open #bm-pri{display:none}
+  body.con-pri #toast{bottom:calc(146px + env(safe-area-inset-bottom))!important}
+  body.con-pri #ver-nueva{bottom:calc(142px + env(safe-area-inset-bottom))}
+}
+@media(max-width:760px) and (prefers-reduced-motion:reduce){#bm-pri,#bm-pri span{transition:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43480,8 +43535,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.4*/
-const VER_ACTUAL='2026-11-12.4';
+/*BUILD:2026-11-12.5*/
+const VER_ACTUAL='2026-11-12.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
