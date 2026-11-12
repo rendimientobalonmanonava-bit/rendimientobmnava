@@ -15463,6 +15463,16 @@ window.addEventListener('scroll',()=>{
   const pegada=b.getBoundingClientRect().top<=(parseFloat(getComputedStyle(b).top)||0)+1;
   if(pegada!==b.classList.contains('plt-pegada')){b.classList.toggle('plt-pegada',pegada);b.dataset.nom=(STATE.curPlayer||'');}
 },{passive:true});
+/* v595 · La foto de la ficha acompaña al desplazamiento: al bajar se aleja y se
+   apaga un poco, como la cabecera de una app de deportes. `--hp` va de 0 a 1 en
+   los primeros 220 px, en escalones de 0,05; sólo en el móvil y sólo con la
+   ficha delante. Es una variable: quien la usa es el CSS. */
+window.addEventListener('scroll',()=>{
+  if(!esMovil()||STATE.view!=='jugador')return;
+  const h=document.querySelector('#v-jugador .phero');if(!h)return;
+  const hp=Math.round(Math.max(0,Math.min(1,(window.scrollY||0)/220))*20)/20;
+  if(h._hp!==hp){h._hp=hp;h.style.setProperty('--hp',hp);}
+},{passive:true});
 /* v559 · Un campo de número pide el teclado de cifras con su coma. Se pone al
    entrar en el campo, para todos a la vez —también los que pinte un formulario
    nuevo—; con teclado físico no cambia nada. */
@@ -40768,6 +40778,45 @@ body.sb-open #bm-pista,body.modal-open #bm-pista{display:none}
 @keyframes vwSaleDer{from{transform:none}to{transform:translateX(100%)}}
 @keyframes vwEntraIzq{from{transform:translateX(-28%);opacity:.6}to{transform:none;opacity:1}}
 </style>
+<style id="movil-v595">
+/* v595 · 4 · La ficha, con la foto a sangre. Daniel, 12/11/2026, eligió la
+   propuesta 4: «foto grande que funde con el fondo, nombre encima y los
+   anillos debajo; al bajar se recoge en la barra». Las fotos son recortes sin
+   fondo de 400 × 400: aquí se ven enteras, grandes y a la derecha, fundidas por
+   abajo con el lienzo; el dorsal va detrás en grande, el nombre encima a la
+   izquierda, y las cuatro cifras debajo como tarjetas. Mismo marcado; sólo
+   cambia cómo se pinta. Al bajar, la foto se aleja y el nombre pasa a la
+   cápsula de arriba (v562), que ya lo hacía. */
+:root{--hero-a:#e4e7ef;--hero-luz:rgba(255,255,255,.95)}
+html[data-theme="dark"]{--hero-a:#24262c;--hero-luz:rgba(255,255,255,.08)}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-jugador .phero{display:block;margin:0 -16px;padding:0 16px 4px;border-radius:0;background:none;box-shadow:none!important;
+    overflow:hidden;position:relative}
+  #v-jugador .phero-id{display:block;position:relative;height:258px;margin:0 -16px;padding:0;
+    background:radial-gradient(150px 150px at 68% 52%,var(--hero-luz),transparent 72%),linear-gradient(180deg,var(--bg) 0,var(--hero-a) 34%,var(--bg) 100%)}
+  #v-jugador .phe-ph{position:absolute;right:2px;bottom:0;width:248px;height:248px;padding:0;border-radius:0;background:none!important;
+    transform:translateY(calc(var(--hp,0)*36px)) scale(calc(1 - var(--hp,0)*.07));transform-origin:50% 100%;opacity:calc(1 - var(--hp,0)*.5)}
+  #v-jugador .phero-photo{position:relative;z-index:1;border-radius:0;border:0;background:none;object-fit:contain;object-position:50% 100%;
+    -webkit-mask-image:linear-gradient(to bottom,#000 64%,transparent 99%);mask-image:linear-gradient(to bottom,#000 64%,transparent 99%)}
+  /* sin foto: las iniciales en un círculo grande, en el mismo sitio */
+  #v-jugador .phero-photo.phe-ini{width:150px;height:150px;margin:40px 34px 0 auto;border-radius:50%;background:var(--panel);
+    font-size:54px;-webkit-mask-image:none;mask-image:none}
+  /* el dorsal, grande y detrás del jugador */
+  #v-jugador .phe-dorsal{z-index:0;left:4px;top:18px;bottom:auto;transform:none;min-width:0;height:auto;padding:0;
+    background:none;box-shadow:none;border-radius:0;font-size:76px;font-weight:700;letter-spacing:-.04em;line-height:1;color:var(--muted2)}
+  #v-jugador .phe-who{position:absolute;z-index:2;left:16px;bottom:12px;max-width:56%}
+  #v-jugador .phero-name{font-size:30px;font-weight:700;line-height:1.05;letter-spacing:-.025em;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;text-shadow:0 1px 14px var(--bg)}
+  #v-jugador .phero-sub{font-size:15px;margin-top:5px}
+  #v-jugador .phero-tags{margin-top:9px;gap:5px}
+  #v-jugador .phero-tag{background:var(--panel)}
+  /* las cuatro cifras, como tarjetas sobre el lienzo */
+  #v-jugador .phe-tiles{margin:12px 0 0;gap:8px}
+  #v-jugador .phe-t{background:var(--panel);border-radius:12px;padding:9px 9px 8px;box-shadow:var(--sh1,var(--lg-shadow))}
+  #v-jugador .phero-btns{margin-top:12px;padding-top:0;border-top:0}
+  #v-jugador .phero-btns .phero-add{background:var(--panel)}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44333,8 +44382,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.17*/
-const VER_ACTUAL='2026-11-12.17';
+/*BUILD:2026-11-12.18*/
+const VER_ACTUAL='2026-11-12.18';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
