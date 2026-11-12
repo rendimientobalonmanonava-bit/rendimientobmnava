@@ -1022,6 +1022,27 @@ Daniel, 12/11/2026, tras ver las trece propuestas: *«Vamos del 1 al 10»*. Sali
 
 **Quedan por debajo de 44 px**, y ya estaban: tres campos de 42 px (la casilla de Cargas › Gimnasio, un campo de Médico › Clínica y tres casillas de Médico › Ajustes) y las celdas del calendario de fisioterapia.
 
+#### 6.12.10 Pasada estética del móvil (v591–v593)
+
+Daniel, 12/11/2026: *«Vamos con la 1, 2, 3, 4, 6, 7 y 8»* de las ocho propuestas estéticas. **La 5 —quitar las versalitas— no la eligió**: los rótulos en mayúsculas se quedan.
+
+| Elemento | Regla |
+|---|---|
+| La pasada de acabado (`bmPulido`) | Corre tras cada pintado con la de los formularios (`bmFormasYa`) y sólo en el móvil. **No cambia ningún dato**: acorta rótulos (`BMP_ROT`) dejando el nombre entero en `aria-label`, y llama a `bmPulidoMas` |
+| 1 · Cabecera del Resumen (v591) | La fecha de `#day-ctx` se oculta en el móvil —ya está en la cápsula de la cabecera— y el chip del microciclo cuando dice «—» (`renderDayCtx` le pone `md-vacio`; en el ordenador esa clase no pinta nada). El anillo del readiness va AL LADO de su lectura y **el titular «Readiness medio» se oculta** porque repetía la cifra del anillo; los otros cinco van en una rejilla de seis columnas (3 + 2) y sus subtítulos pueden ocupar dos líneas. Depende de que «Readiness medio» sea el PRIMER titular de `renderTeamStrip` |
+| 2 · «A vigilar y destacados» (v591) | Una fila por jugador (`#team-rings .ath` en rejilla de áreas): foto con su anillo a 64 px (`zoom:.8` — el SVG no tiene `viewBox` y no escala con `width`), nombre a 17, estado y motivo en una línea, y las cuatro cifras con su rótulo encima, sin cajas ni letra monoespaciada. FAT y MOOD se leen «Fatiga» y «Ánimo» en el móvil |
+| 3 · Pestañas que caben (v591) | Ningún segmento parte en dos líneas (`white-space:nowrap`). Estado y Cargas reparten el ancho por lo que mide cada rótulo; en el móvil se leen «Parte», «Fisio», «Pulso» y «Partido» |
+| 4 · Una escala de letra (v592) | Cada `font-size` que reescribe `bmlReescribe` pasa por `bmeTam`: se envuelve en `var(--tN,Npx)` y `#bm-sistema` da el escalón (34 · 24 · 17 · 14 · 12,5 · 11) **sólo dentro de la condición de móvil**; de 36 para arriba son cifras de exhibición y no se tocan. Pesos: 550–650 → 600 y 750–900 → 700. Los títulos de pantalla iban a 28 y la cercanía los bajaba a 24: van a **34, el Large Title**, por papel (§3). *Medido: de 27 tamaños a 14 —los que quedan son heredados de `body` (16) o `<b>` con `bolder`—, y los recortes de texto por pantalla, idénticos a antes* |
+| 6 · Tres radios y dos sombras (v592) | Radios **sólo hacia arriba**: 9–11 → 12 y 15–19 → 20. Bajar uno deformaría un círculo (un botón de 44 con radio 22). Sombras: con desenfoque de 6 a 18 px son de tarjeta (`--sh1` = `--lg-shadow`) y de más de 18 flotan (`--sh2`); lo que va DENTRO de una tarjeta se queda sin relieve (`.panel>*{--sh-hijo:none}`). No se tocan las interiores, los filos de 0 de desenfoque ni las micro (<6). De 14 radios a 10 y de 8 sombras a 4 |
+| Las hojas que aparecen después | Algún módulo añade su `<style>` al pintar su pantalla. `bmlReescribe` lleva la cuenta de las hojas ya hechas (`BME.hojas`) y `bmFormasYa` la vuelve a llamar cuando cambia el número de hojas |
+| 7 · Tarjetas sin borde (v592) | Se quita el filo NEUTRO a las piezas con relleno propio, por lista de clases y no por regla general. Las tarjetas sueltas sobre el fondo (`.panel`, `.pcard`, `.kpi`, `.card-pro`, `.eq-tile`, `.zc`, `.ctrlrow`) lo llevan con `!important` porque la capa de cristal se lo pone así; el resto, sin él, para que los estados (hoy, elegido) —con un selector más fuerte— conserven el suyo. **Los campos de formulario y las fotos lo conservan.** De 453 piezas a 69 |
+| 8 · Semáforo como token y símbolos dibujados (v593) | `bmPulidoMas`: los cinco hexadecimales del semáforo escritos en un `style` pasan a su token —**en una letra, a la variante `-text`**—, y un color de categoría escrito sobre una letra se mezcla al 50 % con `--txt`, como `colTinta`. Un hex de respaldo dentro de `var(--x,#hex)` no se toca. Los emoji de botones y avisos (⚠ 👐 ▶ ⚕) pasan a dibujo de línea (`.bm-sim`). Los documentos, fuera |
+| Reversible | Todo lo de v592 vive en `#bm-sistema` y en variables con el original de respaldo: quitando ese bloque —o fuera del móvil, o en una exportación, que se monta a 1180 px— cada valor vuelve a ser el de siempre |
+
+**Comprobado**: huella de posiciones de las 29 pantallas y la cabecera a 1440 px idéntica a la v590 (medidas las dos en la misma sesión: la hoja de wellness había crecido de 3.266 a 3.277 filas entre una medición y otra, y comparar contra la huella de por la mañana daba 14 «diferencias» que eran datos). En el móvil, en Chromium y en WebKit, de pie y tumbado, en claro y en oscuro: ninguna pantalla ensancha la página, sin errores, zonas de toque y contraste con los mismos pendientes conocidos y ninguno nuevo.
+
+**Una trampa del banco de WebKit**: en macOS `font:-apple-system-body` da 13 px, así que la prueba corre con la letra a 0,9 y los tamaños medidos ahí salen un 10 % más pequeños. En el iPhone, con la letra normal, vale 17.
+
 
 ---
 
@@ -1054,6 +1075,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **La pasada estética (v591–v593)**: que Daniel la vea en su iPhone; la propuesta 5 (versalitas) no la eligió. Ver §6.12.10
 - **Las diez de la v581–v590**: que Daniel confirme en su iPhone lo que sólo se probó con toques simulados (tocar una cifra, la lista de zonas del mapa corporal, «Deshacer», las pistas) y el teléfono tumbado con la isla y los márgenes reales. Ver §6.12.9
 - **El iPad** sigue con el diseño de ordenador estrecho (cabecera de 151 px, controles por debajo de 44). No se ha tocado: no cumple la condición de móvil a propósito
 - **`BMN.id`**: cuando cambie la lista de «Novedades y gestos», cambiar el identificador o no volverá a salir
@@ -1225,6 +1247,9 @@ No los repitas.
 | Añadir un botón flotante sin mirar si la acción ya estaba en pantalla | En la ficha, el botón de «Parte del día» salía encima de una fila de botones que ya decía «+ Parte del día». Se vio en la captura, no en las medidas: **medir que algo funciona no dice si sobra** |
 | Esperar un `scroll` con el panel del navegador oculto | Con el panel en segundo plano la página se desplaza (`scrollY` cambia) pero **no se despacha el evento `scroll`**: lo que depende de él parece roto. Se despacha a mano en la prueba, igual que ya pasaba con `requestAnimationFrame` |
 | Contar como «fuera de la pantalla» lo que sólo está a media animación | La medición del apaisado dio decenas de elementos fuera en casi todas las rutas: con el panel oculto, la vista se queda en el primer fotograma de su entrada, 22 px desplazada. La página no desbordaba en ninguna. **El desborde se mide con `scrollWidth` del documento**, no sumando rectángulos de una vista que se está moviendo |
+| Llevar cada tamaño de letra al escalón más CERCANO | El título de cada pantalla iba a 28 en el móvil y la cercanía lo bajó a 24: un Large Title que encoge al aplicar una escala tipográfica. §3 ya lo decía —«cada tamaño cae en el escalón de SU PAPEL, no en el píxel más cercano»—. La regla por cercanía vale para la masa de textos sueltos; los papeles con nombre (título de pantalla, cifra protagonista) se fijan aparte |
+| Dar por bueno el contraste porque antes pasaba | Un «%» de 19 px en negrita daba 3,23:1 y pasaba porque a ese tamaño cuenta como texto grande (3:1). Al llevarlo a 17 dejó de serlo y apareció el fallo, que era del COLOR: un violeta de categoría fijo sobre el panel oscuro. **Cambiar un tamaño puede destapar un contraste que el tamaño tapaba** |
+| Comparar huellas contra una referencia medida horas antes | Por la mañana la hoja de wellness tenía 3.266 filas y por la tarde 3.277: catorce pantallas «cambiadas» sin tocar una línea del ordenador. Medidas la referencia y la versión nueva en la misma sesión, cero. **La referencia se vuelve a medir junto a lo que se compara**, sobre todo con las hojas vivas |
 
 ---
 
