@@ -15059,7 +15059,9 @@ const BMP_ROT=[
   ['#v-jugador .phero-btns .phero-add[onclick^="openFisioReg"]','Fisio'],
   ['#v-jugador .phero-btns .phero-add[onclick^="openHeroForm"]','Parte'],
   ['#v-jugador .phero-btns .phero-add[onclick^="openQuickTest"]','Valoración'],
-  ['#v-jugador .phero-btns .phero-add[onclick^="openReunion"]','Reunión']];
+  ['#v-jugador .phero-btns .phero-add[onclick^="openReunion"]','Reunión'],
+  /* v614 · En la semana del calendario, «Hoy» como en el mes: cabe en la misma línea que las flechas. */
+  ['#v-cal .cal-nav>.btn[onclick^="calWeekToday"]','Hoy']];
 /* ===== v598 · Listas como en Ajustes, en el móvil =====
    Daniel, 12/11/2026, eligió la propuesta 3: «Médico, Fisioterapia, Alertas,
    Conexión y Nutrición como grupos de filas con icono en cuadrado de color,
@@ -15205,13 +15207,18 @@ const BMT={
   tests:{nom:'Perfil físico',items:[
     {t:'Perfil físico',on:()=>(bmtModo('#tsa-modo')||'equipo')==='equipo',fn:()=>tsaModo('equipo')},
     {t:'Perfil individual',on:()=>bmtModo('#tsa-modo')==='jugador',fn:()=>tsaModo('jugador')},
-    {t:'Análisis',on:()=>bmtModo('#tsa-modo')==='analisis',fn:()=>tsaModo('analisis')}]}
+    {t:'Análisis',on:()=>bmtModo('#tsa-modo')==='analisis',fn:()=>tsaModo('analisis')}]},
+  /* v614 · Mes y Semana, también desde el título: el conmutador de debajo
+     ocupaba una fila entera de 50 px en el móvil. */
+  cal:{nom:'Calendario',items:[
+    {t:'Calendario',on:()=>CALMODE!=='semana',fn:()=>calSetMode('mes')},
+    {t:'Semana',on:()=>CALMODE==='semana',fn:()=>calSetMode('semana')}]}
 };
 /* Disponibilidad, Médico, Parte y Fisioterapia son pestañas de Estado: `go`
    deja en STATE.view su nombre ('medico'…), no 'estado'. */
 const BMT_ESUB={dispo:1,medico:1,parte:1,fisio:1};
 function bmtVista(){const v=STATE.view;return BMT_ESUB[v]?'estado':v;}
-function bmtGrupo(){const v=bmtVista();return (v==='carga'||v==='hr')?BMT.carga:(v==='estado'||v==='tests')?BMT[v]:null;}
+function bmtGrupo(){const v=bmtVista();return (v==='carga'||v==='hr')?BMT.carga:(v==='estado'||v==='tests'||v==='cal')?BMT[v]:null;}
 function bmtActual(g){return g.items.find(x=>{try{return x.on();}catch(e){return false;}})||g.items[0];}
 function bmtPastillas(v){
   const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -33586,7 +33593,7 @@ function calDayPlan(dk){const todas=(STATE.calendar||{})[dk]||[];const sinProg=t
   if(!evs.length)return{n:0,sinProg,total:todas.length};
   let totMin=0,peak=0,peakC=0;evs.forEach(e=>{totMin+=evDur(e);peak=Math.max(peak,evIntens(e));peakC=Math.max(peakC,evContacto(e));});const ci=CAL_INT[peak]||CAL_INT[2];return{n:evs.length,sinProg,total:todas.length,totMin,peak,col:ci.col,lab:ci.lab,contacto:peakC,planPct:Math.min(100,Math.round(totMin/150*100)),planUA:calPlanUA(dk)};}
 function calDkLabel(dk){const a=dk.split('-').map(Number);return a[2]+' '+CAL_MES[a[1]-1].toLowerCase()+' '+a[0];}
-function calTraffic(intens,h,cls){h=h||46;const w=Math.round(h*0.46);const cols={3:'#e23b32',2:'#e6a700',1:'#1ea863'};const order=[3,2,1];const pad=w*0.17,r=(w-2*pad)*0.42;const span=h-2*pad,step=span/3;let g='';order.forEach((lv,i)=>{const cy=pad+step*(i+0.5);const on=lv===intens;if(on)g+=`<circle cx="${w/2}" cy="${cy}" r="${(r*1.5).toFixed(1)}" fill="${cols[lv]}" opacity="0.24"/>`;g+=`<circle cx="${w/2}" cy="${cy}" r="${r.toFixed(1)}" fill="${on?cols[lv]:'var(--tl-off,#39414f)'}" opacity="${on?1:0.5}"/>`;});return `<svg class="${cls||''}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;flex:none"><rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="${(w*0.28).toFixed(1)}" fill="var(--tl-body,#1d222c)" stroke="var(--tl-edge,#10141b)" stroke-width="1"/>${g}</svg>`;}
+function calTraffic(intens,h,cls){h=h||46;const w=Math.round(h*0.46);const cols={3:'#e23b32',2:'#e6a700',1:'#1ea863'};const order=[3,2,1];const pad=w*0.17,r=(w-2*pad)*0.42;const span=h-2*pad,step=span/3;let g='';order.forEach((lv,i)=>{const cy=pad+step*(i+0.5);const on=lv===intens;if(on)g+=`<circle cx="${w/2}" cy="${cy}" r="${(r*1.5).toFixed(1)}" fill="${cols[lv]}" opacity="0.24"/>`;g+=`<circle cx="${w/2}" cy="${cy}" r="${r.toFixed(1)}" fill="${on?cols[lv]:'var(--tl-off,#39414f)'}" opacity="${on?1:0.5}"/>`;});return `<svg class="bm-semaf ${cls||''}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;flex:none"><rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="${(w*0.28).toFixed(1)}" fill="var(--tl-body,#1d222c)" stroke="var(--tl-edge,#10141b)" stroke-width="1"/>${g}</svg>`;}
 /* v514 · Sobre cuánta gente va cada bloque. Sin esto, la carga comparable con
    el plan es tan opaca como la media que sustituye: lo que explica un día es
    que el gimnasio lo hicieran 12 de 18, no la cifra sola. Se dice **sólo
@@ -34713,6 +34720,7 @@ function calMonoTier(mono){if(isNaN(mono))return {c:'var(--muted)',lab:'—'};if
    No se funde el color del texto, por lo mismo que no se funde al cambiar de
    tema: deja un gris lavado que parece que algo se ha roto. */
 function calSetMode(m){
+  setTimeout(()=>{try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}},0);
   /* v552 · En el móvil, al pasar a la semana, la tarjeta de hoy sube a la vista. */
   if(m==='semana'&&esMovil())setTimeout(()=>{try{const h=document.querySelector('#cal-body .cw-today');
     if(h&&h.checkVisibility())window.scrollTo({top:Math.max(0,h.getBoundingClientRect().top+window.scrollY-150)});}catch(e){}},450);
@@ -35028,7 +35036,7 @@ function renderCalWeek(box){
    </div>
    ${hoja?'<div class="sa-fit" id="cal-wk-fit"><div id="cal-wk-a4"></div></div><div id="cal-sem-a4" style="display:none"></div>'
    :`<div id="cal-week-card" class="cal-week-card">
-     <div class="cw-cardhd"><div><b>Semana</b> · ${title}${mdRef?` · partido ${mdRef.split('-').reverse().slice(0,2).join('/')}`:''}</div><div class="cw-cardhd-sum">Plan <b>${wsum.planUA} UA</b> · Real <b>${wsum.nReal?wsum.realUA+' UA':'—'}</b>${wdev?` · <span style="color:${colTexto(wdev.col)}">${wdev.arrow}${wdev.pct>0?'+':''}${wdev.pct}%</span>`:''} · Monotonía <b style="color:${colTexto(mt.c)}">${isNaN(wsum.mono)?'—':fmt(wsum.mono,2)}</b> · Strain <b>${isNaN(wsum.strain)?'—':Math.round(wsum.strain)}</b></div></div>
+     <div class="cw-cardhd"><div><b>Semana</b> · ${title}${mdRef?` · partido ${mdRef.split('-').reverse().slice(0,2).join('/')}`:''}</div><div class="cw-cardhd-sum">Plan <b>${wsum.planUA} UA</b> · Real <b>${wsum.nReal?wsum.realUA+' UA':'—'}</b>${wdev?` · <span style="color:${colTexto(wdev.col)}">${wdev.arrow}${wdev.pct>0?'+':''}${wdev.pct}%</span>`:''} · Monotonía <b style="color:${colTexto(mt.c)}">${isNaN(wsum.mono)?'—':fmt(wsum.mono,2)}</b> · Strain <b>${isNaN(wsum.strain)?'—':Math.round(wsum.strain)}</b></div><div class="cw-stats"><div><span>Plan</span><b>${wsum.planUA}<small> UA</small></b></div><div><span>Real</span><b>${wsum.nReal?wsum.realUA+'<small> UA</small>':'—'}</b></div><div><span>Desviación</span><b${wdev?` style="color:${colTexto(wdev.col)}"`:''}>${wdev?(wdev.pct>0?'+':'')+wdev.pct+'%':'—'}</b></div></div><div class="cw-stats-l">Monotonía <b style="color:${colTexto(mt.c)}">${isNaN(wsum.mono)?'—':fmt(wsum.mono,2)}</b> · Strain <b>${isNaN(wsum.strain)?'—':Math.round(wsum.strain)}</b>${mdRef?` · partido ${mdRef.split('-').reverse().slice(0,2).join('/')}`:''}</div></div>
      ${calTira(dks,todayDk)}
      <div class="cw-grid">${cols}</div>
      <div class="cw-foot"><span class="cal-sc"><i style="background:#1ea863"></i>Baja</span><span class="cal-sc"><i style="background:#e6a700"></i>Media</span><span class="cal-sc"><i style="background:#e23b32"></i>Alta</span><span class="small muted">MD = día de partido · Z4/Z5 = % en zona (manual) · ⚕ bajas</span></div>
@@ -42180,6 +42188,50 @@ html.bmz .view.on{animation:none!important}
   #estado-fisio .fh-panel>.fb-wrap{order:3;margin:14px 0 2px}
 }
 </style>
+<style id="movil-v614">
+/* v614 · 3 · La semana del calendario, más limpia, y el semáforo plano.
+   Daniel, 12/11/2026, eligió la propuesta 3. Medido a 375 px: la tira de los
+   siete días empezaba hacia el píxel 395, detrás de las flechas con el rango,
+   «Esta semana» en una segunda fila, el conmutador Mes/Semana en una tercera
+   y una línea de cifras apretada. En el móvil:
+   · el rango con sus flechas y «Hoy» como pastilla, en UNA línea;
+   · Mes y Semana se eligen desde el título grande, como en Cargas (v604);
+   · Plan, Real y desviación de la semana como tres cifras, y debajo, en una
+     línea, monotonía, strain y el partido de referencia: los mismos números
+     y los mismos colores que la línea de siempre, que en el ordenador sigue;
+   · el semáforo de la tarjeta del día —y el de «Sus últimos entrenamientos»,
+     el del panel del día y el de las capacidades— plano en una cápsula, sin
+     el cuerpo negro ni el brillo, como los del Resumen (v611). Sigue siendo
+     un semáforo: tres luces y la que toca, encendida. Los documentos que se
+     exportan o imprimen no cambian. */
+.cw-stats,.cw-stats-l{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  body.bm-tmon #v-cal .cal-headr{display:none}
+  #v-cal .cal-head{margin-bottom:8px}
+  #v-cal .cal-nav{flex-wrap:nowrap;justify-content:flex-start;gap:2px;width:100%;box-sizing:border-box}
+  #v-cal .cal-nav>.cal-title{flex:1 1 auto;min-width:0!important;text-align:center;font-size:17px;font-weight:600;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #v-cal .cal-nav>.btn:not(:last-child){color:var(--accent);font-size:22px;font-weight:500;background:none;border:none;box-shadow:none}
+  #v-cal .cal-nav>.btn:last-child{position:relative;flex:none;min-width:0!important;min-height:34px!important;height:34px;margin-left:6px;
+    padding:0 14px;border-radius:17px;border:none;background:var(--seg-carril);color:var(--accent);font-size:15px;font-weight:600;box-shadow:none}
+  #v-cal .cal-nav>.btn:last-child::after{content:"";position:absolute;left:-2px;right:-2px;top:-5px;bottom:-5px}
+  /* La cabecera de la semana: tres cifras y una línea. */
+  #cal-week-card .cw-cardhd>div:first-child,#cal-week-card .cw-cardhd>.cw-cardhd-sum{display:none}
+  #cal-week-card .cw-cardhd{display:block}
+  #cal-week-card .cw-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-radius:14px;background:var(--panel2);overflow:hidden}
+  #cal-week-card .cw-stats>div{padding:9px 10px 10px;min-width:0}
+  #cal-week-card .cw-stats>div+div{box-shadow:inset .5px 0 0 var(--line)}
+  #cal-week-card .cw-stats span{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
+  #cal-week-card .cw-stats b{display:block;font-size:24px;font-weight:700;line-height:1.15;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #cal-week-card .cw-stats b small{font-size:12.5px;font-weight:600;color:var(--muted)}
+  #cal-week-card .cw-stats-l{display:block;margin:8px 2px 0;font-size:12.5px;color:var(--muted)}
+  #cal-week-card .cw-stats-l b{color:var(--txt);font-weight:600}
+  /* El semáforo, plano. */
+  svg.bm-semaf:not(:is(#parte-card,.pt-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page,#sescal-a4-page,#fis-cap-png) *){--tl-body:var(--seg-carril);--tl-edge:transparent;--tl-off:var(--muted2)}
+  svg.bm-semaf:not(:is(#parte-card,.pt-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page,#sescal-a4-page,#fis-cap-png) *) circle[opacity="0.24"]{display:none}
+  svg.bm-semaf:not(:is(#parte-card,.pt-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page,#sescal-a4-page,#fis-cap-png) *) circle[opacity="0.5"]{opacity:.3}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -45745,8 +45797,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.27*/
-const VER_ACTUAL='2026-11-12.27';
+/*BUILD:2026-11-12.28*/
+const VER_ACTUAL='2026-11-12.28';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
