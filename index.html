@@ -13217,7 +13217,7 @@ function estadoPanes(k){
   else{try{renderMedico();}catch(e){}}
   try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}
 }
-function estadoTab(k){ESTADO_TAB=k;estadoPanes(k);window.scrollTo(0,0);}
+function estadoTab(k){ESTADO_TAB=k;estadoPanes(k);window.scrollTo(0,0);try{if(window.bmPriPinta)bmPriPinta();}catch(e){}}
 /* v215 · pestañas dentro de Médico. Se recuerda la elegida, como en Cargas
    (bmnava_cargatab): cada uno vuelve a donde trabaja sin volver a buscarlo. */
 const MED_TAB_LS='bmnava_medtab';
@@ -15570,9 +15570,55 @@ document.addEventListener('keydown',e=>{
   if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.classList&&e.target.classList.contains('bm-pl')&&esMovil()){
     e.preventDefault();if(e.target.matches('#v-jugador .hint'))e.target.classList.toggle('hint-ab');bmplCambia(e.target);}
 });
+/* v613 · Fisioterapia › Hoy, con lo de Virginia arriba. Daniel, 12/11/2026,
+   eligió la propuesta 2. Medido a 375 px: «A quién mirar hoy» empezaba en el
+   píxel 679 de 812, detrás de cuatro recuadros (234 px), cinco botones en tres
+   filas y el buscador. En el móvil:
+   · los cuatro recuadros, compactos: la cifra al lado de su rótulo y la línea
+     de siete días debajo, a lo ancho (lo mismo en la mitad de alto);
+   · las cinco acciones (Tratamiento, Cita, Serie, Ojo mañana y Pase de
+     camilla) pasan a un solo botón «＋» junto al título, que abre una hoja
+     con las cinco; cada fila pulsa el botón de siempre;
+   · dentro del panel, el orden: «Ojo hoy» y los avisos de sus tratamientos,
+     después «A quién mirar hoy», el buscador y lo ya registrado hoy. Se
+     hace con `order`: ni un nodo cambia de sitio.
+   El botón flotante «Registrar» sólo aparece cuando el «＋» ha salido de la
+   pantalla, como en la ficha (v584): dos botones de lo mismo a la vista sobran. */
+const BMFH_IC={
+  trat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M12 8v8M8 12h8"/></svg>',
+  cita:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  serie:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3.5l3 3-3 3"/><path d="M4 11.5v-1a4 4 0 0 1 4-4h12"/><path d="M7 20.5l-3-3 3-3"/><path d="M20 12.5v1a4 4 0 0 1-4 4H4"/></svg>',
+  ojo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>',
+  pase:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l5 3.5-5 3.5z"/></svg>'
+};
+const BMFH_AC=[
+  ['fisTratarA','trat','Tratamiento','Lo que le has hecho hoy a un jugador'],
+  ['fisAddCita','cita','Cita','Médico, mutua o prueba'],
+  ['fisSerie','serie','Serie de sesiones','Varias citas de golpe, con sus días'],
+  ['ojoMarcar','ojo','Ojo mañana','A valorar mañana · no cambia su disponibilidad'],
+  ['fisPase','pase','Pase de camilla','Uno a uno por los pendientes']];
+const BMFH_MAS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+function bmFhBotones(){const r=document.querySelector('#estado-fisio .fh-panel .fis-h>.r');return r?[...r.querySelectorAll(':scope>button')]:[];}
+function bmFhMas(){
+  const h=document.querySelector('#estado-fisio .fh-panel .fis-h');
+  if(!h||h.querySelector('.bm-fhmas'))return;
+  const b=document.createElement('button');b.type='button';b.className='bm-fhmas';b.setAttribute('aria-label','Registrar: tratamiento, cita, serie, ojo mañana o pase de camilla');
+  b.setAttribute('aria-haspopup','dialog');b.innerHTML=BMFH_MAS;b.addEventListener('click',bmFhAcciones);h.appendChild(b);
+}
+function bmFhAcciones(){
+  const bs=bmFhBotones();if(!bs.length)return;
+  const filas=bs.map((x,i)=>{const oc=x.getAttribute('onclick')||'';const d=BMFH_AC.find(a=>oc.indexOf(a[0]+'(')===0);
+    const t=d?d[2]:(x.textContent||'').replace(/^[^A-Za-zÁÉÍÓÚÑáéíóúñ]+/,'').trim();
+    const sub=d?d[3]:(x.getAttribute('title')||'');
+    return '<button type="button" class="bmh-fila" data-i="'+i+'"><span class="ic">'+(d?BMFH_IC[d[1]]:BMFH_IC.trat)+'</span><span class="tx">'+t+(sub?'<small>'+sub+'</small>':'')+'</span></button>';}).join('');
+  const h=bmHoja({id:'fh-acc',titulo:'Registrar',html:'<div class="bmh-grupo">'+filas+'</div>'});
+  h.querySelector('.bmh-cuerpo').onclick=e=>{const f=e.target.closest('.bmh-fila');if(!f)return;const x=bmFhBotones()[+f.dataset.i];
+    bmHojaCierra('bmh-fh-acc');if(x)setTimeout(()=>x.click(),60);};
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmFhMas();}catch(e){console.error('bmnava · fisioterapia',e);}
   try{bmPliega();}catch(e){console.error('bmnava · pliegue',e);}
   try{bmZoomMarca();}catch(e){}
   try{bmInterruptores();}catch(e){console.error('bmnava · interruptores',e);}
@@ -16024,11 +16070,16 @@ function bmxAbre(n,txt){
    encoge al bajar por la página para tapar menos. */
 const BMP_IC={mas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',comp:BMC_IC};
 function bmPriDe(){
-  const v=window.__TB_V||STATE.view;
+  let v=window.__TB_V||STATE.view;
+  /* v613 · Dentro de Estado manda la pestaña que se ve: con el menú del título
+     (v604) se cambia de pestaña sin cambiar de vista, y el botón se quedaba con
+     la acción de la pestaña por la que se había entrado. */
+  if(['estado','dispo','medico','parte','fisio'].indexOf(v)>=0&&typeof ESTADO_TAB==='string'&&ESTADO_TAB)v=ESTADO_TAB;
   if(v==='cal')return {l:'Planificar',ic:'mas',fn:()=>calOpenDay((typeof CAL_SEL!=='undefined'&&CAL_SEL)||dkey(new Date()))};
   if(v==='dispo'||v==='estado'||v==='medico')return window.openFisioReg?{l:'Registrar',ic:'mas',fn:()=>openFisioReg()}:null;
   if(v==='fisio'){let sub='';try{sub=localStorage.getItem('bmnava_fisiotab')||'';}catch(e){}
-    return (sub==='vend'||!window.openFisioReg)?null:{l:'Registrar',ic:'mas',fn:()=>openFisioReg()};}
+    if(sub==='vend'||!window.openFisioReg)return null;
+    return (sub===''||sub==='hoy')?{l:'Registrar',ic:'mas',fn:()=>openFisioReg(),tapa:'#estado-fisio .bm-fhmas'}:{l:'Registrar',ic:'mas',fn:()=>openFisioReg()};}
   if(v==='parte')return {l:'Compartir',ic:'comp',fn:()=>exportParte()};
   if(v==='jugador'&&window.openHeroForm&&STATE.curPlayer){const n=STATE.curPlayer;
     /* en la ficha la misma acción ya está en la fila de botones de arriba:
@@ -42100,6 +42151,35 @@ html.bmz .view.on{animation:none!important}
   .bm-pl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 }
 </style>
+<style id="movil-v613">
+/* v613 · 2 · Fisioterapia › Hoy: lo de Virginia arriba. En el ordenador no cambia nada. */
+.bm-fhmas{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  /* Los recuadros, compactos: cifra · rótulo y subtítulo · línea de siete días a lo ancho. */
+  #estado-fisio .fis-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}
+  #estado-fisio .fis-k{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"v l" "v s" "k k";
+    column-gap:10px;row-gap:1px;align-items:center;padding:10px 12px}
+  #estado-fisio .fis-k>.l{grid-area:l;align-self:end;line-height:1.2}
+  #estado-fisio .fis-k>.v{grid-area:v;margin:0;font-size:28px;line-height:1}
+  #estado-fisio .fis-k>.s{grid-area:s;align-self:start;min-height:0;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #estado-fisio .fis-k>.kpi-spk{grid-area:k;width:100%;height:14px;margin-top:6px}
+  #estado-fisio .fis-k:nth-child(5){grid-column:1/-1}
+  /* Las cinco acciones, en un solo ＋. */
+  #estado-fisio .fh-panel .fis-h{display:flex;align-items:center;gap:12px}
+  #estado-fisio .fh-panel .fis-h>.r{display:none!important}
+  #estado-fisio .bm-fhmas{display:grid;place-items:center;flex:none;margin-left:auto;width:44px;height:44px;padding:0;border:none;border-radius:50%;
+    background:var(--accent);color:var(--on-accent,#fff);cursor:pointer;box-shadow:var(--sh1,0 2px 8px rgba(0,0,0,.12))}
+  #estado-fisio .bm-fhmas svg{width:22px;height:22px}
+  /* El orden del panel: avisos · a quién mirar · buscador · lo registrado. */
+  #estado-fisio .fh-panel{display:flex;flex-direction:column}
+  #estado-fisio .fh-panel>*{order:4}
+  #estado-fisio .fh-panel>.fis-h{order:0}
+  #estado-fisio .fh-panel>.fh-sec:has(+.ojo-grid),#estado-fisio .fh-panel>.ojo-grid,
+  #estado-fisio .fh-panel>.fh-sec:has(+.fh-avs),#estado-fisio .fh-panel>.fh-avs{order:1}
+  #estado-fisio .fh-panel>:nth-last-child(-n+2){order:2}
+  #estado-fisio .fh-panel>.fb-wrap{order:3;margin:14px 0 2px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -45665,8 +45745,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.26*/
-const VER_ACTUAL='2026-11-12.26';
+/*BUILD:2026-11-12.27*/
+const VER_ACTUAL='2026-11-12.27';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
