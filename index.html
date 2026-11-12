@@ -15211,9 +15211,70 @@ function bmtExportar(){
   if(b)b.click();
 }
 document.addEventListener('change',e=>{const t=e.target;if(t&&(t.id==='hr-session'||t.id==='tests-player'))setTimeout(()=>{try{bmtPinta();}catch(err){}},40);},true);
+/* v606 · Pasar de un jugador al siguiente deslizando, como las ciudades del
+   Tiempo. Daniel, 12/11/2026, eligió la propuesta 5: para ver al siguiente
+   había que volver, buscarlo en la lista y abrirlo. Deslizar a izquierda o
+   derecha SOBRE LA CABECERA de la ficha (foto, nombre y cifras) abre el
+   siguiente o el anterior, por orden alfabético, y unos puntos de página
+   debajo dicen en cuál se está. Sobre el contenido no cambia nada: deslizar
+   allí sigue siendo lo de antes. Se conserva la pestaña de la ficha. No deja
+   entrada en el historial: «atrás» sigue volviendo a donde se estaba antes de
+   la ficha, como en el Tiempo. Abre con `openPlayer`, lo mismo que tocar. */
+function bmfLista(){return Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));}
+function bmfPuntos(){
+  if(!esMovil()||STATE.view!=='jugador')return;
+  const ph=document.querySelector('#v-jugador .phero');if(!ph)return;
+  const l=bmfLista(),i=l.indexOf(STATE.curPlayer);if(i<0||l.length<2)return;
+  let d=ph.querySelector(':scope>.bmf-dots');
+  const k=i+'/'+l.length;if(d&&d.dataset.k===k)return;
+  if(!d){d=document.createElement('div');d.className='bmf-dots';d.setAttribute('aria-hidden','true');
+    const id=ph.querySelector(':scope>.phero-id');ph.insertBefore(d,id?id.nextSibling:ph.firstChild);}
+  d.dataset.k=k;d.innerHTML=l.map((n,j)=>'<i'+(j===i?' class="on"':'')+'></i>').join('');
+}
+(function(){
+  let x0=0,y0=0,dx=0,modo=0,el=null,t0=0;
+  const zona=t=>t&&t.closest&&t.closest('#v-jugador .phero-id,#v-jugador .phe-tiles,#v-jugador .bmf-dots');
+  document.addEventListener('touchstart',e=>{
+    el=null;if(!esMovil()||STATE.view!=='jugador'||e.touches.length!==1)return;
+    if(typeof bmCapaAbierta==='function'&&bmCapaAbierta())return;
+    const z=zona(e.target);if(!z)return;
+    x0=e.touches[0].clientX;y0=e.touches[0].clientY;if(x0<=26)return;
+    el=document.querySelector('#v-jugador .phero');dx=0;modo=0;t0=performance.now();
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!el)return;const t=e.touches[0];dx=t.clientX-x0;const dy=t.clientY-y0;
+    if(!modo){if(Math.abs(dy)>10&&Math.abs(dy)>=Math.abs(dx)){el=null;return;}
+      if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)*1.4){modo=1;el.style.transition='none';}else return;}
+    el.style.transform='translateX('+dx*0.6+'px)';el.style.opacity=String(Math.max(.35,1-Math.abs(dx)/500));
+  },{passive:true});
+  const suelta=()=>{
+    const h=el;el=null;if(!h||modo!==1)return;
+    const v=Math.abs(dx)/Math.max(1,performance.now()-t0);
+    const l=bmfLista(),i=l.indexOf(STATE.curPlayer);
+    const sig=(Math.abs(dx)>70||v>.5)&&i>=0?l[(i+(dx<0?1:-1)+l.length)%l.length]:null;
+    const red=matchMedia('(prefers-reduced-motion:reduce)').matches;
+    h.style.transition=red?'none':'transform .18s ease,opacity .18s ease';
+    if(!sig){h.style.transform='';h.style.opacity='';setTimeout(()=>{h.style.transition='';},200);return;}
+    h.style.transform='translateX('+(dx<0?-60:60)+'px)';h.style.opacity='0';
+    setTimeout(()=>{
+      const tab=typeof PL_TAB!=='undefined'?PL_TAB:null;
+      try{openPlayer(sig);}catch(err){console.error('bmnava · ficha siguiente',err);}
+      try{if(tab&&PL_TAB!==tab)plTab(tab);}catch(err){}
+      const n=document.querySelector('#v-jugador .phero');if(!n)return;
+      if(red){n.style.opacity='';n.style.transform='';return;}
+      n.style.transition='none';n.style.transform='translateX('+(dx<0?60:-60)+'px)';n.style.opacity='0';void n.offsetWidth;
+      n.style.transition='transform .26s cubic-bezier(.32,.72,0,1),opacity .2s ease';n.style.transform='';n.style.opacity='';
+      setTimeout(()=>{n.style.transition='';},300);
+      try{bmfPuntos();}catch(err){}
+    },red?0:170);
+  };
+  document.addEventListener('touchend',suelta,{passive:true});
+  document.addEventListener('touchcancel',()=>{if(el){el.style.transform='';el.style.opacity='';}el=null;},{passive:true});
+})();
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmfPuntos();}catch(e){}
   try{bmCifras();}catch(e){console.error('bmnava · cifras',e);}
   try{bmtPinta();}catch(e){console.error('bmnava · título',e);}
   try{bmListas();}catch(e){console.error('bmnava · listas',e);}
@@ -41626,6 +41687,15 @@ html[data-theme="dark"]{--sb-sep:rgba(84,84,88,.62)}
   #v-jugador .phero-btns .phero-add[onclick^="openQuickTest"]{--pic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='13.5' r='7.5'/><path d='M12 9.5v4l2.6 1.8'/><path d='M10 2.5h4M18.5 6.5l1.4-1.4'/></svg>")}
   #v-jugador .phero-btns .phero-add[onclick^="openReunion"]{--pic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20.5 11.6a8.2 8.2 0 0 1-12 7.3L3.5 20l1.2-4.4a8.2 8.2 0 1 1 15.8-4z'/></svg>")}
   #v-jugador .phero-btns .phero-add:active{filter:brightness(.93)}
+}
+</style>
+<style id="movil-v606">
+/* v606 · 5 · Los puntos de página de la ficha. Sólo los crea código del móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-jugador .phero{touch-action:pan-y}
+  #v-jugador .bmf-dots{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
+  #v-jugador .bmf-dots i{width:6px;height:6px;border-radius:50%;background:var(--muted2);opacity:.35}
+  #v-jugador .bmf-dots i.on{opacity:1;background:var(--txt)}
 }
 </style>
 <script>
