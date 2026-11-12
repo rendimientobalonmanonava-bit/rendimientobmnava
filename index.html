@@ -15139,7 +15139,11 @@ const BMT={
     {t:'Perfil individual',on:()=>bmtModo('#tsa-modo')==='jugador',fn:()=>tsaModo('jugador')},
     {t:'Análisis',on:()=>bmtModo('#tsa-modo')==='analisis',fn:()=>tsaModo('analisis')}]}
 };
-function bmtGrupo(){const v=STATE.view;return (v==='carga'||v==='hr')?BMT.carga:(v==='estado'||v==='tests')?BMT[v]:null;}
+/* Disponibilidad, Médico, Parte y Fisioterapia son pestañas de Estado: `go`
+   deja en STATE.view su nombre ('medico'…), no 'estado'. */
+const BMT_ESUB={dispo:1,medico:1,parte:1,fisio:1};
+function bmtVista(){const v=STATE.view;return BMT_ESUB[v]?'estado':v;}
+function bmtGrupo(){const v=bmtVista();return (v==='carga'||v==='hr')?BMT.carga:(v==='estado'||v==='tests')?BMT[v]:null;}
 function bmtActual(g){return g.items.find(x=>{try{return x.on();}catch(e){return false;}})||g.items[0];}
 function bmtPastillas(v){
   const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -15161,7 +15165,7 @@ function bmtPastillas(v){
 function bmtPinta(){
   if(!esMovil())return;
   const g=bmtGrupo();if(!g)return;
-  const v=STATE.view,sec=document.getElementById('v-'+v),ph=sec&&sec.querySelector(':scope>.pagehead');if(!ph)return;
+  const v=bmtVista(),sec=document.getElementById('v-'+v),ph=sec&&sec.querySelector(':scope>.pagehead');if(!ph)return;
   const it=bmtActual(g),pa=bmtPastillas(v),k=it.t+'|'+pa.k;
   let w=ph.querySelector(':scope>.bm-tl');
   if(!w){w=document.createElement('div');w.className='bm-tl';ph.insertBefore(w,ph.firstChild);}
