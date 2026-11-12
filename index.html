@@ -14358,6 +14358,74 @@ function bmgTitulo(cv){
   }
   return 'Gráfico';
 }
+/* v609 · Gráficos como en Salud, segunda parte. Daniel, 12/11/2026, eligió la
+   propuesta 8. Tres cosas, sólo en el móvil:
+   · el eje de valores pasa a la DERECHA, sin la línea del eje y con no más de
+     cinco marcas, y la rejilla horizontal pasa a discontinua;
+   · en los gráficos de LÍNEAS, la leyenda de puntos de debajo desaparece y
+     cada serie lleva su nombre escrito junto al final de su línea, con su
+     punto de color delante: no hay que ir y volver de la leyenda al dibujo.
+     El texto va en el color del texto de la app, sobre un halo del fondo,
+     para que se lea encima de cualquier línea; el color lo pone el punto.
+   · los gráficos con dos ejes de valores, los de barras horizontales y los de
+     sectores no cambian, y las barras conservan su leyenda.
+   Los ejes se copian antes de tocarlos (`AX` se comparte). Los documentos y la
+   vista a pantalla completa no cambian. */
+const bmdPlugin={id:'bmDir',
+  beforeInit(chart){
+    const cv=chart.canvas;if(!cv||!cv.closest||!esMovil()||cv.closest(BMG_DOC)||cv.closest('#bm-gv'))return;
+    try{
+      const cf=chart.config,co=cf.options||(cf.options={}),DS=(cf.data&&cf.data.datasets)||[];
+      if(!DS.length||co.indexAxis==='y')return;
+      if(!DS.every(d=>{const t=d.type||cf.type;return t==='line'||t==='bar';}))return;
+      co.scales=Object.assign({},co.scales);
+      const yk=Object.keys(co.scales).filter(k=>/^y/.test(k)&&co.scales[k]&&co.scales[k].display!==false);
+      const usados=new Set(DS.map(d=>d.yAxisID||'y'));
+      if(yk.length<=1&&usados.size<=1){
+        const yo=co.scales.y||{};
+        if(yo.display!==false){const ml=(yo.ticks&&yo.ticks.maxTicksLimit)||5;
+          co.scales.y=Object.assign({},yo,{position:'right',border:Object.assign({},yo.border,{display:false,dash:[3,4]}),
+            ticks:Object.assign({},yo.ticks,{maxTicksLimit:Math.min(ml,5)})});}
+      }
+      const vis=DS.filter(d=>!d.hidden&&d.label&&String(d.label).trim());
+      const lg=co.plugins&&co.plugins.legend;
+      if(vis.length&&vis.length<=4&&vis.every(d=>(d.type||cf.type)==='line')&&!(lg&&lg.display===false)){
+        chart.$bmd=true;
+        co.plugins=Object.assign({},co.plugins,{legend:Object.assign({},lg,{display:false})});
+        const lp=co.layout&&co.layout.padding;const pt=(typeof lp==='number')?lp:((lp&&lp.top)||0);
+        co.layout=Object.assign({},co.layout,{padding:Object.assign({},(typeof lp==='object'&&lp)?lp:(typeof lp==='number'?{left:lp,right:lp,bottom:lp}:{}),{top:pt+16})});
+      }
+    }catch(e){}
+  },
+  afterDatasetsDraw(chart){
+    if(!chart.$bmd)return;
+    try{
+      const ctx=chart.ctx,ca=chart.chartArea,rs=getComputedStyle(document.documentElement);
+      const txt=(rs.getPropertyValue('--txt')||'#111').trim(),fondo=(rs.getPropertyValue('--panel')||'#fff').trim();
+      const fam=(Chart.defaults.font&&Chart.defaults.font.family)||'-apple-system,system-ui,sans-serif';
+      ctx.save();ctx.font='600 11.5px '+fam;ctx.textBaseline='middle';
+      const et=[];
+      chart.data.datasets.forEach((d,i)=>{
+        if(!chart.isDatasetVisible(i)||!d.label)return;
+        const pts=chart.getDatasetMeta(i).data||[];let el=null;
+        for(let j=pts.length-1;j>=0;j--){const p=pts[j];if(p&&!p.skip&&isFinite(p.x)&&isFinite(p.y)&&p.x>=ca.left-1&&p.x<=ca.right+1){el=p;break;}}
+        if(!el)return;
+        let t=String(d.label).trim();if(t.length>22)t=t.slice(0,21)+'…';
+        const col=Array.isArray(d.borderColor)?d.borderColor[0]:(d.borderColor||d.backgroundColor||txt);
+        et.push({t,col:typeof col==='string'?col:txt,x:el.x,y:el.y-11,w:ctx.measureText(t).width+12});
+      });
+      et.sort((a,b)=>a.y-b.y);
+      for(let k=0;k<et.length;k++){const e=et[k];e.y=Math.max(ca.top-8,Math.min(ca.bottom-6,e.y));if(k&&e.y-et[k-1].y<14)e.y=et[k-1].y+14;}
+      et.forEach(e=>{
+        let x=e.x-e.w;if(x<ca.left)x=ca.left;if(x+e.w>ca.right+2)x=ca.right+2-e.w;
+        ctx.beginPath();ctx.arc(x+4,e.y,3.5,0,Math.PI*2);ctx.fillStyle=e.col;ctx.fill();
+        ctx.lineWidth=3;ctx.strokeStyle=fondo;ctx.lineJoin='round';ctx.strokeText(e.t,x+11,e.y);
+        ctx.fillStyle=txt;ctx.fillText(e.t,x+11,e.y);
+      });
+      ctx.restore();
+    }catch(e){}
+  }
+};
 const bmgPlugin={id:'bmGraf',
   beforeInit(chart){
     const cv=chart.canvas;if(!cv||!cv.closest)return;
@@ -16787,6 +16855,7 @@ function buildChartTheme(){
       /* v574 · Gráficos para el dedo: la frase de lectura, la regla que sigue al
          dedo y el botón de verlo grande. Todo vive en `bmgPlugin`. */
       if(!Chart.registry.plugins.get('bmGraf'))Chart.register(bmgPlugin);
+      if(!Chart.registry.plugins.get('bmDir'))Chart.register(bmdPlugin);
     }
   }
 }
