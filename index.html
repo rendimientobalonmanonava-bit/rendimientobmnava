@@ -13856,7 +13856,8 @@ function buildTabbar(){const tb=document.getElementById('tabbar');if(!tb)return;
      la barra flota sobre el contenido en vez de ir pegada al borde. */
   const cols=TABBAR.map(([v,l])=>Math.max(1,l.length/11).toFixed(2)+'fr').join(' ');
   tb.innerHTML='<div class="tb-cap" style="grid-template-columns:'+cols+'">'+TABBAR.map(([v,l])=>`<button type="button" class="tb-i" data-v="${v}" onclick="tbGo('${v}')">${v==='vend'?TB_VEND:(SB_ICONS[v]||SB_ICONS._)}<span>${l}</span></button>`).join('')+'</div>'
-    +`<button type="button" class="tb-i tb-mas" data-v="_mas" aria-haspopup="dialog" aria-expanded="false" aria-label="Más: el menú completo" onclick="sbToggleMobile()">${TB_MAS}<span>Más</span></button>`;}
+    +`<button type="button" class="tb-i tb-mas" data-v="_mas" aria-haspopup="dialog" aria-expanded="false" aria-label="Más: el menú completo" onclick="sbToggleMobile()">${TB_MAS}<span>Más</span></button>`;
+  try{if(typeof bmDosTonos==='function')bmDosTonos();}catch(e){}}
 /* Tocar la pestaña en la que ya se está sube al principio, como en cualquier
    aplicación de teléfono; tocar otra, navega. */
 function tbGo(v){const abierta=document.body.classList.contains('sb-open');sbToggleMobile(false);
@@ -15032,8 +15033,30 @@ function bmListas(){
     const ini=n.textContent.trim().split(/\s+/).filter(w=>/^[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(w)).slice(0,2).map(w=>w[0].toUpperCase()).join('');
     su.insertAdjacentHTML('afterbegin','<abbr class="bm-ini" aria-hidden="true">'+ini+'</abbr>');});
 }
+/* v601 · Iconos en dos tonos, como el modo jerárquico de SF Symbols. Daniel,
+   12/11/2026, eligió la propuesta 10. Los iconos de la app son de línea; aquí
+   cada forma CERRADA del dibujo —la hoja del parte, el corazón, el triángulo de
+   alertas, el calendario, la cabeza de una persona— recibe además un relleno
+   del mismo color a poca opacidad, y las líneas siguen encima. No se toca
+   ningún dibujo: se marca la forma (`bm-dt`) y el CSS la rellena. Las formas
+   que ya traen su propio relleno no se tocan, y tampoco los puntos pequeños.
+   Sólo en el móvil: barra, hoja «Más», menú de añadir y los menús que suben. */
+const BMDT_SEL='#tabbar svg,#sb-nav svg,#sb-tools svg,.add-menu .add-item svg,.bmh-fila .ic svg,.bmp-menu svg';
+function bmDosTonos(){
+  if(!esMovil())return;
+  document.querySelectorAll(BMDT_SEL).forEach(sv=>{
+    if(sv.dataset.dt)return;sv.dataset.dt='1';
+    sv.querySelectorAll(':scope>rect,:scope>circle,:scope>ellipse,:scope>path').forEach(f=>{
+      if(f.hasAttribute('fill')||(f.getAttribute('style')||'').indexOf('fill')>=0)return;
+      const t=f.tagName.toLowerCase();
+      if(t==='circle'&&!(+f.getAttribute('r')>=2.5))return;
+      if(t==='path'&&!/z\s*$/i.test(f.getAttribute('d')||''))return;
+      f.classList.add('bm-dt');});
+  });
+}
 function bmPulido(){
   if(!esMovil())return;
+  try{bmDosTonos();}catch(e){}
   try{bmListas();}catch(e){console.error('bmnava · listas',e);}
   BMP_ROT.forEach(([sel,nuevo])=>{document.querySelectorAll(sel).forEach(b=>{
     const t=b.textContent.trim(),n=typeof nuevo==='string'?nuevo:nuevo[t];
@@ -41299,6 +41322,14 @@ html[data-theme="dark"] #bm-prev{background:rgba(0,0,0,.55)}
   .sw-b{transition:width .18s ease}
 }
 </style>
+<style id="movil-v601">
+/* v601 · 10 · El segundo tono de los iconos. Sólo lo marca código del móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  svg .bm-dt{fill:currentColor;fill-opacity:.2}
+  #tabbar .tb-i.on svg .bm-dt{fill-opacity:.34}
+  .sb-item.on svg .bm-dt{fill-opacity:.34}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44864,8 +44895,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.23*/
-const VER_ACTUAL='2026-11-12.23';
+/*BUILD:2026-11-12.24*/
+const VER_ACTUAL='2026-11-12.24';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
