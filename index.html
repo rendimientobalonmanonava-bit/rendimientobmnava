@@ -13884,6 +13884,7 @@ function tbMark(v){let eff=v==='estado'?'dispo':v;const ks=TABBAR.map(t=>t[0]);
   if(eff==='jugador'&&ks.indexOf('jugadores')>=0)eff='jugadores';
   window.__TB_ON=eff;window.__TB_V=v;
   try{if(typeof bmPriPinta==='function')bmPriPinta();}catch(e){}
+  try{const pi=document.getElementById('bm-pista');if(pi)pi.classList.remove('on');clearTimeout(window.__BMPI_T);window.__BMPI_T=setTimeout(()=>{if(typeof bmPistasMira==='function')bmPistasMira();},1300);}catch(e){}
   const fijo=ks.indexOf(eff)>=0;
   document.querySelectorAll('#tabbar .tb-i').forEach(b=>{const on=fijo?b.dataset.v===eff:b.dataset.v==='_mas';
     b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
@@ -14455,6 +14456,7 @@ function bmTelefono(){
         +'</span>'+(p===o[0]?'<span class="ch bml-ok">✓</span>':'')+'</button>').join('')+'</div>'
       +'<p class="bml-nota">La cabecera, la barra de abajo y los documentos que se exportan no cambian de tamaño.</p>'
       +'<div id="bmt-avisos"></div>'
+      +'<div class="bmh-grupo" style="margin-top:16px"><button type="button" class="bmh-fila" data-nov-abre="1"><span class="ic">'+BMN_IC.dedo+'</span><span class="tx">Novedades y gestos</span><span class="ch">›</span></button></div>'
       +'<p class="bml-ver">Versión '+bmjEsc(typeof VER_ACTUAL!=='undefined'?VER_ACTUAL:'')+'</p>';};
   const h=bmHoja({id:'tel',titulo:'Este teléfono',clase:'bmt',html:pinta()});
   const c=h.querySelector('.bmh-cuerpo');
@@ -14464,6 +14466,7 @@ function bmTelefono(){
     if(j>=0&&j!==i)ks[j]=ks[i];        /* ya estaba en otra posición: se intercambian */
     ks[i]=k;tbGuarda(ks);repinta();};
   c.onclick=e=>{if(e.target.closest('[data-barra-def]')){tbGuarda(TB_DEF.slice());repinta();return;}
+    if(e.target.closest('[data-nov-abre]')){bmHojaCierra('bmh-tel');setTimeout(bmNovedades,260);return;}
     const b=e.target.closest('[data-letra]');if(!b)return;
     try{localStorage.setItem(BML.k,b.dataset.letra);}catch(err){}
     bmlAplica();c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
@@ -14898,6 +14901,87 @@ function bmEntregaPNG(cv,filename){
     };
     if(bg)bg.onclick=()=>{baja(url);toast('Imagen guardada');bmHojaCierra('bmh-comp');};
   },'image/png');
+}
+/* v590 · Enseñar lo que no se ve. Mantener pulsado, deslizar una fila, tirar
+   para actualizar, girar un gráfico: los gestos no tienen botón, y ya está
+   escrito lo que pasa con lo que no se ve (v459: de doce funciones suyas,
+   Virginia no conocía cinco). Dos piezas, sólo en el diseño de móvil:
+   · «Novedades y gestos»: una hoja que sale UNA vez por versión de la lista
+     (`BMN.id`) y que se puede volver a abrir desde «Más › Teléfono»;
+   · una pista por pantalla: la primera vez que en la pantalla hay algo que
+     admite un gesto, una línea lo dice. Cada pista sale una sola vez en la
+     vida de ese teléfono, nunca dos seguidas (15 s) y nunca sobre una hoja.
+   Lo visto se guarda con guion (`bmnava-pistas`, `bmnava-novedades`): es de
+   ESTE aparato y no se sincroniza. */
+const BMN={k:'bmnava-novedades',id:'2026-11-12'};
+const BMN_I=d=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
+const BMN_IC={gira:BMN_I('<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M2.5 9.5a9.5 9.5 0 0 1 2.2-4"/><path d="M21.5 14.5a9.5 9.5 0 0 1-2.2 4"/>'),
+  barra:BMN_I('<rect x="3" y="14.5" width="18" height="6" rx="3"/><path d="M7.5 17.5h.01M12 17.5h.01M16.5 17.5h.01"/><path d="M12 3.5v7M9 7.5l3 3 3-3"/>'),
+  mas:BMN_I('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>'),
+  info:BMN_I('<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.01"/>'),
+  atras:BMN_I('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
+  tabla:BMN_I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
+  dedo:BMN_I('<path d="M9 11.5V5a1.8 1.8 0 0 1 3.6 0v5.5"/><path d="M12.6 10.5V9a1.7 1.7 0 0 1 3.4 0v2"/><path d="M16 11v-.5a1.7 1.7 0 0 1 3.4 0V15a6.5 6.5 0 0 1-6.5 6.5h-1.2a5 5 0 0 1-4-2L5 15.5a1.7 1.7 0 0 1 2.6-2.2L9 14.5"/>'),
+  desliza:BMN_I('<path d="M20 12H7M11 8l-4 4 4 4"/><path d="M3.5 6v12"/>'),
+  tira:BMN_I('<path d="M12 4v11M8 11l4 4 4-4"/><path d="M5 19.5h14"/>'),
+  lado:BMN_I('<path d="M8 7 3 12l5 5M16 7l5 5-5 5"/>'),
+  borde:BMN_I('<path d="M15 5l-7 7 7 7"/>')};
+function bmNovedades(){
+  const f=(ic,t,d)=>'<div class="bmn-f"><span class="ic">'+BMN_IC[ic]+'</span><span class="tx"><b>'+t+'</b><small>'+d+'</small></span></div>';
+  const h=bmHoja({id:'nov',titulo:'Novedades y gestos',clase:'bmn',html:
+    '<div class="bmh-rot">Lo nuevo</div><div class="bmh-grupo">'
+      +f('gira','Gira el teléfono','La app se adapta tumbada, y un gráfico o una tabla se ven mucho más grandes.')
+      +f('barra','Tu barra de abajo','Elige tus tres pestañas en Más › Teléfono.')
+      +f('mas','El botón de cada pantalla','Abajo a la derecha: registrar, planificar o compartir, según dónde estés.')
+      +f('info','Toca para saber qué es','Las cifras y las etiquetas explican lo que significan al tocarlas.')
+      +f('atras','Deshacer','Tras «Ya pasó» o tras copiar vendajes, el aviso trae «Deshacer».')
+      +f('tabla','Tablas a pantalla completa','Las tablas anchas llevan un botón para verlas enteras.')
+    +'</div><div class="bmh-rot">Gestos</div><div class="bmh-grupo">'
+      +f('dedo','Mantén pulsado un jugador','Parte del día, aviso, fisioterapia o cita, sin entrar en su ficha. En el calendario, sobre un día.')
+      +f('desliza','Desliza una tarjeta','Hacia la izquierda, en los avisos y en los cobros: hace su acción.')
+      +f('tira','Tira hacia abajo','Arriba del todo de cualquier pantalla, actualiza los datos.')
+      +f('lado','Desliza de lado','Pasa a la pestaña de al lado, o al mes siguiente en el calendario.')
+      +f('borde','Desde el borde izquierdo','Vuelve a la pantalla anterior o cierra lo que haya abierto.')
+    +'</div><button type="button" class="bmh-btn pri" data-nov="ok">Entendido</button>',
+    alCerrar:()=>{try{localStorage.setItem(BMN.k,BMN.id);}catch(e){}}});
+  h.querySelector('[data-nov="ok"]').onclick=()=>bmHojaCierra('bmh-nov');
+}
+function bmNovedadesSiToca(){
+  if(!esMovil())return;
+  let v=null;try{v=localStorage.getItem(BMN.k);}catch(e){return;}
+  if(v===BMN.id)return;
+  if(BMH.pila.length||document.body.classList.contains('modal-open')||document.body.classList.contains('sb-open')){setTimeout(bmNovedadesSiToca,20000);return;}
+  bmNovedades();
+}
+const BMPI={k:'bmnava-pistas',t:0,tm:0};
+const BMPI_L=[
+  ['tirar',(v)=>v.id==='v-equipo','Tira de la pantalla hacia abajo para actualizar los datos.'],
+  ['accion',()=>{const b=document.getElementById('bm-pri');return !!(b&&b.classList.contains('on'));},'El botón de abajo a la derecha es la acción de esta pantalla.'],
+  ['mantener',(v,hay)=>hay('[onclick*="openPlayer("]'),'Mantén pulsado un jugador para apuntar su parte, un aviso o una cita sin entrar en su ficha.'],
+  ['deslizar',(v,hay)=>hay('[data-sw]'),'Desliza una tarjeta hacia la izquierda para hacer su acción.'],
+  ['tabla',(v,hay)=>hay('.bm-tvb'),'Las tablas anchas se abren a pantalla completa con el botón de encima.'],
+  ['girar',(v,hay)=>hay('canvas'),'Toca un gráfico para leer sus valores. Girando el teléfono se ve a pantalla completa.'],
+  ['tocar',(v)=>Array.prototype.filter.call(v.querySelectorAll('[title]'),e=>(e.getAttribute('title')||'').length>=25&&e.checkVisibility&&e.checkVisibility()&&!e.closest('button,a,[onclick],summary,label')).length>=3,'Toca una cifra o una etiqueta para ver qué significa.']
+];
+function bmPista(id,txt){
+  let b=document.getElementById('bm-pista');
+  if(!b){b=document.createElement('div');b.id='bm-pista';b.setAttribute('role','status');
+    b.innerHTML='<span class="pi-ic">'+BMN_IC.info+'</span><span class="pi-t"></span><button type="button">Entendido</button>';
+    document.body.appendChild(b);b.querySelector('button').onclick=()=>{clearTimeout(BMPI.tm);b.classList.remove('on');};}
+  b.querySelector('.pi-t').textContent=txt;b.classList.add('on');BMPI.t=Date.now();
+  try{const v=JSON.parse(localStorage.getItem(BMPI.k)||'{}')||{};v[id]=Date.now();localStorage.setItem(BMPI.k,JSON.stringify(v));}catch(e){}
+  clearTimeout(BMPI.tm);BMPI.tm=setTimeout(()=>b.classList.remove('on'),9000);
+}
+function bmPistasMira(){
+  try{
+    if(!esMovil()||!window.__BM_LISTO||document.hidden||Date.now()-BMPI.t<15000)return;
+    if(BMH.pila.length||document.body.classList.contains('sb-open')||document.body.classList.contains('modal-open')||document.querySelector('.bm-tv'))return;
+    if(localStorage.getItem(BMN.k)!==BMN.id)return;      /* primero la hoja de novedades; las pistas, después */
+    const v=document.querySelector('.view.on');if(!v)return;
+    let vistas={};try{vistas=JSON.parse(localStorage.getItem(BMPI.k)||'{}')||{};}catch(e){}
+    const hay=sel=>Array.prototype.some.call(v.querySelectorAll(sel),e=>{if(!e.checkVisibility||!e.checkVisibility())return false;const r=e.getBoundingClientRect();return r.height>0&&r.top<window.innerHeight&&r.bottom>0;});
+    for(let i=0;i<BMPI_L.length;i++){const p=BMPI_L[i];if(vistas[p[0]])continue;let ok=false;try{ok=!!p[1](v,hay);}catch(e){}if(ok){bmPista(p[0],p[2]);return;}}
+  }catch(e){console.error('bmnava · pistas',e);}
 }
 /* v588 · Las tablas que en el móvil hay que arrastrar de lado. Medidas el
    12/11/2026: nueve, y las peores se salen más de 600 px (el mapa de calor de
@@ -35093,6 +35177,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   injectPanelActions();
   restoreFromHash();
   window.__BM_LISTO=true;   /* v539 · a partir de aquí, navegar deja historial en el móvil */
+  try{setTimeout(()=>{if(typeof bmNovedadesSiToca==='function')bmNovedadesSiToca();},1800);}catch(e){}
   /* v388 · La barra del día se pinta varias veces durante el arranque, y la
      última que quedaba podía ser de antes de fijar la fecha: salía el aviso de
      «No es hoy» nada más abrir, estando en hoy. Se repinta al final, ya con la
@@ -40281,6 +40366,34 @@ html.bm-tv-on,html.bm-tv-on body{overflow:hidden}
   .tb-mas{width:48px;height:48px}
 }
 </style>
+<style id="movil-v590">
+/* v590 · «Novedades y gestos» y la pista de cada pantalla. Sólo las crea código
+   que antes pregunta esMovil(). */
+.bmn-f{display:flex;align-items:flex-start;gap:12px;padding:11px 14px}
+.bmn-f+.bmn-f{box-shadow:0 -.5px 0 var(--hair)}
+.bmn-f .ic{flex:none;width:28px;height:28px;display:grid;place-items:center;color:var(--accent)}
+.bmn-f .ic svg{width:24px;height:24px}
+.bmn-f .tx{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.bmn-f b{font-size:16px;font-weight:600;color:var(--txt)}
+.bmn-f small{font-size:13.5px;line-height:1.35;color:var(--muted)}
+.bmn .bmh-btn{margin-top:18px}
+#bm-pista{position:fixed;z-index:58;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));display:none;align-items:center;gap:10px;
+  box-sizing:border-box;padding:10px 6px 10px 12px;border-radius:16px;background:var(--bmh-bg);border:.5px solid var(--hair);
+  box-shadow:0 10px 30px rgba(0,0,0,.2),0 1px 3px rgba(0,0,0,.08)}
+#bm-pista.on{display:flex;animation:bmpEntra .28s cubic-bezier(.32,.72,0,1)}
+#bm-pista .pi-ic{flex:none;width:24px;height:24px;color:var(--accent)}
+#bm-pista .pi-ic svg{width:24px;height:24px;display:block}
+#bm-pista .pi-t{flex:1 1 auto;min-width:0;font-size:14px;line-height:1.35;color:var(--txt)}
+#bm-pista button{flex:none;min-height:44px;padding:0 10px;border:0;background:none;font-family:inherit;font-size:15px;font-weight:600;color:var(--accent)}
+body.con-pri #bm-pista{bottom:calc(152px + env(safe-area-inset-bottom))}
+body.sb-open #bm-pista,body.modal-open #bm-pista{display:none}
+@keyframes bmpEntra{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){#bm-pista.on{animation:none}}
+@media(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #bm-pista{left:calc(max(8px,env(safe-area-inset-left)) + 102px);right:max(16px,env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));max-width:520px}
+  body.con-pri #bm-pista{bottom:calc(72px + env(safe-area-inset-bottom))}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43846,8 +43959,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.10*/
-const VER_ACTUAL='2026-11-12.10';
+/*BUILD:2026-11-12.11*/
+const VER_ACTUAL='2026-11-12.11';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
