@@ -15154,7 +15154,9 @@ function bmPriDe(){
     return (sub==='vend'||!window.openFisioReg)?null:{l:'Registrar',ic:'mas',fn:()=>openFisioReg()};}
   if(v==='parte')return {l:'Compartir',ic:'comp',fn:()=>exportParte()};
   if(v==='jugador'&&window.openHeroForm&&STATE.curPlayer){const n=STATE.curPlayer;
-    return {l:'Parte del día',ic:'mas',fn:()=>openHeroForm('incidencia',n)};}
+    /* en la ficha la misma acción ya está en la fila de botones de arriba:
+       el botón flotante sólo aparece cuando esa fila ha salido de la pantalla */
+    return {l:'Parte del día',ic:'mas',fn:()=>openHeroForm('incidencia',n),tapa:'#v-jugador .phero-btns'};}
   return null;
 }
 function bmPriPinta(){
@@ -15163,11 +15165,15 @@ function bmPriPinta(){
   if(!d){if(b)b.classList.remove('on');document.body.classList.remove('con-pri');return;}
   if(!b){b=document.createElement('button');b.type='button';b.id='bm-pri';document.body.appendChild(b);
     b.addEventListener('click',()=>{try{if(b._fn)b._fn();}catch(e){console.error('bmnava · acción principal',e);}});}
-  b._fn=d.fn;b.innerHTML=BMP_IC[d.ic]+'<span>'+d.l+'</span>';b.setAttribute('aria-label',d.l);
-  b.classList.add('on');b.classList.remove('min');document.body.classList.add('con-pri');
+  b._fn=d.fn;b._tapa=d.tapa||'';b.innerHTML=BMP_IC[d.ic]+'<span>'+d.l+'</span>';b.setAttribute('aria-label',d.l);
+  b.classList.add('on');b.classList.remove('min');document.body.classList.add('con-pri');bmPriVe();
+  if(b._tapa){setTimeout(bmPriVe,300);setTimeout(bmPriVe,1000);}   /* la fila de arriba se pinta después de navegar */
 }
+function bmPriVe(){const b=document.getElementById('bm-pri');if(!b)return;let t=false;
+  if(b._tapa){const e=document.querySelector(b._tapa);if(e&&e.checkVisibility&&e.checkVisibility()){const r=e.getBoundingClientRect();t=r.bottom>70&&r.top<window.innerHeight-90;}}
+  b.classList.toggle('tap',t);}
 (function(){let y0=0;window.addEventListener('scroll',()=>{const b=document.getElementById('bm-pri');
-  const y=window.scrollY||0;if(b&&b.classList.contains('on')){if(y>y0+10&&y>140)b.classList.add('min');else if(y<y0-10||y<60)b.classList.remove('min');}y0=y;},{passive:true});})();
+  const y=window.scrollY||0;if(b&&b.classList.contains('on')){if(y>y0+10&&y>140)b.classList.add('min');else if(y<y0-10||y<60)b.classList.remove('min');if(b._tapa)bmPriVe();}y0=y;},{passive:true});})();
 /* Cierra lo que haya abierto ENCIMA de la pantalla, de arriba abajo, y dice si
    había algo. Lo usa el gesto «atrás»: con un diálogo abierto, atrás lo
    cierra; no cambia de pantalla por debajo de él. */
@@ -40235,6 +40241,7 @@ html[data-theme="dark"]{--toast-acc:#2747b0}
     box-shadow:0 8px 22px rgba(0,0,0,.22),0 1px 3px rgba(0,0,0,.12);-webkit-tap-highlight-color:transparent;
     transition:padding .22s cubic-bezier(.32,.72,0,1),transform .12s ease}
   #bm-pri.on{display:inline-flex}
+  #bm-pri.on.tap{display:none}
   #bm-pri svg{width:22px;height:22px;flex:none}
   #bm-pri span{display:inline-block;max-width:150px;overflow:hidden;white-space:nowrap;
     transition:max-width .22s cubic-bezier(.32,.72,0,1),opacity .15s ease,margin .22s cubic-bezier(.32,.72,0,1)}
@@ -43967,8 +43974,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.12*/
-const VER_ACTUAL='2026-11-12.12';
+/*BUILD:2026-11-12.13*/
+const VER_ACTUAL='2026-11-12.13';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
