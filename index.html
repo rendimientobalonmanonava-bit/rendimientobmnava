@@ -15582,29 +15582,70 @@ window.addEventListener('popstate',e=>{
    hace nada que no hiciera ya ese botón, así que la confirmación con la cifra
    de un cobro sigue saliendo. Un solo ayudante para todas las filas, por
    delegación: una fila nueva sólo necesita el atributo. */
+/* v600 · Como en Mail. Daniel, 12/11/2026, eligió la propuesta 8: «al
+   deslizar una fila aparecen detrás los botones de colores, en vez de solo un
+   texto». Al arrastrar a la izquierda asoman dos botones: el de la fila
+   (`data-sw`, rotulado con `data-sw-lab`: «Cobrar», «Ya pasó») en el color de
+   acción y, si la fila tiene a quién abrir, «Ficha» en gris. Soltar a medio
+   camino deja la fila ABIERTA con los dos a la vista; soltar habiendo pasado
+   más de la mitad de la fila hace la acción de la fila, como antes. Tocar
+   cualquier otro sitio la cierra. Los botones pulsan los MISMOS botones de la
+   fila: cobrar sigue pidiendo confirmación con la cifra. */
 (function(){
-  const UMB=96;let f=null,x0=0,y0=0,dx=0,modo=0;
-  const suelta=ok=>{
+  const ANCHO=78,HUECO=8;let f=null,x0=0,y0=0,dx=0,modo=0,base=0,abierta=null;
+  const ficha=g=>g.querySelector('[onclick*="openPlayer("],[onclick*="nutIrAJugador("]');
+  /* `data-sw` es una lista EN ORDEN de preferencia («.nuc-all,.nuc-chip»: cobrar
+     todo si existe, si no el único apunte). `querySelector` con la lista entera
+     devolvía el primero del documento —el primer apunte—, no el preferido. */
+  const prim=g=>{for(const q of String(g.dataset.sw||'').split(',')){let b=null;try{b=g.querySelector(q.trim());}catch(e){}if(b)return b;}return null;};
+  const capa=g=>{let c=g.querySelector(':scope>.sw-acc');if(c)return c;
+    c=document.createElement('div');c.className='sw-acc';c.setAttribute('aria-hidden','true');
+    const fi=ficha(g);
+    c.innerHTML=(fi?'<button type="button" class="sw-b sw-b-2" data-sw-k="ficha" tabindex="-1">Ficha</button>':'')
+      +'<button type="button" class="sw-b sw-b-1" data-sw-k="hace" tabindex="-1">'+bmEsc(g.dataset.swLab||'Hecho')+'</button>';
+    c.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const k=e.target.closest('[data-sw-k]');if(!k)return;
+      cierra(g);let b=null;
+      try{b=k.dataset.swK==='ficha'?ficha(g):prim(g);}catch(_){}
+      if(b)setTimeout(()=>b.click(),160);});
+    g.appendChild(c);return c;};
+  const abre=g=>{const c=capa(g);const w=c.children.length*ANCHO+HUECO;
+    g.style.transition='transform .3s cubic-bezier(.32,.72,0,1)';g.style.transform='translateX('+(-w)+'px)';
+    g.classList.add('sw-on','sw-abierta');abierta=g;};
+  const cierra=g=>{if(!g)return;g.style.transition='transform .28s cubic-bezier(.32,.72,0,1)';g.style.transform='';
+    g.classList.remove('sw-abierta','sw-listo');if(abierta===g)abierta=null;
+    setTimeout(()=>{if(!g.classList.contains('sw-abierta')&&g!==f){g.style.transition='';g.classList.remove('sw-on');const c=g.querySelector(':scope>.sw-acc');if(c)c.remove();}},300);};
+  const suelta=()=>{
     const g=f;f=null;if(!g)return;
-    g.style.transition='transform .28s cubic-bezier(.32,.72,0,1)';g.style.transform='';
-    setTimeout(()=>{g.style.transition='';g.classList.remove('sw-on','sw-listo');},300);
-    if(ok){let b=null;try{b=g.querySelector(g.dataset.sw);}catch(e){}if(b)setTimeout(()=>b.click(),140);}
+    if(modo!==1){return;}
+    const c=capa(g),w=c.children.length*ANCHO+HUECO,d=base+dx,lleno=-(g.getBoundingClientRect().width*0.55);
+    if(d<=lleno){cierra(g);const b=prim(g);if(b)setTimeout(()=>b.click(),140);return;}
+    if(d<=-w/2)abre(g);else cierra(g);
   };
   document.addEventListener('touchstart',e=>{
-    if(f||!esMovil()||e.touches.length!==1)return;
-    const g=e.target&&e.target.closest?e.target.closest('[data-sw]'):null;if(!g)return;
+    if(!esMovil()||e.touches.length!==1)return;
+    const g=e.target&&e.target.closest?e.target.closest('[data-sw]'):null;
+    if(abierta&&abierta!==g){cierra(abierta);}
+    if(f||!g)return;
+    if(e.target.closest('.sw-acc'))return;
     f=g;x0=e.touches[0].clientX;y0=e.touches[0].clientY;dx=0;modo=0;
+    base=g.classList.contains('sw-abierta')?-(capa(g).children.length*ANCHO+HUECO):0;
   },{passive:true});
   document.addEventListener('touchmove',e=>{
     if(!f)return;const t=e.touches[0];dx=t.clientX-x0;const dy=t.clientY-y0;
     if(!modo){
       if(Math.abs(dy)>10&&Math.abs(dy)>=Math.abs(dx)){f=null;return;}
-      if(dx<-12&&Math.abs(dx)>Math.abs(dy)*1.5){modo=1;f.classList.add('sw-on');}else return;
+      if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)*1.5&&(dx<0||base<0)){modo=1;f.classList.add('sw-on');capa(f);f.style.transition='none';}else return;
     }
-    const d=Math.max(-150,Math.min(0,dx));f.style.transform='translateX('+d+'px)';f.classList.toggle('sw-listo',d<=-UMB);
+    const W=f.getBoundingClientRect().width;
+    const d=Math.max(-W*0.8,Math.min(0,base+dx));f.style.transform='translateX('+d+'px)';
+    f.classList.toggle('sw-listo',d<=-(W*0.55));
   },{passive:true});
-  document.addEventListener('touchend',()=>{if(f)suelta(modo===1&&dx<=-UMB);},{passive:true});
-  document.addEventListener('touchcancel',()=>{if(f)suelta(false);},{passive:true});
+  document.addEventListener('touchend',()=>{if(f)suelta();},{passive:true});
+  document.addEventListener('touchcancel',()=>{const g=f;f=null;if(g)cierra(g);},{passive:true});
+  /* El toque que abre o cierra con el dedo no cuenta como pulsar la fila. */
+  document.addEventListener('click',e=>{if(!abierta)return;if(e.target.closest&&e.target.closest('.sw-acc'))return;
+    if(e.target.closest&&e.target.closest('[data-sw]')===abierta){e.preventDefault();e.stopPropagation();cierra(abierta);}},true);
+  window.addEventListener('scroll',()=>{if(abierta&&!f)cierra(abierta);},{passive:true});
 })();
 /* v553 · Deslizar de lado para pasar a lo de al lado, en el móvil: el mes o la
    semana siguiente en el Calendario, y la pestaña vecina donde hay pestañas.
@@ -41244,6 +41285,20 @@ html[data-theme="dark"] #bm-prev{background:rgba(0,0,0,.55)}
 @keyframes bmpMenu{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){#bm-prev.on,#bm-prev.sale,#bm-prev.on .bmp-tarjeta,#bm-prev.on .bmp-menu{animation:none}}
 </style>
+<style id="movil-v600">
+/* v600 · 8 · Los botones detrás de la fila. Sólo los crea el gesto, en el móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  [data-sw]::after{content:none!important}
+  [data-sw]>.sw-acc{position:absolute;top:0;bottom:0;left:calc(100% + 8px);display:flex;gap:0;border-radius:14px;overflow:hidden}
+  .sw-b{width:78px;height:100%;border:0;margin:0;padding:0 6px;font:inherit;font-size:13.5px;font-weight:600;line-height:1.2;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;text-align:center;touch-action:manipulation}
+  .sw-b-1{background:var(--accent);color:var(--on-accent)}
+  .sw-b-2{background:var(--gi-pizarra,#64748b);color:#fff}
+  [data-sw].sw-listo>.sw-acc .sw-b-2{width:0;padding:0;overflow:hidden}
+  [data-sw].sw-listo>.sw-acc .sw-b-1{width:140px}
+  .sw-b{transition:width .18s ease}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44809,8 +44864,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.22*/
-const VER_ACTUAL='2026-11-12.22';
+/*BUILD:2026-11-12.23*/
+const VER_ACTUAL='2026-11-12.23';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
