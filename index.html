@@ -15539,12 +15539,12 @@ function go(v){const _y0=window.scrollY||0;const ESUB={dispo:1,medico:1,parte:1,
   if(!document.getElementById('v-'+realV)){
     console.warn('bmnava · vista desconocida «'+v+'»: se abre el Resumen');
     v='equipo';realV='equipo';
-  }document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));const sec=document.getElementById('v-'+realV);if(sec)sec.classList.add('on');sbMark(v);
+  }try{bmvSale(realV);}catch(e){console.error('bmnava · transición',e);}document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));const sec=document.getElementById('v-'+realV);if(sec)sec.classList.add('on');sbMark(v);
   document.querySelectorAll('#nav button').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('#nav [data-v="'+v+'"]').forEach(b=>b.classList.add('on'));
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
-  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}if(FILTER.cargaTab==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='nutri'){try{renderNutri();}catch(e){console.error('bmnava · nutrición',e);}}if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();const _pv=STATE.view;STATE.view=v;try{document.documentElement.dataset.nav=window.__BM_POP?'atr':(window.__BM_TAB?'tab':'ade');}catch(e){}writeHash(!!_pv&&_pv!==v,_y0);try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');try{bmTitulo(v);}catch(e){}try{bmUltPon({v:v,pl:(v==='jugador'?(STATE.curPlayer||''):''),y:0});}catch(e){}try{setTimeout(bmVacios,80);setTimeout(bmVacios,900);}catch(e){}}
+  window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}if(FILTER.cargaTab==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='nutri'){try{renderNutri();}catch(e){console.error('bmnava · nutrición',e);}}if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();const _pv=STATE.view;STATE.view=v;try{document.documentElement.dataset.nav=bmvSentido();window.__BM_DE=_pv;}catch(e){}writeHash(!!_pv&&_pv!==v,_y0);try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');try{bmTitulo(v);}catch(e){}try{bmUltPon({v:v,pl:(v==='jugador'?(STATE.curPlayer||''):''),y:0});}catch(e){}try{setTimeout(bmVacios,80);setTimeout(bmVacios,900);}catch(e){}}
 /* v562 · El título de la pantalla, en corto, dentro de la cápsula del día. En
    el móvil aparece ahí cuando el título grande se ha ido por arriba: es el
    gesto de cualquier app de teléfono, y evita no saber en qué pantalla se
@@ -15571,12 +15571,15 @@ function bmVacios(){
   });
 }
 document.addEventListener('click',()=>{if(esMovil())setTimeout(bmVacios,380);});
-function bmTitulo(v){
-  const t=document.getElementById('dp-tit');if(!t)return;
+function bmNombreVista(v){
   let n='';
   if(v==='jugador')n=String(STATE.curPlayer||'Jugador').split(' ').slice(0,2).join(' ');
   else{NAV.forEach(g=>{if(g.v===v)n=g.label;(g.items||[]).forEach(it=>{if(it[0]===v)n=it[1];});});if(v==='estado')n='Disponibilidad';}
-  t.textContent=n;
+  return n;
+}
+function bmTitulo(v){
+  const t=document.getElementById('dp-tit');if(!t)return;
+  t.textContent=bmNombreVista(v);
 }
 function writeHash(push,y0){
   /* v388 · Lo mismo con la dirección: si se escribía durante el recorrido, la
@@ -15588,10 +15591,123 @@ function writeHash(push,y0){
        app. Cambiar de día sigue reemplazando, como siempre. La entrada que se
        deja atrás se lleva su desplazamiento para poder volver a él. */
     if(push&&window.__BM_LISTO&&!window.__BM_POP&&!window.__BM_NOHIST&&esMovil()){
-      try{history.replaceState({y:y0||0},'');}catch(e){}
-      history.pushState(null,'',h);
-    }else history.replaceState(null,'',h);
-  }}
+      try{history.replaceState(Object.assign({},history.state||{},{y:y0||0}),'');}catch(e){}
+      /* v594 · Un paso ADELANTE (un enlace dentro de una pantalla, abrir una
+         ficha) deja dicho de dónde viene: con eso sale el botón atrás. Lo que se
+         elige en la barra o en «Más» es una pestaña y el Resumen es la portada:
+         ninguna de las dos cosas tiene «atrás», como en cualquier app. */
+      const _n=document.documentElement.dataset.nav;
+      history.pushState((_n==='ade'&&v!=='equipo')?{push:1,de:bmNombreVista(window.__BM_DE||'equipo')}:null,'',h);
+    }else history.replaceState(history.state,'',h);
+  }try{bmAtrasPinta();}catch(e){}}
+/* ===== v594 · La navegación de un teléfono =====
+   Daniel, 12/11/2026, eligió la propuesta 1: «en la ficha o en un día, arriba
+   sale atrás… la pantalla entra desde la derecha y se arrastra para volver».
+   Tres piezas, todas sólo en el diseño de móvil:
+   · EL BOTÓN ATRÁS. Ocupa el sitio del escudo cuando la pantalla se abrió como
+     un paso adelante (`history.state.push`, que pone `writeHash`). Es un
+     círculo con el cheurón, como en iOS 26: el nombre de la pantalla a la que
+     vuelve va en `aria-label`. Pulsarlo es `history.back()`, o sea lo mismo que
+     el gesto del sistema: no hay un segundo camino.
+   · LA PANTALLA QUE SE VA. `go()` apagaba la vista de golpe y la nueva entraba
+     22 px. Ahora la que se va se queda pintada, fija donde estaba, y se aparta
+     mientras la nueva llega desde el borde —desde la derecha al avanzar, por
+     debajo al volver—. Es la MISMA vista: no se copia nada. A los 420 ms vuelve
+     a su sitio y se apaga. Con «menos movimiento» no se hace.
+   · DESLIZAR DESDE EL BORDE. Con la app instalada, iOS no da el gesto de
+     volver (en Safari sí, y entonces no se toca). Desde el borde izquierdo, la
+     pantalla sigue al dedo y al soltar pasado un tercio —o rápido— vuelve. */
+function bmvSentido(){
+  if(window.__BM_POP)return 'atr';
+  if(window.__BM_TAB||document.body.classList.contains('sb-open'))return 'tab';
+  return 'ade';
+}
+const BMV2={t:0,v:null};
+function bmvLimpia(){
+  clearTimeout(BMV2.t);const v=BMV2.v;BMV2.v=null;
+  document.documentElement.classList.remove('vw-anda');
+  if(v){v.classList.remove('vw-sale');v.style.cssText=v._bmvCss||'';try{v.scrollTop=0;}catch(e){}}
+}
+function bmvSale(dest){
+  if(!esMovil()||!window.__BM_LISTO)return;
+  const nav=bmvSentido();
+  document.documentElement.dataset.nav=nav;
+  bmvLimpia();
+  if(nav==='tab'||window.__BM_ARR)return;
+  try{if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;}catch(e){}
+  const v=document.querySelector('main .view.on');if(!v||v.id==='v-'+dest)return;
+  const r=v.getBoundingClientRect(),vh=window.innerHeight||800;
+  const top=Math.max(0,r.top),dentro=Math.max(0,-r.top);
+  v._bmvCss=v.getAttribute('style')||'';
+  v.style.cssText=v._bmvCss+';position:fixed;left:'+r.left+'px;width:'+r.width+'px;top:'+top+'px;height:'+(vh-top)+'px;overflow:hidden;margin:0';
+  v.classList.add('vw-sale');
+  try{v.scrollTop=dentro;}catch(e){}
+  BMV2.v=v;document.documentElement.classList.add('vw-anda');
+  BMV2.t=setTimeout(bmvLimpia,430);
+}
+function bmAtrasPinta(){
+  const b=document.getElementById('bm-atras');
+  const st=history.state||{};const p=!!(esMovil()&&window.__BM_LISTO&&st.push);
+  document.body.classList.toggle('bm-push',p);
+  if(b){b.setAttribute('aria-label','Atrás'+(st.de?': '+st.de:''));b.title='Volver'+(st.de?' a '+st.de:'');}
+}
+function bmAtrasMonta(){
+  if(!esMovil()||document.getElementById('bm-atras'))return;
+  const bar=document.querySelector('header .bar');const lk=bar&&bar.querySelector('.lockup');if(!lk)return;
+  const b=document.createElement('button');b.type='button';b.id='bm-atras';b.className='bm-atras';
+  b.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>';
+  b.addEventListener('click',()=>{if(history.state&&history.state.push)history.back();});
+  bar.insertBefore(b,lk);bmAtrasPinta();
+}
+window.addEventListener('popstate',()=>{setTimeout(()=>{try{bmAtrasPinta();}catch(e){}},0);});
+document.addEventListener('DOMContentLoaded',()=>{try{bmAtrasMonta();}catch(e){}});
+try{if(document.readyState!=='loading')setTimeout(bmAtrasMonta,0);}catch(e){}
+/* ¿Hay algo abierto encima? Mientras lo haya, el borde no es «atrás». */
+function bmCapaAbierta(){
+  const vis=id=>{const e=document.getElementById(id);return !!(e&&getComputedStyle(e).display!=='none');};
+  if((window.BMG&&BMG.ch)||(window.BMH&&BMH.pila&&BMH.pila.length))return true;
+  if(document.querySelector('.bm-tv'))return true;
+  if(vis('iso-overlay')||vis('ficha-overlay')||vis('ph-overlay')||vis('med-overlay'))return true;
+  const d=document.getElementById('drawer');if(d&&d.classList.contains('on'))return true;
+  return document.body.classList.contains('sb-open');
+}
+const bmInstalada=()=>{try{return navigator.standalone===true||matchMedia('(display-mode: standalone)').matches;}catch(e){return false;}};
+(function(){
+  let t=null;const m=()=>document.querySelector('main');
+  const fin=(ok)=>{
+    const g=t;t=null;if(!g||!g.on)return;const el=m();if(!el)return;const W=window.innerWidth||375;
+    el.style.transition='transform .24s cubic-bezier(.32,.72,0,1)';
+    el.style.transform=ok?'translateX('+W+'px)':'';
+    const quita=()=>{el.style.transition='';el.style.transform='';el.style.visibility='';el.style.boxShadow='';el.classList.remove('bm-arr');window.__BM_ARR=false;};
+    if(!ok){setTimeout(quita,260);return;}
+    setTimeout(()=>{
+      el.style.visibility='hidden';window.__BM_ARR=true;
+      const vuelve=()=>{window.removeEventListener('popstate',vuelve);setTimeout(quita,0);};
+      window.addEventListener('popstate',vuelve);setTimeout(()=>{if(window.__BM_ARR)vuelve();},800);
+      history.back();
+    },240);
+  };
+  document.addEventListener('touchstart',e=>{
+    t=null;if(!esMovil()||!bmInstalada()||!document.body.classList.contains('bm-push'))return;
+    if(e.touches.length!==1)return;const p=e.touches[0];if(p.clientX>22)return;
+    if(bmCapaAbierta())return;
+    t={x:p.clientX,y:p.clientY,t:Date.now(),on:false,dx:0};
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!t)return;const p=e.touches[0];const dx=p.clientX-t.x,dy=p.clientY-t.y;
+    if(!t.on){
+      if(Math.abs(dy)>12&&Math.abs(dy)>dx){t=null;return;}
+      if(dx<10)return;
+      t.on=true;const el=m();if(el){el.classList.add('bm-arr');el.style.transition='none';}
+    }
+    t.dx=Math.max(0,dx);const el=m();if(el)el.style.transform='translateX('+t.dx+'px)';
+  },{passive:true});
+  document.addEventListener('touchend',()=>{
+    if(!t)return;const W=window.innerWidth||375,dt=Math.max(1,Date.now()-t.t);
+    fin(t.on&&(t.dx>W*0.33||(t.dx>40&&t.dx/dt>0.5)));
+  },{passive:true});
+  document.addEventListener('touchcancel',()=>{if(t)fin(false);},{passive:true});
+})();
 function readHash(){const h=decodeURIComponent(location.hash.replace(/^#/,''));if(!h)return null;const p=h.split('/');const v=p[0];if(!TABS.some(t=>t[0]===v))return null;return{view:v,date:p[1]||null};}
 const TABS=[["equipo","Equipo"],["estado","Estado del equipo"],["dispo","Disponibilidad"],["medico","Médico"],["cal","Calendario"],["jugador","Jugador"],["jugadores","Jugadores"],["carga","Carga"],["hr","Pulsómetros"],["parte","Parte wellness"],["fisio","Fisioterapia"],["nutri","Nutrición"],["tests","Perfil físico"],["alertas","Alertas"],["config","Conexión"]];
 const NAV=[
@@ -35319,6 +35435,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   injectPanelActions();
   restoreFromHash();
   window.__BM_LISTO=true;   /* v539 · a partir de aquí, navegar deja historial en el móvil */
+  try{bmAtrasPinta();}catch(e){}
   try{setTimeout(()=>{if(typeof bmNovedadesSiToca==='function')bmNovedadesSiToca();},1800);}catch(e){}
   /* v388 · La barra del día se pinta varias veces durante el arranque, y la
      última que quedaba podía ser de antes de fijar la fecha: salía el aviso de
@@ -40620,6 +40737,37 @@ body.sb-open #bm-pista,body.modal-open #bm-pista{display:none}
 .bm-sim-w{display:contents}
 .bm-sim{display:inline-block;width:1.05em;height:1.05em;vertical-align:-.16em;margin-right:.32em;flex:none}
 </style>
+<style id="movil-v594">
+/* v594 · El botón atrás y el paso de una pantalla a otra. El botón sólo lo crea
+   código que antes pregunta esMovil(); la regla de fuera de la condición sólo
+   lo oculta. */
+#bm-atras{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #bm-atras{pointer-events:auto;flex:none;width:46px;height:46px;padding:0;border-radius:50%;align-items:center;justify-content:center;
+    background:var(--tb-solido);color:var(--accent);border:.5px solid var(--tb-borde);box-shadow:var(--tb-sombra);cursor:pointer}
+  #bm-atras:active{opacity:.55}
+  body.bm-push #bm-atras{display:inline-flex}
+  body.bm-push header .lockup{display:none!important}
+  /* el enlace de vuelta de la ficha repetía el botón de arriba */
+  body.bm-push #v-jugador button.back{display:none}
+  /* La pantalla que se va: fija donde estaba, con el fondo del lienzo para que
+     no se transparente la que llega. */
+  .view.vw-sale{display:block!important;z-index:2;pointer-events:none;background:var(--bg);
+    box-shadow:0 0 0 16px var(--bg)}
+  html.vw-anda[data-nav="ade"] .view.vw-sale{z-index:1;animation:vwSaleIzq .42s cubic-bezier(.32,.72,0,1) forwards}
+  html.vw-anda[data-nav="ade"] .view.on{position:relative;z-index:2;background:var(--bg);min-height:100vh;
+    box-shadow:0 0 0 16px var(--bg),-18px 0 34px rgba(0,0,0,.16);animation:vwEntraDer .42s cubic-bezier(.32,.72,0,1)}
+  html.vw-anda[data-nav="atr"] .view.vw-sale{z-index:3;box-shadow:0 0 0 16px var(--bg),-18px 0 34px rgba(0,0,0,.16);
+    animation:vwSaleDer .38s cubic-bezier(.32,.72,0,1) forwards}
+  html.vw-anda[data-nav="atr"] .view.on{position:relative;z-index:1;animation:vwEntraIzq .38s cubic-bezier(.32,.72,0,1)}
+  /* El arrastre desde el borde: la pantalla sigue al dedo con su sombra. */
+  main.bm-arr{will-change:transform;box-shadow:-18px 0 34px rgba(0,0,0,.16);background:var(--bg)}
+}
+@keyframes vwEntraDer{from{transform:translateX(100%)}to{transform:none}}
+@keyframes vwSaleIzq{from{transform:none;opacity:1}to{transform:translateX(-28%);opacity:.55}}
+@keyframes vwSaleDer{from{transform:none}to{transform:translateX(100%)}}
+@keyframes vwEntraIzq{from{transform:translateX(-28%);opacity:.6}to{transform:none;opacity:1}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44185,8 +44333,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.16*/
-const VER_ACTUAL='2026-11-12.16';
+/*BUILD:2026-11-12.17*/
+const VER_ACTUAL='2026-11-12.17';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
