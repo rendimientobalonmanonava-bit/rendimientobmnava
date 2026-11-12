@@ -14391,13 +14391,72 @@ function bmlEscala(){
   f=Math.max(BML.pasos[0],Math.min(BML.pasos[BML.pasos.length-1],f));
   return BML.pasos.reduce((a,b)=>Math.abs(b-f)<Math.abs(a-f)?b:a);
 }
+/* v592 · El sistema visual del móvil: una escala de letra, tres radios y dos
+   sombras. Se hace en la MISMA pasada que ya reescribe la hoja para el tamaño
+   de letra (`bmlReescribe`, sólo en el diseño de móvil) y nunca cambia un
+   valor: lo envuelve en una variable con el original de respaldo —
+   `var(--t13,13px)`— y es `#bm-sistema` quien da el valor nuevo, dentro de la
+   condición de móvil y devolviendo el original en los documentos, la cabecera
+   y la barra. Quitando ese bloque, todo vuelve a como estaba.
+   · LETRA: cada tamaño cae en el escalón más cercano de los seis de §3
+     (34 · 24 · 17 · 14 · 12,5 · 11); de 36 px para arriba son cifras de
+     exhibición y se dejan. Los pesos, a cuatro: 550–650 → 600 y 750–900 → 700.
+   · RADIOS: sólo hacia ARRIBA, porque bajar uno rompe los círculos (un botón
+     de 44 px con radio 22 dejaría de ser redondo): 9–11 → 12 y 15–19 → 20.
+   · SOMBRAS: la de tarjeta y la de lo que flota. Lo que va DENTRO de una
+     tarjeta se queda sin sombra (`--sh-hijo`): en iOS una tarjeta no lleva
+     tarjetas con relieve dentro. No se tocan las interiores, los filos de
+     0 de desenfoque ni las de menos de 6 px. */
+const BME={t:{},w:{},r:{},css:'',hojas:new WeakSet(),n:0};
+const BME_W={'550':600,'590':600,'650':600,'750':700,'800':700,'850':700,'900':700};
+const bmeK=n=>String(n).replace('.','_');
+function bmeT(n){if(n<11.75)return 11;if(n<13.25)return 12.5;if(n<15.5)return 14;if(n<20.5)return 17;if(n<29)return 24;if(n<36)return 34;return n;}
+function bmeTam(v){v=String(v).trim();const n=parseFloat(v),t=bmeT(n);if(t===n)return v;const k=bmeK(n);BME.t[k]=[n,t];return 'var(--t'+k+','+v+')';}
+function bmeRadio(v){return String(v).replace(/(^|[\s/])(\d+(?:\.\d+)?)px/g,(m,pre,num)=>{const n=+num,t=(n>=9&&n<12)?12:((n>=15&&n<20)?20:n);
+  if(t===n)return m;const k=bmeK(n);BME.r[k]=[n,t];return pre+'var(--r'+k+','+num+'px)';});}
+function bmeSombra(v){
+  v=String(v||'').trim();if(!v||v==='none'||v.indexOf('--sh')>=0)return null;
+  if(/^var\(--(lg-shadow|e1|e2)\)$/.test(v))return 'var(--sh-hijo,var(--sh1,'+v+'))';
+  if(/^var\(--e3\)$/.test(v))return 'var(--sh2,'+v+')';
+  const capas=[];let p=0,b='';for(const ch of v){if(ch==='(')p++;else if(ch===')')p--;if(ch===','&&p===0){capas.push(b);b='';}else b+=ch;}capas.push(b);
+  let max=0;
+  for(const c0 of capas){if(/\binset\b/.test(c0))return null;let c=c0;
+    for(let i=0;i<4&&/\(/.test(c);i++)c=c.replace(/[a-z-]*\([^()]*\)/gi,' ');
+    const t=c.replace(/#[0-9a-f]{3,8}\b/gi,' ').trim().split(/\s+/).filter(x=>/^-?[\d.]+(px)?$/.test(x));
+    if(t.length<3)return null;const bl=parseFloat(t[2]);if(!(bl>0))return null;if(bl>max)max=bl;}
+  if(max<6)return null;
+  return max>18?'var(--sh2,'+v+')':'var(--sh-hijo,var(--sh1,'+v+'))';
+}
+function bmeUna(st){
+  try{const w=st.getPropertyValue('font-weight').trim();if(BME_W[w]){BME.w[w]=[w,BME_W[w]];st.setProperty('font-weight','var(--w'+w+','+w+')',st.getPropertyPriority('font-weight'));}}catch(e){}
+  try{const r=st.getPropertyValue('border-radius');
+    if(r){const n=bmeRadio(r);if(n!==r)st.setProperty('border-radius',n,st.getPropertyPriority('border-radius'));}
+    else['border-top-left-radius','border-top-right-radius','border-bottom-left-radius','border-bottom-right-radius'].forEach(pr=>{const v=st.getPropertyValue(pr);if(!v)return;const n=bmeRadio(v);if(n!==v)st.setProperty(pr,n,st.getPropertyPriority(pr));});}catch(e){}
+  try{const sh=st.getPropertyValue('box-shadow');const n=bmeSombra(sh);if(n)st.setProperty('box-shadow',n,st.getPropertyPriority('box-shadow'));}catch(e){}
+}
+function bmeEstilo(){
+  const lista=(o,p,i)=>Object.keys(o).map(k=>'--'+p+k+':'+o[k][i]+(p==='w'?'':'px'));
+  const mov=lista(BME.t,'t',1).concat(lista(BME.w,'w',1),lista(BME.r,'r',1)).join(';');
+  const ori=lista(BME.t,'t',0).concat(lista(BME.w,'w',0),lista(BME.r,'r',0)).join(';');
+  const css='@media '+BME_MOV+'{:root{'+mov+';--sh1:var(--lg-shadow);--sh2:0 10px 30px rgba(20,29,46,.16),0 1px 3px rgba(20,29,46,.07)}'
+    +'html[data-theme="dark"]{--sh2:0 10px 30px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.35)}'
+    +'.panel>*{--sh-hijo:none}}'
+    +BME_EXC+'{'+ori+';--sh1:initial;--sh2:initial;--sh-hijo:initial}';
+  if(css===BME.css)return;BME.css=css;
+  let el=document.getElementById('bm-sistema');
+  if(!el){el=document.createElement('style');el.id='bm-sistema';document.head.appendChild(el);}
+  el.textContent=css;
+}
+const BME_MOV='(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse)';
+const BME_EXC='header,#tabbar,.sb-tools,svg,#parte-card,.pt-card,.ficha-card,.ficha-overlay,.sa-page,.sa-page-wk,.a4-page,#sescal-a4-page,.iso-hoja,#iso-overlay,#fis-cap-png,#sy-gate,#splash';
 function bmlReescribe(){
   const una=st=>{
     /* v579 · Además del factor, un SUELO: `--fmin` vale 11 px en el móvil y 0 en
        los documentos, las barras y los SVG. Un tamaño de 0 —el truco para
        esconder un texto y dejar el icono— no se toca. */
     try{const v=st.getPropertyValue('font-size');
-      if(v&&/^\s*[0-9.]+px\s*$/.test(v)&&parseFloat(v)>=1)st.setProperty('font-size','max(var(--fmin,0px),calc('+v.trim()+' * var(--ft,1)))',st.getPropertyPriority('font-size'));}catch(e){}
+      if(v&&/^\s*[0-9.]+px\s*$/.test(v)&&parseFloat(v)>=1)st.setProperty('font-size','max(var(--fmin,0px),calc('+bmeTam(v)+' * var(--ft,1)))',st.getPropertyPriority('font-size'));}catch(e){}
+    bmeUna(st);
     try{for(let i=0;i<st.length;i++){const n=st[i];if(n.indexOf('--fs-')===0){const v=st.getPropertyValue(n);
       if(/^\s*[0-9.]+px\s*$/.test(v))st.setProperty(n,'calc('+v.trim()+' * var(--ft,1))');}}}catch(e){}
   };
@@ -14406,7 +14465,13 @@ function bmlReescribe(){
     /* sólo se baja a las reglas de agrupación (@media, @supports): una regla de
        estilo también expone `cssRules` y no hay que recorrerla dos veces */
     else if(r.cssRules&&(r.media||r.conditionText!=null))baja(r.cssRules);}};
-  for(let i=0;i<document.styleSheets.length;i++){let rs=null;try{rs=document.styleSheets[i].cssRules;}catch(e){continue;}if(rs)baja(rs);}
+  /* v592 · Cada hoja una sola vez: las que algún módulo añade después (al
+     pintar su pantalla) se reescriben cuando aparecen, desde `bmFormasYa`. */
+  for(let i=0;i<document.styleSheets.length;i++){const sh=document.styleSheets[i],on=sh.ownerNode;
+    if(on&&(on.id==='bm-sistema'||BME.hojas.has(on)))continue;
+    let rs=null;try{rs=sh.cssRules;}catch(e){continue;}if(on)BME.hojas.add(on);if(rs)baja(rs);}
+  BME.n=document.styleSheets.length;
+  bmeEstilo();
 }
 /* Los tamaños escritos en línea, que la hoja no alcanza. */
 function bmlEnLinea(){
@@ -14414,7 +14479,10 @@ function bmlEnLinea(){
   document.querySelectorAll('main [style*="font-size"],.bmh [style*="font-size"],#sidebar [style*="font-size"],.med-modal [style*="font-size"],.info-modal [style*="font-size"]').forEach(e=>{
     const v=e.style.fontSize;if(!v||v.indexOf('var(')>=0||!/px$/.test(v))return;
     if(e.closest('svg,header,#tabbar')||parseFloat(v)<1)return;
-    e.style.fontSize='max(var(--fmin,0px),calc('+v+' * var(--ft,1)))';});
+    e.style.fontSize='max(var(--fmin,0px),calc('+bmeTam(v)+' * var(--ft,1)))';});
+  document.querySelectorAll('main [style*="font-weight"],.bmh [style*="font-weight"],.med-modal [style*="font-weight"],.info-modal [style*="font-weight"]').forEach(e=>{
+    const w=e.style.fontWeight;if(!BME_W[w]||e.closest('svg,'+BME_EXC))return;BME.w[w]=[w,BME_W[w]];e.style.fontWeight='var(--w'+w+','+w+')';});
+  bmeEstilo();
 }
 function bmlAplica(){
   const raiz=document.documentElement;
@@ -14775,7 +14843,52 @@ function bmPulido(){
     b.textContent=n;});});
   try{if(typeof bmPulidoMas==='function')bmPulidoMas();}catch(e){console.error('bmnava · acabado',e);}
 }
-function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(()=>{bmFormas();try{bmTablas();}catch(e){}try{bmPulido();}catch(e){}},80);}
+/* v593 · 8 · Lo que la pasada de acabado hace además, en el móvil:
+   · los colores del SEMÁFORO escritos a mano en un `style` (puntos, barras,
+     píldoras teñidas) pasan a su token, que vira con el tema — en oscuro el
+     semáforo sube de luz (§3) y un rojo fijo se quedaba con el tono del claro.
+     Sólo los cinco hexadecimales que la app usa como semáforo; los colores de
+     categoría (zonas, tipos de sesión) no son semáforo y no se tocan. Un hex
+     de RESPALDO dentro de `var(--x,#hex)` tampoco: ya está bien escrito.
+   · los emoji que quedaban en botones y avisos (⚠ 👐 ▶ ⚕) pasan a un dibujo
+     de línea del mismo trazo que el resto de iconos: un emoji de color en una
+     interfaz se lee como un mensaje de chat, no como una app.
+   Los documentos que se exportan no se tocan. */
+const BMS_HEX={'e23b32':'bad','dc2626':'bad','1ea863':'ok','16a34a':'ok','e08a00':'warn'};
+const BMS_RE=/(:\s*|srgb,\s*)#(e23b32|dc2626|1ea863|16a34a|e08a00)\b/gi;
+const BMS_DOC='svg text,#parte-card,.pt-card,.ficha-card,.ficha-overlay,.sa-page,.sa-page-wk,.a4-page,#sescal-a4-page,.iso-hoja,#iso-overlay,#fis-cap-png';
+const BMS_I=d=>'<svg class="bm-sim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
+const BMS_SIM={'⚠':BMS_I('<path d="M10.3 4.2 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4.2M12 17h.01"/>'),
+  '👐':BMS_I('<path d="M9 11.5V5a1.8 1.8 0 0 1 3.6 0v5.5"/><path d="M12.6 10.5V9a1.7 1.7 0 0 1 3.4 0v2"/><path d="M16 11v-.5a1.7 1.7 0 0 1 3.4 0V15a6.5 6.5 0 0 1-6.5 6.5h-1.2a5 5 0 0 1-4-2L5 15.5a1.7 1.7 0 0 1 2.6-2.2L9 14.5"/>'),
+  '▶':BMS_I('<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>'),
+  '⚕':BMS_I('<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/>')};
+const BMS_SRE=/[⚠\u{1F450}▶⚕]️?/u;
+function bmPulidoMas(){
+  document.querySelectorAll('main [style*="#"],.bmh [style*="#"],.med-modal [style*="#"],.info-modal [style*="#"]').forEach(e=>{
+    const st=e.getAttribute('style');if(!st||!BMS_RE.test(st))return;BMS_RE.lastIndex=0;
+    if(e.closest(BMS_DOC))return;
+    /* sobre una LETRA el semáforo va en su variante -text (§3: el color vivo
+       vale para un punto, no para una palabra); en lo demás, el color vivo */
+    e.setAttribute('style',st.replace(/((?:^|;)\s*color\s*:\s*)#(e23b32|dc2626|1ea863|16a34a|e08a00)\b/gi,(m,pre,h)=>pre+'var(--'+BMS_HEX[h.toLowerCase()]+'-text)')
+      .replace(BMS_RE,(m,pre,h)=>pre+'var(--'+BMS_HEX[h.toLowerCase()]+')'));});
+  /* el color de una categoría escrito a mano sobre una letra (el violeta de una
+     métrica, el azul de otra) se mezcla con la tinta del tema, como hace
+     `colTinta`: en oscuro un #6d5ae0 sobre el panel daba 3,2:1. Si la misma
+     pieza pone su propio fondo, el color ya está elegido para él y no se toca. */
+  document.querySelectorAll('main [style*="color:#"],main [style*="color: #"]').forEach(e=>{
+    const st=e.getAttribute('style');if(!st||/background/.test(st)||e.closest(BMS_DOC))return;
+    const n=st.replace(/((?:^|;)\s*color\s*:\s*)#([0-9a-f]{3}|[0-9a-f]{6})\b/i,(m,pre,h)=>/^(fff|ffffff|000|000000|141a24)$/i.test(h)?m:pre+'color-mix(in srgb,#'+h+' 50%,var(--txt))');
+    if(n!==st)e.setAttribute('style',n);});
+  const raiz=document.querySelector('main');if(!raiz)return;
+  const tw=document.createTreeWalker(raiz,NodeFilter.SHOW_TEXT,{acceptNode:n=>BMS_SRE.test(n.nodeValue)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT});
+  const nodos=[];let n;while((n=tw.nextNode()))nodos.push(n);
+  nodos.forEach(t=>{const p=t.parentElement;if(!p||p.closest(BMS_DOC+',.emo,.vac-ic,option,textarea,title'))return;
+    const frag=document.createElement('span');frag.className='bm-sim-w';
+    frag.innerHTML=t.nodeValue.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/([⚠\u{1F450}▶⚕])️?\s?/gu,(m,g)=>BMS_SIM[g]||m);
+    p.replaceChild(frag,t);});
+}
+function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(()=>{bmFormas();try{bmTablas();}catch(e){}try{bmPulido();}catch(e){}
+  try{if(BML.hecho&&document.styleSheets.length!==BME.n){bmlReescribe();bmlEnLinea();}}catch(e){}},80);}
 (function(){
   let mq=null;try{mq=window.matchMedia('(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse)');}catch(e){}
   const arma=()=>{if(!mq||!mq.matches||BMF_OBS||!document.body)return;
@@ -40481,6 +40594,32 @@ body.sb-open #bm-pista,body.modal-open #bm-pista{display:none}
   .cargas-tabwrap .cargas-seg{overflow-x:visible}
 }
 </style>
+<style id="movil-v592">
+/* v592 · 7 · Tarjetas sin borde. Una tarjeta del móvil se separa del fondo por
+   su sombra y lo que va dentro de ella por su relleno: el filo gris de medio
+   punto encima de las dos cosas es lo que la hacía parecer una web. Sólo se
+   quita el filo NEUTRO y sólo en piezas con relleno propio: los estados (hoy,
+   elegido, aviso) llevan un selector más fuerte y conservan el suyo. Los
+   campos de formulario y las fotos lo conservan. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  /* las tarjetas sueltas sobre el fondo: la capa de cristal les pone el filo con !important */
+  main .panel,main details.panel,main .pcard,main .kpi,main .card-pro,main .eq-tile,main .zc,main .ctrlrow{border-color:transparent!important}
+  main .pcard,main .kpi,main .card-pro,main .eq-tile,main .zc,main .fis-d,main .ctrlrow,main .cal-cell,main .fc-d,
+  main .med-chipbtn,main .lbc-kpi,main .fh-it,main .nuc-c,main .tsum-t,main .cw-col,main .posband-card,main .asum,
+  main .tsum-cat,main .cap-card,main .cap-cell,main .med-chip,main .tl-chip,main .hrn-b,main .vac-a,main .fh-tratar,
+  main .fh-visto,main .vh-po-base,main .hrp-nav{border-color:transparent}
+  #v-alertas .atype{white-space:normal;overflow:visible;text-overflow:clip}
+  /* 4 · el título de cada pantalla es el Large Title de iOS (34), no el 28 que
+     tenía: al escalón por su PAPEL, no por cercanía (§3) */
+  .pagehead h1,.view>.ctrlrow>div>h2{--t28:34px;--t22:34px}
+}
+</style>
+<style id="movil-v593">
+/* v593 · Los símbolos dibujados que sustituyen a los emoji. Sólo los pone
+   código que antes pregunta esMovil(). */
+.bm-sim-w{display:contents}
+.bm-sim{display:inline-block;width:1.05em;height:1.05em;vertical-align:-.16em;margin-right:.32em;flex:none}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44046,8 +44185,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.14*/
-const VER_ACTUAL='2026-11-12.14';
+/*BUILD:2026-11-12.16*/
+const VER_ACTUAL='2026-11-12.16';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
