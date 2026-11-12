@@ -14868,6 +14868,59 @@ function bmEntregaPNG(cv,filename){
     if(bg)bg.onclick=()=>{baja(url);toast('Imagen guardada');bmHojaCierra('bmh-comp');};
   },'image/png');
 }
+/* v585 · Lo que en el ordenador se lee dejando el ratón encima, en el móvil
+   sale al tocar. Medido el 12/11/2026: unas 210 explicaciones a la vista en
+   las pantallas del móvil viven en un `title` —68 en la ficha, 59 en el
+   volumen de gimnasio—, más los `<title>` de los dibujos en SVG, y en un
+   teléfono no había forma de leerlas (v549 ya lo dijo del aviso de pico).
+   No se toca ningún marcado: se lee el `title` que ya hay.
+   · Sólo sobre lo que NO se pulsa: si lo tocado, o algo entre lo tocado y el
+     título, es un botón, un enlace o lleva `onclick`, manda su acción.
+   · Va por `touchend` y no por `click`: Safari del iPhone no manda `click` a
+     un elemento que no considera pulsable.
+   · Se cierra al tocar en otro sitio o al desplazar. */
+const BMX={de:null};
+function bmxTexto(t){
+  if(!t||!t.closest||t.closest('#bm-ex'))return null;
+  let n=null,txt='';
+  const sv=t.closest('svg');
+  if(sv){for(let x=t;x&&x.nodeType===1;x=x.parentNode){
+    const ti=x.children&&Array.prototype.find.call(x.children,c=>c.tagName&&c.tagName.toLowerCase()==='title');
+    if(ti&&ti.textContent.trim()){n=x;txt=ti.textContent.trim();break;}
+    if(x.getAttribute('title')){n=x;txt=x.getAttribute('title').trim();break;}
+    if(x===sv)break;}}
+  if(!n){n=t.closest('[title]');if(n)txt=(n.getAttribute('title')||'').trim();}
+  if(!n||txt.length<8)return null;
+  const p=t.closest('button,a,[onclick],summary,label,input,select,textarea,[role="button"],[role="tab"]');
+  if(p&&(p===n||n.contains(p)||p.contains(n)))return null;
+  return {nodo:n,txt:txt};
+}
+function bmxCierra(){const b=document.getElementById('bm-ex');if(b)b.classList.remove('on');BMX.de=null;}
+function bmxAbre(n,txt){
+  let b=document.getElementById('bm-ex');
+  if(!b){b=document.createElement('div');b.id='bm-ex';b.setAttribute('role','tooltip');document.body.appendChild(b);}
+  if(BMX.de===n&&b.classList.contains('on')){bmxCierra();return;}
+  b.classList.remove('on');b.textContent=txt;b.style.left='0px';b.style.top='0px';b.style.maxWidth=Math.min(320,window.innerWidth-24)+'px';
+  void b.offsetWidth;b.classList.add('on');
+  const r=n.getBoundingClientRect(),w=b.offsetWidth,h=b.offsetHeight,cx=r.left+r.width/2;
+  const x=Math.max(12,Math.min(window.innerWidth-w-12,Math.round(cx-w/2)));
+  let y=r.top-h-10;const arriba=y>=64;if(!arriba)y=Math.max(64,Math.min(window.innerHeight-h-12,r.bottom+10));
+  b.style.left=x+'px';b.style.top=Math.round(y)+'px';
+  b.style.setProperty('--fx',Math.max(16,Math.min(w-16,cx-x))+'px');b.dataset.p=arriba?'a':'b';
+  BMX.de=n;
+}
+(function(){let s=null;
+  document.addEventListener('touchstart',e=>{if(!esMovil()||e.touches.length!==1){s=null;return;}
+    const t=e.touches[0];s={x:t.clientX,y:t.clientY,t:performance.now(),el:e.target};},{passive:true,capture:true});
+  document.addEventListener('touchend',e=>{const a=s;s=null;if(!a||!e.changedTouches.length)return;
+    const t=e.changedTouches[0];
+    if(Math.abs(t.clientX-a.x)>10||Math.abs(t.clientY-a.y)>10||performance.now()-a.t>450||window.__BM_LP)return;
+    const b=document.getElementById('bm-ex'),estaba=!!(b&&b.classList.contains('on'));
+    const x=bmxTexto(a.el);
+    if(x)bmxAbre(x.nodo,x.txt);else if(estaba)bmxCierra();
+  },{passive:true,capture:true});
+  window.addEventListener('scroll',()=>{if(BMX.de)bmxCierra();},{passive:true,capture:true});
+})();
 /* v584 · La acción principal de la pantalla, sobre la barra y a la derecha: al
    alcance del pulgar. El «+» de la cabecera queda en la esquina más lejana
    de un teléfono de 6 pulgadas y además es el mismo en todas partes.
@@ -39970,6 +40023,19 @@ html[data-theme="dark"]{--toast-acc:#2747b0}
 }
 @media(max-width:760px) and (prefers-reduced-motion:reduce){#bm-pri,#bm-pri span{transition:none}}
 </style>
+<style id="movil-v585">
+/* v585 · El globo de las explicaciones. Sólo lo crea código que antes pregunta
+   esMovil(). Colores invertidos, como el aviso. */
+#bm-ex{position:fixed;z-index:10060;left:0;top:0;display:none;box-sizing:border-box;max-height:60vh;overflow:hidden;
+  padding:10px 13px;border-radius:13px;background:var(--txt);color:var(--bg);font-size:13.5px;line-height:1.38;font-weight:500;
+  letter-spacing:-.005em;box-shadow:0 10px 30px rgba(0,0,0,.28);pointer-events:none;white-space:pre-line;overflow-wrap:anywhere;text-align:left}
+#bm-ex.on{display:block;animation:bmxEntra .16s ease}
+#bm-ex::after{content:"";position:absolute;left:var(--fx,50%);width:10px;height:10px;background:inherit;transform:translateX(-50%) rotate(45deg)}
+#bm-ex[data-p="a"]::after{bottom:-4px}
+#bm-ex[data-p="b"]::after{top:-4px}
+@keyframes bmxEntra{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){#bm-ex.on{animation:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43535,8 +43601,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.5*/
-const VER_ACTUAL='2026-11-12.5';
+/*BUILD:2026-11-12.6*/
+const VER_ACTUAL='2026-11-12.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
