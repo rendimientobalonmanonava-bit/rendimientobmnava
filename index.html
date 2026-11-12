@@ -15023,11 +15023,17 @@ function bmTablaAbre(w){
     document.body.appendChild(bar);bar.querySelector('button').onclick=bmTablaCierra;}
   bar.querySelector('b').textContent=tit||'Tabla';
   try{bmTablas();}catch(e){}
+  /* Un antepasado con `transform`, `filter` o una animación a medias se
+     convierte en la referencia de lo «fijo» y la tabla dejaría de ocupar la
+     pantalla (visto en WebKit: 343 × 386 en vez de 375 × 760). Mientras está
+     abierta, se les quita. */
+  for(let a=w.parentElement;a&&a!==document.body;a=a.parentElement)a.classList.add('bm-tv-anc');
   w.classList.add('bm-tv');bar.classList.add('on');document.documentElement.classList.add('bm-tv-on');
   w.scrollTop=0;w.scrollLeft=0;
 }
 function bmTablaCierra(){
   const w=document.querySelector('.bm-tv');if(w){w.scrollTop=0;w.scrollLeft=0;w.classList.remove('bm-tv');}
+  document.querySelectorAll('.bm-tv-anc').forEach(a=>a.classList.remove('bm-tv-anc'));
   const bar=document.getElementById('bm-tvh');if(bar)bar.classList.remove('on');
   document.documentElement.classList.remove('bm-tv-on');
 }
@@ -40328,6 +40334,8 @@ html[data-theme="dark"]{--toast-acc:#2747b0}
 #bm-tvh button svg{width:22px;height:22px}
 @media(orientation:landscape){#bm-tvh .tvh-g{display:none}}
 html.bm-tv-on,html.bm-tv-on body{overflow:hidden}
+.bm-tv-anc{transform:none!important;animation:none!important;transition:none!important;filter:none!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;perspective:none!important;contain:none!important;will-change:auto!important}
 </style>
 <style id="movil-v589">
 /* v589 · El teléfono tumbado. Las reglas de móvil ya valen aquí (misma
@@ -43959,8 +43967,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.11*/
-const VER_ACTUAL='2026-11-12.11';
+/*BUILD:2026-11-12.12*/
+const VER_ACTUAL='2026-11-12.12';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
