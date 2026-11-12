@@ -33954,7 +33954,7 @@ function renderCalendar(){
     const faltanMinDia=(!dev&&rv==null&&pl.n&&(STATE.rpe||[]).some(r=>r&&r.dk===dk));
     const corner=hasMatch?'':(dev?`<span class="cal-dev" style="color:${colTexto(dev.col)};border-color:${dev.col}" title="Desviación plan vs real: ${dev.lab}">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:(rv!=null?`<span class="cal-realbadge" title="Carga real (RPE): ${rv} UA">${rv}</span>`:(faltanMinDia?`<span class="cal-nomin" title="Hay cuestionarios de este día pero no hay minutos de sesión, así que no se puede calcular la carga real ni la desviación. Abre el día y escribe los minutos.">min?</span>`:'')));
     cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" data-dk="${dk}" onclick="calTocaDia('${dk}')">
-      <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${(citas.length&&(onlyRest||hasMatch))?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length})">🩺 ${citas.length}</span>`:''}${corner}</div>
+      <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${(citas.length&&(onlyRest||hasMatch))?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length})">🩺 ${citas.length}</span>`:''}${corner}</div>${calPuntos(dk)}
       ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body"><span class="cal-match-k">Partido</span>${(evRival(matchEv)||matchEv.title)?`<span class="cal-match-rival">${(evRival(matchEv)?'vs '+evRival(matchEv):matchEv.title).replace(/</g,'&lt;')}</span>`:''}${evRival(matchEv)?`<span class="cal-match-comp">${(PARTIDO_COMP[evComp(matchEv)]||'').toLowerCase()}${evOrigenHR(matchEv)==='medido'?' · FC medida':''}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-bars">
         ${pl.n?`<div class="cal-plan" title="Plan · ${pl.lab} intensidad · contacto ${pl.contacto}/5 · ${pl.totMin}′ (${pl.planUA} UA est.)">${calTraffic(pl.peak,54,'cal-tl')}<div class="cal-plan-tx"><span class="cal-plan-grade" style="color:${colTexto(pl.col)}">${pl.lab}</span><span class="cal-plan-dur"><span class="cal-clock">◷</span> ${pl.totMin}′</span>${pl.contacto>0?`<span class="cal-plan-ct">${calContactBar(pl.contacto)}</span>`:''}${zd?(()=>{
           /* El nivel se saca de la cifra REDONDEADA, la que se ve. Con el valor
@@ -34018,6 +34018,48 @@ function renderCalendar(){
    el semáforo y los minutos, y **tocar un día lo elige** y pinta debajo su
    tarjeta entera, que es la de la vista de semana (`calDiaCol`). Editar sigue a
    un toque. En el ordenador tocar un día abre el editor, como siempre. */
+/* ===== v596 · El Calendario con la forma del de iOS (sólo se VE en el móvil) =====
+   Daniel, 12/11/2026, eligió la propuesta 6: «puntos de color bajo cada día,
+   hoy en un círculo relleno, una tira de semana que se desliza y la agenda del
+   día debajo».
+   · `calPuntos(dk)`: un punto por sesión del día —hasta tres— con el color de
+     su INTENSIDAD, el mismo semáforo de la casilla de siempre (`calIntens`); el
+     partido, en el color de acción; una sesión sin programar, hueca. No hay un
+     criterio nuevo: es la casilla dicha con puntos.
+   · `calTira(dks,hoy)`: los siete días de la semana en una tira que se queda
+     arriba; tocar uno lleva a su tarjeta y al bajar se marca el que se ve.
+   Las dos piezas van en el marcado de siempre y el CSS las oculta fuera del
+   móvil: en el ordenador no pintan nada. */
+function calPuntos(dk){
+  const evs=((STATE.calendar||{})[dk]||[]).filter(e=>e&&e.type!=='descanso').slice(0,3);
+  if(!evs.length)return '<span class="cal-dots"></span>';
+  return '<span class="cal-dots">'+evs.map(e=>{
+    if(evEsPartido(e))return '<i class="cal-dot cal-dot-p"></i>';
+    if(evSP(e))return '<i class="cal-dot cal-dot-sp"></i>';
+    return '<i class="cal-dot" style="background:'+calIntens(evIntens(e)).col+'"></i>';}).join('')+'</span>';
+}
+function calTira(dks,hoy){
+  const L=['L','M','X','J','V','S','D'];
+  return '<div class="cal-tira" role="tablist" aria-label="Días de la semana">'+dks.map((dk,i)=>{
+    const d=dkToDate(dk),evs=((STATE.calendar||{})[dk]||[]);
+    const p=evs.some(e=>evEsPartido(e)),r=evs.length&&evs.every(e=>e.type==='descanso');
+    return '<button type="button" class="cal-tb'+(dk===hoy?' hoy':'')+(p?' par':'')+(r?' desc':'')+'" data-i="'+i+'" role="tab" onclick="calTiraVe('+i+')">'
+      +'<span>'+L[i]+'</span><b>'+d.getDate()+'</b>'+calPuntos(dk)+'</button>';}).join('')+'</div>';
+}
+function calTiraVe(i){
+  const c=document.querySelectorAll('#cal-body .cw-grid .cw-col')[i],t=document.querySelector('#cal-body .cal-tira');if(!c)return;
+  const alto=t?t.getBoundingClientRect().bottom:120;
+  window.scrollTo({top:Math.max(0,c.getBoundingClientRect().top+window.scrollY-alto-10),behavior:'smooth'});
+  calTiraMarca(i);
+}
+function calTiraMarca(i){document.querySelectorAll('#cal-body .cal-tira .cal-tb').forEach(b=>{const on=+b.dataset.i===i;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false');});}
+window.addEventListener('scroll',()=>{
+  if(!esMovil()||STATE.view!=='cal'||typeof CALMODE==='undefined'||CALMODE!=='semana')return;
+  const t=document.querySelector('#cal-body .cal-tira');if(!t)return;
+  const tope=t.getBoundingClientRect().bottom+40;let k=0;
+  document.querySelectorAll('#cal-body .cw-grid .cw-col').forEach((c,i)=>{if(c.getBoundingClientRect().top<=tope)k=i;});
+  if(t._k!==k){t._k=k;calTiraMarca(k);}
+},{passive:true});
 let CAL_SEL=null;
 function calTocaDia(dk){
   if(!esMovil()){calOpenDay(dk);return;}
@@ -34129,6 +34171,7 @@ function renderCalWeek(box){
    ${hoja?'<div class="sa-fit" id="cal-wk-fit"><div id="cal-wk-a4"></div></div><div id="cal-sem-a4" style="display:none"></div>'
    :`<div id="cal-week-card" class="cal-week-card">
      <div class="cw-cardhd"><div><b>Semana</b> · ${title}${mdRef?` · partido ${mdRef.split('-').reverse().slice(0,2).join('/')}`:''}</div><div class="cw-cardhd-sum">Plan <b>${wsum.planUA} UA</b> · Real <b>${wsum.nReal?wsum.realUA+' UA':'—'}</b>${wdev?` · <span style="color:${colTexto(wdev.col)}">${wdev.arrow}${wdev.pct>0?'+':''}${wdev.pct}%</span>`:''} · Monotonía <b style="color:${colTexto(mt.c)}">${isNaN(wsum.mono)?'—':fmt(wsum.mono,2)}</b> · Strain <b>${isNaN(wsum.strain)?'—':Math.round(wsum.strain)}</b></div></div>
+     ${calTira(dks,todayDk)}
      <div class="cw-grid">${cols}</div>
      <div class="cw-foot"><span class="cal-sc"><i style="background:#1ea863"></i>Baja</span><span class="cal-sc"><i style="background:#e6a700"></i>Media</span><span class="cal-sc"><i style="background:#e23b32"></i>Alta</span><span class="small muted">MD = día de partido · Z4/Z5 = % en zona (manual) · ⚕ bajas</span></div>
    </div>
@@ -40817,6 +40860,48 @@ html[data-theme="dark"]{--hero-a:#24262c;--hero-luz:rgba(255,255,255,.08)}
   #v-jugador .phero-btns .phero-add{background:var(--panel)}
 }
 </style>
+<style id="movil-v596">
+/* v596 · 6 · El Calendario con la forma del de iOS. Fuera del móvil, los puntos
+   y la tira no se pintan. */
+.cal-dots,.cal-tira{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  /* ── El mes: el número en un círculo y los puntos debajo, sin cajas ── */
+  .cal-grid{gap:0 2px}
+  .cal-wd{font-size:var(--fs-xs);font-weight:600;color:var(--muted);padding:0 0 6px}
+  .cal-cell,.cal-cell.cal-cell-match,.cal-cell.cal-cell-rest,.cal-cell.cal-cell-risk,.cal-cell.cal-today{
+    min-height:54px;padding:3px 0 7px;gap:4px;background:none!important;border:0!important;box-shadow:none!important;outline:none!important;border-radius:0}
+  .cal-cell.cal-out>*{visibility:hidden}
+  .cal-cell>.cal-bars,.cal-cell>.cal-match-body,.cal-cell>.cal-rest-body,.cal-cell>.cal-l2{display:none!important}
+  .cal-cell .cal-dnum,.cal-cell .cal-dnum.cal-match-dnum{width:36px;height:36px;margin:0 auto;padding:0;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:500;line-height:1;color:var(--txt);background:none}
+  .cal-cell.cal-cell-rest .cal-dnum{color:var(--muted)}
+  .cal-cell.cal-cell-match .cal-dnum{color:var(--accent);font-weight:700}
+  .cal-cell.cal-sel .cal-dnum{background:var(--txt);color:var(--bg);font-weight:600}
+  .cal-cell.cal-today .cal-dnum{background:var(--accent);color:var(--on-accent);font-weight:600}
+  .cal-cell:active .cal-dnum{opacity:.55}
+  .cal-dots{display:flex;gap:3px;justify-content:center;align-items:center;height:7px}
+  .cal-dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .cal-dot-p{background:var(--accent)}
+  .cal-dot-sp{background:none;box-shadow:inset 0 0 0 1.5px var(--muted)}
+  /* La leyenda del semáforo de debajo sigue diciendo qué es cada color. */
+
+  /* ── La semana: la tira de días, pegada bajo la cabecera ── */
+  #cal-week-card{padding:0;background:none;border:0}
+  #cal-week-card .cw-cardhd{padding:0 2px}
+  .cal-tira{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));position:sticky;top:calc(60px + env(safe-area-inset-top));z-index:6;
+    margin:0 -16px 10px;padding:6px 12px 8px;background:var(--bg)}
+  .cal-tb{display:flex;flex-direction:column;align-items:center;gap:3px;min-height:64px;padding:2px 0;border:0;background:none;
+    font:inherit;color:var(--txt);cursor:pointer;touch-action:manipulation}
+  .cal-tb>span{font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
+  .cal-tb>b{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:500}
+  .cal-tb.desc>b{color:var(--muted)}
+  .cal-tb.par>b{color:var(--accent);font-weight:700}
+  .cal-tb.on>b{background:var(--txt);color:var(--bg);font-weight:600}
+  .cal-tb.hoy>b{background:var(--accent);color:var(--on-accent);font-weight:600}
+  .cal-tb:active>b{opacity:.55}
+  .cal-tb .cal-dots{height:7px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44382,8 +44467,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.18*/
-const VER_ACTUAL='2026-11-12.18';
+/*BUILD:2026-11-12.19*/
+const VER_ACTUAL='2026-11-12.19';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
