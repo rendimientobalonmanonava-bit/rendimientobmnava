@@ -32335,8 +32335,18 @@ function arcGauge(label,val,cap,stops,valTxt,sub,size){
   const frac=Math.min(Math.max(val,0),cap)/cap;const ma=start+sweep*frac;const m=pt(ma);
   let vc='var(--muted)';for(const sp of stops){vc=sp.color;if(val<sp.to)break;}
   const txt=(''+valTxt);const fs=txt.length>4?Math.round(size*0.16):Math.round(size*0.24);
-  return `<div style="text-align:center">
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  /* v611 · En el móvil el mismo medidor se dibuja como los de la app Tiempo
+     (índice UV, calidad del aire): una barra fina con el degradado de SUS
+     tramos y un punto blanco en el valor, con la cifra grande encima. Mismos
+     datos, mismos colores y mismos cortes: los tramos son los `stops` de
+     siempre. Las dos versiones van en el marcado y el CSS del móvil elige;
+     así lo que se exporta, que se monta con el ancho del ordenador, sigue
+     saliendo con el arco. */
+  let gp=0;const gr=stops.map(sp=>{const a=Math.min(gp,cap),b=Math.min(sp.to,cap);gp=sp.to;return sp.color+' '+((a+b)/2/cap*100).toFixed(1)+'%';});
+  const grad=stops.length>1?'linear-gradient(90deg,'+stops[0].color+' 0%,'+gr.join(',')+','+stops[stops.length-1].color+' 100%)':(stops[0]?stops[0].color:'var(--hair)');
+  const barra=`<div class="ag-bar" aria-hidden="true"><div class="ag-bv">${txt}${sub?`<small>${sub}</small>`:''}</div><div class="ag-tr" style="background:${grad}"><i style="left:${(frac*100).toFixed(1)}%"></i></div></div>`;
+  return `<div class="ag" style="text-align:center">
+    ${barra}<svg class="ag-arc" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <path d="${arc(start,start+sweep)}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/>
       ${segs}
       <circle cx="${m[0].toFixed(1)}" cy="${m[1].toFixed(1)}" r="${(stroke*0.62).toFixed(1)}" fill="#fff" stroke="${vc}" stroke-width="3"/>
@@ -41983,6 +41993,27 @@ html.bmz .view.on{animation:none!important}
 @keyframes bmzParAtr{0%{opacity:1;border-radius:0}100%{opacity:1;border-radius:20px}}
 @keyframes bmzFuera{to{opacity:0}}
 @keyframes bmzDentro{from{opacity:0}to{opacity:1}}
+</style>
+<style id="movil-v611">
+/* v611 · 10 · Medidores de barra y semáforos planos, como en la app Tiempo.
+   Daniel, 12/11/2026, eligió la propuesta 10. Mismos datos, colores y cortes.
+   El semáforo sigue siendo un semáforo —tres luces y la que toca, encendida—,
+   dibujado plano en una cápsula y sin el brillo. Los documentos no cambian. */
+.ag-bar{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .ag{display:flex;flex-direction:column;align-items:stretch;text-align:left!important;min-width:0}
+  .ag>.ag-arc{display:none}
+  .ag>.ag-lab{order:-1;margin:0 0 4px;text-align:left}
+  .ag>.ag-bar{display:block;min-width:0}
+  .ag-bv{font-size:28px;font-weight:700;line-height:1.1;color:var(--txt);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ag-bv small{display:block;margin-top:1px;font-size:12.5px;font-weight:600;color:var(--muted);letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ag-tr{position:relative;height:6px;margin:10px 7px 6px;border-radius:3px}
+  .ag-tr>i{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#fff;
+    box-shadow:0 0 0 2.5px var(--panel),0 1px 4px rgba(0,0,0,.35)}
+  #team-welllights .tl{background:var(--seg-carril)!important;border-radius:999px!important;padding:6px!important;gap:6px!important}
+  #team-welllights .tl-l{box-shadow:none!important;width:14px;height:14px}
+  #team-welllights .tl-l[style*="opacity"]{background:var(--muted2)!important;opacity:.28!important}
+}
 </style>
 <script>
 /* ============================================================
