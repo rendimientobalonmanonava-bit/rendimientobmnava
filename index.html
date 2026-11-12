@@ -14749,7 +14749,7 @@ function bmFormas(){
     if(BML.hecho)bmlEnLinea();
   }catch(e){console.error('bmnava · formularios de móvil',e);}
 }
-function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(bmFormas,80);}
+function bmFormasYa(){clearTimeout(BMF_T);BMF_T=setTimeout(()=>{bmFormas();try{bmTablas();}catch(e){}},80);}
 (function(){
   let mq=null;try{mq=window.matchMedia('(max-width:760px)');}catch(e){}
   const arma=()=>{if(!mq||!mq.matches||BMF_OBS||!document.body)return;
@@ -14893,6 +14893,55 @@ function bmEntregaPNG(cv,filename){
     if(bg)bg.onclick=()=>{baja(url);toast('Imagen guardada');bmHojaCierra('bmh-comp');};
   },'image/png');
 }
+/* v588 · Las tablas que en el móvil hay que arrastrar de lado. Medidas el
+   12/11/2026: nueve, y las peores se salen más de 600 px (el mapa de calor de
+   z-scores y la matriz de correlaciones). Dos cosas, sólo en el diseño de móvil:
+   · la PRIMERA COLUMNA se queda fija también en las tres que no la tenían
+     —las dos rejillas hechas con `div` y la tabla de predicción—: sin ella,
+     al arrastrar se pierde de quién es la fila. En las rejillas el número de
+     columnas sale de los datos, así que se cuenta y se marca (`bm-c1`,
+     `bm-f1`) en vez de escribir un `nth-child` fijo;
+   · un botón «Pantalla completa» sobre cada tabla que se sale: la propia
+     tabla pasa a ocupar la pantalla —sin moverla de sitio en el documento,
+     para que sus estilos y quien la repinta la sigan encontrando— con su
+     primera fila y su primera columna fijas. Girando el teléfono caben más
+     columnas. «Atrás» la cierra. */
+const BMT_SEL='.wrap-x,.hrx-grid-w';
+function bmTablas(){
+  if(!esMovil())return;
+  document.querySelectorAll(BMT_SEL).forEach(w=>{
+    if(w.classList.contains('bm-tv')||!w.checkVisibility||!w.checkVisibility())return;
+    const ancho=w.clientWidth>120&&w.scrollWidth>w.clientWidth+40;
+    const prev=w.previousElementSibling,b=prev&&prev.classList.contains('bm-tvb')?prev:null;
+    if(ancho&&!b){const n=document.createElement('button');n.type='button';n.className='bm-tvb';
+      n.innerHTML=BMG_IC+'<span>Pantalla completa</span>';n.onclick=()=>bmTablaAbre(w);w.parentNode.insertBefore(n,w);}
+    else if(!ancho&&b)b.remove();
+    w.querySelectorAll('div[style*="grid-template-columns"]').forEach(g=>{
+      const cols=getComputedStyle(g).gridTemplateColumns.split(' ').length;
+      if(cols<5||g.children.length<cols*2||g.dataset.bmc===String(cols)+'/'+g.children.length)return;
+      Array.prototype.forEach.call(g.children,(c,i)=>{c.classList.toggle('bm-c1',i%cols===0);c.classList.toggle('bm-f1',i<cols);});
+      g.dataset.bmc=String(cols)+'/'+g.children.length;});
+  });
+}
+function bmTablaAbre(w){
+  if(document.querySelector('.bm-tv'))return;
+  const p=w.closest('.panel'),h2=p&&p.querySelector('h2');let tit='';
+  if(h2){const c=h2.cloneNode(true);c.querySelectorAll('.r,button').forEach(x=>x.remove());tit=c.textContent.trim();}
+  let bar=document.getElementById('bm-tvh');
+  if(!bar){bar=document.createElement('div');bar.id='bm-tvh';
+    bar.innerHTML='<b></b><span class="tvh-g">Gira el teléfono para ver más</span><button type="button" aria-label="Cerrar la pantalla completa">'+BMH_X+'</button>';
+    document.body.appendChild(bar);bar.querySelector('button').onclick=bmTablaCierra;}
+  bar.querySelector('b').textContent=tit||'Tabla';
+  try{bmTablas();}catch(e){}
+  w.classList.add('bm-tv');bar.classList.add('on');document.documentElement.classList.add('bm-tv-on');
+  w.scrollTop=0;w.scrollLeft=0;
+}
+function bmTablaCierra(){
+  const w=document.querySelector('.bm-tv');if(w){w.scrollTop=0;w.scrollLeft=0;w.classList.remove('bm-tv');}
+  const bar=document.getElementById('bm-tvh');if(bar)bar.classList.remove('on');
+  document.documentElement.classList.remove('bm-tv-on');
+}
+(function(){let t=0;document.addEventListener('touchend',()=>{clearTimeout(t);t=setTimeout(()=>{try{bmTablas();}catch(e){}},420);},{passive:true,capture:true});})();
 /* v586 · El mapa corporal, para el dedo. En el formulario de lesión la silueta
    mide 132 px y un tobillo, 11: no se acierta con la yema. Y en el mapa de
    «dónde duele», los círculos son de 23. En vez de redibujar las siluetas,
@@ -15031,6 +15080,7 @@ function bmCierraCapa(){
   let e;
   if(BMG.ch){bmgCierra();return true;}
   if(BMH.pila.length){bmHojaCierra();return true;}
+  if(document.querySelector('.bm-tv')){bmTablaCierra();return true;}
   if((e=vis('iso-overlay'))){if(typeof isoCerrar==='function')isoCerrar();else e.style.display='none';return true;}
   if((e=vis('ficha-overlay'))){e.style.display='none';return true;}
   if((e=vis('ph-overlay'))){e.style.display='none';return true;}
@@ -20724,7 +20774,8 @@ function mtCambia(paneId,barId,t){const p=document.getElementById(paneId),bar=do
   if(bar)bar.querySelectorAll('.tsm-b').forEach(b=>{const on=b.dataset.t===t;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false');
     if(on&&b.scrollIntoView)try{b.scrollIntoView({block:'nearest',inline:'center'});}catch(e){}});
   if(bar&&bar.offsetParent){const y=p.getBoundingClientRect().top+window.scrollY-70;if(window.scrollY>y)window.scrollTo(0,y);}
-  setTimeout(()=>{try{Object.values(charts).forEach(c=>c&&c.resize&&c.resize());}catch(e){console.error('bmnava · pestañas de móvil',e);}},60);}
+  setTimeout(()=>{try{Object.values(charts).forEach(c=>c&&c.resize&&c.resize());}catch(e){console.error('bmnava · pestañas de móvil',e);}
+    try{bmTablas();}catch(e){}},60);}
 function tsaSub(t){mtCambia('tsa-pane-jugador','tsm-bar',t);}
 /* v554 · Para las vistas que se pintan enteras desde una plantilla (Cargas,
    Nutrición): `mtTag` cuelga la pestaña del elemento raíz de cada trozo, sin
@@ -40154,6 +40205,39 @@ html[data-theme="dark"]{--toast-acc:#2747b0}
   #tsa-pane-equipo>.sec-tit,#tsa-pane-analisis>.sec-tit{display:none}
 }
 </style>
+<style id="movil-v588">
+/* v588 · Tablas anchas en el móvil. El botón y las marcas sólo las pone código
+   que antes pregunta esMovil(). */
+.bm-tvb{display:none}
+@media(max-width:760px){
+  .bm-tvb{position:relative;display:flex;align-items:center;gap:6px;width:max-content;min-height:34px;margin:0 0 8px auto;padding:0 12px;
+    border:0;border-radius:999px;background:var(--panel2);color:var(--accent);font-family:inherit;font-size:12.5px;font-weight:600;
+    -webkit-tap-highlight-color:transparent}
+  .bm-tvb::after{content:"";position:absolute;left:0;right:0;top:-5px;bottom:-5px}
+  .bm-tvb svg{width:15px;height:15px;flex:none}
+  .bm-c1,.hrx-grid .hqx-rh,.hrx-grid .hrx-corner{position:sticky;left:0;z-index:1;background:var(--panel)}
+}
+.bm-tv{position:fixed!important;left:0;right:0;bottom:0;top:calc(52px + env(safe-area-inset-top));z-index:10040;box-sizing:border-box;
+  margin:0!important;max-width:none!important;max-height:none!important;width:auto!important;border-radius:0!important;
+  overflow:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--panel);
+  padding:8px max(12px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+/* Lo que se queda fijo tapa también el margen de la hoja: si no, las celdas
+   que pasan por debajo asoman en esa franja. */
+.bm-tv .bm-f1,.bm-tv thead th{position:sticky;top:0;z-index:2;background:var(--panel);box-shadow:0 -12px 0 var(--panel)}
+.bm-tv .bm-c1,.bm-tv tbody td:first-child,.bm-tv tbody th:first-child{box-shadow:-80px 0 0 var(--panel)}
+.bm-tv .bm-f1.bm-c1,.bm-tv thead th:first-child{z-index:3;box-shadow:-80px 0 0 var(--panel),0 -12px 0 var(--panel),-80px -12px 0 var(--panel)}
+#bm-tvh{position:fixed;z-index:10041;left:0;right:0;top:-240px;display:none;align-items:center;gap:10px;box-sizing:border-box;
+  height:calc(292px + env(safe-area-inset-top));
+  padding:calc(240px + env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left));
+  background:var(--panel);border-bottom:.5px solid var(--hair);--ft:1;--fmin:0px}
+#bm-tvh.on{display:flex}
+#bm-tvh b{flex:1 1 auto;min-width:0;font-size:17px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bm-tvh .tvh-g{flex:none;font-size:12.5px;color:var(--muted)}
+#bm-tvh button{flex:none;width:44px;height:44px;padding:0;border:0;background:none;color:var(--muted);display:grid;place-items:center}
+#bm-tvh button svg{width:22px;height:22px}
+@media(orientation:landscape){#bm-tvh .tvh-g{display:none}}
+html.bm-tv-on,html.bm-tv-on body{overflow:hidden}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43719,8 +43803,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.8*/
-const VER_ACTUAL='2026-11-12.8';
+/*BUILD:2026-11-12.9*/
+const VER_ACTUAL='2026-11-12.9';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
