@@ -15779,9 +15779,48 @@ function bmFitHTML(rows){
     if(!e.target.closest||!e.target.closest('#tabbar .tb-cap'))return;
     e.preventDefault();e.stopImmediatePropagation();tb.classList.remove('tb-min');},true);
 })();
+/* v619 · El próximo partido, arriba del Resumen. Daniel, 12/11/2026, eligió
+   la propuesta 8. Hasta ahora sólo estaba en el Calendario, y es el dato que
+   más mira Carlos: rival, día, hora y cuánto falta, en una pastilla bajo el
+   título. Tocarla abre el Calendario en ese día. Sale de la misma lista de
+   partidos que la lámina A4 (`calPartidosDks`, `evRival`) y, como mira al
+   futuro, cuenta desde HOY por el reloj y no desde el día que se está viendo
+   (§2.1 «Próximas sesiones»). Sin partido por delante no hay pastilla. */
+const BMPX_IC='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.2l3.6 2.6-1.4 4.3H9.8L8.4 9.8z"/><path d="M12 3v4.2M20.4 9.3l-4.8.5M17.3 19.4l-3.1-5.3M6.7 19.4l3.1-5.3M3.6 9.3l4.8.5"/></svg>';
+function bmProx(){
+  const v=document.getElementById('v-equipo');if(!v)return;
+  let el=v.querySelector(':scope>.bm-prox');
+  let sig=null;try{const hoy=dkey(new Date());sig=calPartidosDks().find(x=>x>=hoy)||null;}catch(e){}
+  if(!sig){if(el)el.remove();return;}
+  const ev=((STATE.calendar||{})[sig]||[]).find(evEsPartido)||{};
+  const riv=evRival(ev),hora=(ev.time||'').trim();
+  const d=dkToDate(sig),hoyD=dkToDate(dkey(new Date()));
+  const falta=Math.round((d-hoyD)/86400000);
+  const WD=['dom','lun','mar','mié','jue','vie','sáb'];
+  const dia=WD[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1)+(hora?' · '+hora:'');
+  const cuando=falta===0?'hoy':falta===1?'mañana':'en '+falta+' días';
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const k=sig+'|'+riv+'|'+hora+'|'+falta;
+  if(el&&el.dataset.k===k)return;
+  if(!el){el=document.createElement('button');el.type='button';el.className='bm-prox';
+    el.addEventListener('click',()=>bmProxAbre(el.dataset.dk));
+    const ph=v.querySelector(':scope>.ctrlrow')||v.querySelector(':scope>.pagehead');
+    if(ph&&ph.nextSibling)v.insertBefore(el,ph.nextSibling);else v.appendChild(el);}
+  el.dataset.k=k;el.dataset.dk=sig;
+  el.setAttribute('aria-label','Próximo partido: '+(riv?'contra '+riv+', ':'')+dia+', '+cuando+'. Abre el calendario en ese día');
+  el.innerHTML='<i class="bpx-ic">'+BMPX_IC+'</i><span class="bpx-t"><small>Próximo partido</small><b>'+(riv?esc(riv):'Partido')+'</b></span>'
+    +'<span class="bpx-d"><small>'+esc(dia)+'</small><b>'+cuando+'</b></span><i class="bpx-ch" aria-hidden="true">›</i>';
+}
+function bmProxAbre(dk){
+  if(!dk)return;const d=dkToDate(dk);
+  go('cal');
+  try{CALMODE='mes';CALVIEW={y:d.getFullYear(),m:d.getMonth()};CAL_SEL=dk;renderCalendar();}catch(e){console.error('bmnava · próximo partido',e);}
+  setTimeout(()=>{try{calDiaPinta();bmtPinta();const h=document.getElementById('cal-dia');if(h&&h.checkVisibility())window.scrollTo({top:Math.max(0,h.getBoundingClientRect().top+window.scrollY-120)});}catch(e){}},120);
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmProx();}catch(e){console.error('bmnava · próximo partido',e);}
   try{bmrsPie();}catch(e){console.error('bmnava · resumen a la carta',e);}
   try{bmFhMas();}catch(e){console.error('bmnava · fisioterapia',e);}
   try{bmPliega();}catch(e){console.error('bmnava · pliegue',e);}
@@ -42485,6 +42524,23 @@ html.bmz .view.on{animation:none!important}
   #tabbar .tb-cap,#tabbar .tb-mas{transition:none}
 }
 </style>
+<style id="movil-v619">
+/* v619 · 8 · El próximo partido en la cabecera del Resumen. Sólo en el móvil. */
+.bm-prox{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-equipo>.bm-prox{order:2;display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:9px 12px 9px 14px;
+    box-sizing:border-box;border:none;border-radius:18px;background:var(--panel);box-shadow:var(--sh1,var(--lg-shadow));
+    color:var(--txt);font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bm-prox .bpx-ic{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;
+    background:var(--accent);color:var(--on-accent,#fff)}
+  .bm-prox .bpx-t{flex:1;min-width:0}
+  .bm-prox small{display:block;font-size:12.5px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bm-prox .bpx-t b{display:block;font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bm-prox .bpx-d{flex:none;text-align:right}
+  .bm-prox .bpx-d b{display:block;font-size:15px;font-weight:600;color:var(--accent)}
+  .bm-prox .bpx-ch{flex:none;font-style:normal;font-size:20px;color:var(--muted2);margin-left:-2px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46050,8 +46106,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.32*/
-const VER_ACTUAL='2026-11-12.32';
+/*BUILD:2026-11-12.33*/
+const VER_ACTUAL='2026-11-12.33';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
