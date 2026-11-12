@@ -15729,6 +15729,37 @@ function bmrsEditar(){
     g.addEventListener('pointermove',mueve);g.addEventListener('pointerup',suelta);g.addEventListener('pointercancel',suelta);
   };
 }
+/* v616 · La sesión de pulso como un entrenamiento de la app Fitness. Daniel,
+   12/11/2026, eligió la propuesta 5. En el móvil, el resumen de la sesión
+   elegida es UNA tarjeta: arriba ocho cifras en rejilla de dos columnas
+   separadas por filetes —duración, jugadores, FC media, FC máxima, %Z4+Z5,
+   %Z5, TRIMP medio y kcal— y debajo las cinco zonas, una por fila, con su
+   barra del color de la zona, el tiempo medio por jugador y su porcentaje.
+   Ni un cálculo nuevo: las cinco cifras de siempre salen igual que en los
+   recuadros, el %Z4+Z5 y el %Z5 son los de `pctZones` —la media por jugador
+   con la que se clasifica la sesión— y su color es el de su propia banda
+   (`calZonaNivel`, las bandas calibradas de `SESEF()`), como en el registro
+   de la ficha. La duración es la media por jugador del tiempo en las cinco
+   zonas. En el ordenador la tarjeta no existe a la vista: está oculta fuera
+   de la regla del móvil y los recuadros de siempre siguen igual. */
+function bmFitHTML(rows){
+  if(!rows||!rows.length)return '';
+  const n=rows.length,avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+  const tot=rows.map(r=>{let t=0;for(let i=0;i<5;i++)t+=zOf(r,i);return t;});
+  const durMin=Math.round(avg(tot)/60);
+  let pz={z54:0,z5:0};try{pz=pctZones(rows);}catch(e){}
+  const col=(p,k)=>{try{return colTexto(['var(--ok)','var(--warn)','var(--bad)'][calZonaNivel(Math.round(p),k)]);}catch(e){return 'var(--txt)';}};
+  const c=(lab,val,u,st)=>'<div class="bmf-c"><span>'+lab+'</span><b'+(st?' style="color:'+st+'"':'')+'>'+val+(u?'<small>'+u+'</small>':'')+'</b></div>';
+  const g=c('Duración',durMin,'′')+c('Jugadores',n,'')
+    +c('FC media',Math.round(avg(rows.map(r=>r.hrAvg))),'%')+c('FC máx',Math.round(avg(rows.map(r=>r.hrMax))),'%')
+    +c('En Z4+Z5',Math.round(pz.z54),'%',col(pz.z54,'z54'))+c('En Z5',Math.round(pz.z5),'%',col(pz.z5,'z5'))
+    +c('TRIMP medio',Math.round(avg(rows.map(trimpOf))),'')+c('Kcal',Math.round(avg(rows.map(r=>r.kcal))),'');
+  const zs=HRZ.map((z,i)=>{const seg=avg(rows.map(r=>zOf(r,i)));const p=avg(rows.map((r,j)=>tot[j]?zOf(r,i)/tot[j]*100:0));
+    return '<div class="bmf-z"><b style="--zc:'+z[1]+'">'+z[0]+'</b><div class="bmf-zt"><i style="width:'+Math.max(0,Math.min(100,p)).toFixed(1)+'%;background:'+z[1]+'"></i></div>'
+      +'<span class="bmf-zm">'+fmtT(seg)+'</span><span class="bmf-zp">'+Math.round(p)+' %</span></div>';}).join('');
+  return '<div class="bm-fit"><div class="bmf-tit">Resumen de la sesión</div><div class="bmf-g">'+g+'</div>'
+    +'<div class="bmf-sub">Zonas de pulso · media por jugador</div>'+zs+'</div>';
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
@@ -32256,7 +32287,8 @@ function renderHR(){
     k('FC media',Math.round(avg(rows.map(r=>r.hrAvg)))+'%','media del equipo')+
     k('FC máx',Math.round(avg(rows.map(r=>r.hrMax)))+'%','media de máximos')+
     k('Kcal',Math.round(avg(rows.map(r=>r.kcal))),'media por jugador')+
-    k('TRIMP medio',Math.round(avg(rows.map(trimpOf))),'Edwards · zonal');
+    k('TRIMP medio',Math.round(avg(rows.map(trimpOf))),'Edwards · zonal')+
+    (function(){try{return bmFitHTML(rows);}catch(e){console.error('bmnava · resumen de la sesión',e);return '';}})();
   try{animateKPIs(document.getElementById('hr-kpis'));}catch(e){}
   const pl=STATE.players;
   document.querySelector('#hr-tbl tbody').innerHTML=rows.slice().sort((a,b)=>b.hrAvg-a.hrAvg).map((r,i)=>{
@@ -42357,6 +42389,34 @@ html.bmz .view.on{animation:none!important}
   .bmrs-f.bmrs-mov::before,.bmrs-f.bmrs-mov+.bmrs-f::before{display:none}
 }
 </style>
+<style id="movil-v616">
+/* v616 · 5 · La sesión de pulso como un entrenamiento de Fitness. Sólo en el móvil. */
+.bm-fit{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #hr-pane-equipo .hr-col>#hr-kpis{order:-1}
+  #hr-kpis:has(.bm-fit){display:block}
+  #hr-kpis:has(.bm-fit)>.kpi{display:none}
+  #hr-kpis>.bm-fit{display:block;background:var(--panel);border-radius:20px;box-shadow:var(--sh1,var(--lg-shadow));padding:14px 16px 12px}
+  .bmf-tit{font-size:17px;font-weight:600;color:var(--txt);margin:0 0 6px}
+  .bmf-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bmf-c{padding:9px 0 10px;min-width:0;box-shadow:inset 0 -.5px 0 var(--line)}
+  .bmf-c:nth-child(odd){padding-right:12px}
+  .bmf-c:nth-child(even){padding-left:12px;box-shadow:inset 0 -.5px 0 var(--line),inset .5px 0 0 var(--line)}
+  .bmf-c:nth-last-child(-n+2){box-shadow:none}
+  .bmf-c:nth-last-child(-n+2):nth-child(even){box-shadow:inset .5px 0 0 var(--line)}
+  .bmf-c>span{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
+  .bmf-c>b{display:block;font-size:28px;font-weight:700;line-height:1.1;color:var(--txt);white-space:nowrap}
+  .bmf-c>b small{font-size:15px;font-weight:600;color:var(--muted);margin-left:1px}
+  .bmf-sub{font-size:12.5px;font-weight:500;color:var(--muted);margin:14px 0 4px}
+  .bmf-z{display:grid;grid-template-columns:30px minmax(0,1fr) auto 40px;align-items:center;column-gap:10px;min-height:32px}
+  .bmf-z>b{font-size:12.5px;font-weight:700;color:var(--txt);display:flex;align-items:center;gap:5px}
+  .bmf-z>b::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--zc)}
+  .bmf-zt{height:8px;border-radius:4px;background:var(--seg-carril);overflow:hidden}
+  .bmf-zt>i{display:block;height:100%;border-radius:4px}
+  .bmf-zm{font-size:15px;font-weight:600;color:var(--txt);font-variant-numeric:tabular-nums;text-align:right}
+  .bmf-zp{font-size:12.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -45922,8 +45982,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.29*/
-const VER_ACTUAL='2026-11-12.29';
+/*BUILD:2026-11-12.30*/
+const VER_ACTUAL='2026-11-12.30';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
