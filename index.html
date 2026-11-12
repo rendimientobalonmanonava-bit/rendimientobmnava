@@ -14900,8 +14900,73 @@ const BMP_ROT=[
   ['.estado-seg>button[data-k="parte"]','Parte'],['.estado-seg>button[data-k="fisio"]','Fisio'],
   ['.cargas-seg>button[data-k="pulso"]','Pulso'],['.cargas-seg>button[data-k="partidos"]','Partido'],
   ['#team-rings .ath-st>span',{FAT:'Fatiga',MOOD:'Ánimo'}]];
+/* ===== v598 · Listas como en Ajustes, en el móvil =====
+   Daniel, 12/11/2026, eligió la propuesta 3: «Médico, Fisioterapia, Alertas,
+   Conexión y Nutrición como grupos de filas con icono en cuadrado de color,
+   valor a la derecha y flecha».
+   El icono sale del TEXTO de la fila con una sola tabla de palabras
+   (`BMGL_PAL`) —calendario, médico, fisioterapia, wellness, pulso…—, así que una
+   fila nueva con un nombre parecido lo hereda. Los colores del cuadrado son de
+   CATEGORÍA (azul, violeta, verde azulado y pizarra): ninguno es el rojo de
+   alertas ni el verde y el ámbar del semáforo, que significan otra cosa. La
+   excepción son las alertas, cuyo cuadrado lleva el color de su gravedad
+   porque eso SÍ es una alerta. No se toca ningún dato: se añade un icono y el
+   CSS cambia cómo se pinta la fila. Sólo en el diseño de móvil. */
+const BMGL={
+  cal:['azul','<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'],
+  med:['teal','<path d="M9.5 4h5v5.5H20v5h-5.5V20h-5v-5.5H4v-5h5.5z"/>'],
+  fis:['teal','<path d="M9 11.5V5a1.8 1.8 0 0 1 3.6 0v5.5"/><path d="M12.6 10.5V9a1.7 1.7 0 0 1 3.4 0v2"/><path d="M16 11v-.5a1.7 1.7 0 0 1 3.4 0V15a6.5 6.5 0 0 1-6.5 6.5h-1.2a5 5 0 0 1-4-2L5 15.5a1.7 1.7 0 0 1 2.6-2.2L9 14.5"/>'],
+  wel:['violeta','<path d="M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.6 4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>'],
+  pul:['azul','<path d="M3 12h4l2.5-6 5 12 2.5-6h4"/>'],
+  rel:['pizarra','<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'],
+  val:['violeta','<path d="M5 20V11M12 20V5M19 20v-7"/>'],
+  eur:['teal','<path d="M17.5 6.5a6.5 6.5 0 1 0 0 11M4.5 10.5h9M4.5 13.5h9"/>'],
+  per:['azul','<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>'],
+  gym:['violeta','<path d="M6.5 8v8M17.5 8v8M3.5 10v4M20.5 10v4M6.5 12h11"/>'],
+  gra:['azul','<path d="M4 18l5-6 4 3 7-9"/>'],
+  del:['pizarra','<path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13"/>'],
+  cue:['teal','<circle cx="12" cy="5" r="2.2"/><path d="M12 8v6M7 10l5-1 5 1M9.5 20l2.5-6 2.5 6"/>'],
+  car:['azul','<path d="M13 3 5.5 13.5H12L11 21l7.5-10.5H12z"/>'],
+  dat:['pizarra','<ellipse cx="12" cy="6.5" rx="7" ry="2.8"/><path d="M5 6.5v11c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-11M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/>'],
+  tpl:['pizarra','<rect x="5.5" y="4.5" width="13" height="16" rx="2"/><path d="M9 4.5V3h6v1.5M9 10h6M9 14h6M9 18h3"/>'],
+  avi:['pizarra','<path d="M12 6.5v7M12 17.5h.01"/>']};
+const BMGL_PAL=[[/borrad/,'del'],[/gimnasio|builderpro/,'gym'],[/nutri|cobro|pedido/,'eur'],[/calendario|microciclo|agenda|lo que viene|reuni/,'cal'],
+  [/zona/,'cue'],[/polar|pulso|umbral|nivel de sesi/,'pul'],[/fisio|tratamiento|vendaje|dedica/,'fis'],[/m[eé]dic|cl[ií]nic|lesi[oó]n|alta/,'med'],
+  [/wellness|datos del d[ií]a|dolor/,'wel'],[/duraci|minutos|carga de trabajo|sin tratar desde/,'rel'],
+  [/valoraci|isocin|prueba|referencia|hoja|fase|cuadrante/,'val'],[/jugador|personal|foto|asistencia|revisados/,'per'],[/responden|c[oó]mo/,'gra']];
+function bmGlifo(t){t=String(t||'').toLowerCase();for(const [re,k] of BMGL_PAL)if(re.test(t))return k;return 'dat';}
+function bmGlEstilo(){
+  if(document.getElementById('bm-glifos'))return;
+  const url=d=>'url("data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>')+'")';
+  const st=document.createElement('style');st.id='bm-glifos';
+  st.textContent=Object.keys(BMGL).map(k=>'[data-gi="'+k+'"]{--gm:'+url(BMGL[k][1])+';--gc:var(--gi-'+BMGL[k][0]+')}').join('\n');
+  document.head.appendChild(st);
+}
+function bmGi(k){return '<i class="bm-gi" data-gi="'+k+'" aria-hidden="true"></i>';}
+function bmListas(){
+  if(!esMovil())return;bmGlEstilo();
+  /* Alertas: el punto de gravedad pasa a cuadrado, con el dibujo de su módulo */
+  document.querySelectorAll('#v-alertas .arow>.adot:not([data-gi])').forEach(d=>{
+    const m=d.parentElement.querySelector('.amod');const c=m?m.className:'';
+    d.dataset.gi=/amod-wel/.test(c)?'wel':/amod-car/.test(c)?'car':/amod-fis/.test(c)?'val':'avi';});
+  /* Fisioterapia › Datos: cada bloque, una fila con su icono */
+  document.querySelectorAll('.fis-datos>details.fis-d>summary').forEach(su=>{
+    if(su.querySelector(':scope>.bm-gi'))return;const t=su.querySelector('.fis-dt');
+    su.insertAdjacentHTML('afterbegin',bmGi(bmGlifo(t?t.textContent:su.textContent)));});
+  /* Conexión: el inventario de la copia */
+  document.querySelectorAll('#bkp-panel table.tbl tbody tr>td:first-child').forEach(td=>{
+    if(td.querySelector('.bm-gi'))return;const t=td.textContent;td.insertAdjacentHTML('afterbegin',bmGi(bmGlifo(t)));});
+  /* Médico › Configuración: el color de cada plantilla de readaptación ya era un cuadrado */
+  document.querySelectorAll('#med-rehab-config .rh-tpl-c:not([data-gi])').forEach(c=>{c.dataset.gi='tpl';});
+  /* Nutrición › Pedido: cada persona con sus iniciales, como en Contactos */
+  document.querySelectorAll('#v-nutri details.nut-pj>summary').forEach(su=>{
+    if(su.querySelector(':scope>.bm-ini'))return;const n=su.querySelector('span');if(!n)return;
+    const ini=n.textContent.trim().split(/\s+/).filter(w=>/^[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(w)).slice(0,2).map(w=>w[0].toUpperCase()).join('');
+    su.insertAdjacentHTML('afterbegin','<abbr class="bm-ini" aria-hidden="true">'+ini+'</abbr>');});
+}
 function bmPulido(){
   if(!esMovil())return;
+  try{bmListas();}catch(e){console.error('bmnava · listas',e);}
   BMP_ROT.forEach(([sel,nuevo])=>{document.querySelectorAll(sel).forEach(b=>{
     const t=b.textContent.trim(),n=typeof nuevo==='string'?nuevo:nuevo[t];
     if(!n||t===n)return;
@@ -40986,6 +41051,81 @@ html[data-theme="dark"]{--hero-a:#24262c;--hero-luz:rgba(255,255,255,.08)}
   .bm-ven button.on{background:var(--seg-on,var(--panel));box-shadow:0 1px 3px rgba(0,0,0,.12)}
 }
 </style>
+<style id="movil-v598">
+/* v598 · 3 · Listas como en Ajustes. Los iconos los pone código que pregunta
+   esMovil(); fuera del móvil no existen. */
+:root{--gi-azul:#2f6fe0;--gi-violeta:#7a5af8;--gi-teal:#0b8a98;--gi-pizarra:#64748b}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-gi{position:relative;display:inline-block;flex:none;width:29px;height:29px;border-radius:7px;background:var(--gc,var(--gi-pizarra));vertical-align:middle}
+  .bm-gi::after,.adot[data-gi]::after,.rh-tpl-c[data-gi]::after{content:"";position:absolute;inset:6px;background:#fff;
+    -webkit-mask:var(--gm) center/contain no-repeat;mask:var(--gm) center/contain no-repeat}
+  .bm-ini{flex:none;width:32px;height:32px;border-radius:50%;display:inline-grid;place-items:center;background:var(--panel2);
+    color:var(--muted);font-style:normal;font-size:12.5px;font-weight:600;letter-spacing:.02em;text-decoration:none}
+
+  /* ── Alertas ── */
+  #v-alertas .alert-filters{display:flex;flex-wrap:nowrap;gap:2px;padding:2px;border-radius:9px;background:var(--seg-carril,var(--panel2))}
+  #v-alertas .afilter{flex:1;min-height:34px;padding:0 8px;border:0;border-radius:7px;background:none;color:var(--txt);font-size:13px;font-weight:600}
+  #v-alertas .afilter.on{background:var(--seg-on,var(--panel));color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  #v-alertas .alert-grid{gap:14px}
+  #v-alertas .acard{padding:0;border:0!important;border-radius:12px;overflow:hidden}
+  #v-alertas .acard-head{margin:0;min-height:58px;padding:9px 14px 9px 16px;gap:12px}
+  #v-alertas .acard-head::after{content:"";flex:none;width:8px;height:14px;background:var(--muted2);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.5 1.5 6.5 7l-5 5.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.5 1.5 6.5 7l-5 5.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat}
+  #v-alertas .acard-photo{width:38px;height:38px;border-radius:50%}
+  #v-alertas .acard-name{font-size:17px;font-weight:600}
+  #v-alertas .acard-list{gap:0;border-top:.5px solid var(--hair)}
+  #v-alertas .arow{position:relative;min-height:46px;padding:8px 14px 8px 16px;gap:12px;font-size:15px}
+  #v-alertas .arow+.arow::before{content:"";position:absolute;top:0;left:57px;right:0;height:.5px;background:var(--hair)}
+  #v-alertas .arow>.adot{position:relative;width:29px;height:29px;border-radius:7px}
+  #v-alertas .arow>.adot.warn::after{background:var(--on-warn,#000)}
+  #v-alertas .atype{font-size:15px;line-height:1.3}
+  #v-alertas .amod{background:none;padding:0;font-size:13px;color:var(--muted)}
+
+  /* ── Fisioterapia › Datos: un solo grupo de filas ── */
+  .fis-datos{display:block;background:var(--panel);border-radius:12px;overflow:hidden;padding:0}
+  .fis-datos>details.fis-d{margin:0;padding:0;border:0!important;border-radius:0;background:none;box-shadow:none!important;position:relative}
+  .fis-datos>details.fis-d+details.fis-d::before{content:"";position:absolute;top:0;left:57px;right:0;height:.5px;background:var(--hair);z-index:1}
+  .fis-datos>details.fis-d>summary{display:grid;grid-template-columns:29px minmax(0,1fr) 10px;column-gap:12px;row-gap:1px;align-items:center;
+    min-height:54px;padding:8px 14px 8px 16px}
+  .fis-datos>details.fis-d>summary>.bm-gi{grid-column:1;grid-row:1 / span 2}
+  .fis-datos>details.fis-d>summary>.fis-dt{grid-column:2;grid-row:1;font-size:16px;font-weight:600;line-height:1.25}
+  .fis-datos>details.fis-d>summary>.fis-ds{grid-column:2;grid-row:2;font-size:13px;line-height:1.3}
+  .fis-datos>details.fis-d>summary::after{content:"";grid-column:3;grid-row:1 / span 2;width:8px;height:14px;background:var(--muted2);
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.5 1.5 6.5 7l-5 5.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.5 1.5 6.5 7l-5 5.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;transition:transform .2s}
+  .fis-datos>details.fis-d[open]>summary::after{transform:rotate(90deg)}
+  .fis-datos>details.fis-d>.fis-db{margin:0;padding:4px 16px 16px;border-top:0}
+
+  /* ── Conexión: el inventario de la copia ── */
+  #bkp-panel .wrap-x{overflow:visible}
+  #bkp-panel table.tbl{display:block;width:100%}
+  #bkp-panel table.tbl thead{display:none}
+  #bkp-panel table.tbl tbody{display:block}
+  #bkp-panel table.tbl tr{position:relative;display:flex;align-items:center;gap:10px;min-height:46px;padding:6px 0;background:none}
+  #bkp-panel table.tbl tr+tr::before{content:"";position:absolute;top:0;left:41px;right:0;height:.5px;background:var(--hair)}
+  #bkp-panel table.tbl td{border:0!important;padding:0!important;background:none!important}
+  #bkp-panel table.tbl td:first-child{flex:1;min-width:0;display:flex;align-items:center;gap:12px;font-size:15px;line-height:1.25}
+  #bkp-panel table.tbl td:nth-child(2){font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  #bkp-panel table.tbl td:nth-child(3){min-width:50px;font-size:13px}
+
+  /* ── Médico › Configuración: las plantillas de readaptación ── */
+  #med-rehab-config .rh-tpl{display:grid;grid-template-columns:29px minmax(0,1fr);column-gap:12px;row-gap:4px;align-items:center;
+    padding:10px 0;border-bottom:.5px solid var(--hair)}
+  #med-rehab-config .rh-tpl-act{grid-column:2;gap:6px}
+  #med-rehab-config .rh-tpl-c{position:relative;width:29px;height:29px;border-radius:7px}
+  #med-rehab-config .rh-tpl-main b{font-size:15px;font-weight:600}
+
+  /* ── Nutrición › Pedido: una fila por persona, con sus iniciales y la flecha ── */
+  #v-nutri details.nut-pj>summary{grid-template-columns:32px minmax(0,1fr) auto auto 10px;column-gap:10px;align-items:center}
+  #v-nutri details.nut-pj{position:relative;border-bottom:0}
+  #v-nutri details.nut-pj+details.nut-pj::before{content:"";position:absolute;top:0;left:42px;right:0;height:.5px;background:var(--hair)}
+  #v-nutri details.nut-pj>summary>.bm-ini{grid-column:1}
+  #v-nutri details.nut-pj>summary>span{grid-column:2}
+  #v-nutri details.nut-pj>summary>b{grid-column:3}
+  #v-nutri details.nut-pj>summary>i{grid-column:4}
+  #v-nutri details.nut-pj>summary::after{grid-column:5;content:"";width:8px;height:14px;background:var(--muted2);
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.5 1.5 6.5 7l-5 5.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 14'%3E%3Cpath d='M1.5 1.5 6.5 7l-5 5.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;transition:transform .2s}
+  #v-nutri details.nut-pj[open]>summary::after{transform:rotate(90deg)}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44551,8 +44691,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.20*/
-const VER_ACTUAL='2026-11-12.20';
+/*BUILD:2026-11-12.21*/
+const VER_ACTUAL='2026-11-12.21';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
