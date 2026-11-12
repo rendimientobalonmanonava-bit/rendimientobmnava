@@ -14392,8 +14392,8 @@ const bmgPlugin={id:'bmGraf',
     /* La frase va ENCIMA del hueco del gráfico, no dentro: dentro le quitaría alto. */
     const envoltorio=pa.children.length<=3&&pa.clientHeight<=cv.clientHeight+44,ref=envoltorio?pa:cv;
     let p=ref.previousElementSibling;
-    if(!p||!p.classList.contains('bm-lee')){if(!fr)return;p=document.createElement('div');p.className='bm-lee';p.setAttribute('aria-hidden','true');
-      p.innerHTML='<div class="bm-lee-t"><span class="bm-lee-c"></span><b class="bm-lee-n"></b><span class="bm-lee-s"></span></div><div class="bm-ven" role="group" hidden></div>';
+    if(!p||!p.classList.contains('bm-lee')){if(!fr)return;p=document.createElement('div');p.className='bm-lee';
+      p.innerHTML='<div class="bm-lee-t" aria-hidden="true"><span class="bm-lee-c"></span><b class="bm-lee-n"></b><span class="bm-lee-s"></span></div><div class="bm-ven" hidden></div>';
       ref.parentNode.insertBefore(p,ref);}
     bmgCabecera(chart,p,fr);
   },
@@ -15076,8 +15076,10 @@ function bmPulido(){
      de línea del mismo trazo que el resto de iconos: un emoji de color en una
      interfaz se lee como un mensaje de chat, no como una app.
    Los documentos que se exportan no se tocan. */
-const BMS_HEX={'e23b32':'bad','dc2626':'bad','1ea863':'ok','16a34a':'ok','e08a00':'warn'};
-const BMS_RE=/(:\s*|srgb,\s*)#(e23b32|dc2626|1ea863|16a34a|e08a00)\b/gi;
+/* v601 · también el ámbar de la intensidad del Calendario (`CAL_INT`, #e0a800) y el de
+   `calTraffic` (#e6a700): la palabra MEDIA de la tarjeta del día quedaba a 2,2:1. */
+const BMS_HEX={'e23b32':'bad','dc2626':'bad','1ea863':'ok','16a34a':'ok','e08a00':'warn','e0a800':'warn','e6a700':'warn'};
+const BMS_RE=/(:\s*|srgb,\s*)#(e23b32|dc2626|1ea863|16a34a|e08a00|e0a800|e6a700)\b/gi;
 const BMS_DOC='svg text,#parte-card,.pt-card,.ficha-card,.ficha-overlay,.sa-page,.sa-page-wk,.a4-page,#sescal-a4-page,.iso-hoja,#iso-overlay,#fis-cap-png';
 const BMS_I=d=>'<svg class="bm-sim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
 const BMS_SIM={'⚠':BMS_I('<path d="M10.3 4.2 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4.2M12 17h.01"/>'),
@@ -15091,7 +15093,7 @@ function bmPulidoMas(){
     if(e.closest(BMS_DOC))return;
     /* sobre una LETRA el semáforo va en su variante -text (§3: el color vivo
        vale para un punto, no para una palabra); en lo demás, el color vivo */
-    e.setAttribute('style',st.replace(/((?:^|;)\s*color\s*:\s*)#(e23b32|dc2626|1ea863|16a34a|e08a00)\b/gi,(m,pre,h)=>pre+'var(--'+BMS_HEX[h.toLowerCase()]+'-text)')
+    e.setAttribute('style',st.replace(/((?:^|;)\s*color\s*:\s*)#(e23b32|dc2626|1ea863|16a34a|e08a00|e0a800|e6a700)\b/gi,(m,pre,h)=>pre+'var(--'+BMS_HEX[h.toLowerCase()]+'-text)')
       .replace(BMS_RE,(m,pre,h)=>pre+'var(--'+BMS_HEX[h.toLowerCase()]+')'));});
   /* el color de una categoría escrito a mano sobre una letra (el violeta de una
      métrica, el azul de otra) se mezcla con la tinta del tema, como hace
@@ -41179,7 +41181,7 @@ html[data-theme="dark"]{--hero-a:#24262c;--hero-luz:rgba(255,255,255,.08)}
   .bm-lee-s{font-size:12.5px;color:var(--muted);line-height:1.35;font-variant-numeric:tabular-nums}
   .bm-ven{display:flex;flex:none;gap:2px;padding:2px;border-radius:9px;background:var(--seg-carril,var(--panel2));margin-right:40px}
   .bm-ven[hidden]{display:none}
-  .bm-ven button{position:relative;min-width:42px;height:30px;padding:0 8px;border:0;border-radius:7px;background:none;color:var(--txt);
+  .bm-ven button{position:relative;min-width:44px;height:30px;padding:0 8px;border:0;border-radius:7px;background:none;color:var(--txt);
     font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;touch-action:manipulation}
   .bm-ven button::after{content:"";position:absolute;left:0;right:0;top:-7px;bottom:-7px}
   .bm-ven button.on{background:var(--seg-on,var(--panel));box-shadow:0 1px 3px rgba(0,0,0,.12)}
@@ -41198,7 +41200,8 @@ html[data-theme="dark"]{--hero-a:#24262c;--hero-luz:rgba(255,255,255,.08)}
 
   /* ── Alertas ── */
   #v-alertas .alert-filters{display:flex;flex-wrap:nowrap;gap:2px;padding:2px;border-radius:9px;background:var(--seg-carril,var(--panel2))}
-  #v-alertas .afilter{flex:1;min-height:34px;padding:0 8px;border:0;border-radius:7px;background:none;color:var(--txt);font-size:13px;font-weight:600}
+  #v-alertas .afilter{position:relative;flex:1;min-height:34px;padding:0 8px;border:0;border-radius:7px;background:none;color:var(--txt);font-size:13px;font-weight:600}
+  #v-alertas .afilter::after{content:"";position:absolute;left:0;right:0;top:-5px;bottom:-5px}
   #v-alertas .afilter.on{background:var(--seg-on,var(--panel));color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.12)}
   #v-alertas .alert-grid{gap:14px}
   #v-alertas .acard{padding:0;border:0!important;border-radius:12px;overflow:hidden}
