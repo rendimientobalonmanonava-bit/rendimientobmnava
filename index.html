@@ -15760,6 +15760,25 @@ function bmFitHTML(rows){
   return '<div class="bm-fit"><div class="bmf-tit">Resumen de la sesión</div><div class="bmf-g">'+g+'</div>'
     +'<div class="bmf-sub">Zonas de pulso · media por jugador</div>'+zs+'</div>';
 }
+/* v618 · La barra de abajo se encoge al bajar, como en iOS 26 (Música,
+   Fotos). Daniel, 12/11/2026, eligió la propuesta 7. Al desplazarse hacia
+   abajo, la cápsula se queda en la pestaña activa —sólo su icono— y «Más» en
+   un círculo más pequeño: el contenido gana pantalla. Al subir, al llegar
+   arriba o al tocar la cápsula, vuelve entera; ese primer toque sólo la abre,
+   no navega. Sólo con el teléfono de pie: tumbado la barra va de pie a la
+   izquierda (v589) y no estorba. Nada con la hoja «Más» abierta. */
+(function(){let y0=0;
+  window.addEventListener('scroll',()=>{
+    const tb=document.getElementById('tabbar');const y=window.scrollY||0;
+    if(!tb||!esMovil()||window.innerWidth>window.innerHeight||document.body.classList.contains('sb-open')){if(tb)tb.classList.remove('tb-min');y0=y;return;}
+    if(y>y0+12&&y>160)tb.classList.add('tb-min');
+    else if(y<y0-12||y<80)tb.classList.remove('tb-min');
+    y0=y;},{passive:true});
+  document.addEventListener('click',e=>{
+    const tb=document.getElementById('tabbar');if(!tb||!tb.classList.contains('tb-min'))return;
+    if(!e.target.closest||!e.target.closest('#tabbar .tb-cap'))return;
+    e.preventDefault();e.stopImmediatePropagation();tb.classList.remove('tb-min');},true);
+})();
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
@@ -42449,6 +42468,23 @@ html.bmz .view.on{animation:none!important}
 }
 @media (prefers-reduced-motion:reduce) and (max-width:760px),(prefers-reduced-motion:reduce) and (max-height:500px) and (orientation:landscape) and (pointer:coarse){html body #toast{transition:opacity .2s ease!important}}
 </style>
+<style id="movil-v618">
+/* v618 · 7 · La barra de abajo, encogida al bajar. Sólo con el teléfono de pie. */
+@media (max-width:760px) and (orientation:portrait){
+  #tabbar .tb-cap{transition:max-width .38s cubic-bezier(.32,.72,0,1),height .38s cubic-bezier(.32,.72,0,1),padding .38s cubic-bezier(.32,.72,0,1)}
+  #tabbar .tb-mas{transition:width .38s cubic-bezier(.32,.72,0,1),height .38s cubic-bezier(.32,.72,0,1)}
+  #tabbar.tb-min .tb-cap{max-width:52px;height:52px;padding:4px;grid-template-columns:1fr!important}
+  #tabbar.tb-min .tb-cap .tb-i:not(.on){display:none}
+  #tabbar.tb-min .tb-cap .tb-i.on{border-radius:50%}
+  #tabbar.tb-min .tb-cap:not(:has(.tb-i.on)){display:none}
+  #tabbar.tb-min .tb-i>span{display:none}
+  #tabbar.tb-min .tb-mas{width:52px;height:52px}
+  #tabbar.tb-min .tb-mas .tb-bdg{top:-5px;right:-5px}
+}
+@media (max-width:760px) and (orientation:portrait) and (prefers-reduced-motion:reduce){
+  #tabbar .tb-cap,#tabbar .tb-mas{transition:none}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46014,8 +46050,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.31*/
-const VER_ACTUAL='2026-11-12.31';
+/*BUILD:2026-11-12.32*/
+const VER_ACTUAL='2026-11-12.32';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
