@@ -13215,6 +13215,7 @@ function estadoPanes(k){
   else if(k==='parte'){try{renderParte();}catch(e){}}
   else if(k==='fisio'){try{renderFisio();}catch(e){}}
   else{try{renderMedico();}catch(e){}}
+  try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}
 }
 function estadoTab(k){ESTADO_TAB=k;estadoPanes(k);window.scrollTo(0,0);}
 /* v215 · pestañas dentro de Médico. Se recuerda la elegida, como en Cargas
@@ -15090,10 +15091,125 @@ function bmCifras(){
     }
   });
 }
+/* v604 · Una sola fila de pestañas por pantalla. Daniel, 12/11/2026, eligió la
+   propuesta 1. Medido a 375 × 812: en Pulsómetros se apilaban cuatro
+   controles —la sección de Cargas, «Equipo · sesión / Jugador», el selector de
+   sesión y las pestañas del panel— y el primer dato empezaba en el píxel 410;
+   en Perfil físico, en el 420. En el móvil la SECCIÓN pasa al título grande,
+   que se abre como menú (como el título de Archivos o de Fotos), el selector
+   de sesión y el del jugador pasan a una pastilla en la línea del título, y
+   debajo queda una sola fila: la de las pestañas del panel.
+   No se mueve ningún nodo: los controles de siempre se ocultan con CSS y el
+   menú pulsa LAS MISMAS funciones que ellos (`cargasTab`, `hrModo`,
+   `estadoTab`, `tsaModo`). Las pastillas abren el mismo selector de jugador
+   de la v570 o, para la sesión, una lista que fija el `<select>` y dispara su
+   `change`. En el ordenador no se crea nada de esto. */
+const BMT_CHEV='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const BMT_OK='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const BMT_EXP='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7.5 7.5L12 3l4.5 4.5"/><path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/></svg>';
+function bmtModo(sel){const b=document.querySelector(sel+' button.on');return b?b.dataset.m:'';}
+const BMT={
+  carga:{nom:'Cargas',items:[
+    {t:'Cargas',on:()=>STATE.view==='carga'&&cargasTopKey()==='resumen',fn:()=>cargasTab('resumen')},
+    {t:'Pulso del equipo',on:()=>STATE.view==='hr'&&bmtModo('#hr-modo')!=='jugador',fn:()=>{if(STATE.view!=='hr')cargasTab('pulso');hrModo('equipo');}},
+    {t:'Pulso por jugador',on:()=>STATE.view==='hr'&&bmtModo('#hr-modo')==='jugador',fn:()=>{if(STATE.view!=='hr')cargasTab('pulso');hrModo('jugador');}},
+    {t:'Gimnasio',on:()=>STATE.view==='carga'&&cargasTopKey()==='gym',fn:()=>cargasTab('gym')},
+    {t:'Perfil de partido',on:()=>STATE.view==='carga'&&cargasTopKey()==='partidos',fn:()=>cargasTab('partidos')}]},
+  estado:{nom:'Estado del equipo',items:[
+    {t:'Disponibilidad',on:()=>(ESTADO_TAB||'dispo')==='dispo',fn:()=>estadoTab('dispo')},
+    {t:'Médico',on:()=>ESTADO_TAB==='medico',fn:()=>estadoTab('medico')},
+    {t:'Parte wellness',on:()=>ESTADO_TAB==='parte',fn:()=>estadoTab('parte')},
+    {t:'Fisioterapia',on:()=>ESTADO_TAB==='fisio',fn:()=>estadoTab('fisio')}]},
+  tests:{nom:'Perfil físico',items:[
+    {t:'Perfil físico',on:()=>(bmtModo('#tsa-modo')||'equipo')==='equipo',fn:()=>tsaModo('equipo')},
+    {t:'Perfil individual',on:()=>bmtModo('#tsa-modo')==='jugador',fn:()=>tsaModo('jugador')},
+    {t:'Análisis',on:()=>bmtModo('#tsa-modo')==='analisis',fn:()=>tsaModo('analisis')}]}
+};
+function bmtGrupo(){const v=STATE.view;return (v==='carga'||v==='hr')?BMT.carga:(v==='estado'||v==='tests')?BMT[v]:null;}
+function bmtActual(g){return g.items.find(x=>{try{return x.on();}catch(e){return false;}})||g.items[0];}
+function bmtPastillas(v){
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  if(v==='hr'&&bmtModo('#hr-modo')!=='jugador'){
+    const s=document.getElementById('hr-session');if(!s||!s.options.length)return {h:'',k:''};
+    const o=s.options[s.selectedIndex]||s.options[0];const lab=(o.textContent||'').trim();
+    return {k:'s'+lab,h:`<button type="button" class="bm-tp" aria-haspopup="dialog" aria-label="Sesión Polar: ${esc(lab)}" onclick="bmtSesion()"><span>${esc(lab)}</span>${BMT_CHEV}</button>`};
+  }
+  if(v==='tests'){
+    const s=document.getElementById('tests-player');if(!s)return {h:'',k:''};
+    const o=s.options[s.selectedIndex];const lab=o?(o.textContent||'').trim():'Elegir jugador';
+    const js=s.previousElementSibling&&s.previousElementSibling.classList.contains('bm-jsel')?s.previousElementSibling:null;
+    const av=js&&js.querySelector('.bmj-av')?js.querySelector('.bmj-av').outerHTML:'';
+    return {k:'t'+lab+(av?'1':'0'),h:`<button type="button" class="bm-tp bm-tp-j" aria-haspopup="dialog" aria-label="Jugador: ${esc(lab)}" onclick="bmtJugador()">${av}<span>${esc(lab)}</span>${BMT_CHEV}</button>`
+      +`<button type="button" class="bm-tp bm-tp-ic" aria-label="Ficha y exportar" onclick="bmtExportar()">${BMT_EXP}</button>`};
+  }
+  return {h:'',k:''};
+}
+function bmtPinta(){
+  if(!esMovil())return;
+  const g=bmtGrupo();if(!g)return;
+  const v=STATE.view,sec=document.getElementById('v-'+v),ph=sec&&sec.querySelector(':scope>.pagehead');if(!ph)return;
+  const it=bmtActual(g),pa=bmtPastillas(v),k=it.t+'|'+pa.k;
+  let w=ph.querySelector(':scope>.bm-tl');
+  if(!w){w=document.createElement('div');w.className='bm-tl';ph.insertBefore(w,ph.firstChild);}
+  if(w.dataset.k!==k){w.dataset.k=k;
+    w.innerHTML=`<button type="button" class="bm-tt" aria-haspopup="menu" aria-expanded="false" onclick="bmtAbre(this)"><span>${it.t}</span><i class="bm-tt-ch" aria-hidden="true">${BMT_CHEV}</i></button>`+pa.h;}
+  ph.classList.add('bm-tm');document.body.classList.add('bm-tmon');
+  const t=document.getElementById('dp-tit');if(t&&t.textContent!==it.t)t.textContent=it.t;
+}
+function bmtAbre(btn){
+  const g=bmtGrupo();if(!g)return;
+  let m=document.getElementById('bm-tmenu');
+  if(!m){m=document.createElement('div');m.id='bm-tmenu';
+    m.innerHTML='<div class="bmt-velo"></div><div class="bmt-caja" role="menu"></div>';document.body.appendChild(m);
+    m.querySelector('.bmt-velo').addEventListener('click',()=>bmtCierra());
+    m.querySelector('.bmt-caja').addEventListener('click',e=>{const b=e.target.closest('.bmt-it');if(!b)return;
+      const gg=bmtGrupo();const x=gg&&gg.items[+b.dataset.i];const ya=b.classList.contains('on');bmtCierra();
+      if(!x||ya)return;
+      setTimeout(()=>{window.__BM_TAB=1;try{x.fn();}catch(err){console.error('bmnava · menú del título',err);}finally{window.__BM_TAB=0;}
+        try{bmtPinta();}catch(err){}},90);});
+  }
+  const cur=bmtActual(g);
+  m.querySelector('.bmt-caja').innerHTML='<div class="bmt-cab">'+g.nom+'</div>'+g.items.map((x,i)=>{const on=x===cur;
+    return `<button type="button" role="menuitemradio" aria-checked="${on}" class="bmt-it${on?' on':''}" data-i="${i}"><i class="bmt-ok">${on?BMT_OK:''}</i><span>${x.t}</span></button>`;}).join('');
+  const r=btn.getBoundingClientRect(),c=m.querySelector('.bmt-caja');
+  c.style.top=Math.round(r.bottom+6)+'px';c.style.left=Math.round(Math.max(12,Math.min(r.left,window.innerWidth-262)))+'px';
+  m.classList.add('on');void m.offsetWidth;m.classList.add('vis');
+  btn.setAttribute('aria-expanded','true');m._btn=btn;
+  const f=m.querySelector('.bmt-it.on')||m.querySelector('.bmt-it');try{f.focus({preventScroll:true});}catch(e){}
+}
+function bmtCierra(){
+  const m=document.getElementById('bm-tmenu');if(!m||!m.classList.contains('on'))return false;
+  m.classList.remove('vis');setTimeout(()=>{if(!m.classList.contains('vis'))m.classList.remove('on');},200);
+  if(m._btn){m._btn.setAttribute('aria-expanded','false');}
+  return true;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&bmtCierra())e.stopPropagation();},true);
+function bmtSesion(){
+  const s=document.getElementById('hr-session');if(!s)return;
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const h=bmHoja({id:'bmt-ses',titulo:'Sesión Polar',html:'<div class="bmt-l">'+[...s.options].map((o,i)=>
+    `<button type="button" class="bmt-li${i===s.selectedIndex?' on':''}" data-i="${i}"><span>${esc((o.textContent||'').trim())}</span>${i===s.selectedIndex?BMT_OK:''}</button>`).join('')+'</div>'});
+  const l=h.querySelector('.bmt-l');
+  l.onclick=e=>{const b=e.target.closest('.bmt-li');if(!b)return;
+    if(+b.dataset.i!==s.selectedIndex){s.selectedIndex=+b.dataset.i;s.dispatchEvent(new Event('change',{bubbles:true}));}
+    bmHojaCierra('bmh-bmt-ses');setTimeout(()=>{try{bmtPinta();}catch(e){}},60);};
+  const on=l.querySelector('.bmt-li.on');if(on)setTimeout(()=>{try{on.scrollIntoView({block:'center'});}catch(e){}},30);
+}
+function bmtJugador(){
+  const s=document.getElementById('tests-player');if(!s)return;
+  const js=s.previousElementSibling;
+  if(js&&js.classList.contains('bm-jsel'))js.click();else{try{s.focus();}catch(e){}}
+}
+function bmtExportar(){
+  const s=document.getElementById('tests-player');const b=s&&s.parentElement?s.parentElement.querySelector('button.btn'):null;
+  if(b)b.click();
+}
+document.addEventListener('change',e=>{const t=e.target;if(t&&(t.id==='hr-session'||t.id==='tests-player'))setTimeout(()=>{try{bmtPinta();}catch(err){}},40);},true);
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
   try{bmCifras();}catch(e){console.error('bmnava · cifras',e);}
+  try{bmtPinta();}catch(e){console.error('bmnava · título',e);}
   try{bmListas();}catch(e){console.error('bmnava · listas',e);}
   BMP_ROT.forEach(([sel,nuevo])=>{document.querySelectorAll(sel).forEach(b=>{
     const t=b.textContent.trim(),n=typeof nuevo==='string'?nuevo:nuevo[t];
@@ -15571,6 +15687,7 @@ function bmPriVe(){const b=document.getElementById('bm-pri');if(!b)return;let t=
 function bmCierraCapa(){
   const vis=id=>{const e=document.getElementById(id);return e&&getComputedStyle(e).display!=='none'?e:null;};
   let e;
+  if(typeof bmtCierra==='function'&&bmtCierra())return true;
   if(typeof bmPreviaCierra==='function'&&bmPreviaCierra())return true;
   if(BMG.ch){bmgCierra();return true;}
   if(BMH.pila.length){bmHojaCierra();return true;}
@@ -15893,6 +16010,7 @@ function bmNombreVista(v){
 function bmTitulo(v){
   const t=document.getElementById('dp-tit');if(!t)return;
   t.textContent=bmNombreVista(v);
+  try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}
 }
 function writeHash(push,y0){
   /* v388 · Lo mismo con la dirección: si se escribía durante el recorrido, la
@@ -15980,6 +16098,7 @@ function bmCapaAbierta(){
   const vis=id=>{const e=document.getElementById(id);return !!(e&&getComputedStyle(e).display!=='none');};
   if((window.BMG&&BMG.ch)||(window.BMH&&BMH.pila&&BMH.pila.length))return true;
   const pv=document.getElementById('bm-prev');if(pv&&pv.classList.contains('on'))return true;
+  const tm=document.getElementById('bm-tmenu');if(tm&&tm.classList.contains('on'))return true;
   if(document.querySelector('.bm-tv'))return true;
   if(vis('iso-overlay')||vis('ficha-overlay')||vis('ph-overlay')||vis('med-overlay'))return true;
   const d=document.getElementById('drawer');if(d&&d.classList.contains('on'))return true;
@@ -21472,6 +21591,7 @@ function tsaModo(m){
   Object.keys(paneles).forEach(k=>{if(paneles[k])paneles[k].style.display=(k===m)?'':'none';});
   document.querySelectorAll('#tsa-modo button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   try{localStorage.setItem('bmnava_tsamodo',m);}catch(e){}
+  try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}
   /* Chart.js mide el contenedor al crear el gráfico, así que uno nacido en una
      pestaña oculta sale de tamaño cero — misma regla que la ficha del jugador.
      Lo hacía el `ontoggle` del <details> que ya no existe. */
@@ -28333,6 +28453,7 @@ function hrModo(m){
   document.querySelectorAll('#hr-modo button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   try{localStorage.setItem('bmnava_hrmodo',m);}catch(e){}
   if(esJug)renderHRPlayer();
+  try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}
 }
 /* Solo los que tienen pulsómetro: ofrecer los 19 daría fichas vacías. */
 function hrpNombres(){return [...new Set((STATE.hr||[]).map(r=>r&&r.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));}
@@ -35671,6 +35792,7 @@ function syncCargasTabs(){
   document.querySelectorAll('.rpe-seg button').forEach(b=>b.classList.toggle('on',b.dataset.sub===FILTER.cargaTab));
   const showSub=(top==='rpe');
   document.querySelectorAll('.rpe-subwrap').forEach(w=>{w.style.display=showSub?'':'none';});
+  try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}
 }
 
 buildNav();buildSidebar();buildTabbar();injectPageHeads();try{skelResumen();}catch(e){}try{if(localStorage.getItem('bmnava_sbmin')==='1')document.body.classList.add('sb-min');}catch(e){}mountCargasTabs();
@@ -41423,6 +41545,61 @@ html[data-theme="dark"]{--sb-sep:rgba(84,84,88,.62)}
   #sidebar .sb-item .tb-bdg{margin-left:0}
   #sidebar .sb-item:active{background:var(--seg-carril)!important}
 }
+</style>
+<style id="movil-v604">
+/* v604 · 1 · El título grande abre el menú de la sección; debajo, una sola
+   fila de pestañas. Las piezas las crea código del móvil; aquí se ocultan los
+   controles que sustituyen, sólo cuando el título ya está puesto (bm-tmon). */
+.bm-tl{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .pagehead.bm-tm>h1{display:none}
+  .pagehead>.bm-tl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0}
+  .bm-tt{display:inline-flex;align-items:center;gap:8px;max-width:100%;min-height:44px;padding:0;margin:0;border:0;background:none;
+    color:var(--txt);font-family:inherit;font-size:34px;font-weight:700;letter-spacing:-.021em;line-height:1.09;text-align:left;cursor:pointer;
+    transform-origin:left center;transform:scale(calc(1 - .16*var(--tp,0)));opacity:calc(1 - var(--tp,0));-webkit-tap-highlight-color:transparent}
+  .bm-tt>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bm-tt-ch{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--seg-carril);color:var(--accent);margin-top:3px}
+  .bm-tt-ch svg{width:14px;height:14px}
+  .bm-tt:active{opacity:.6}
+  .bm-tp{position:relative;display:inline-flex;align-items:center;gap:7px;min-width:0;max-width:100%;min-height:36px;padding:0 12px;margin:0;border:0;
+    border-radius:999px;background:var(--seg-carril);color:var(--txt);font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bm-tp::after{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+  .bm-tp>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bm-tp>svg{flex:none;color:var(--muted)}
+  .bm-tp-j{padding-left:5px}
+  .bm-tp .bmj-av{position:relative;flex:none;width:26px;height:26px;border-radius:50%;overflow:hidden;background:var(--panel2);
+    display:inline-grid;place-items:center;font-size:11px;color:var(--muted)}
+  .bm-tp .bmj-av i{font-style:normal}
+  .bm-tp .bmj-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .bm-tp-ic{width:36px;padding:0;justify-content:center;color:var(--accent)}
+  .bm-tp-ic>svg{color:var(--accent)}
+  .bm-tp:active{filter:brightness(.92)}
+  body.bm-tmon #v-carga>.cargas-tabwrap,body.bm-tmon #v-hr>.cargas-tabwrap,body.bm-tmon #hr-modo,body.bm-tmon #tsa-modo,
+  body.bm-tmon #v-estado>.estado-seg,body.bm-tmon #hr-pane-equipo>.ctrlrow:has(#hr-session),
+  body.bm-tmon #v-tests>.ctrlrow:has(#tests-player){display:none!important}
+  #bm-tmenu{position:fixed;inset:0;z-index:96;display:none}
+  #bm-tmenu.on{display:block}
+  #bm-tmenu .bmt-velo{position:absolute;inset:0;background:transparent}
+  #bm-tmenu .bmt-caja{position:absolute;width:250px;max-width:calc(100vw - 24px);padding:4px 0;border-radius:14px;background:var(--bmh-celda);
+    box-shadow:0 12px 40px rgba(0,0,0,.24),0 0 0 .5px var(--sb-sep);transform-origin:top left;transform:scale(.5);opacity:0;
+    transition:transform .3s cubic-bezier(.32,.72,0,1),opacity .16s ease}
+  #bm-tmenu.vis .bmt-caja{transform:none;opacity:1}
+  .bmt-cab{padding:9px 16px 5px;font-size:12.5px;color:var(--muted)}
+  .bmt-it{display:flex;align-items:center;gap:6px;width:100%;min-height:44px;padding:0 16px 0 10px;margin:0;border:0;background:none;
+    color:var(--txt);font-family:inherit;font-size:17px;font-weight:400;text-align:left;cursor:pointer}
+  .bmt-it+.bmt-it{box-shadow:inset 0 .5px 0 var(--sb-sep)}
+  .bmt-it.on{font-weight:600}
+  .bmt-ok{flex:none;width:22px;display:grid;place-items:center;font-style:normal;color:var(--txt)}
+  .bmt-it:active{background:var(--seg-carril)}
+  .bmt-l{margin:0 16px 18px;border-radius:12px;overflow:hidden;background:var(--bmh-celda)}
+  .bmt-li{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:46px;padding:10px 16px;margin:0;border:0;
+    background:none;color:var(--txt);font-family:inherit;font-size:16px;text-align:left;cursor:pointer}
+  .bmt-li+.bmt-li{box-shadow:inset 0 .5px 0 var(--sb-sep)}
+  .bmt-li.on{color:var(--accent);font-weight:600}
+  .bmt-li>svg{flex:none;color:var(--accent)}
+  .bmt-li:active{background:var(--seg-carril)}
+}
+@media (prefers-reduced-motion:reduce){#bm-tmenu .bmt-caja{transition:none}}
 </style>
 <script>
 /* ============================================================
