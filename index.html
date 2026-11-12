@@ -13805,17 +13805,44 @@ function sbToggleMobile(f){if(f===undefined)document.body.classList.toggle('sb-o
    no puede tener dos dibujos distintos según por dónde se llegue. */
 /* v548 · Tres destinos, por decisión de Daniel (11/11/2026): Nutrición sale de
    la barra y se llega a ella desde «Más», como al resto. */
-const TABBAR=[['equipo','Resumen'],['cal','Calendario'],['dispo','Disponibilidad']];
+/* v583 · Las tres pestañas las elige cada teléfono («Más › Teléfono»). Daniel,
+   12/11/2026: Virginia tenía Vendajes a tres toques. La elección se guarda con
+   guion —`bmnava-barra`— porque lo que empieza por `bmnava_` se sincroniza, y
+   esto es de ESTE aparato. Lo que no se elige sigue en «Más».
+   `vend` es el único destino que no existe en el menú: abre Fisioterapia en
+   su pestaña de Vendajes. */
+const TB_DEF=['equipo','cal','dispo'];
+const TB_CAT={equipo:'Resumen',cal:'Calendario',dispo:'Disponibilidad',medico:'Médico',parte:'Parte',fisio:'Fisioterapia',vend:'Vendajes',carga:'Cargas',hr:'Pulsómetros',nutri:'Nutrición',tests:'Físico',jugadores:'Jugadores',alertas:'Alertas'};
+const TB_NOM={parte:'Parte wellness',tests:'Perfil físico'};
+const TB_K='bmnava-barra';
+const TB_VEND='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/></svg>';
+function tbLista(){let a=null;try{a=JSON.parse(localStorage.getItem(TB_K)||'null');}catch(e){}
+  if(!Array.isArray(a)||a.length!==3||a.some(k=>!TB_CAT[k])||new Set(a).size!==3)a=TB_DEF;
+  return a.map(k=>[k,TB_CAT[k]]);}
+let TABBAR=tbLista();
+function tbGuarda(ks){
+  try{if(ks&&ks.join()!==TB_DEF.join())localStorage.setItem(TB_K,JSON.stringify(ks));else localStorage.removeItem(TB_K);}catch(e){}
+  TABBAR=tbLista();buildTabbar();tbMark(window.__TB_V||STATE.view);
+  try{if(typeof bdAlertas==='function')bdAlertas();}catch(e){}
+}
 const TB_MAS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
 function buildTabbar(){const tb=document.getElementById('tabbar');if(!tb)return;
   /* v548 · Los destinos van en una cápsula y «Más» es un botón redondo aparte:
      la barra flota sobre el contenido en vez de ir pegada al borde. */
-  tb.innerHTML='<div class="tb-cap">'+TABBAR.map(([v,l])=>`<button type="button" class="tb-i" data-v="${v}" onclick="tbGo('${v}')">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`).join('')+'</div>'
+  const cols=TABBAR.map(([v,l])=>Math.max(1,l.length/11).toFixed(2)+'fr').join(' ');
+  tb.innerHTML='<div class="tb-cap" style="grid-template-columns:'+cols+'">'+TABBAR.map(([v,l])=>`<button type="button" class="tb-i" data-v="${v}" onclick="tbGo('${v}')">${v==='vend'?TB_VEND:(SB_ICONS[v]||SB_ICONS._)}<span>${l}</span></button>`).join('')+'</div>'
     +`<button type="button" class="tb-i tb-mas" data-v="_mas" aria-haspopup="dialog" aria-expanded="false" aria-label="Más: el menú completo" onclick="sbToggleMobile()">${TB_MAS}<span>Más</span></button>`;}
 /* Tocar la pestaña en la que ya se está sube al principio, como en cualquier
    aplicación de teléfono; tocar otra, navega. */
 function tbGo(v){const abierta=document.body.classList.contains('sb-open');sbToggleMobile(false);
-  const ya=STATE.view===v||(v==='dispo'&&STATE.view==='estado');
+  if(v==='vend'){
+    const enFis=window.__TB_V==='fisio';
+    let sub='';try{sub=localStorage.getItem('bmnava_fisiotab')||'';}catch(e){}
+    if(enFis&&sub==='vend'&&!abierta){window.scrollTo({top:0,behavior:'smooth'});return;}
+    window.__BM_TAB=true;try{if(!enFis)go('fisio');if(window.fisTab)fisTab('vend');}finally{window.__BM_TAB=false;}
+    return;}
+  /* en la ficha de un jugador, «Jugadores» vuelve a la lista */
+  const ya=window.__TB_ON===v&&!(v==='jugadores'&&STATE.view==='jugador');
   if(ya&&!abierta){window.scrollTo({top:0,behavior:'smooth'});return;}
   if(!ya){window.__BM_TAB=true;try{go(v);}finally{window.__BM_TAB=false;}}}
 /* Lo que no es uno de los cuatro destinos se alcanza desde «Más», así que es
@@ -13827,7 +13854,11 @@ function tbGo(v){const abierta=document.body.classList.contains('sb-open');sbTog
 function eqFold(){const v=document.getElementById('v-equipo'),b=document.getElementById('eq-fold');if(!v)return;
   const ab=v.classList.toggle('eq-an');if(b)b.setAttribute('aria-expanded',ab?'true':'false');
   if(ab)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(c=>{if(c&&c.canvas&&c.canvas.closest('#v-equipo'))c.resize();});}catch(e){console.error('bmnava · pliegue del resumen',e);}},0);}
-function tbMark(v){const eff=v==='estado'?'dispo':v;const fijo=TABBAR.some(t=>t[0]===eff);
+function tbMark(v){let eff=v==='estado'?'dispo':v;const ks=TABBAR.map(t=>t[0]);
+  if(eff==='fisio'&&ks.indexOf('fisio')<0&&ks.indexOf('vend')>=0)eff='vend';
+  if(eff==='jugador'&&ks.indexOf('jugadores')>=0)eff='jugadores';
+  window.__TB_ON=eff;window.__TB_V=v;
+  const fijo=ks.indexOf(eff)>=0;
   document.querySelectorAll('#tabbar .tb-i').forEach(b=>{const on=fijo?b.dataset.v===eff:b.dataset.v==='_mas';
     b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('sb-open'))sbToggleMobile(false);});
@@ -14380,7 +14411,13 @@ function bmTelefono(){
   const ops=[['sis','Como el teléfono'],['0.9','Pequeña'],['1','Normal'],['1.15','Grande'],['1.3','Muy grande']];
   const pinta=()=>{const p=bmlPref(),sis=bmlSistema(),f=bmlEscala();
     const nom=x=>({0.9:'pequeña',1:'normal',1.15:'grande',1.3:'muy grande'})[x]||'normal';
-    return '<div class="bmh-rot">Tamaño de letra</div><div class="bmh-grupo">'
+    const pos=['Izquierda','Centro','Derecha'],ks=TABBAR.map(t=>t[0]);
+    const barra='<div class="bmh-rot">Barra de abajo</div><div class="bmh-grupo">'
+      +ks.map((k,i)=>'<label class="bmh-fila bmt-sel"><span class="tx">'+pos[i]+'</span><select data-barra="'+i+'" aria-label="Pestaña '+pos[i].toLowerCase()+'">'
+        +Object.keys(TB_CAT).map(c=>'<option value="'+c+'"'+(c===k?' selected':'')+'>'+(TB_NOM[c]||TB_CAT[c])+'</option>').join('')+'</select></label>').join('')
+      +(ks.join()!==TB_DEF.join()?'<button type="button" class="bmh-fila" data-barra-def="1"><span class="tx">Volver a Resumen · Calendario · Disponibilidad</span></button>':'')
+      +'</div><p class="bml-nota">Elige las tres pestañas de este teléfono. Lo demás sigue en «Más».</p>';
+    return barra+'<div class="bmh-rot">Tamaño de letra</div><div class="bmh-grupo">'
       +ops.map(o=>'<button type="button" class="bmh-fila'+(p===o[0]?' on':'')+'" data-letra="'+o[0]+'"><span class="tx">'+o[1]
         +(o[0]==='sis'?'<small>Ahora mismo: '+nom(BML.pasos.reduce((a,b)=>Math.abs(b-Math.max(0.9,Math.min(1.3,sis)))<Math.abs(a-Math.max(0.9,Math.min(1.3,sis)))?b:a))+'</small>':'')
         +'</span>'+(p===o[0]?'<span class="ch bml-ok">✓</span>':'')+'</button>').join('')+'</div>'
@@ -14389,7 +14426,13 @@ function bmTelefono(){
       +'<p class="bml-ver">Versión '+bmjEsc(typeof VER_ACTUAL!=='undefined'?VER_ACTUAL:'')+'</p>';};
   const h=bmHoja({id:'tel',titulo:'Este teléfono',clase:'bmt',html:pinta()});
   const c=h.querySelector('.bmh-cuerpo');
-  c.onclick=e=>{const b=e.target.closest('[data-letra]');if(!b)return;
+  const repinta=()=>{c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
+  c.onchange=e=>{const sel=e.target.closest&&e.target.closest('select[data-barra]');if(!sel)return;
+    const i=+sel.dataset.barra,ks=TABBAR.map(t=>t[0]),k=sel.value,j=ks.indexOf(k);
+    if(j>=0&&j!==i)ks[j]=ks[i];        /* ya estaba en otra posición: se intercambian */
+    ks[i]=k;tbGuarda(ks);repinta();};
+  c.onclick=e=>{if(e.target.closest('[data-barra-def]')){tbGuarda(TB_DEF.slice());repinta();return;}
+    const b=e.target.closest('[data-letra]');if(!b)return;
     try{localStorage.setItem(BML.k,b.dataset.letra);}catch(err){}
     bmlAplica();c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
   try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(e){}
@@ -23352,7 +23395,9 @@ function bdAlertas(){const all=STATE.alerts||[];
      donde se llega a Alertas, y sobre la propia entrada dentro de la hoja.
      Aquí el rojo SÍ es el rojo de alertas (§2.3): va en rojo si hay alguna
      roja y en ámbar si no. El CSS sólo lo enseña en el móvil. */
-  [document.querySelector('#tabbar [data-v="_mas"]'),document.querySelector('.sb-item[data-v="alertas"]')].forEach(h=>{
+  const enBarra=document.querySelector('#tabbar .tb-cap [data-v="alertas"]');
+  if(enBarra){const sobra=document.querySelector('#tabbar [data-v="_mas"] .tb-bdg');if(sobra)sobra.remove();}
+  [enBarra||document.querySelector('#tabbar [data-v="_mas"]'),document.querySelector('.sb-item[data-v="alertas"]')].forEach(h=>{
     if(!h)return;let g=h.querySelector('.tb-bdg');
     if(!all.length){if(g)g.remove();return;}
     if(!g){g=document.createElement('b');g.className='tb-bdg';h.appendChild(g);}
@@ -24319,7 +24364,9 @@ window.ojoResolver=function(name,id){
   if(!e)return;
   e.vis=true;e.visDk=dkey(new Date());
   ojoPersist();
-  try{toast(String(name).split(' ')[0]+' · aviso retirado · queda en su historial');}catch(err){}
+  try{toast(String(name).split(' ')[0]+' · aviso retirado · queda en su historial',{accion:'Deshacer',fn:()=>{
+    ojoLoad();const x=(STATE.medLog[name]||[]).find(y=>y&&y.id===id);if(!x)return;
+    x.vis=false;delete x.visDk;ojoPersist();ojoRepintar(name);}});}catch(err){}
   ojoRepintar(name);
 };
 function ojoRepintar(name){
@@ -25636,6 +25683,19 @@ function vendCopiarUltimo(dk){
   const prev=vendUltimoDiaCon(dk);
   if(!prev){alert('No hay ningún día anterior con vendajes que copiar.');return;}
   const src=vendDia(prev);
+  /* v582 · En el móvil se copia sin preguntar y el aviso trae «Deshacer»:
+     copiar no pisa nada y se revierte entero, así que la pregunta sobra. */
+  if(esMovil()){
+    const ids=[],f=prev.split('-').reverse().slice(0,2).join('/');
+    src.forEach(r=>{if(vendDe(dk,r.jugador,r.zona))return;const id=vendId();
+      V.reg.push({id,dk,jugador:r.jugador,zona:r.zona,lado:r.lado,n:r.n,upd:Date.now()});ids.push(id);});
+    if(!ids.length){toast('Ya tenías puestos todos los del '+f);return;}
+    vendPersist();renderFisio();
+    toast('Copiado'+(ids.length===1?'':'s')+' '+ids.length+' vendaje'+(ids.length===1?'':'s')+' del '+f,{accion:'Deshacer',fn:()=>{
+      const W=vendLoad();try{lsTumbarIds(VEND_LS,ids.map(String));}catch(e){}
+      W.reg=W.reg.filter(r=>ids.indexOf(r.id)<0);vendPersist();renderFisio();}});
+    return;
+  }
   if(!confirm('Copiar los '+src.length+' vendaje'+(src.length===1?'':'s')+' del '+prev.split('-').reverse().join('/')+' a este día.\n\nNo se toca nada de lo que ya tengas puesto hoy.'))return;
   let n=0;
   src.forEach(r=>{
@@ -33950,7 +34010,10 @@ function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;try{calLoad();}catch(e){}
 function calDelEvent(dk,id){try{calLoad();}catch(e){}const arr=((STATE.calendar||{})[dk]||[]);const i=arr.findIndex(e=>e.id===id);if(i>=0){arr.splice(i,1);if(!arr.length)delete STATE.calendar[dk];if(CAL_EDIT===id)CAL_EDIT=null;calPersist();calBody(dk);renderCalendar();
   try{if(window.renderTeam&&document.getElementById('team-next'))renderTeam();}catch(e){}}}
 
-function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);}t.textContent=msg;requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';});clearTimeout(_toastT);_toastT=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(10px)';},2200);}
+/* v582 · `toast(msg,{accion,fn})`: en el móvil el aviso puede llevar un botón
+   —«Deshacer»— y entonces dura cinco segundos y recoge toques. Sin segundo
+   argumento, y siempre en el ordenador, es el aviso de toda la vida. */
+function toast(msg,o){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);}t.textContent=msg;const acc=!!(o&&o.accion&&typeof o.fn==='function'&&esMovil());if(acc){const b=document.createElement('button');b.type='button';b.className='toast-acc';b.textContent=o.accion;b.onclick=()=>{clearTimeout(_toastT);t.style.opacity='0';t.style.pointerEvents='none';try{o.fn();}catch(e){console.error('bmnava · deshacer',e);}};t.appendChild(b);}t.style.pointerEvents=acc?'auto':'none';t.classList.toggle('con-acc',acc);requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';});clearTimeout(_toastT);_toastT=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(10px)';t.style.pointerEvents='none';},acc?5200:2200);}
 
 /* --- Tema --- */
 /* ===== v216 · Modo ligero =====
@@ -39833,6 +39896,25 @@ header,#tabbar,.sb-tools,svg,
 @keyframes bmcGira{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.bmc-rueda{animation-duration:2.4s}}
 </style>
+<style id="movil-v582">
+/* v582 · El botón del aviso. El aviso va con los colores invertidos (fondo
+   --txt), así que el acento normal no se lee encima: token propio. */
+:root{--toast-acc:#9db4ff}
+html[data-theme="dark"]{--toast-acc:#2747b0}
+#toast.con-acc{display:flex;align-items:center;gap:4px;padding-right:6px}
+@media(max-width:760px){#toast{width:max-content;max-width:calc(100vw - 32px);text-align:center}}
+#toast .toast-acc{flex:none;margin:-10px 0 -10px 8px;padding:0 12px;min-height:44px;border:0;background:none;
+  font:inherit;font-weight:700;color:var(--toast-acc);-webkit-tap-highlight-color:transparent}
+</style>
+<style id="movil-v583">
+/* v583 · Elegir las pestañas en «Más › Teléfono», y el número de alertas
+   cuando Alertas es una pestaña. */
+.bmt-sel{cursor:pointer}
+.bmt-sel select{flex:0 1 auto;min-width:0;max-width:62%;min-height:44px;border:0;background:none;padding:0 2px;margin:-6px 0;
+  font:inherit;font-size:16px;font-weight:500;color:var(--accent);text-align:right;text-align-last:right;-webkit-appearance:none;appearance:none}
+.tb-cap .tb-i{position:relative}
+.tb-cap .tb-bdg{top:2px;left:calc(50% + 4px)}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43398,8 +43480,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.2*/
-const VER_ACTUAL='2026-11-12.2';
+/*BUILD:2026-11-12.4*/
+const VER_ACTUAL='2026-11-12.4';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
