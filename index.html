@@ -15501,9 +15501,79 @@ document.addEventListener('click',e=>{
   e.preventDefault();e.stopImmediatePropagation();
   bmZoom(c,run);
 },true);
+/* v612 · Las explicaciones largas, plegadas. Daniel, 12/11/2026, eligió la
+   propuesta 1. Medido a 375 px: 31 párrafos de 140 caracteres o más a la vista
+   (9.415 caracteres) —siete sólo en la pestaña Carga de la ficha—. En el móvil
+   se leen las dos primeras líneas y un «más» en el color de acción, como la
+   descripción de una app en el App Store; al tocar, se abre entero y al volver
+   a tocar se pliega. No se quita ni una palabra: el texto sigue en el marcado.
+   Qué se pliega: un párrafo de 140 caracteres o más que sólo lleva texto —sin
+   bloques, gráficos ni controles dentro— y que no está dentro de algo que se
+   pulsa (un panel que lleva a otra pantalla seguiría haciendo eso). Fuera:
+   los documentos, los estados vacíos, los avisos y las tablas.
+   El «más» sale sólo si de verdad queda texto escondido: lo mide un
+   `ResizeObserver`, que también salta cuando el párrafo pasa de una pestaña
+   oculta a la vista o cambia el tamaño de la letra. El degradado que hay
+   debajo del «más» toma el color de lo que hay detrás y se vuelve a medir al
+   cambiar de tema. Las notas de la ficha ya se plegaban desde la v555; ahora
+   llevan además su «más». */
+const BMPL_FUERA=BMG_DOC+',.bm-vacio,.wz-kpi-side,.rh-warn,table,.bmh,[role="alert"],.ph-banner,a,button,label,summary,[onclick],[data-bmz]';
+const BMPL_HIJOS='div,p,table,canvas,svg,button,input,select,textarea,img,ul,ol,details';
+let BMPL_RO=null;
+/* El color que hay DETRÁS del párrafo, ya compuesto: las tarjetas llevan un
+   blanco al 94 % sobre el lienzo, así que se suman las capas hasta dar con una
+   opaca. Se vuelve a medir al cambiar de tema. */
+function bmplFondo(e){
+  const capas=[];
+  for(let p=e.parentElement;p;p=p.parentElement){
+    const m=getComputedStyle(p).backgroundColor.match(/rgba?\(([^)]+)\)/);if(!m)continue;
+    const v=m[1].split(',').map(x=>parseFloat(x));const al=v.length>3?v[3]:1;if(al<=0)continue;
+    capas.push([v[0],v[1],v[2],al]);if(al>=0.999)break;
+  }
+  let c=[255,255,255];
+  for(let i=capas.length-1;i>=0;i--){const [r,g,b,al]=capas[i];c=[r*al+c[0]*(1-al),g*al+c[1]*(1-al),b*al+c[2]*(1-al)];}
+  return 'rgb('+c.map(x=>Math.round(x)).join(',')+')';
+}
+function bmplMide(e){
+  if(e.classList.contains('bm-pl-ab')||e.classList.contains('hint-ab'))return;
+  if(!e.clientHeight)return;
+  e.classList.toggle('bm-pl-c',e.scrollHeight>e.clientHeight+2);
+  if(e.classList.contains('bm-pl-c'))e.style.setProperty('--pl-bg',bmplFondo(e));
+}
+function bmPliega(){
+  if(!esMovil())return;
+  const v=document.querySelector('main .view.on');if(!v)return;
+  if(!BMPL_RO&&window.ResizeObserver)BMPL_RO=new ResizeObserver(es=>es.forEach(x=>{try{bmplMide(x.target);}catch(_){}}));
+  v.querySelectorAll('p:not([data-bmpl]),.gv-sw-d:not([data-bmpl]),.wz-foot:not([data-bmpl])').forEach(e=>{
+    e.dataset.bmpl='0';
+    if(e.parentElement&&e.parentElement.closest(BMPL_FUERA))return;
+    if(e.matches(BMPL_FUERA))return;
+    if((e.textContent||'').replace(/\s+/g,' ').trim().length<140||e.querySelector(BMPL_HIJOS))return;
+    e.dataset.bmpl='1';e.classList.add('bm-pl');e.tabIndex=0;e.setAttribute('aria-expanded','false');
+    if(BMPL_RO)BMPL_RO.observe(e);else bmplMide(e);
+  });
+}
+function bmplCambia(p){
+  if(p.matches('#v-jugador .hint')){setTimeout(()=>p.setAttribute('aria-expanded',p.classList.contains('hint-ab')?'true':'false'),0);return;}
+  const ab=p.classList.toggle('bm-pl-ab');p.setAttribute('aria-expanded',ab?'true':'false');
+  if(!ab)bmplMide(p);
+}
+document.addEventListener('click',e=>{
+  if(!esMovil())return;
+  const p=e.target&&e.target.closest?e.target.closest('.bm-pl'):null;
+  if(!p||e.target.closest('a,button'))return;
+  bmplCambia(p);
+});
+try{new MutationObserver(()=>setTimeout(()=>document.querySelectorAll('.bm-pl.bm-pl-c').forEach(e=>{try{bmplMide(e);}catch(_){}}),450))
+  .observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}
+document.addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.classList&&e.target.classList.contains('bm-pl')&&esMovil()){
+    e.preventDefault();if(e.target.matches('#v-jugador .hint'))e.target.classList.toggle('hint-ab');bmplCambia(e.target);}
+});
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmPliega();}catch(e){console.error('bmnava · pliegue',e);}
   try{bmZoomMarca();}catch(e){}
   try{bmInterruptores();}catch(e){console.error('bmnava · interruptores',e);}
   try{bmdFormas();}catch(e){}
@@ -42020,6 +42090,16 @@ html.bmz .view.on{animation:none!important}
   #team-welllights .tl-l[style*="opacity"]{background:var(--muted2)!important;opacity:.28!important}
 }
 </style>
+<style id="movil-v612">
+/* v612 · 1 · Las explicaciones largas, a dos líneas con «más». Sólo lo marca código del móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-pl{position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bm-pl:not(.bm-pl-ab):not(.hint-ab){display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  .bm-pl.bm-pl-c:not(.bm-pl-ab):not(.hint-ab)::after{content:"más";position:absolute;right:0;bottom:0;padding-left:2.6em;
+    background:linear-gradient(90deg,transparent,var(--pl-bg,var(--panel)) 2em);color:var(--accent);font-weight:600}
+  .bm-pl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -45585,8 +45665,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.25*/
-const VER_ACTUAL='2026-11-12.25';
+/*BUILD:2026-11-12.26*/
+const VER_ACTUAL='2026-11-12.26';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
