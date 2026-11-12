@@ -14737,7 +14737,8 @@ function bmTelefono(){
       +ks.map((k,i)=>'<label class="bmh-fila bmt-sel"><span class="tx">'+pos[i]+'</span><select data-barra="'+i+'" aria-label="Pestaña '+pos[i].toLowerCase()+'">'
         +Object.keys(TB_CAT).map(c=>'<option value="'+c+'"'+(c===k?' selected':'')+'>'+(TB_NOM[c]||TB_CAT[c])+'</option>').join('')+'</select></label>').join('')
       +(ks.join()!==TB_DEF.join()?'<button type="button" class="bmh-fila" data-barra-def="1"><span class="tx">Volver a Resumen · Calendario · Disponibilidad</span></button>':'')
-      +'</div><p class="bml-nota">Elige las tres pestañas de este teléfono. Lo demás sigue en «Más».</p>';
+      +'</div><p class="bml-nota">Elige las tres pestañas de este teléfono. Lo demás sigue en «Más».</p>'
+      +'<div class="bmh-rot">Resumen</div><div class="bmh-grupo"><button type="button" class="bmh-fila" data-rs-abre="1"><span class="tx">Elegir y ordenar los bloques</span><span class="ch">›</span></button></div>';
     return barra+'<div class="bmh-rot">Tamaño de letra</div><div class="bmh-grupo">'
       +ops.map(o=>'<button type="button" class="bmh-fila'+(p===o[0]?' on':'')+'" data-letra="'+o[0]+'"><span class="tx">'+o[1]
         +(o[0]==='sis'?'<small>Ahora mismo: '+nom(BML.pasos.reduce((a,b)=>Math.abs(b-Math.max(0.9,Math.min(1.3,sis)))<Math.abs(a-Math.max(0.9,Math.min(1.3,sis)))?b:a))+'</small>':'')
@@ -14755,6 +14756,7 @@ function bmTelefono(){
     ks[i]=k;tbGuarda(ks);repinta();};
   c.onclick=e=>{if(e.target.closest('[data-barra-def]')){tbGuarda(TB_DEF.slice());repinta();return;}
     if(e.target.closest('[data-nov-abre]')){bmHojaCierra('bmh-tel');setTimeout(bmNovedades,260);return;}
+    if(e.target.closest('[data-rs-abre]')){bmHojaCierra('bmh-tel');setTimeout(bmrsEditar,260);return;}
     const b=e.target.closest('[data-letra]');if(!b)return;
     try{localStorage.setItem(BML.k,b.dataset.letra);}catch(err){}
     bmlAplica();c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
@@ -15622,9 +15624,115 @@ function bmFhAcciones(){
   h.querySelector('.bmh-cuerpo').onclick=e=>{const f=e.target.closest('.bmh-fila');if(!f)return;const x=bmFhBotones()[+f.dataset.i];
     bmHojaCierra('bmh-fh-acc');if(x)setTimeout(()=>x.click(),60);};
 }
+/* v615 · El Resumen a la carta, como «Editar» en la app Salud. Daniel,
+   12/11/2026, eligió la propuesta 4. En el móvil cada teléfono elige qué
+   bloques del Resumen ve y en qué orden: Carlos los suyos y Virginia los
+   suyos. El orden de partida es el que dio Daniel en la v533 y «Volver al
+   orden de siempre» lo devuelve.
+   · No se mueve ni un nodo y no se toca ninguna función de pintado: el orden
+     y lo oculto se escriben como una hoja de estilo DENTRO de la regla del
+     móvil (`#bm-rs-css`), con `order` y `display:none` sobre los mismos
+     bloques que ya ordena la v533. En el ordenador esa hoja no se aplica.
+   · Se guarda en `bmnava-resumen`, con guion: es de ESTE teléfono y no se
+     sincroniza (misma regla que la barra de abajo).
+   · «Ojo hoy» no se puede ocultar: son los avisos de fisioterapia y sale sólo
+     cuando hay alguno; sí se puede mover.
+   · El análisis de la última sesión es UN bloque: su botón y sus cuatro
+     paneles se mueven juntos.
+   Se abre desde el botón del final del Resumen y desde «Más › Este teléfono».
+   El orden se cambia arrastrando el asa (≡), o con las flechas del teclado
+   sobre ella. */
+const BMRS_K='bmnava-resumen';
+const BMRS=[
+  ['team-hero','Readiness del equipo'],['team-strip','Titulares del día'],['team-ojo','Ojo hoy',1],
+  ['team-rings','A vigilar y destacados'],['team-next','Próximas sesiones'],['eq-semana','Carga de la semana'],
+  ['team-welllights','Semáforos de wellness'],['team-posband','Estado por línea'],['team-citas','Médico esta semana'],
+  ['team-fisio','Fisioterapia'],['team-reuniones','Reuniones'],['team-meters-panel','Estado de carga del equipo'],
+  ['_an','Análisis de la última sesión'],['eq-plantilla','Plantilla · estado del día']];
+const BMRS_AN=['.eq-fold','#team-ultimas','#team-int-panel','#team-hr-panel','#team-class-panel'];
+const BMRS_MOV='(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse)';
+const BMRS_G='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9h14M5 15h14"/></svg>';
+function bmrsLee(){
+  let c={};try{c=JSON.parse(localStorage.getItem(BMRS_K)||'{}')||{};}catch(e){}
+  const def=BMRS.map(b=>b[0]);
+  let orden=Array.isArray(c.orden)?c.orden.filter(k=>def.indexOf(k)>=0):[];
+  def.forEach((k,i)=>{if(orden.indexOf(k)<0){let j=orden.length;for(let a=i-1;a>=0;a--){const p=orden.indexOf(def[a]);if(p>=0){j=p+1;break;}}orden.splice(j,0,k);}});
+  const oculto=Array.isArray(c.oculto)?c.oculto.filter(k=>def.indexOf(k)>=0&&!(BMRS.find(b=>b[0]===k)||[])[2]):[];
+  return {orden,oculto};
+}
+function bmrsGuarda(c){try{localStorage.setItem(BMRS_K,JSON.stringify(c));}catch(e){}bmrsCss();}
+function bmrsEsDef(c){return c.orden.join()===BMRS.map(b=>b[0]).join()&&!c.oculto.length;}
+function bmrsCss(){
+  const c=bmrsLee();let r='';
+  c.orden.forEach((k,i)=>{const n=(i+1)*10;
+    const sels=k==='_an'?BMRS_AN.map(x=>'#v-equipo '+x):['#v-equipo #'+k];
+    sels.forEach((x,j)=>{r+=x+'{order:'+(n+j)+'!important}';});
+    if(c.oculto.indexOf(k)>=0)sels.forEach(x=>{r+=x+'{display:none!important}';});});
+  r+='#v-equipo .bm-rs-pie{order:'+((c.orden.length+2)*10)+'!important}';
+  let st=document.getElementById('bm-rs-css');
+  if(!st){st=document.createElement('style');st.id='bm-rs-css';document.head.appendChild(st);}
+  const css='@media '+BMRS_MOV+'{'+r+'}';if(st.textContent!==css)st.textContent=css;
+}
+function bmrsPie(){
+  const v=document.getElementById('v-equipo');if(!v||v.querySelector(':scope>.bm-rs-pie'))return;
+  const d=document.createElement('div');d.className='bm-rs-pie';
+  d.innerHTML='<button type="button" class="bm-rs-ed">Editar el Resumen</button>';
+  d.firstChild.addEventListener('click',bmrsEditar);v.appendChild(d);
+  bmrsCss();
+}
+function bmrsEditar(){
+  const c=bmrsLee();
+  const fila=k=>{const b=BMRS.find(x=>x[0]===k);if(!b)return '';const fijo=!!b[2],on=c.oculto.indexOf(k)<0;
+    return '<div class="bmh-fila bmrs-f" data-k="'+k+'">'
+      +'<span class="tx">'+b[1]+(fijo?'<small>Sale sólo cuando hay avisos</small>':'')+'</span>'
+      +(fijo?'':'<button type="button" class="bmrs-sw" role="switch" aria-checked="'+on+'" aria-label="Ver '+b[1]+'"><span class="bma-sw'+(on?' on':'')+'"><i></i></span></button>')
+      +'<button type="button" class="bmrs-g" data-noarr="1" aria-label="Mover '+b[1]+'. Flechas arriba y abajo para cambiar el orden">'+BMRS_G+'</button></div>';};
+  const pinta=()=>{const cc=bmrsLee();return '<p class="bml-nota" style="margin-top:0">Lo que ves en el Resumen de este teléfono. Arrastra ≡ para cambiar el orden.</p>'
+    +'<div class="bmh-grupo bmrs-l">'+cc.orden.map(fila).join('')+'</div>'
+    +(bmrsEsDef(cc)?'':'<button type="button" class="bmh-btn bmrs-def" style="margin-top:16px">Volver al orden de siempre</button>');};
+  const h=bmHoja({id:'bmrs',titulo:'Editar el Resumen',html:pinta()});
+  const cu=h.querySelector('.bmh-cuerpo');
+  const lee=()=>{const cc=bmrsLee();cc.orden=[...cu.querySelectorAll('.bmrs-f')].map(f=>f.dataset.k);return cc;};
+  cu.onclick=e=>{
+    if(e.target.closest('.bmrs-def')){try{localStorage.removeItem(BMRS_K);}catch(_){}bmrsCss();cu.innerHTML=pinta();return;}
+    const sw=e.target.closest('.bmrs-sw');if(!sw)return;
+    const k=sw.closest('.bmrs-f').dataset.k,cc=lee(),i=cc.oculto.indexOf(k);
+    if(i>=0)cc.oculto.splice(i,1);else cc.oculto.push(k);
+    const on=cc.oculto.indexOf(k)<0;sw.setAttribute('aria-checked',on);sw.firstChild.classList.toggle('on',on);
+    bmrsGuarda(cc);
+    const d=cu.querySelector('.bmrs-def');if(bmrsEsDef(cc)&&d)d.remove();
+    else if(!bmrsEsDef(cc)&&!d)cu.insertAdjacentHTML('beforeend','<button type="button" class="bmh-btn bmrs-def" style="margin-top:16px">Volver al orden de siempre</button>');};
+  cu.onkeydown=e=>{const g=e.target.closest&&e.target.closest('.bmrs-g');if(!g||(e.key!=='ArrowUp'&&e.key!=='ArrowDown'))return;
+    e.preventDefault();const f=g.closest('.bmrs-f');
+    if(e.key==='ArrowUp'&&f.previousElementSibling)f.parentNode.insertBefore(f,f.previousElementSibling);
+    else if(e.key==='ArrowDown'&&f.nextElementSibling)f.parentNode.insertBefore(f.nextElementSibling,f);
+    g.focus();bmrsGuarda(lee());};
+  /* Arrastrar el asa: la fila sigue al dedo y cambia de sitio al pasar la mitad
+     de la de al lado. Se guarda al soltar. */
+  cu.onpointerdown=e=>{
+    const g=e.target.closest&&e.target.closest('.bmrs-g');if(!g)return;
+    e.preventDefault();const f=g.closest('.bmrs-f'),l=f.parentNode;
+    try{g.setPointerCapture(e.pointerId);}catch(_){}
+    const y0=e.clientY,t0=f.offsetTop;f.classList.add('bmrs-mov');
+    const mueve=ev=>{
+      const dy=ev.clientY-y0;f.style.transform='translateY('+(dy-(f.offsetTop-t0))+'px)';
+      const mid=f.offsetTop+(dy-(f.offsetTop-t0))+f.offsetHeight/2;
+      const pv=f.previousElementSibling,nx=f.nextElementSibling;
+      if(pv&&mid<pv.offsetTop+pv.offsetHeight/2){l.insertBefore(f,pv);f.style.transform='translateY('+(dy-(f.offsetTop-t0))+'px)';}
+      else if(nx&&mid>nx.offsetTop+nx.offsetHeight/2){l.insertBefore(nx,f);f.style.transform='translateY('+(dy-(f.offsetTop-t0))+'px)';}
+    };
+    const suelta=()=>{g.removeEventListener('pointermove',mueve);g.removeEventListener('pointerup',suelta);g.removeEventListener('pointercancel',suelta);
+      f.classList.remove('bmrs-mov');f.style.transform='';bmrsGuarda(lee());
+      const cc=lee(),d=cu.querySelector('.bmrs-def');
+      if(!bmrsEsDef(cc)&&!d)cu.insertAdjacentHTML('beforeend','<button type="button" class="bmh-btn bmrs-def" style="margin-top:16px">Volver al orden de siempre</button>');
+      else if(bmrsEsDef(cc)&&d)d.remove();};
+    g.addEventListener('pointermove',mueve);g.addEventListener('pointerup',suelta);g.addEventListener('pointercancel',suelta);
+  };
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmrsPie();}catch(e){console.error('bmnava · resumen a la carta',e);}
   try{bmFhMas();}catch(e){console.error('bmnava · fisioterapia',e);}
   try{bmPliega();}catch(e){console.error('bmnava · pliegue',e);}
   try{bmZoomMarca();}catch(e){}
@@ -42232,6 +42340,23 @@ html.bmz .view.on{animation:none!important}
   svg.bm-semaf:not(:is(#parte-card,.pt-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page,#sescal-a4-page,#fis-cap-png) *) circle[opacity="0.5"]{opacity:.3}
 }
 </style>
+<style id="movil-v615">
+/* v615 · 4 · El Resumen a la carta. El orden y lo oculto los escribe #bm-rs-css, también dentro de la regla del móvil. */
+.bm-rs-pie{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-equipo .bm-rs-pie{display:flex;justify-content:center;padding:6px 0 4px}
+  #v-equipo .bm-rs-ed{min-height:44px;padding:0 20px;border:none;border-radius:22px;background:var(--seg-carril);color:var(--accent);
+    font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+  .bmrs-f{gap:6px;padding-right:4px;background:var(--bmh-celda)}
+  .bmrs-f .tx{font-size:17px}
+  .bmrs-sw{flex:none;display:grid;place-items:center;min-width:51px;min-height:44px;padding:0;border:none;background:none;cursor:pointer}
+  .bmrs-g{flex:none;display:grid;place-items:center;width:44px;height:44px;padding:0;border:none;background:none;color:var(--muted2);
+    cursor:grab;touch-action:none;border-radius:10px}
+  .bmrs-g:focus-visible{outline:2px solid var(--accent)}
+  .bmrs-f.bmrs-mov{z-index:3;box-shadow:0 10px 26px rgba(0,0,0,.2);border-radius:12px}
+  .bmrs-f.bmrs-mov::before,.bmrs-f.bmrs-mov+.bmrs-f::before{display:none}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -45797,8 +45922,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.28*/
-const VER_ACTUAL='2026-11-12.28';
+/*BUILD:2026-11-12.29*/
+const VER_ACTUAL='2026-11-12.29';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
