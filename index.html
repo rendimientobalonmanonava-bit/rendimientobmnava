@@ -15817,9 +15817,33 @@ function bmProxAbre(dk){
   try{CALMODE='mes';CALVIEW={y:d.getFullYear(),m:d.getMonth()};CAL_SEL=dk;renderCalendar();}catch(e){console.error('bmnava · próximo partido',e);}
   setTimeout(()=>{try{calDiaPinta();bmtPinta();const h=document.getElementById('cal-dia');if(h&&h.checkVisibility())window.scrollTo({top:Math.max(0,h.getBoundingClientRect().top+window.scrollY-120)});}catch(e){}},120);
 }
+/* v621 · La respuesta al toque de una TARJETA. Daniel, 12/11/2026, eligió la
+   propuesta 10. Desde la v561 todo lo que se pulsa se apaga al tocarlo; en una
+   tarjeta grande ese apagón se lee como un parpadeo. En el móvil, lo que se
+   pulsa y tiene forma de tarjeta —esquinas redondeadas, fondo propio, 90 px
+   de ancho y 48 de alto o más; si es un botón, 200 de ancho— se hunde un poco (escala 0,97) y vuelve al
+   soltar, como las tarjetas del App Store; lo demás (botones, filas, enlaces)
+   sigue apagándose como siempre. Se mira una vez por elemento y sólo cuando
+   se ve: uno que nace en una pestaña oculta se mira al aparecer. */
+const BMTQ_SEL=':is([onclick],[data-bmz],[role="button"],a[href],summary,.bm-prox)';
+function bmTarjetasT(){
+  const v=document.querySelector('main .view.on');if(!v)return;
+  v.querySelectorAll(BMTQ_SEL+':not([data-bmtq])').forEach(e=>{
+    if(!e.checkVisibility())return;
+    const r=e.getBoundingClientRect();e.dataset.bmtq='0';
+    if(r.width<90||r.height<48||(e.tagName==='BUTTON'&&r.width<200))return;
+    if(e.closest(BMG_DOC)||e.closest('[data-sw],#tabbar,.btn,.bmh-fila')||e.matches('.btn,input,select,textarea,label,[data-bmz="-"]'))return;
+    const cs=getComputedStyle(e);
+    if(parseFloat(cs.borderTopLeftRadius)<10)return;
+    const fondo=!/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor)||cs.boxShadow!=='none';
+    if(!fondo)return;
+    e.dataset.bmtq='1';e.classList.add('bm-tq');
+  });
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmTarjetasT();}catch(e){}
   try{bmProx();}catch(e){console.error('bmnava · próximo partido',e);}
   try{bmrsPie();}catch(e){console.error('bmnava · resumen a la carta',e);}
   try{bmFhMas();}catch(e){console.error('bmnava · fisioterapia',e);}
@@ -42609,6 +42633,14 @@ html.bmz .view.on{animation:none!important}
   .btn,.iconbtn,.seg>button,.estado-seg>button,.cargas-seg>button,#hr-modo>button,#tsa-modo>button,.plt-bar>button,.cal-mtg,.tsm-b{min-height:44px}
 }
 </style>
+<style id="movil-v621">
+/* v621 · 10 · Las tarjetas que se pulsan se hunden al tocarlas. Sólo donde no hay ratón, en el móvil. */
+@media(hover:none) and (max-width:760px),(hover:none) and (max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-tq{transition:transform .42s cubic-bezier(.32,.72,0,1)}
+  .bm-tq:active:not(:has(:is([onclick],button,summary,a[href],input,select,textarea):active)){opacity:1!important;transform:scale(.97);transition-duration:.12s}
+}
+@media(hover:none) and (max-width:760px) and (prefers-reduced-motion:reduce){.bm-tq{transition:none}.bm-tq:active{transform:none!important}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46174,8 +46206,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.34*/
-const VER_ACTUAL='2026-11-12.34';
+/*BUILD:2026-11-12.35*/
+const VER_ACTUAL='2026-11-12.35';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
