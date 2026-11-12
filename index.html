@@ -14205,7 +14205,13 @@ function bmlpMenu(x){
 const BMG={vis:null,obs:null,auto:false,ch:null,era:false};
 const BMG_DOC='#parte-card,.pt-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page,#sescal-a4-page,#fis-cap-png';
 const BMG_IC='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/></svg>';
-function bmgFrase(chart){
+function bmgFrase(chart){const r=bmgLectura(chart);return r?r.frase:'';}
+/* v597 · Las piezas de la lectura, para la cabecera del gráfico: un rótulo, la
+   cifra grande y la línea de debajo. `lo` y `hi` acotan la ventana que se ve
+   (7 d, 30 d) para la cifra; la frase —la que lee VoiceOver— va siempre sobre
+   la serie entera, como antes. */
+function bmgLectura(chart,lo,hi){
+  lo=lo||0;hi=(hi==null)?Infinity:hi;
   try{
     const tp=chart.config.type,D=chart.data||{},L=(D.labels||[]).map(x=>Array.isArray(x)?x.join(' '):String(x==null?'':x));
     const num=v=>(v!=null&&typeof v==='object')?(('y' in v)?+v.y:NaN):((v==null||v==='')?NaN:+v);
@@ -14214,11 +14220,12 @@ function bmgFrase(chart){
     if(tp==='doughnut'||tp==='pie'){
       const vs=((DS[0]||{}).data||[]).map(num),tot=vs.reduce((x,y)=>x+(isFinite(y)?y:0),0);if(!(tot>0)||!L.length)return '';
       let i=0;vs.forEach((v,k)=>{if(isFinite(v)&&!(vs[i]>=v))i=k;});
-      return 'La mayor parte: '+L[i]+', '+Math.round(vs[i]/tot*100)+' %.';
+      const pc=Math.round(vs[i]/tot*100);
+      return {frase:'La mayor parte: '+L[i]+', '+pc+' %.',cap:'La mayor parte',big:pc+' %',sub:L[i],tiempo:false};
     }
     /* Un gráfico mixto no lleva tipo arriba: lo lleva cada serie. */
     const tipo=ds=>ds.type||tp;
-    if(!DS.length||DS.some(ds=>{const t=tipo(ds);return t!=='line'&&t!=='bar';}))return '';
+    if(!DS.length||DS.some(ds=>{const t=tipo(ds);return t!=='line'&&t!=='bar';}))return null;
     const sc=(chart.options&&chart.options.scales)||{},apil=!!((sc.x&&sc.x.stacked)||(sc.y&&sc.y.stacked));
     const NO=/banda|umbral|l[ií]mite|objetivo|referencia|techo|suelo|zona [óo]ptima|plan\b/i;
     let serie=null,nombre='';
@@ -14227,7 +14234,7 @@ function bmgFrase(chart){
     if(apil&&barras.length>1){
       /* Sólo se suma si todas las barras van en UNA pila. Con dos pilas —plan
          al lado de real— la suma no es de nadie, y no se dice. */
-      if(new Set(barras.map(x=>x.ds.stack==null?'':String(x.ds.stack))).size>1)return '';
+      if(new Set(barras.map(x=>x.ds.stack==null?'':String(x.ds.stack))).size>1)return null;
       const bs=barras,n=Math.max.apply(null,bs.map(x=>(x.ds.data||[]).length));
       serie=Array.from({length:n},(_,k)=>{let t=0,hay=false;bs.forEach(x=>{const v=num(x.ds.data[k]);if(isFinite(v)){t+=v;hay=true;}});return hay?t:NaN;});nombre='Total';
     }else{
@@ -14236,8 +14243,8 @@ function bmgFrase(chart){
         if(Math.max.apply(null,ok)-Math.min.apply(null,ok)<1e-9)continue;
         serie=vs;nombre=(vis.length>1&&x.ds.label)?String(x.ds.label):'';break;}
     }
-    if(!serie)return '';
-    const pares=serie.map((v,k)=>[v,k]).filter(q=>isFinite(q[0]));if(pares.length<3)return '';
+    if(!serie)return null;
+    const pares=serie.map((v,k)=>[v,k]).filter(q=>isFinite(q[0])&&q[1]>=lo&&q[1]<=hi);if(pares.length<3)return null;
     const mx=pares.reduce((a,q)=>q[0]>a[0]?q:a),mn=pares.reduce((a,q)=>q[0]<a[0]?q:a),med=pares.reduce((a,q)=>a+q[0],0)/pares.length;
     /* Un cero al final suele ser «hoy, todavía sin datos»: se dice el último
        que tiene registro, y se dice con esas palabras. */
@@ -14245,13 +14252,16 @@ function bmgFrase(chart){
     if(ul[0]===0){const con=pares.filter(q=>q[0]!==0);if(con.length){ul=con[con.length-1];reg=true;}}
     const et=k=>L[k]?' ('+L[k]+')':'';
     /* Una barra «Total» entre las categorías es un desglose: su máximo es el propio total. */
-    if(L.some(x=>/^total$/i.test(x.trim())))return '';
+    if(L.some(x=>/^total$/i.test(x.trim())))return null;
     const tiempo=L.length&&L.filter(x=>/^(\d{1,2}[\/\-.]\d{1,2}|\d{4}-\d{2}|\d{1,2}$|(lun|mar|mi[eé]|jue|vie|s[aá]b|dom)\b|(ene|feb|abr|may|jun|jul|ago|sep|oct|nov|dic)\b|hoy\b|ayer\b|sem\b|s\d+\b|md\b|md[+\-]\d)/i.test(x.trim())).length>=L.length*0.6;
     const pre=(nombre&&nombre.length>3&&!/^(valor|datos?|serie)$/i.test(nombre))?nombre+' · ':'';
+    const cab=pre?nombre+' · ':'';
     return tiempo||!L.length
-      ?pre+(reg?'Último registro ':'Último ')+F(ul[0])+et(ul[1])+' · media '+F(med)+' · máximo '+F(mx[0])+et(mx[1])+'.'
-      :pre+'Más alto: '+(L[mx[1]]||'')+' '+F(mx[0])+' · más bajo: '+(L[mn[1]]||'')+' '+F(mn[0])+' · media '+F(med)+'.';
-  }catch(e){return '';}
+      ?{frase:pre+(reg?'Último registro ':'Último ')+F(ul[0])+et(ul[1])+' · media '+F(med)+' · máximo '+F(mx[0])+et(mx[1])+'.',
+        cap:cab+'media',big:F(med),sub:(reg?'Último registro ':'Último ')+F(ul[0])+et(ul[1])+' · máximo '+F(mx[0])+et(mx[1]),tiempo:true}
+      :{frase:pre+'Más alto: '+(L[mx[1]]||'')+' '+F(mx[0])+' · más bajo: '+(L[mn[1]]||'')+' '+F(mn[0])+' · media '+F(med)+'.',
+        cap:cab+'más alto · '+(L[mx[1]]||''),big:F(mx[0]),sub:'Más bajo: '+(L[mn[1]]||'')+' '+F(mn[0])+' · media '+F(med),tiempo:false};
+  }catch(e){return null;}
 }
 function bmgTitulo(cv){
   for(let n=cv.parentElement,i=0;n&&i<6;n=n.parentElement,i++){
@@ -14274,6 +14284,22 @@ const bmgPlugin={id:'bmGraf',
     try{const cf=chart.config,DS=(cf.data&&cf.data.datasets)||[],ejes=DS.length&&DS.every(d=>{const t=d.type||cf.type;return t==='line'||t==='bar';});
       const co=cf.options||(cf.options={});
       if(ejes&&co.indexAxis!=='y')co.interaction=Object.assign({},co.interaction,{mode:'index',intersect:false});
+      /* v597 · Como en Salud: la burbuja del valor sale ARRIBA, sobre la regla
+         que sigue al dedo, en vez de taparle el punto; y sin las rayas
+         verticales de la rejilla. Los ejes se copian antes de tocarlos: hay
+         objetos de eje que comparten varios gráficos (`AX`). */
+      if(ejes&&co.indexAxis!=='y'&&!visor){
+        co.plugins=Object.assign({},co.plugins);
+        const tt=co.plugins.tooltip||{};
+        if(tt.enabled!==false&&!tt.external)co.plugins.tooltip=Object.assign({},tt,{position:'bmArriba',yAlign:'top',caretSize:0});
+        co.scales=Object.assign({},co.scales);
+        const xo=co.scales.x||{};
+        if(!xo.type||xo.type==='category'){
+          co.scales.x=Object.assign({},xo,{grid:Object.assign({},xo.grid,{display:false})});
+          const w=cv.id&&BMG.ven[cv.id],n=((cf.data&&cf.data.labels)||[]).length;
+          if(w&&n>w+3)co.scales.x=Object.assign({},co.scales.x,{min:n-w,max:n-1});
+        }
+      }
     }catch(e){}
   },
   afterInit(chart){
@@ -14297,9 +14323,10 @@ const bmgPlugin={id:'bmGraf',
     /* La frase va ENCIMA del hueco del gráfico, no dentro: dentro le quitaría alto. */
     const envoltorio=pa.children.length<=3&&pa.clientHeight<=cv.clientHeight+44,ref=envoltorio?pa:cv;
     let p=ref.previousElementSibling;
-    if(!p||!p.classList.contains('bm-lee')){if(!fr)return;p=document.createElement('p');p.className='bm-lee';ref.parentNode.insertBefore(p,ref);}
-    if(p.textContent!==fr)p.textContent=fr;
-    p.hidden=!fr;
+    if(!p||!p.classList.contains('bm-lee')){if(!fr)return;p=document.createElement('div');p.className='bm-lee';p.setAttribute('aria-hidden','true');
+      p.innerHTML='<div class="bm-lee-t"><span class="bm-lee-c"></span><b class="bm-lee-n"></b><span class="bm-lee-s"></span></div><div class="bm-ven" role="group" hidden></div>';
+      ref.parentNode.insertBefore(p,ref);}
+    bmgCabecera(chart,p,fr);
   },
   afterDatasetsDraw(chart){
     if(!chart.$bmg)return;
@@ -14316,6 +14343,45 @@ const bmgPlugin={id:'bmGraf',
       [pa.previousElementSibling,cv.previousElementSibling].forEach(p=>{if(p&&p.classList&&p.classList.contains('bm-lee'))p.remove();});}}catch(e){}
   }
 };
+/* v597 · La cabecera de un gráfico, como en Salud: arriba el rótulo («media»,
+   «más alto»), la cifra grande y, debajo, el último y el máximo. Y a la derecha,
+   en los gráficos de días con serie larga, cuántos días se ven: 7 d · 30 d ·
+   Todo. Elegir una ventana sólo acota el eje —los datos son los mismos— y la
+   cifra se calcula sobre lo que se ve. La elección se recuerda por gráfico
+   mientras la app está abierta. */
+BMG.ven={};
+function bmgCabecera(chart,p,fr){
+  const cv=chart.canvas,xs=chart.scales&&chart.scales.x,cat=!!(xs&&xs.type==='category');
+  const n=((chart.data&&chart.data.labels)||[]).length;
+  const xo=(chart.config.options&&chart.config.options.scales&&chart.config.options.scales.x)||{};
+  const lo=(cat&&typeof xo.min==='number')?xo.min:0,hi=(cat&&typeof xo.max==='number')?xo.max:Infinity;
+  const r=bmgLectura(chart,lo,hi)||bmgLectura(chart);
+  p.hidden=!fr||!r;if(!r)return;
+  const set=(sel,t)=>{const e=p.querySelector(sel);if(e&&e.textContent!==t)e.textContent=t;};
+  const vent=lo>0?' · '+(Math.min(n,hi+1)-lo)+' días':'';
+  set('.bm-lee-c',(r.cap.charAt(0).toUpperCase()+r.cap.slice(1))+vent);set('.bm-lee-n',r.big);set('.bm-lee-s',r.sub);
+  const ws=(r.tiempo&&cat&&chart.options.indexAxis!=='y')?[7,30].filter(w=>n>w+3):[];
+  const sel=p.querySelector('.bm-ven');if(!sel)return;
+  if(!ws.length){sel.hidden=true;return;}
+  const cur=lo>0?(Math.min(n,hi+1)-lo):0,clave=ws.join(',')+'|'+cur;
+  if(sel.dataset.k!==clave){sel.dataset.k=clave;
+    sel.innerHTML=ws.concat([0]).map(w=>'<button type="button" data-w="'+w+'"'+(w===cur?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>'+(w?w+' d':'Todo')+'</button>').join('');
+    sel.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();bmgVentana(chart,+b.dataset.w);}));}
+  sel.hidden=false;
+}
+function bmgVentana(chart,w){
+  try{
+    const co=chart.config.options||(chart.config.options={});co.scales=Object.assign({},co.scales);
+    const xo=Object.assign({},co.scales.x),n=((chart.data&&chart.data.labels)||[]).length;
+    if(w&&n>w){xo.min=n-w;xo.max=n-1;}else{delete xo.min;delete xo.max;}
+    co.scales.x=xo;if(chart.canvas&&chart.canvas.id)BMG.ven[chart.canvas.id]=w||0;
+    chart.update();
+  }catch(e){console.error('bmnava · ventana del gráfico',e);}
+}
+/* La burbuja, arriba del área del gráfico y sobre la regla del dedo. */
+try{if(window.Chart&&Chart.Tooltip&&Chart.Tooltip.positioners&&!Chart.Tooltip.positioners.bmArriba)
+  Chart.Tooltip.positioners.bmArriba=function(items){if(!items||!items.length)return false;const a=this.chart.chartArea;let x=0;
+    items.forEach(i=>{x+=i.element.x;});return {x:x/items.length,y:a.top+2};};}catch(e){}
 /* El visor. Vuelve a dibujar el MISMO gráfico —mismos datos y opciones— en un
    lienzo que ocupa la pantalla; no es una imagen estirada. */
 function bmgAbre(chart,auto){
@@ -40902,6 +40968,24 @@ html[data-theme="dark"]{--hero-a:#24262c;--hero-luz:rgba(255,255,255,.08)}
   .cal-tb .cal-dots{height:7px}
 }
 </style>
+<style id="movil-v597">
+/* v597 · 5 · La cabecera de los gráficos, como en Salud. Sólo la pinta código
+   del móvil; la regla de v574 la oculta fuera. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-lee{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0 0 10px;font-size:inherit;color:var(--txt)}
+  .bm-lee[hidden]{display:none}
+  .bm-lee-t{display:flex;flex-direction:column;min-width:0}
+  .bm-lee-c{font-size:12.5px;font-weight:600;color:var(--muted);line-height:1.3}
+  .bm-lee-n{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.12;font-variant-numeric:tabular-nums;color:var(--txt)}
+  .bm-lee-s{font-size:12.5px;color:var(--muted);line-height:1.35;font-variant-numeric:tabular-nums}
+  .bm-ven{display:flex;flex:none;gap:2px;padding:2px;border-radius:9px;background:var(--seg-carril,var(--panel2));margin-right:40px}
+  .bm-ven[hidden]{display:none}
+  .bm-ven button{position:relative;min-width:42px;height:30px;padding:0 8px;border:0;border-radius:7px;background:none;color:var(--txt);
+    font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;touch-action:manipulation}
+  .bm-ven button::after{content:"";position:absolute;left:0;right:0;top:-7px;bottom:-7px}
+  .bm-ven button.on{background:var(--seg-on,var(--panel));box-shadow:0 1px 3px rgba(0,0,0,.12)}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44467,8 +44551,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.19*/
-const VER_ACTUAL='2026-11-12.19';
+/*BUILD:2026-11-12.20*/
+const VER_ACTUAL='2026-11-12.20';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
