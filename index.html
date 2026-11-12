@@ -15423,9 +15423,88 @@ function bmInterruptores(){
       if(t&&t.length<=60&&lab.querySelectorAll('div,p,br,ul').length===0)lab.classList.add('bm-swl');}
   });
 }
+/* v610 · La tarjeta que se abre en su pantalla, como la sección Hoy del App
+   Store. Daniel, 12/11/2026, eligió la propuesta 9. En el móvil, al tocar un
+   jugador de «A vigilar», un recuadro de la cabecera del Resumen, un panel
+   del Resumen que lleva a otra pantalla o el recuento de alertas de
+   Disponibilidad, la tarjeta crece hasta ocupar la pantalla y se funde en la
+   pantalla de destino; al volver, la pantalla se encoge hasta su tarjeta.
+   Es la transición de vistas del navegador (la misma de la foto, v576).
+   Los recuadros Disponibles, Con molestia y Fuera abren Disponibilidad; ACWR
+   medio, Cargas; Wellness hoy, el parte: hasta ahora no abrían nada. Lo
+   demás hace lo mismo que antes —se llama a su propio `onclick`—; un botón
+   DENTRO de la tarjeta sigue haciendo lo suyo. Sin «menos movimiento». */
+let BMZ={};
+function bmZoomMarca(){
+  if(!esMovil())return;
+  document.querySelectorAll('#v-equipo .ath[onclick]:not([data-bmz]),#v-equipo div.panel[onclick*="go("]:not([data-bmz]),#v-estado .bd-al[onclick]:not([data-bmz])').forEach(e=>{e.dataset.bmz='oc';});
+  document.querySelectorAll('#v-equipo .eq-tile:not([data-bmz])').forEach(e=>{
+    const t=(e.textContent||'').trim();
+    const d=/^Disponibles|^Con molestia|^Fuera/.test(t)?'dispo':/^ACWR/.test(t)?'carga':/^Wellness/.test(t)?'parte':null;
+    e.dataset.bmz=d?'go:'+d:'-';if(d){e.setAttribute('role','button');e.tabIndex=0;}
+  });
+}
+function bmZoomPuede(){return esMovil()&&!!document.startViewTransition&&!matchMedia('(prefers-reduced-motion:reduce)').matches;}
+function bmZoom(card,run){
+  if(!bmZoomPuede()){run();return;}
+  const de=STATE.view;let dst=null;
+  const fin=()=>{window.__BM_ZOOM=0;document.documentElement.classList.remove('bmz');if(dst)dst.remove();try{card.style.viewTransitionName='';}catch(_){}};
+  try{
+    card.style.viewTransitionName='bm-zoom';document.documentElement.classList.add('bmz');window.__BM_ZOOM=1;
+    let hecho=false;
+    const vt=document.startViewTransition(()=>{
+      hecho=true;card.style.viewTransitionName='';
+      try{if(window.BMV)BMV.ts=0;}catch(_){}
+      run();
+      dst=document.createElement('div');dst.id='bm-zoomdest';document.body.appendChild(dst);
+      BMZ={card:card,de:de,a:STATE.view};
+    });
+    /* Si el navegador no llega a pintar —la app en segundo plano—, la
+       transición no empezaría nunca y el toque se quedaría sin respuesta: a
+       los 650 ms se salta la animación y se abre la pantalla igual. */
+    setTimeout(()=>{if(!hecho)try{vt.skipTransition();}catch(_){}},650);
+    vt.finished.then(fin,fin);
+    try{vt.ready.catch(()=>{});vt.updateCallbackDone.catch(()=>{});}catch(_){}
+  }catch(err){fin();run();}
+}
+function bmZoomVuelve(v,e){
+  const z=BMZ;
+  if(!z.card||!z.card.isConnected||z.de!==v||z.a!==STATE.view||!bmZoomPuede())return false;
+  BMZ={};
+  const y=(e&&e.state&&e.state.y)||0;
+  const dst=document.createElement('div');dst.id='bm-zoomdest';document.body.appendChild(dst);
+  document.documentElement.classList.add('bmz','bmz-atr');window.__BM_ZOOM=1;
+  const fin=()=>{window.__BM_ZOOM=0;document.documentElement.classList.remove('bmz','bmz-atr');if(dst.isConnected)dst.remove();try{z.card.style.viewTransitionName='';}catch(_){}};
+  try{
+    let hecho=false;
+    const vt=document.startViewTransition(()=>{
+      hecho=true;dst.remove();
+      window.__BM_POP=true;try{go(v);}finally{window.__BM_POP=false;}
+      window.scrollTo(0,y);
+      try{if(z.card.checkVisibility&&z.card.checkVisibility())z.card.style.viewTransitionName='bm-zoom';}catch(_){}
+    });
+    setTimeout(()=>{if(!hecho)try{vt.skipTransition();}catch(_){}},650);
+    vt.finished.then(fin,fin);
+    try{vt.ready.catch(()=>{});vt.updateCallbackDone.catch(()=>{});}catch(_){}
+  }catch(err){fin();return false;}
+  return true;
+}
+document.addEventListener('click',e=>{
+  if(!esMovil()||e.defaultPrevented||window.__BM_LP)return;
+  const c=e.target&&e.target.closest?e.target.closest('[data-bmz]'):null;if(!c||c.dataset.bmz==='-')return;
+  const dentro=e.target.closest('button,a,input,select,textarea,label,[onclick],[role="button"]');
+  if(dentro&&dentro!==c)return;
+  let run=null;
+  if(c.dataset.bmz.indexOf('go:')===0){const v=c.dataset.bmz.slice(3);run=()=>go(v);}
+  else if(typeof c.onclick==='function'){const f=c.onclick;run=()=>f.call(c,e);}
+  if(!run)return;
+  e.preventDefault();e.stopImmediatePropagation();
+  bmZoom(c,run);
+},true);
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmZoomMarca();}catch(e){}
   try{bmInterruptores();}catch(e){console.error('bmnava · interruptores',e);}
   try{bmdFormas();}catch(e){}
   try{bmfPuntos();}catch(e){}
@@ -15931,6 +16010,7 @@ window.addEventListener('popstate',e=>{
   if(bmCierraCapa()){window.__BM_VUELVE=true;try{history.forward();}catch(_){}
     setTimeout(()=>{window.__BM_VUELVE=false;},700);return;}
   const r=readHash();if(!r||r.view===STATE.view)return;
+  if(typeof bmZoomVuelve==='function'){let hecho=false;try{hecho=bmZoomVuelve(r.view,e);}catch(_){}if(hecho)return;}
   window.__BM_POP=true;
   try{go(r.view);}catch(err){console.error('bmnava · atrás',err);}finally{window.__BM_POP=false;}
   const y=e.state&&e.state.y;if(y)setTimeout(()=>window.scrollTo(0,y),0);
@@ -16281,7 +16361,7 @@ function bmvLimpia(){
   if(v){v.classList.remove('vw-sale');v.style.cssText=v._bmvCss||'';try{v.scrollTop=0;}catch(e){}}
 }
 function bmvSale(dest){
-  if(!esMovil()||!window.__BM_LISTO)return;
+  if(!esMovil()||!window.__BM_LISTO||window.__BM_ZOOM)return;
   const nav=bmvSentido();
   document.documentElement.dataset.nav=nav;
   bmvLimpia();
@@ -41879,6 +41959,30 @@ html[data-theme="dark"]{--sb-sep:rgba(84,84,88,.62)}
   input.bm-chk:checked::after{content:"";position:absolute;inset:3px;background:var(--on-accent);-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='M5.5 12.5l4 4L18.5 7.5'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='M5.5 12.5l4 4L18.5 7.5'/></svg>") center/contain no-repeat}
 }
 @media (prefers-reduced-motion:reduce){input.bm-sw,input.bm-sw::before{transition:none}}
+</style>
+<style id="movil-v610">
+/* v610 · 9 · La tarjeta que crece hasta su pantalla. Sólo lo pone código del móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-equipo .eq-tile[data-bmz^="go:"]{cursor:pointer}
+  #v-equipo .eq-tile[data-bmz^="go:"]:active,#v-equipo .ath[data-bmz]:active{filter:brightness(.96)}
+}
+#bm-zoomdest{position:fixed;inset:0;pointer-events:none;background:transparent;view-transition-name:bm-zoom}
+html.bmz::view-transition-old(root){animation:none;opacity:1}
+html.bmz::view-transition-new(root){animation:bmzDentro .2s ease .3s both}
+html.bmz::view-transition-group(bm-zoom){animation-duration:.46s;animation-timing-function:cubic-bezier(.32,.72,0,1)}
+html.bmz::view-transition-image-pair(bm-zoom){background:var(--bg);overflow:hidden;animation:bmzPar .46s cubic-bezier(.32,.72,0,1) both}
+html.bmz::view-transition-old(bm-zoom){animation:bmzFuera .22s ease both;width:100%;height:100%;object-fit:fill}
+html.bmz::view-transition-new(bm-zoom){animation:none;opacity:0}
+html.bmz-atr::view-transition-old(root){animation:none;opacity:0}
+html.bmz-atr::view-transition-new(root){animation:none;opacity:1}
+html.bmz-atr::view-transition-image-pair(bm-zoom){animation:bmzParAtr .46s cubic-bezier(.32,.72,0,1) both}
+html.bmz-atr::view-transition-old(bm-zoom){animation:none;opacity:0}
+html.bmz-atr::view-transition-new(bm-zoom){animation:bmzDentro .24s ease .2s both;width:100%;height:100%;object-fit:fill}
+html.bmz .view.on{animation:none!important}
+@keyframes bmzPar{0%{opacity:1;border-radius:20px}75%{opacity:1}100%{opacity:0;border-radius:0}}
+@keyframes bmzParAtr{0%{opacity:1;border-radius:0}100%{opacity:1;border-radius:20px}}
+@keyframes bmzFuera{to{opacity:0}}
+@keyframes bmzDentro{from{opacity:0}to{opacity:1}}
 </style>
 <script>
 /* ============================================================
