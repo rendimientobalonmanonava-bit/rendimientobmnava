@@ -13818,7 +13818,15 @@ const SB_ICONS={
 function sbBtn(v,l){return `<button class="sb-item" data-v="${v}" onclick="go('${v}');sbToggleMobile(false)">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`;}
 function buildSidebar(){const sb=document.getElementById('sb-nav');if(!sb)return;
   let h='';NAV.forEach(g=>{if(g.v){h+=sbBtn(g.v,g.label);}else{h+=`<div class="sb-glab">${g.label}</div>`;g.items.forEach(([v,l])=>h+=sbBtn(v,l));}});
-  sb.innerHTML=h;}
+  sb.innerHTML=h;
+  /* v603 · En el móvil la hoja «Más» se dibuja como Ajustes: cada grupo del
+     menú es una tarjeta. El CSS necesita saber dónde empieza y acaba cada
+     grupo —Nutrición y Alertas son entradas sueltas, sin rótulo— y el color
+     del cuadrado del icono. Sólo son clases y un atributo: en el ordenador no
+     hay regla que los lea. */
+  try{let i=0;NAV.forEach(g=>{const vs=g.v?[g.v]:g.items.map(x=>x[0]);
+    vs.forEach((v,j)=>{const b=sb.querySelector('.sb-item[data-v="'+v+'"]');if(!b)return;b.dataset.sg=String(i);
+      if(j===0)b.classList.add('sbg-ini');if(j===vs.length-1)b.classList.add('sbg-fin');});i++;});}catch(e){}}
 function sbMark(v){const eff=v==='jugador'?'jugadores':(v==='estado'?'dispo':v);document.querySelectorAll('.sb-item').forEach(b=>b.classList.toggle('on',b.dataset.v===eff));tbMark(v);}
 function sbToggle(){document.body.classList.toggle('sb-min');try{localStorage.setItem('bmnava_sbmin',document.body.classList.contains('sb-min')?'1':'0');}catch(e){}window.dispatchEvent(new Event('resize'));}
 function sbToggleMobile(f){if(f===undefined)document.body.classList.toggle('sb-open');else document.body.classList.toggle('sb-open',f);
@@ -41366,6 +41374,54 @@ html[data-theme="dark"] #bm-prev{background:rgba(0,0,0,.55)}
 /* v602 · 3 · Las cifras en SF Pro Rounded. Sólo lo marca código del móvil. */
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
   .bm-num{font-family:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif!important;font-variant-numeric:tabular-nums}
+}
+</style>
+<style id="movil-v603">
+/* v603 · 2 · «Más» con los colores del sistema. Daniel, 12/11/2026, eligió la
+   propuesta 2: con el tema claro la hoja era azul marino —el color del menú
+   lateral del ordenador— y la única pieza oscura de una app clara. Ahora es el
+   fondo agrupado de las hojas (`--bmh-bg`) y cada grupo del menú una tarjeta
+   con filas como las de Ajustes: icono en un cuadrado de color, nombre,
+   recuento y cheurón. Las herramientas suben arriba, en botones redondos, y
+   la lista se desplaza por debajo. El menú lateral del ordenador no cambia. */
+:root{--sb-sep:rgba(60,60,67,.2)}
+html[data-theme="dark"]{--sb-sep:rgba(84,84,88,.62)}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #sidebar,body.sb-min #sidebar{background:var(--bmh-bg)!important;background-image:none!important;color:var(--txt)!important;
+    -webkit-backdrop-filter:none!important;backdrop-filter:none!important;overflow:hidden}
+  #sidebar .sb-grab{order:0;background:var(--muted2);opacity:.4}
+  #sidebar .sb-tools{order:1;flex:none;padding:6px 12px 4px}
+  #sidebar .sb-nav{order:2;display:block!important;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;padding:0 16px 14px!important}
+  #sidebar .sb-foot{order:3;flex:none;color:var(--muted2)!important}
+  #sidebar .sb-foot *{color:var(--muted2)!important}
+  #sidebar .sb-tool{color:var(--muted)!important;background:none!important;min-height:72px}
+  #sidebar .sb-tool i{width:46px;height:46px;border-radius:50%;background:var(--bmh-celda);color:var(--accent)}
+  #sidebar .sb-tool span{color:var(--muted)!important;font-size:11px}
+  #sidebar .sb-tool:active i{filter:brightness(.92)}
+  #sidebar .sb-glab,body.sb-min #sidebar .sb-glab{padding:18px 16px 7px;color:var(--muted)!important;font-size:var(--fs-sm);letter-spacing:.04em}
+  #sidebar .sb-nav>.sb-glab:first-child{padding-top:8px}
+  #sidebar .sb-item,body.sb-min #sidebar .sb-item{position:relative;width:100%;min-height:46px;margin:0;padding:8px 14px 8px 12px;gap:13px;
+    background:var(--bmh-celda)!important;color:var(--txt)!important;border:none!important;box-shadow:none!important;border-radius:0;
+    font-size:17px;font-weight:400;text-align:left}
+  #sidebar .sb-item.sbg-ini{border-radius:12px 12px 0 0}
+  #sidebar .sb-item.sbg-fin{border-radius:0 0 12px 12px}
+  #sidebar .sb-item.sbg-ini.sbg-fin{border-radius:12px}
+  #sidebar .sb-item.sbg-ini:not(.sb-glab + .sb-item){margin-top:20px}
+  #sidebar .sb-item:not(.sbg-ini)::before{content:"";position:absolute;left:54px;right:0;top:0;height:.5px;background:var(--sb-sep)}
+  #sidebar .sb-item>span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #sidebar .sb-item>svg{width:29px;height:29px;padding:5.5px;box-sizing:border-box;border-radius:7px;flex:none;
+    background:var(--sbc,var(--gi-pizarra));color:#fff}
+  #sidebar .sb-item[data-sg="0"],#sidebar .sb-item[data-sg="3"]{--sbc:var(--gi-azul)}
+  #sidebar .sb-item[data-sg="1"],#sidebar .sb-item[data-sg="4"]{--sbc:var(--gi-violeta)}
+  #sidebar .sb-item[data-sg="2"]{--sbc:var(--gi-teal)}
+  #sidebar .sb-item[data-sg="5"]{--sbc:var(--bad)}
+  #sidebar .sb-item[data-sg="6"]{--sbc:var(--gi-pizarra)}
+  #sidebar .sb-item::after,#sidebar .sb-item.on::after{content:"";flex:none;width:7px;height:7px;margin:0 3px 0 2px;border-radius:0;background:none;
+    border-right:2px solid var(--muted2);border-top:2px solid var(--muted2);transform:rotate(45deg);opacity:.75}
+  #sidebar .sb-item.on{color:var(--accent)!important;font-weight:600}
+  #sidebar .sb-item .tb-bdg{margin-left:0}
+  #sidebar .sb-item:active{background:var(--seg-carril)!important}
 }
 </style>
 <script>
