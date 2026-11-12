@@ -978,6 +978,23 @@ Daniel, 11/11/2026, tras ver las diez propuestas apoyadas en las pautas de Apple
 
 **Lo que NO está probado en un teléfono**, y hay que decirlo cada vez: `navigator.share` con archivo, el arranque sin cobertura, la lectura del tamaño de letra de iOS, los gestos (mantener pulsado, arrastrar hojas), la transición de la foto, el giro del teléfono y los avisos.
 
+#### 6.12.8 Exportar desde el teléfono, y probar en el motor de Safari (v580)
+
+Daniel, 12/11/2026, tras probar las diez en su iPhone: *«funciona bien, salvo lo de compartir el parte wellness al whatsapp»*.
+
+| Elemento | Regla |
+|---|---|
+| Lo que se midió | En Chromium, con el tamaño, el tema y el modo ligero de su teléfono, todo iba: 2,4 s. **En WebKit —el motor del iPhone— la misma exportación tardaba de 10 a 13 s**, y casi todo en una fase: html2canvas **clona el documento entero** (9.578 elementos) para capturar un nodo de 311. Y con la serie de 14 días ya calculada el botón no cambiaba: diez segundos sin que la pantalla dijera nada |
+| `bmExpPoda(el)` | La función `ignoreElements` que se le pasa a html2canvas, **sólo en el diseño de móvil**. Se quedan: los antepasados del nodo, el nodo entero, `<head>` con sus estilos, lo que el nodo use de fuera por `id` (`<use href>`, `url(#…)`) y, de cada antepasado, **sus hijos directos como cascarones vacíos** —así no cambian el número de hermanos ni las columnas de una rejilla—. Todos los `<style>` del cuerpo son hijos directos de `<body>` y se conservan. 9.578 → 434 elementos; **1,6–2 s en WebKit** |
+| Cómo se comprobó que sale lo mismo | Seis exportaciones (parte en claro y oscuro, disponibilidad, fisioterapia, ficha, lámina semanal, pulso individual), con y sin recorte: mismas medidas y diferencias dentro del **ruido entre dos pasadas iguales** —dos exportaciones idénticas ya difieren en un 0,01 % de los píxeles por el suavizado—. El caso mayor es la lámina semanal: 2,6 % de píxeles, todos a **un nivel de 255** |
+| `bmExpEspera()` · `bmExpFallo(msg)` | La hoja sube **al tocar**, con «Preparando la imagen…», y la misma hoja pasa a «Imagen lista» o al error. Mientras prepara es `fija` (opción nueva de `bmHoja`): tocar el fondo no la cierra —ahí cae el segundo toque impaciente—; el aspa o arrastrar sí, y entonces `__EXP_CANC` evita que la imagen la reabra. `__EXP_CURSO` impide una segunda exportación con otra en marcha (caduca a los 40 s). html2canvas arranca 260 ms después, para que la hoja termine de subir |
+| Si «Compartir» falla | El aviso dice el nombre del error (`NotAllowedError`…), para que se pueda contar |
+| En el ordenador y en el iPad | **No cambia nada**: misma ruta, sin hoja y sin recorte. En Safari de escritorio y en el iPad la exportación sigue tardando lo que tardaba; extender el recorte ahí es una decisión de Daniel |
+
+**No se sabe si esto era TODO lo que fallaba**: Daniel no dijo en qué paso se quedaba, y de la hoja de compartir de iOS a WhatsApp no se puede probar nada desde aquí. Hasta el botón «Compartir» —la imagen, el archivo PNG de 800 KB y la llamada con sólo `files`— está comprobado en WebKit.
+
+**Probar en WebKit real.** En este Mac no hay simulador de iOS ni Node, pero sí Swift y el WebKit del sistema. Un guion de 80 líneas (`swiftc`) abre un `WKWebView` de 375 × 812 con almacén no persistente y agente de iPhone, carga la copia de prueba, ejecuta un guion con `callAsyncJavaScript` (admite `await` y `return`), recoge `alert`/`confirm` por el delegado y guarda archivos que la página le manda por `window.webkit.messageHandlers`. Tres avisos: **la ventana va fuera de la pantalla**, así que `document.hidden` es cierto, los temporizadores van a un segundo y `takeSnapshot` devuelve un fotograma viejo —para ver algo, se exporta el nodo y se guarda el PNG—; es WebKit de macOS, no el de iOS: **no tiene la franja del reloj ni la hoja de compartir del teléfono**; y `checkVisibility({checkOpacity:true})` da falso en todo, porque la animación de entrada se queda en su primer fotograma.
+
 
 ---
 
@@ -1009,7 +1026,8 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - **La monotonía tiene DOS umbrales y no coinciden.** `CONFIG.load.monoHi` vale **1,5** —es la línea que dibuja el gráfico ⑤ y la marca de la celda en el dashboard de cargas— y `calMonoTier` dice «ok» hasta **2** y «elevada» por encima, que es lo que usan el calendario y «Cada jugador, esta semana». *Medido el 9/11/2026 sobre los 14 días: **5 de los 11 días con dato** salen verdes con un criterio y pasados con el otro.* Preguntado, Daniel dijo que **manda 1,5**, pero **no se ha tocado `calMonoTier`**: cambiarlo reclasifica el calendario y el panel por jugador, que es un cambio de criterio con efecto en dos pantallas más y necesita su visto bueno expreso. Mientras tanto, la columna de monotonía del dashboard **no lleva color** —solo la marca del 1,5—, para que ninguna pantalla afirme lo que la otra niega
 
 **Trabajo pendiente:**
-- **Las diez propuestas (v566–v579)**: que Daniel confirme en su iPhone lo que aquí sólo se pudo probar con toques simulados: compartir a WhatsApp, abrir sin cobertura (modo avión), el tamaño de letra del sistema, mantener pulsado, arrastrar las hojas, la foto que vuela a la ficha y girar el teléfono con un gráfico a la vista. Ver §6.12.7
+- **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **El teléfono tumbado y el iPad** (medido el 12/11/2026 en WebKit a 852 × 393): deja de ser el diseño de móvil, la cabecera ocupa 151 px de 393 y 53 de 63 controles quedan por debajo de 44 px. Propuesto, sin hacer
 - **La franja del reloj (v565)**: que Daniel confirme en su iPhone que ya no se lee nada detrás del reloj, también con «Más» o un diálogo abierto, y si en tema oscuro se ve la hora. Ver §6.12.6
 - **Móvil, pendiente tras la v559**: que Daniel confirme en su teléfono los gestos (atrás, tirar para actualizar, deslizar filas y deslizar de lado) y la app instalada; más filas deslizables si las usa. Ver §6.12.3
 - ~~La duración de un bloque sin minutos se realimenta.~~ **Resuelto en v507**: `lbDayAll` lee solo `dur0`. Ver §6.1.1
@@ -1170,6 +1188,10 @@ No los repitas.
 | Descartar por TIEMPO el toque que sigue a mantener pulsado | La primera versión ignoraba el toque durante 900 ms desde que se abría el menú. Quien deja el dedo apoyado dos segundos suelta después, y ese toque caía sobre el velo y cerraba el menú. **Lo que depende de cuándo se levanta el dedo se ata al `touchend`, no a un reloj** |
 | Cambiar las opciones ya resueltas de un gráfico | `chart.options.interaction.mode=…` en `beforeInit` no se queda: las opciones se vuelven a resolver desde la configuración al dibujar. Se cambia `chart.config.options` |
 | Comparar huellas con el panel del navegador visible en una y oculto en otra | Cinco pantallas «distintas» entre la referencia y la versión nueva: con el panel oculto, la animación de entrada de la vista se queda en su primer fotograma y desplaza todo. Repetidas las dos en el mismo estado, idénticas. **Antes de buscar la diferencia en el código, repetir la medición de la referencia** |
+| Dar por probado en el teléfono lo que sólo se probó con el TAMAÑO del teléfono | La exportación del parte se verificó en la emulación de 375 px —Chromium— y allí tardaba 2,4 s. En WebKit, que es lo que lleva el iPhone, tardaba de 10 a 13. **Emular el tamaño no es emular el motor**: lo que depende de cuánto tarda o de cómo dibuja el navegador se mide en WebKit (§6.12.8) |
+| Una acción de varios segundos que no dice que ha empezado | El botón de exportar sólo cambiaba de texto si faltaba la serie de 14 días; con la serie hecha, diez segundos de pantalla quieta. Daniel lo contó como «no funciona», y tenía razón: **lo que tarda más de medio segundo responde al toque en el mismo instante**, aunque sea con un «preparando» |
+| Comparar dos imágenes píxel a píxel sin medir antes el ruido | Con el recorte, las huellas de la exportación no coincidían y pareció que cambiaba el resultado. Dos exportaciones IDÉNTICAS tampoco coinciden: el suavizado de fotos y gráficos mueve un 0,01 % de los píxeles. **Antes de comparar A con B, comparar A con A**; y mirar cuántos niveles difieren, no sólo cuántos píxeles |
+| Un guion de prueba que sigue vivo tras agotar el tiempo | La llamada se cortó a los 45 s pero el guion siguió corriendo en la página y sus avisos aparecieron en las mediciones siguientes, como si fueran de ellas. **Tras un corte por tiempo, esperar a que la página se quede quieta** y guardar los resultados en la página, no en el valor de vuelta |
 
 ---
 
