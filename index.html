@@ -14868,6 +14868,52 @@ function bmEntregaPNG(cv,filename){
     if(bg)bg.onclick=()=>{baja(url);toast('Imagen guardada');bmHojaCierra('bmh-comp');};
   },'image/png');
 }
+/* v586 · El mapa corporal, para el dedo. En el formulario de lesión la silueta
+   mide 132 px y un tobillo, 11: no se acierta con la yema. Y en el mapa de
+   «dónde duele», los círculos son de 23. En vez de redibujar las siluetas,
+   el toque se resuelve por CERCANÍA: se miran las zonas a menos de un dedo
+   (16 px) del punto tocado; si hay una, o el dedo cae dentro de una y las
+   demás quedan a 6 px o más, se elige; si no, sale una lista corta con sus
+   nombres, de 44 px por fila. Elegir llama a lo mismo que llamaba tocar la zona (`medBmPick` o su
+   `onclick`): no hay un segundo camino. Sólo en el diseño de móvil. */
+(function(){
+  let s=null;
+  const SEL='.bm-z,.bm-hot',R=16;
+  const nombre=el=>{const t=el.querySelector&&el.querySelector('title');
+    let n=(t&&t.textContent.trim())||((el.dataset.z||'')+(el.dataset.s?' ('+(el.dataset.s==='D'?'dcha':'izda')+')':''));
+    n=n.replace(/ · \d+$/,'').replace(/ I$/,' (izda)').replace(/ D$/,' (dcha)');
+    return n.charAt(0).toUpperCase()+n.slice(1);};
+  const elige=el=>{if(el.classList.contains('bm-z')&&typeof medBmPick==='function')medBmPick(el);
+    else el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));};
+  const cierra=()=>{const q=document.getElementById('bm-zq');if(q)q.classList.remove('on');};
+  function cual(x,y,c){
+    let q=document.getElementById('bm-zq');
+    if(!q){q=document.createElement('div');q.id='bm-zq';q.setAttribute('role','menu');document.body.appendChild(q);}
+    q.innerHTML='<div class="zq-t">¿Qué zona?</div>'+c.map((o,i)=>'<button type="button" role="menuitem" data-i="'+i+'">'+nombre(o.el).replace(/[&<>]/g,'')+'</button>').join('');
+    q.onclick=e=>{const b=e.target.closest('button[data-i]');if(!b)return;cierra();elige(c[+b.dataset.i].el);};
+    q.classList.add('on');
+    const w=q.offsetWidth,h=q.offsetHeight;
+    let top=y-h-14;if(top<60)top=Math.min(window.innerHeight-h-12,y+18);
+    q.style.left=Math.max(12,Math.min(window.innerWidth-w-12,Math.round(x-w/2)))+'px';q.style.top=Math.round(top)+'px';
+  }
+  document.addEventListener('touchstart',e=>{s=null;
+    const q=document.getElementById('bm-zq');if(q&&q.classList.contains('on')&&!(e.target.closest&&e.target.closest('#bm-zq')))cierra();
+    if(!esMovil()||e.touches.length!==1)return;
+    const svg=e.target.closest&&e.target.closest('svg');if(!svg||!svg.querySelector(SEL))return;
+    const t=e.touches[0];s={x:t.clientX,y:t.clientY,t:performance.now(),svg:svg};},{passive:true,capture:true});
+  document.addEventListener('touchend',e=>{const a=s;s=null;if(!a||!e.changedTouches.length)return;
+    const t=e.changedTouches[0];
+    if(Math.abs(t.clientX-a.x)>10||Math.abs(t.clientY-a.y)>10||performance.now()-a.t>450)return;
+    const c=Array.from(a.svg.querySelectorAll(SEL)).map(el=>{const r=el.getBoundingClientRect();
+      const dx=Math.max(r.left-t.clientX,0,t.clientX-r.right),dy=Math.max(r.top-t.clientY,0,t.clientY-r.bottom);
+      return {el:el,d:Math.hypot(dx,dy),m:Math.min(r.width,r.height)};}).filter(o=>o.d<=R).sort((p,q)=>p.d-q.d);
+    if(!c.length)return;
+    if(e.cancelable)e.preventDefault();      /* lo resuelve esto, no el clic sobre lo que quede debajo del dedo */
+    if(c.length===1||(c[0].d===0&&(c[0].m>=40||c[1].d>=6))){cierra();elige(c[0].el);return;}
+    cual(t.clientX,t.clientY,c.slice(0,5));
+  },{passive:false,capture:true});
+  window.addEventListener('scroll',cierra,{passive:true,capture:true});
+})();
 /* v585 · Lo que en el ordenador se lee dejando el ratón encima, en el móvil
    sale al tocar. Medido el 12/11/2026: unas 210 explicaciones a la vista en
    las pantallas del móvil viven en un `title` —68 en la ficha, 59 en el
@@ -40036,6 +40082,23 @@ html[data-theme="dark"]{--toast-acc:#2747b0}
 @keyframes bmxEntra{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){#bm-ex.on{animation:none}}
 </style>
+<style id="movil-v586">
+/* v586 · El selector de zona del formulario de lesión ocupa el ancho de la hoja
+   en el móvil, y la lista de «¿qué zona?». */
+@media(max-width:760px){
+  .bm-wrap{gap:8px}
+  .bm-fig{flex:1 1 0;min-width:0}
+  .bm-fig svg{display:block;width:100%;height:auto;max-width:190px;margin:0 auto}
+}
+#bm-zq{position:fixed;z-index:10070;left:0;top:0;display:none;box-sizing:border-box;min-width:210px;max-width:290px;padding:6px;
+  border-radius:14px;background:var(--bmh-bg);border:.5px solid var(--hair);box-shadow:0 12px 36px rgba(0,0,0,.3)}
+#bm-zq.on{display:block}
+#bm-zq .zq-t{padding:6px 10px 4px;font-size:12.5px;font-weight:600;color:var(--muted)}
+#bm-zq button{display:flex;align-items:center;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:9px;background:none;
+  font-family:inherit;font-size:16px;font-weight:500;color:var(--txt);text-align:left;-webkit-tap-highlight-color:transparent}
+#bm-zq button:active{background:var(--bmh-celda)}
+#bm-zq button+button{box-shadow:0 -.5px 0 var(--hair)}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -43601,8 +43664,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.6*/
-const VER_ACTUAL='2026-11-12.6';
+/*BUILD:2026-11-12.7*/
+const VER_ACTUAL='2026-11-12.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
