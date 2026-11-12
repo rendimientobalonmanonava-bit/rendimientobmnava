@@ -13921,7 +13921,7 @@ const BMH_X='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke=
    nada de lo que hay bajo el dedo está desplazado: con una lista a medias, el
    gesto es de la lista. */
 function bmArrastre(caja,o){
-  o=o||{};let y0=null,x0=0,dy=0,t0=0,act=false,dec=false;
+  o=o||{};let y0=null,x0=0,dy=0,t0=0,act=false,dec=false,sube=false,dup=0,m0=0;
   const alto=()=>caja.getBoundingClientRect().height||1;
   caja.addEventListener('touchstart',e=>{
     y0=null;if(e.touches.length!==1)return;
@@ -13939,8 +13939,12 @@ function bmArrastre(caja,o){
     if(y0==null)return;
     const y=e.touches[0].clientY,x=e.touches[0].clientX;
     if(!dec){const ay=Math.abs(y-y0),ax=Math.abs(x-x0);if(ay<8&&ax<8)return;
-      dec=true;act=(y-y0)>0&&ay>ax;if(!act){y0=null;return;}
-      caja.style.transition='none';if(o.fondo)o.fondo.style.transition='none';}
+      /* v607 · Una hoja a media altura (`bm-medio`) se estira hacia arriba. */
+      sube=(y-y0)<0&&ay>ax&&caja.classList.contains('bm-medio');m0=sube?caja.getBoundingClientRect().height:0;dup=0;
+      dec=true;act=((y-y0)>0&&ay>ax)||sube;if(!act){y0=null;return;}
+      caja.style.setProperty('transition','none','important');if(o.fondo)o.fondo.style.transition='none';}
+    if(sube){dup=Math.max(0,y0-y);caja.style.setProperty('max-height',Math.round(m0+dup)+'px','important');
+      if(e.cancelable)e.preventDefault();return;}
     dy=Math.max(0,y-y0);
     caja.style.transform='translateY('+dy+'px)';
     if(o.fondo)o.fondo.style.opacity=String(Math.max(0,1-dy/alto()));
@@ -13948,6 +13952,9 @@ function bmArrastre(caja,o){
   },{passive:false});
   const suelta=()=>{
     if(y0==null||!act){y0=null;return;}
+    if(sube){const vs=dup/Math.max(1,performance.now()-t0);caja.style.transition='';if(o.fondo)o.fondo.style.transition='';
+      if(dup>40||vs>0.4)bmDetenteSube(caja);else caja.style.removeProperty('max-height');
+      y0=null;act=false;sube=false;return;}
     const v=dy/Math.max(1,performance.now()-t0);
     caja.style.transition='';if(o.fondo)o.fondo.style.transition='';
     if(dy>Math.min(170,alto()*0.34)||(v>0.55&&dy>44)){
@@ -13977,6 +13984,7 @@ function bmHoja(o){
   h.setAttribute('aria-label',o.titulo||'Hoja');
   const c=h.querySelector('.bmh-cuerpo');if(o.html!=null)c.innerHTML=o.html;c.scrollTop=0;
   h._alCerrar=o.alCerrar||null;h._fija=!!o.fija;
+  try{const cj=h.querySelector('.bmh-caja');bmDetenteQuita(cj);if(!h.classList.contains('on'))h.classList.add('on');bmDetente(cj);}catch(e){}
   if(BMH.pila.indexOf(id)<0){h._foco=document.activeElement;BMH.pila.push(id);}
   h.classList.add('on');void h.offsetWidth;h.classList.add('vis');
   return h;
@@ -15271,9 +15279,51 @@ function bmfPuntos(){
   document.addEventListener('touchend',suelta,{passive:true});
   document.addEventListener('touchcancel',()=>{if(el){el.style.transform='';el.style.opacity='';}el=null;},{passive:true});
 })();
+/* v607 · Hojas a media altura que se estiran, como en Mapas. Daniel,
+   12/11/2026, eligió la propuesta 6. Una hoja cuyo contenido pasa del 62 % de
+   la pantalla abre al 56 %: se ve lo esencial y lo de detrás sigue a la vista.
+   Tirando hacia arriba se ve entera; hacia abajo se cierra, como siempre. Al
+   entrar en un campo para escribir se abre entera sola, porque el teclado
+   taparía la mitad que queda. Vale para las hojas comunes (`bmHoja`) y para
+   los formularios que suben desde abajo —el día del calendario, el médico,
+   el parte—; la búsqueda (`bmb`) y la de compartir (`bmc`) abren como siempre.
+   La vista previa de mantener pulsado no es una hoja y no cambia. */
+const BMD_UMBRAL=0.62,BMD_ALTO=0.56;
+function bmDetente(c){
+  if(!esMovil()||!c||c._bmDet)return;c._bmDet=1;
+  if(c.closest('.bmb,.bmc'))return;
+  const vh=window.innerHeight||812;
+  const cu=c.querySelector(':scope>.bmh-cuerpo');
+  const nat=cu?(c.offsetHeight-cu.clientHeight+cu.scrollHeight):c.scrollHeight;
+  if(nat<=vh*BMD_UMBRAL){c.classList.remove('bm-medio');return;}
+  /* Primero a media altura SIN transición —si no, la hoja subiría entera y
+     luego encogería— y después la clase que trae la transición, para que
+     estirarla sí se anime. */
+  c.style.setProperty('--bm-medio',Math.round(vh*BMD_ALTO)+'px');c.classList.add('bm-medio');void c.offsetHeight;c.classList.add('bm-det');
+}
+function bmDetenteSube(c){if(!c)return;c.classList.remove('bm-medio');c.style.removeProperty('max-height');}
+function bmDetenteQuita(c){if(!c)return;c._bmDet=0;if(c.classList.contains('bm-det')||c.classList.contains('bm-medio'))c.classList.remove('bm-medio','bm-det');if(c.style.maxHeight)c.style.removeProperty('max-height');}
+const BMD_FORM='.med-overlay>.med-modal,.info-overlay>.info-modal,#drawer';
+function bmdVisible(m){const ov=m.id==='drawer'?m:m.parentElement;if(!ov)return false;
+  if(getComputedStyle(ov).display==='none')return false;return m.id!=='drawer'||m.classList.contains('on');}
+function bmdFormas(){
+  if(!esMovil())return;
+  document.querySelectorAll(BMD_FORM).forEach(m=>{
+    const ov=m.id==='drawer'?m:m.parentElement;
+    /* Sólo actúa al CAMBIAR de visible a oculta o al revés: la propia hoja
+       cambia de clase al ponerse a media altura, y sin esta guarda el
+       observador se llamaría a sí mismo sin fin. */
+    const mira=()=>{const v=bmdVisible(m);if(v===!!m._bmdVis)return;m._bmdVis=v;if(v)bmDetente(m);else bmDetenteQuita(m);};
+    if(ov&&!ov._bmdObs){ov._bmdObs=new MutationObserver(mira);ov._bmdObs.observe(ov,{attributes:true,attributeFilter:['style','class']});}
+    mira();
+  });
+}
+document.addEventListener('focusin',e=>{const t=e.target;if(!t||!t.closest||!/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))return;
+  const c=t.closest('.bm-medio');if(c&&!(t.type==='checkbox'||t.type==='radio'))bmDetenteSube(c);},true);
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmdFormas();}catch(e){}
   try{bmfPuntos();}catch(e){}
   try{bmCifras();}catch(e){console.error('bmnava · cifras',e);}
   try{bmtPinta();}catch(e){console.error('bmnava · título',e);}
@@ -41697,6 +41747,14 @@ html[data-theme="dark"]{--sb-sep:rgba(84,84,88,.62)}
   #v-jugador .bmf-dots i{width:6px;height:6px;border-radius:50%;background:var(--muted2);opacity:.35}
   #v-jugador .bmf-dots i.on{opacity:1;background:var(--txt)}
 }
+</style>
+<style id="movil-v607">
+/* v607 · 6 · La hoja a media altura. Sólo la pone código del móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-det{transition:max-height .34s cubic-bezier(.32,.72,0,1),transform .36s cubic-bezier(.32,.72,0,1)!important}
+  body .bm-medio.bm-medio.bm-medio{max-height:var(--bm-medio)!important}
+}
+@media (prefers-reduced-motion:reduce){.bm-det{transition:none!important}}
 </style>
 <script>
 /* ============================================================
