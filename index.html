@@ -15054,9 +15054,38 @@ function bmDosTonos(){
       f.classList.add('bm-dt');});
   });
 }
+/* v602 · Las cifras, en la letra redondeada. Daniel, 12/11/2026, eligió la
+   propuesta 3: es la letra de las cifras de Fitness y de Salud (SF Pro
+   Rounded), y Safari la da sin descargar nada con `ui-rounded`. Sólo cambia la
+   letra de lo que es una CIFRA de 17 px o más —el escalón de los titulares—:
+   el readiness, los recuadros, los euros, la cifra de los gráficos. El texto
+   sigue en SF Pro. Una cifra es un nodo de texto que sólo lleva dígitos y los
+   signos que acompañan a un número; el elemento que la contiene se marca una
+   vez (`data-bmn`) y el CSS del móvil le cambia la familia. Fuera: el
+   calendario (iOS escribe sus días en SF Pro), la cabecera, la barra, los
+   campos y los documentos, que van fijados a Inter. */
+const BMN_RE=/^[−\-+]?\s*\d[\d\s.,:/%+\-−–×'’]*\s*€?$/;
+const BMN_FUERA='.cal-dnum,.cal-tira,header,#tabbar,input,textarea,select,option,code,pre,#estado-parte,'+BMG_DOC;
+function bmCifras(){
+  if(!esMovil())return;
+  const raices=[document.querySelector('main .view.on'),...document.querySelectorAll('.bmh.on .bmh-cuerpo,#bm-prev.on')].filter(Boolean);
+  raices.forEach(r=>{
+    const tw=document.createTreeWalker(r,NodeFilter.SHOW_TEXT);let n;
+    while((n=tw.nextNode())){
+      const p=n.parentElement;if(!p||!p.dataset||p.dataset.bmn)continue;
+      const t=n.data.trim();if(!t||t.length>16||!/\d/.test(t)||!BMN_RE.test(t))continue;
+      p.dataset.bmn='0';
+      if(p.closest(BMN_FUERA))continue;
+      let solo=true;p.childNodes.forEach(c=>{if(c.nodeType===3){const x=c.data.trim();if(x&&!BMN_RE.test(x))solo=false;}});
+      if(!solo)continue;
+      if((parseFloat(getComputedStyle(p).fontSize)||0)>=17){p.dataset.bmn='1';p.classList.add('bm-num');}
+    }
+  });
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmCifras();}catch(e){console.error('bmnava · cifras',e);}
   try{bmListas();}catch(e){console.error('bmnava · listas',e);}
   BMP_ROT.forEach(([sel,nuevo])=>{document.querySelectorAll(sel).forEach(b=>{
     const t=b.textContent.trim(),n=typeof nuevo==='string'?nuevo:nuevo[t];
@@ -41333,6 +41362,12 @@ html[data-theme="dark"] #bm-prev{background:rgba(0,0,0,.55)}
   .sb-item.on svg .bm-dt{fill-opacity:.34}
 }
 </style>
+<style id="movil-v602">
+/* v602 · 3 · Las cifras en SF Pro Rounded. Sólo lo marca código del móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-num{font-family:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif!important;font-variant-numeric:tabular-nums}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44898,8 +44933,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.24*/
-const VER_ACTUAL='2026-11-12.24';
+/*BUILD:2026-11-12.25*/
+const VER_ACTUAL='2026-11-12.25';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
