@@ -14150,9 +14150,77 @@ function bmlpMenu(x){
       +(pas?fila(BMLP_IC.ojo,'Ver ese día','Cambia el día que se está viendo y abre el Resumen','ver'):'')+'</div>';
     acc={edita:()=>calOpenDay(x.dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=x.dk;setRefDate(x.dk);go('equipo');}};
   }
+  /* v599 · Con vista previa, como en iOS. Si algo falla al montarla, la hoja de siempre. */
+  try{if(bmPrevia(x,acc))return;}catch(err){console.error('bmnava · vista previa',err);}
   const hoja=bmHoja({id:'ctx',titulo:x.t==='j'?'':tit,clase:'bmlp'+(x.t==='j'?' bmlp-j':''),html:h});
   hoja.querySelector('.bmh-cuerpo').onclick=e=>{const b=e.target.closest('[data-a]');if(!b)return;const f=acc[b.dataset.a];
     bmHojaCierra('bmh-ctx');setTimeout(()=>{try{f&&f();}catch(err){console.error('bmnava · menú de mantener pulsado',err);}},60);};
+}
+/* ===== v599 · Mantener pulsado con vista previa =====
+   Daniel, 12/11/2026, eligió la propuesta 7: «al mantener pulsado un jugador
+   sale su mini-ficha flotando, con el fondo desenfocado, y el menú debajo».
+   La vista previa de un jugador es su foto sin fondo, su estado y tres cifras
+   —readiness, ACWR y carga de 7 días—, las mismas de la cabecera de la ficha
+   y con los mismos colores; la de un día es su tarjeta del Calendario
+   (`calDiaCol`), la misma de siempre. El menú lleva las MISMAS acciones que la
+   hoja de la v573: no hay ninguna nueva. Tocar la vista previa hace lo
+   principal —abrir la ficha o el día—; tocar fuera, «atrás» o Escape cierra.
+   En el teléfono la app va sin desenfoques (modo ligero): ahí el fondo sólo se
+   oscurece. */
+function bmPreviaCierra(){
+  const v=document.getElementById('bm-prev');if(!v||!v.classList.contains('on'))return false;
+  v.classList.remove('on');v.classList.add('sale');setTimeout(()=>{v.classList.remove('sale');v.innerHTML='';},220);
+  return true;
+}
+function bmPrevia(x,acc){
+  if(!esMovil())return false;
+  let v=document.getElementById('bm-prev');
+  if(!v){v=document.createElement('div');v.id='bm-prev';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');document.body.appendChild(v);
+    v.addEventListener('click',e=>{
+      const b=e.target.closest('[data-a]');
+      if(!b){if(!e.target.closest('.bmp-tarjeta,.bmp-menu'))bmPreviaCierra();return;}
+      const f=(v._acc||{})[b.dataset.a];bmPreviaCierra();
+      setTimeout(()=>{try{f&&f();}catch(err){console.error('bmnava · vista previa',err);}},90);});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')bmPreviaCierra();});}
+  const E=bmjEsc;let tarjeta='',menu='',lab='';
+  const fila=(k,ic,l,rojo)=>'<button type="button" class="bmp-f'+(rojo?' bmp-f-r':'')+'" data-a="'+k+'"><span>'+l+'</span>'+ic+'</button>';
+  if(x.t==='j'){
+    const n=x.n,p=STATE.players[n]||{},foto=p.avatar||photoFor(n)||'';
+    const rd=(p.readiness!=null&&isFinite(p.readiness))?Math.round(p.readiness):null;
+    const sev=p.sev||'na',col=sev==='ok'?'var(--ok)':sev==='warn'?'var(--warn)':sev==='bad'?'var(--bad)':'var(--muted)';
+    const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null,acCol=ac!=null?'var(--'+acwrClass(ac)+')':'var(--muted)';
+    const c7=p.acwr&&p.acwr.acute?Math.round(p.acwr.acute):null;
+    let est='Disponible',estC='var(--ok)';
+    try{const ev=effectiveStatus(n,dkEstado());if(ev&&ev.status&&ev.status!=='disp'){est=((typeof PHYSTAT!=='undefined'&&PHYSTAT[ev.status])||{}).lab||ev.status;
+      estC=(typeof NOAV_FIS_ST!=='undefined'&&NOAV_FIS_ST.indexOf(ev.status)>=0)?'var(--bad)':'var(--warn)';}}catch(e){}
+    const ini=String(n).split(/\s+/).slice(0,2).map(w=>w.charAt(0)).join('').toUpperCase();
+    const cifra=(et,val,c)=>'<div><em>'+et+'</em><b'+(c?' style="color:'+colTexto(c)+'"':'')+'>'+val+'</b></div>';
+    tarjeta='<div class="bmp-tarjeta bmp-j" data-a="ficha">'
+      +'<div class="bmp-foto">'+(foto?'<img src="'+E(foto)+'" alt="">':'<span class="bmp-ini">'+E(ini)+'</span>')+'</div>'
+      +'<div class="bmp-quien"><b>'+E(n)+'</b><span>'+E(posGroup(p.pos)||p.pos||'')+'</span>'
+        +'<i class="bmp-est" style="color:'+colTexto(estC)+'">'+E(est)+'</i></div>'
+      +'<div class="bmp-cifras">'+cifra('Readiness',rd!=null?rd:'—',rd!=null?col:'')+cifra('ACWR',ac!=null?ac.toFixed(2).replace('.',','):'—',ac!=null?acCol:'')
+        +cifra('Carga 7d',c7!=null?c7.toLocaleString('es-ES'):'—','')+'</div></div>';
+    menu=fila('ficha',BMLP_IC.ficha,'Ver la ficha')
+      +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
+      +(window.ojoMarcar?fila('ojo',BMLP_IC.ojo,'Ojo hoy'):'')
+      +(window.openFisioReg?fila('trat',BMLP_IC.trat,'Registrar en fisioterapia'):'')
+      +(window.openHeroForm?fila('cita',BMLP_IC.cita,'Cita o documento médico'):'');
+    lab=n;
+  }else{
+    const d=dkToDate(x.dk),i=(d.getDay()+6)%7,hoy=dkey(new Date()),pas=x.dk<=hoy;
+    const wdL=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+    let mdMap={};try{mdMap=calMDmap([x.dk]).map||{};}catch(e){}
+    let col='';try{col=calDiaCol(x.dk,i,window.__CAL_REAL||calRealMap(),mdMap,hoy,wdL);}catch(e){col='';}
+    lab=wdL[i]+' '+d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase();
+    tarjeta='<div class="bmp-tarjeta bmp-d" data-a="edita"><div class="bmp-d-h">'+E(lab)+'</div><div class="bmp-d-c">'+col.replace(/\sonclick="[^"]*"/,'')+'</div></div>';
+    menu=fila('edita',BMLP_IC.lapiz,'Planificar o editar el día')+(pas?fila('ver',BMLP_IC.ojo,'Ver ese día'):'');
+  }
+  v._acc=acc;v.setAttribute('aria-label',lab);
+  v.innerHTML='<div class="bmp-caja">'+tarjeta+'<div class="bmp-menu" role="menu">'+menu+'</div></div>';
+  v.classList.remove('sale');void v.offsetWidth;v.classList.add('on');
+  try{if(navigator.vibrate)navigator.vibrate(8);}catch(e){}
+  return true;
 }
 (function(){
   let tm=null,el=null,x0=0,y0=0;
@@ -15441,6 +15509,7 @@ function bmPriVe(){const b=document.getElementById('bm-pri');if(!b)return;let t=
 function bmCierraCapa(){
   const vis=id=>{const e=document.getElementById(id);return e&&getComputedStyle(e).display!=='none'?e:null;};
   let e;
+  if(typeof bmPreviaCierra==='function'&&bmPreviaCierra())return true;
   if(BMG.ch){bmgCierra();return true;}
   if(BMH.pila.length){bmHojaCierra();return true;}
   if(document.querySelector('.bm-tv')){bmTablaCierra();return true;}
@@ -15807,6 +15876,7 @@ try{if(document.readyState!=='loading')setTimeout(bmAtrasMonta,0);}catch(e){}
 function bmCapaAbierta(){
   const vis=id=>{const e=document.getElementById(id);return !!(e&&getComputedStyle(e).display!=='none');};
   if((window.BMG&&BMG.ch)||(window.BMH&&BMH.pila&&BMH.pila.length))return true;
+  const pv=document.getElementById('bm-prev');if(pv&&pv.classList.contains('on'))return true;
   if(document.querySelector('.bm-tv'))return true;
   if(vis('iso-overlay')||vis('ficha-overlay')||vis('ph-overlay')||vis('med-overlay'))return true;
   const d=document.getElementById('drawer');if(d&&d.classList.contains('on'))return true;
@@ -41126,6 +41196,54 @@ html[data-theme="dark"]{--hero-a:#24262c;--hero-luz:rgba(255,255,255,.08)}
   #v-nutri details.nut-pj[open]>summary::after{transform:rotate(90deg)}
 }
 </style>
+<style id="movil-v599">
+/* v599 · 7 · La vista previa al mantener pulsado. La crea código que pregunta
+   esMovil(): fuera del móvil no existe. */
+#bm-prev{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;
+  padding:calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+  background:rgba(0,0,0,.34);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)}
+html[data-theme="dark"] #bm-prev{background:rgba(0,0,0,.55)}
+#bm-prev.on,#bm-prev.sale{display:flex}
+#bm-prev.on{animation:bmpVelo .22s ease both}
+#bm-prev.sale{animation:bmpVelo .2s ease reverse both}
+.bmp-caja{width:min(340px,100%);display:flex;flex-direction:column;gap:10px;align-items:stretch}
+#bm-prev.on .bmp-tarjeta{animation:bmpSube .42s cubic-bezier(.2,1.25,.4,1) both}
+#bm-prev.on .bmp-menu{animation:bmpMenu .3s cubic-bezier(.32,.72,0,1) .06s both;transform-origin:50% 0}
+.bmp-tarjeta{background:var(--panel);color:var(--txt);border-radius:22px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.28);cursor:pointer}
+/* el jugador */
+.bmp-j{display:grid;grid-template-columns:118px minmax(0,1fr);grid-template-rows:auto auto}
+.bmp-foto{grid-row:1;grid-column:1;height:132px;display:flex;align-items:flex-end;justify-content:center;
+  background:radial-gradient(70px 70px at 50% 55%,var(--hero-luz,rgba(255,255,255,.9)),transparent 75%),var(--hero-a,#e4e7ef)}
+.bmp-foto img{width:132px;height:132px;object-fit:contain;object-position:50% 100%}
+.bmp-ini{width:76px;height:76px;margin-bottom:28px;border-radius:50%;display:grid;place-items:center;background:var(--panel);font-size:26px;font-weight:600;color:var(--muted)}
+.bmp-quien{grid-row:1;grid-column:2;align-self:center;padding:12px 14px 10px;min-width:0}
+.bmp-quien b{display:block;font-size:20px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.bmp-quien span{display:block;font-size:13px;color:var(--muted);margin-top:3px}
+.bmp-est{display:inline-block;margin-top:8px;font-style:normal;font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--panel2)}
+.bmp-cifras{grid-row:2;grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:.5px solid var(--hair)}
+.bmp-cifras>div{padding:10px 12px 12px}
+.bmp-cifras>div+div{border-left:.5px solid var(--hair)}
+.bmp-cifras em{display:block;font-style:normal;font-size:11px;font-weight:600;color:var(--muted)}
+.bmp-cifras b{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-top:2px}
+/* el día: su tarjeta del calendario, tal cual */
+.bmp-d{padding:14px 14px 4px}
+.bmp-d-h{font-size:17px;font-weight:700;margin:0 2px 8px}
+.bmp-d-c .cw-col{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left;padding:14px 14px 14px 84px;border-radius:16px;min-height:94px;position:relative;margin-bottom:10px}
+.bmp-d-c .cw-col>*{margin:0;justify-content:flex-start;text-align:left}
+.bmp-d-c .cw-col>.cw-head{display:none}
+.bmp-d-c .cw-col>.cw-tl{position:absolute;left:26px;top:18px}
+/* el menú compacto */
+.bmp-menu{background:var(--tb-solido,var(--panel));border-radius:14px;overflow:hidden;box-shadow:0 12px 34px rgba(0,0,0,.24);width:min(270px,100%);align-self:flex-start}
+.bmp-f{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:46px;padding:0 16px;border:0;background:none;
+  color:var(--txt);font:inherit;font-size:16px;text-align:left;cursor:pointer;position:relative}
+.bmp-f+.bmp-f::before{content:"";position:absolute;top:0;left:0;right:0;height:.5px;background:var(--hair)}
+.bmp-f svg{width:20px;height:20px;flex:none;color:var(--txt)}
+.bmp-f:active{background:var(--hair)}
+@keyframes bmpVelo{from{opacity:0}to{opacity:1}}
+@keyframes bmpSube{from{opacity:.4;transform:scale(.86)}to{opacity:1;transform:none}}
+@keyframes bmpMenu{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){#bm-prev.on,#bm-prev.sale,#bm-prev.on .bmp-tarjeta,#bm-prev.on .bmp-menu{animation:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -44691,8 +44809,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-12.21*/
-const VER_ACTUAL='2026-11-12.21';
+/*BUILD:2026-11-12.22*/
+const VER_ACTUAL='2026-11-12.22';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
