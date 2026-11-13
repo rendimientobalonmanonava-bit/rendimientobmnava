@@ -16330,9 +16330,19 @@ function bmSemSalta(d){
   try{bmVibra();}catch(e){}
   dpPick(v);
 }
+/* Mientras se cargan las hojas, `connect()` deja el día vacío y la plantilla a
+   cero, y mientras la serie de readiness recorre días la fecha es prestada: lo
+   que se pintara entonces describiría otro día. Se espera y se reintenta. */
+let BM_ESPERA_T=null;
+function bmEstadoEstable(){
+  if(window.__RD_CALC||!STATE.refDate||!Object.keys(STATE.players||{}).length){
+    if(!BM_ESPERA_T)BM_ESPERA_T=setTimeout(()=>{BM_ESPERA_T=null;try{bmPulido();}catch(e){}},700);
+    return false;}
+  return true;
+}
 function bmSemana(){
   const v=document.getElementById('v-equipo');if(!v)return;
-  if(window.__RD_CALC)return;            // la serie de readiness lleva prestada la fecha
+  if(!bmEstadoEstable())return;
   let el=v.querySelector(':scope>.bm-sem');
   const ref=dkey(REF()),hoy=dkey(new Date());
   const dks=calWeekDks(calWeekStart(dkToDate(ref)));
@@ -16369,9 +16379,99 @@ function bmSemana(){
     +(ref!==hoy?'<button type="button" class="bms-hoy">Hoy</button>':'')+'</div>'
     +'<div class="bms-d'+anima+'">'+dias+'</div>';
 }
+/* v633 · «Hoy», como una actividad en directo. Daniel, 13/11/2026, eligió la
+   propuesta 2. Medido antes: lo que pasa el día que se mira —qué sesión hay y
+   cuántos han mandado el parte— era una línea de texto gris de 12,5 px
+   («Entrenamiento · 18 wellness · 18 sesiones registradas»).
+   Ahora es una cápsula bajo la semana: la sesión del calendario (o el partido)
+   con sus minutos, su intensidad y el MD, y dos anillos: partes de wellness y
+   RPE de la sesión, de los que cuentan para el equipo. Tocarla abre quién falta.
+   · El wellness se cuenta con la MISMA regla que el recuadro «Wellness hoy»:
+     la plantilla menos los que están con su selección (v500).
+   · El RPE sólo se pide si ese día hubo o hay sesión: un día de descanso no
+     tiene RPE que esperar y el anillo no sale.
+   · Describe el día que se está viendo (REF), como la línea a la que sustituye.
+   Los anillos van en el color de acción: es un avance, no un estado del semáforo. */
+function bmHoyDatos(){
+  const dk=dkey(REF()),c=dayContext(REF());
+  const ps=Object.values(STATE.players||{});
+  const sel=new Set(ps.filter(p=>typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dk)).map(p=>p.name));
+  const eq=ps.map(p=>p.name).filter(n=>!sel.has(n)).sort((a,b)=>a.localeCompare(b,'es'));
+  const w=new Set((STATE.wellness||[]).filter(x=>x.dk===dk&&!sel.has(x.name)).map(x=>x.name));
+  const r=new Set((STATE.rpe||[]).filter(x=>x.dk===dk&&!sel.has(x.name)).map(x=>x.name));
+  const evs=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&e.type!=='descanso'&&e.type!=='evento');
+  const pl=calDayPlan(dk);
+  const sesion=c.trained||c.isMatch||evs.length>0;
+  return {dk,c,eq,sel,w,r,evs,pl,sesion,
+    faltaW:eq.filter(n=>!w.has(n)),faltaR:sesion?eq.filter(n=>!r.has(n)):[]};
+}
+function bmHoyAro(v,tot,lab){
+  const R=17,C=2*Math.PI*R,f=tot?Math.min(1,v/tot):0;
+  return '<span class="bmhy-aro" aria-hidden="true"><svg viewBox="0 0 44 44" width="44" height="44"><circle cx="22" cy="22" r="'+R+'" class="bmhy-pista"/>'
+    +(f>0?'<circle cx="22" cy="22" r="'+R+'" class="bmhy-arco" stroke-dasharray="'+(C*f).toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(-90 22 22)"/>':'')+'</svg>'
+    +'<b>'+v+'</b><small>'+lab+'</small></span>';
+}
+function bmHoy(){
+  const v=document.getElementById('v-equipo');if(!v||!v.classList.contains('on'))return;
+  if(!bmEstadoEstable())return;
+  const D=bmHoyDatos(),{dk,c,evs,pl}=D;
+  const hoy=dkey(new Date()),d=dkToDate(dk);
+  const WD=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const cuando=dk===hoy?'Hoy':WD[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
+  let tit,tipo,hora='';
+  if(c.isMatch){const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};const riv=evRival(ev);
+    tit='Partido'+(riv?' · '+riv:'');hora=(ev.time||'').trim();tipo='partido';}
+  else if(evs.length){hora=((evs.find(e=>e.time)||{}).time||'').trim();
+    tit=[...new Set(evs.map(e=>(e.title||calTipo(e.type).lab).trim()))].join(' + ');tipo='entreno';}
+  else if(c.trained){tit='Entrenamiento';tipo='entreno';}
+  else{tit='Descanso';tipo='descanso';}
+  const det=hora?[hora]:[];
+  if(pl&&pl.n&&pl.totMin)det.push(pl.totMin+'′');
+  const inten=(pl&&pl.n&&tipo!=='descanso'&&!c.isMatch&&pl.lab)?pl:null;
+  if(c.mdx&&c.mdx!=='—')det.push(c.mdx);
+  if(!pl.n&&c.trained)det.push('sin plan en el calendario');
+  const nW=D.w.size,nR=D.r.size,tot=D.eq.length;
+  const k=[dk,hoy,tit,det.join(),inten?inten.lab:'',nW,nR,tot,D.sesion].join('|');
+  let el=v.querySelector(':scope>.bm-hoy');
+  if(el&&el.dataset.k===k)return;
+  if(!el){el=document.createElement('button');el.type='button';el.className='bm-hoy';
+    el.addEventListener('click',()=>{try{bmVibra();}catch(_){}bmHoyFalta();});
+    const ref=v.querySelector(':scope>.bm-sem')||v.querySelector(':scope>.pagehead');
+    if(ref&&ref.nextSibling)v.insertBefore(el,ref.nextSibling);else v.appendChild(el);}
+  el.dataset.k=k;
+  const esc=bmEsc;
+  el.setAttribute('aria-label',cuando+': '+tit+(det.length?', '+det.join(', '):'')+(inten?', intensidad '+String(inten.lab).toLowerCase():'')+'. Wellness: '+nW+' de '+tot+(D.sesion?'. RPE: '+nR+' de '+tot:'')+'. Abre quién falta');
+  el.innerHTML='<span class="bmhy-ic bmhy-'+tipo+'" aria-hidden="true">'+(BMHY_IC[tipo]||'')+'</span>'
+    +'<span class="bmhy-t"><small>'+esc(cuando)+'</small><b>'+esc(tit)+'</b>'+((det.length||inten)?'<span>'+esc(det.join(' · '))+(inten?(det.length?' · ':'')+'<i class="bmhy-int" style="background:'+inten.col+'"></i>'+esc(inten.lab):'')+'</span>':'')+'</span>'
+    +'<span class="bmhy-aros">'+bmHoyAro(nW,tot,'Wellness')+(D.sesion?bmHoyAro(nR,tot,'RPE'):'')+'</span>';
+}
+const BMHY_IC={
+  entreno:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  partido:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.2l3.6 2.6-1.4 4.2H9.8L8.4 9.8z"/></svg>',
+  descanso:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>'};
+function bmHoyFalta(){
+  const D=bmHoyDatos(),esc=bmEsc;
+  const q=n=>n.replace(/'/g,"\\'");
+  const foto=n=>{const r=(window.photoFor&&photoFor(n))||(STATE.players[n]&&STATE.players[n].avatar)||window.__AVATAR__||'';
+    return r?'<img src="'+r+'" alt="" loading="lazy">':'<i>'+esc(String(n).charAt(0))+'</i>';};
+  const estado=n=>{let e=null;try{e=effectiveStatus(n,D.dk);}catch(_){}const st=e&&e.status;if(!st||st==='disp')return null;
+    const S=PHYSTAT[st]||null;return {lab:S?S.lab:st,col:S?S.c:'var(--muted)'};};
+  const pill=n=>{const e=estado(n);
+    return '<button type="button" class="pv-pill" onclick="bmHojaCierra(\'bmh-hoyf\');openPlayer(\''+q(n)+'\')">'
+      +'<span class="pv-av" style="border-color:'+(e?e.col:'var(--hair)')+'">'+foto(n)+'</span>'
+      +'<span class="pv-pt"><b>'+esc(n)+'</b>'+(e?'<small style="color:'+colTinta(e.col)+'">'+esc(e.lab)+'</small>':'')+'</span></button>';};
+  const sec=(t,xs)=>'<section class="pv-sec"><h3>'+t+'<em>'+xs.length+'</em></h3>'
+    +(xs.length?'<div class="pv-pills">'+xs.map(pill).join('')+'</div>':'<p class="pv-nada">Han respondido todos.</p>')+'</section>';
+  const html='<div class="pv">'+sec('Sin parte de wellness',D.faltaW)
+    +(D.sesion?sec('Sin RPE de la sesión',D.faltaR):'<p class="pv-nada">Sin sesión este día: no hay RPE que esperar.</p>')
+    +(D.sel.size?'<p class="pv-pie">'+D.sel.size+(D.sel.size===1?' jugador está':' jugadores están')+' con su selección y no cuenta'+(D.sel.size===1?'':'n')+' aquí.</p>':'')
+    +'</div>';
+  bmHoja({id:'hoyf',titulo:'Quién falta',html,clase:'bm-pvh'});
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
+  try{bmHoy();}catch(e){console.error('bmnava · cápsula de hoy',e);}
   try{bmDosTonos();}catch(e){}
   try{bmFichaHoy();}catch(e){console.error('bmnava · ficha plegada',e);}
   try{bmFormasHoja();}catch(e){console.error('bmnava · formularios en hoja',e);}
@@ -43666,6 +43766,30 @@ html.bmz .view.on{animation:none!important}
 @keyframes bmsDer{from{transform:translateX(-28px);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.bms-d.entra-izq,.bms-d.entra-der{animation:none}}
 </style>
+<style id="movil-v633">
+/* v633 · «Hoy», como una actividad en directo. En el ordenador no existe. */
+.bm-hoy{display:none}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-equipo>.bm-hoy{order:1;display:flex;align-items:center;gap:12px;width:100%;min-height:72px;padding:12px 12px 12px 14px;box-sizing:border-box;
+    border:none;border-radius:22px;background:var(--panel);box-shadow:var(--lg-shadow);font:inherit;color:var(--txt);text-align:left;cursor:pointer;
+    -webkit-tap-highlight-color:transparent}
+  #v-equipo:has(>.bm-hoy)>.ctrlrow{display:none}
+  .bmhy-ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--on-accent,#fff)}
+  .bmhy-ic.bmhy-descanso{background:var(--seg-carril);color:var(--muted)}
+  .bmhy-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;line-height:1.25}
+  .bmhy-t small{font-size:var(--fs-xs);font-weight:600;color:var(--muted);text-transform:none}
+  .bmhy-t b{font-size:var(--fs-body);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bmhy-t>span{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bmhy-int{display:inline-block;width:8px;height:8px;margin:0 4px 1px 0;border-radius:50%;vertical-align:middle}
+  .bmhy-aros{flex:none;display:flex;gap:8px}
+  .bmhy-aro{position:relative;display:flex;flex-direction:column;align-items:center;width:46px}
+  .bmhy-aro svg{display:block}
+  .bmhy-pista{fill:none;stroke:var(--seg-carril);stroke-width:4.5}
+  .bmhy-arco{fill:none;stroke:var(--accent);stroke-width:4.5;stroke-linecap:round}
+  .bmhy-aro b{position:absolute;top:0;left:0;right:0;height:44px;display:grid;place-items:center;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .bmhy-aro small{margin-top:1px;font-size:11px;font-weight:600;color:var(--muted)}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -47231,8 +47355,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.12*/
-const VER_ACTUAL='2026-11-13.12';
+/*BUILD:2026-11-13.13*/
+const VER_ACTUAL='2026-11-13.13';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
