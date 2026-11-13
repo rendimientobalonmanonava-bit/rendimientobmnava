@@ -37683,8 +37683,10 @@ function addDataFisio(){closeAddData();if(window.openFisioReg)openFisioReg();}
    primero y llevarlo a la vista: está a 13.000 px del principio de la página,
    o sea que aunque tomara el foco no se vería. */
 function focusSearch(){
-  /* v572 · En el móvil, la lupa busca en toda la app. En el ordenador, lo de siempre. */
-  if(esMovil()){bmBusca();return;}
+  /* v572 · En el móvil, la lupa busca en toda la app. v671 · Y en el ordenador
+     también: jugadores, pantallas, acciones y días, con ⌘K. Lo que hacía antes
+     —filtrar la plantilla— está dentro: un jugador abre su ficha. */
+  bmBusca();return;
   go('equipo');
   const d=document.getElementById('eq-plantilla');
   if(d&&!d.open)d.open=true;
@@ -37751,6 +37753,18 @@ function resetDrawer(){const c=JSON.parse(JSON.stringify(CFG_DEFAULTS));CONFIG.z
 /* --- Atajos de teclado --- */
 function initKeyboard(){document.addEventListener('keydown',e=>{const tag=(e.target.tagName||'').toLowerCase();const typing=tag==='input'||tag==='textarea'||tag==='select'||e.target.isContentEditable;if(e.key==='Escape'){closeDrawer();if(typing)e.target.blur();return;}if(typing)return;if(e.metaKey||e.ctrlKey||e.altKey)return;if(e.key>='1'&&e.key<='9'){const i=+e.key-1;if(TABS[i])go(TABS[i][0]);}else if(e.key==='/'){e.preventDefault();focusSearch();}else if(e.key==='ArrowLeft')stepDay(-1);else if(e.key==='ArrowRight')stepDay(1);else if(e.key.toLowerCase()==='t')toggleTheme();});}
 
+/* v671 · ORDENADOR · Buscar con ⌘K (Ctrl+K fuera del Mac), como Spotlight.
+   Abre la búsqueda global de la v572; «/» y la lupa de la cabecera hacen lo
+   mismo. El botón enseña el atajo. */
+document.addEventListener('keydown',e=>{
+  if(!(e.metaKey||e.ctrlKey)||e.altKey||e.shiftKey||String(e.key).toLowerCase()!=='k')return;
+  e.preventDefault();e.stopPropagation();
+  if(document.querySelector('.bmh.on.bmb'))return;
+  try{bmBusca();}catch(err){console.error('bmnava · buscar',err);}
+},true);
+(function(){const pon=()=>{const mac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent||'');
+  document.querySelectorAll('[onclick*="focusSearch"]').forEach(b=>{b.dataset.kbd=mac?'⌘K':'Ctrl K';b.title='Buscar en toda la app ('+(mac?'⌘K':'Ctrl+K')+')';});};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',pon);else pon();})();
 /* --- Restaurar vista/fecha desde la URL --- */
 /* v388 · La dirección guarda el día que estabas viendo, y al volver a entrar se
    restauraba: por eso el panel abría en un día de hace una semana. Se conserva
@@ -45525,6 +45539,13 @@ html[data-theme="dark"]{--sb-esc:rgba(30,31,36,.78);--sb-esc-borde:rgba(255,255,
   @media (prefers-reduced-motion:reduce){#bm-hov{transition:opacity .15s ease}}
 }
 </style>
+<style id="esc-v671">
+/* v671 · ORDENADOR · El atajo de buscar, escrito en el botón como en macOS. */
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  header [onclick*="focusSearch"][data-kbd]::after{content:attr(data-kbd);margin-left:8px;padding:1px 6px;border-radius:5px;background:var(--seg-carril);
+    color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.02em}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -49110,8 +49131,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.50*/
-const VER_ACTUAL='2026-11-13.50';
+/*BUILD:2026-11-13.51*/
+const VER_ACTUAL='2026-11-13.51';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
