@@ -16301,8 +16301,77 @@ function bmprToca(k){
   /* Chart.js mide el lienzo al crearlo: uno que estaba plegado nació sin tamaño */
   if(ct&&i<0)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(ch=>{if(ch&&ch.canvas&&ct.contains(ch.canvas))ch.resize();});}catch(e){}},0);
 }
+/* v632 · La semana bajo el título del Resumen, como en Fitness y Calendario.
+   Daniel, 13/11/2026, eligió la propuesta 1. Medido antes: para ir cinco días
+   atrás había que tocar la flecha cinco veces, y la barra de 14 cuadros de la
+   tarjeta del readiness no se podía tocar.
+   Siete días de lunes a domingo bajo el título, con un punto del color de la
+   RECUPERACIÓN del equipo ese día: es el mismo dato y el mismo corte que esa
+   barra (`teamRecSeries`, `recSev`, 75/55), que en el móvil se oculta porque
+   esto la sustituye. Un toque elige el día con `dpPick`, lo mismo que el
+   calendario desplegable de la cabecera; deslizar de lado cambia de semana.
+   Los días que aún no han llegado no se pueden elegir: el selector llega hasta
+   hoy y no más. «No es hoy · ir a hoy» pasa a ser «Hoy» en esta misma línea. */
+const BMSEM_L=['L','M','X','J','V','S','D'];
+const BMSEM_N=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const BMSEM_M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+let BMSEM_REC=null;
+function bmSemRec(){
+  const k=(STATE.wellness||[]).length;if(BMSEM_REC&&BMSEM_REC.k===k)return BMSEM_REC.m;
+  const m={};try{teamRecSeries(100000).forEach(d=>{m[d.dk]=d;});}catch(e){console.error('bmnava · recuperación por día',e);}
+  BMSEM_REC={k,m};return m;
+}
+function bmSemSalta(d){
+  const r=dkToDate(dkey(REF()));r.setDate(r.getDate()+d);
+  let v=dkey(r);const hoy=dkey(new Date());if(v>hoy)v=hoy;
+  const inp=document.getElementById('ref-date');if(inp&&inp.min&&v<inp.min)v=inp.min;
+  if(v===dkey(REF()))return;
+  const el=document.querySelector('#v-equipo>.bm-sem');if(el)el.dataset.dir=d>0?'izq':'der';
+  try{bmVibra();}catch(e){}
+  dpPick(v);
+}
+function bmSemana(){
+  const v=document.getElementById('v-equipo');if(!v)return;
+  if(window.__RD_CALC)return;            // la serie de readiness lleva prestada la fecha
+  let el=v.querySelector(':scope>.bm-sem');
+  const ref=dkey(REF()),hoy=dkey(new Date());
+  const dks=calWeekDks(calWeekStart(dkToDate(ref)));
+  const k=ref+'|'+hoy+'|'+(STATE.wellness||[]).length;
+  if(el&&el.dataset.k===k)return;
+  if(!el){
+    el=document.createElement('section');el.className='bm-sem';
+    const ph=v.querySelector(':scope>.pagehead');if(ph&&ph.nextSibling)v.insertBefore(el,ph.nextSibling);else v.prepend(el);
+    el.addEventListener('click',e=>{
+      const b=e.target.closest('.bms-dia');
+      if(b){if(b.disabled||b.dataset.dk===dkey(REF()))return;el.dataset.dir='';try{bmVibra();}catch(_){}dpPick(b.dataset.dk);return;}
+      if(e.target.closest('.bms-hoy')){el.dataset.dir='izq';try{bmVibra();}catch(_){}goToday();try{syncDatePicker();}catch(_){}rerenderCurrent();}
+    });
+    let x0=null,y0=0;
+    el.addEventListener('touchstart',e=>{const t=e.touches[0];x0=t.clientX<26?null:t.clientX;y0=t.clientY;},{passive:true});
+    el.addEventListener('touchend',e=>{if(x0==null)return;const t=e.changedTouches[0],dx=t.clientX-x0,dy=t.clientY-y0;x0=null;
+      if(Math.abs(dx)<50||Math.abs(dx)<Math.abs(dy)*1.5)return;bmSemSalta(dx<0?7:-7);},{passive:true});
+  }
+  const semAntes=el.dataset.sem||'';el.dataset.k=k;el.dataset.sem=dks[0];
+  const rec=bmSemRec();
+  const a=dkToDate(dks[0]),b=dkToDate(dks[6]);
+  const rango=a.getMonth()===b.getMonth()?a.getDate()+' – '+b.getDate()+' '+BMSEM_M[b.getMonth()]
+    :a.getDate()+' '+BMSEM_M[a.getMonth()]+' – '+b.getDate()+' '+BMSEM_M[b.getMonth()];
+  const dias=dks.map((dk,i)=>{
+    const d=dkToDate(dk),r=rec[dk],fut=dk>hoy,sel=dk===ref,esHoy=dk===hoy;
+    const lab=BMSEM_N[i]+' '+d.getDate()+' de '+BMSEM_M[d.getMonth()]+(esHoy?', hoy':'')
+      +(r?', recuperación '+r.pct+' %, '+recState(r.sev).toLowerCase():(fut?'':', sin parte'));
+    return '<button type="button" class="bms-dia'+(sel?' sel':'')+(esHoy?' hoy':'')+'" data-dk="'+dk+'"'+(fut?' disabled':'')
+      +(sel?' aria-current="date"':'')+' aria-label="'+lab+'"><small aria-hidden="true">'+BMSEM_L[i]+'</small><b aria-hidden="true">'+d.getDate()+'</b>'
+      +'<i class="bms-p'+(r?' bms-'+r.sev:'')+'" aria-hidden="true"></i></button>';
+  }).join('');
+  const anima=semAntes&&semAntes!==dks[0]?(el.dataset.dir==='der'?' entra-der':' entra-izq'):'';
+  el.innerHTML='<div class="bms-h"><span>Recuperación del equipo · <b>'+rango+'</b></span>'
+    +(ref!==hoy?'<button type="button" class="bms-hoy">Hoy</button>':'')+'</div>'
+    +'<div class="bms-d'+anima+'">'+dias+'</div>';
+}
 function bmPulido(){
   if(!esMovil())return;
+  try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
   try{bmDosTonos();}catch(e){}
   try{bmFichaHoy();}catch(e){console.error('bmnava · ficha plegada',e);}
   try{bmFormasHoja();}catch(e){console.error('bmnava · formularios en hoja',e);}
@@ -43564,6 +43633,39 @@ html.bmz .view.on{animation:none!important}
   .bmf .bmf-pie.bmf-pie-vacio{display:none}
 }
 </style>
+<style id="movil-v632">
+/* v632 · La semana bajo el título del Resumen. En el ordenador no existe. */
+.bm-sem{display:none}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-equipo>.bm-sem{order:1;display:block;margin:-6px 0 -2px}
+  .bms-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:30px;font-size:var(--fs-sm);color:var(--muted)}
+  .bms-h b{color:var(--txt);font-weight:600}
+  .bms-hoy{min-height:44px;margin:-7px -4px -7px 0;padding:0 4px;border:none;background:none;font:inherit;font-size:15px;font-weight:600;color:var(--accent);cursor:pointer}
+  .bms-d{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;margin-top:2px;touch-action:pan-y}
+  .bms-dia{display:flex;flex-direction:column;align-items:center;gap:3px;min-height:66px;padding:4px 0;border:none;background:none;font:inherit;color:var(--txt);
+    cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bms-dia small{font-size:11px;font-weight:600;color:var(--muted)}
+  .bms-dia b{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;
+    transition:background .2s ease,color .2s ease}
+  .bms-dia.hoy b{color:var(--accent);font-weight:700}
+  .bms-dia.sel b{background:var(--txt);color:var(--bg);font-weight:600}
+  .bms-dia.sel.hoy b{background:var(--accent);color:var(--on-accent,#fff)}
+  .bms-dia:disabled{cursor:default}
+  .bms-dia:disabled b{color:var(--muted2);font-weight:400}
+  .bms-p{display:block;width:7px;height:7px;border-radius:50%}
+  .bms-ok{background:var(--ok)}
+  .bms-warn{background:var(--warn)}
+  .bms-bad{background:var(--bad)}
+  .bms-d.entra-izq{animation:bmsIzq .34s cubic-bezier(.32,.72,0,1)}
+  .bms-d.entra-der{animation:bmsDer .34s cubic-bezier(.32,.72,0,1)}
+  /* La barra de 14 cuadros de la tarjeta dice lo mismo: la sustituye la tira. */
+  #team-hero .recstrip-wrap{display:none}
+  #v-equipo:has(>.bm-sem) #day-ctx>.day-hoy{display:none}
+}
+@keyframes bmsIzq{from{transform:translateX(28px);opacity:0}to{transform:none;opacity:1}}
+@keyframes bmsDer{from{transform:translateX(-28px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.bms-d.entra-izq,.bms-d.entra-der{animation:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -47129,8 +47231,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.11*/
-const VER_ACTUAL='2026-11-13.11';
+/*BUILD:2026-11-13.12*/
+const VER_ACTUAL='2026-11-13.12';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
