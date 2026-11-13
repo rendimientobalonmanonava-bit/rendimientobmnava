@@ -16413,6 +16413,70 @@ function bmprToca(k){
    La ficha del jugador, que se abría tocando el nombre, pasa a un botón
    dentro de la fila abierta: en una fila de iOS toda la fila hace una cosa.
    Lo abierto se recuerda mientras la app está abierta, también tras cobrar. */
+/* v655 · VoiceOver. Daniel, 13/11/2026, propuesta 5. Medido en las 29
+   pantallas a 375 px: 202 cosas que se pulsan y que VoiceOver no anuncia como
+   botón, porque son un <div> o un <span> con `onclick` —las casillas del
+   calendario (42) y del de fisioterapia (42), las pastillas de «Estado por
+   línea» (18), los nombres de Nutrición (17), el podio (12), las tarjetas de
+   Alertas (11), las zonas del mapa corporal…—, y 20 gráficos dibujados en SVG
+   sin nombre. HIG · Accessibility: «every element people can interact with
+   needs an accessibility label… and the button trait».
+   Esta pasada, sólo en el móvil y sin tocar ningún marcado de origen: rol de
+   botón, foco con el teclado (Intro o espacio lo pulsan) y, cuando su texto no
+   dice lo que es, un nombre. Una casilla de calendario lleva la fecha escrita
+   entera («martes, 10 de noviembre») delante de lo que enseña; una zona del
+   mapa corporal, su nombre. Los gráficos SVG grandes reciben el título de su
+   tarjeta como nombre de imagen. Los documentos no se tocan. */
+const BMV_DIA=/'(\d{4}-\d{2}-\d{2})'/;
+function bmvFecha(dk){try{const p=dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]);return d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});}catch(e){return dk;}}
+function bmvTitulo(el){
+  for(let n=el.parentElement,i=0;n&&i<8;n=n.parentElement,i++){
+    const h=n.querySelector(':scope>h2,:scope>h3,:scope>.pro-title,:scope>.cgr-card-h>h3,:scope>.ctrlrow>h2,:scope>.fband-h>.t');
+    if(h){const t=[...h.childNodes].filter(x=>x.nodeType===3).map(x=>x.textContent).join('').trim()||h.textContent.trim();if(t)return t.replace(/\s+/g,' ').slice(0,70);}
+    if(n.classList&&n.classList.contains('view'))break;
+  }
+  return '';
+}
+function bmVoz(){
+  const v=document.querySelector('main .view.on');if(!v)return;
+  v.querySelectorAll('[onclick]:not(button):not(a):not(input):not(select):not(summary):not(label):not(textarea):not([data-bmvoz])').forEach(e=>{
+    if(e.closest(BMG_DOC)||e.getAttribute('role'))return;
+    /* un pulsable dentro de otro (el nombre dentro de la fila de cobro) no es un segundo botón */
+    if(e.parentElement&&e.parentElement.closest('button,a[href],[role="button"]'))return;
+    e.setAttribute('data-bmvoz','1');e.setAttribute('role','button');
+    if(!e.hasAttribute('tabindex'))e.tabIndex=0;
+    if(e.getAttribute('aria-label'))return;
+    const t=String(e.textContent||'').replace(/\s+/g,' ').trim();
+    /* lo que se lee: el texto visible separado por comas y sin los símbolos de adorno, que VoiceOver deletrea */
+    const oc0=e.getAttribute('onclick')||'',conDia=BMV_DIA.test(oc0);
+    /* en una casilla de calendario lo que dice el punto está oculto en el móvil: se lee igualmente */
+    const tv=(()=>{const w=document.createTreeWalker(e,NodeFilter.SHOW_TEXT);const out=[];let n;
+      while(n=w.nextNode()){const p=n.parentElement;if(!p||(!conDia&&p.checkVisibility&&!p.checkVisibility()))continue;const x=n.textContent.replace(/[▲▼◷●○•›‹▸▾✓✕＋]/g,'').replace(/\s+/g,' ').trim();if(x)out.push(x);}
+      return out.join(' ');})();
+    const oc=e.getAttribute('onclick')||'',dk=(oc.match(BMV_DIA)||[])[1];
+    const tt=e.getAttribute('title')||((e.querySelector&&e.querySelector(':scope>title'))||{}).textContent||'';
+    let lab='';
+    if(dk){const r=tv.replace(/^\d{1,2}\b[,\s]*/,'');lab=bmvFecha(dk)+(r?', '+r:'');}
+    else if(e instanceof SVGElement)lab=tt||t;
+    /* con texto, VoiceOver lee su contenido entero; sólo se pone nombre a lo que no tiene texto */
+    else if(!t)lab=tt;
+    if(lab)e.setAttribute('aria-label',lab.charAt(0).toUpperCase()+lab.slice(1));
+  });
+  v.querySelectorAll('svg:not([data-bmvoz])').forEach(g=>{
+    if(g.closest(BMG_DOC)||g.closest('button,a,[role="button"],[aria-hidden="true"]'))return;
+    const r=g.getBoundingClientRect();if(!r.width)return;
+    g.setAttribute('data-bmvoz','1');
+    /* un minigráfico o un icono junto a una cifra es adorno: se calla */
+    if(r.width<60||r.height<40){if(!g.getAttribute('aria-label')&&!g.querySelector(':scope>title'))g.setAttribute('aria-hidden','true');return;}
+    if(g.getAttribute('aria-label')||g.querySelector(':scope>title')||g.getAttribute('aria-hidden')==='true')return;
+    const t=bmvTitulo(g);if(!t)return;
+    g.setAttribute('role','img');g.setAttribute('aria-label','Gráfico · '+t);
+  });
+}
+document.addEventListener('keydown',e=>{
+  const t=e.target;if(!t||!t.getAttribute||t.getAttribute('data-bmvoz')!=='1'||t.getAttribute('role')!=='button')return;
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();t.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));}
+},true);
 const BMNUC=new Set();
 function bmCobroLista(){
   const v=document.getElementById('v-nutri');if(!v||!v.classList.contains('on'))return;
@@ -16929,6 +16993,7 @@ function bmPulido(){
   try{bmNotas();}catch(e){console.error('bmnava · explicaciones al pie',e);}
   try{bmResumenFold();}catch(e){console.error('bmnava · resumen plegado',e);}
   try{bmCobroLista();}catch(e){console.error('bmnava · cobrar en filas',e);}
+  try{bmVoz();}catch(e){console.error('bmnava · voiceover',e);}
   try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
   try{bmMedico();}catch(e){console.error('bmnava · médico',e);}
   try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
@@ -48458,8 +48523,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.34*/
-const VER_ACTUAL='2026-11-13.34';
+/*BUILD:2026-11-13.35*/
+const VER_ACTUAL='2026-11-13.35';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
