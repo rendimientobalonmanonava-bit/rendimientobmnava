@@ -17920,6 +17920,39 @@ const ARC_DUR=900;
    correr —pestaña en segundo plano, que congela requestAnimationFrame; al
    imprimir; o con las animaciones desactivadas en el sistema— el anillo se
    quedaría a cero para siempre. Pase lo que pase, el valor final se pone. */
+/* v639 · Cifras que ruedan. Daniel, 13/11/2026, eligió la propuesta 8. Las
+   cifras grandes del Resumen contaban desde 0 cada vez que se pintaban: al
+   cambiar de día y también cuando la sincronización repintaba sola. En el
+   móvil, ahora:
+   · la primera vez que se ve una cifra cuenta como siempre (v381);
+   · si al repintar la cifra es la misma, se queda quieta;
+   · si cambia, rueda dígito a dígito desde el valor anterior, como las cifras
+     de Bolsa o Tiempo: el dígito viejo sale y el nuevo entra, hacia arriba si
+     sube y hacia abajo si baja. HIG · Motion: «add motion purposefully».
+   Los anillos de `conic-gradient` (el del readiness) hacen lo mismo: no se
+   rebobinan si no cambian, y si cambian van del arco anterior al nuevo.
+   Cada cifra se reconoce por el bloque con id que la contiene y su orden
+   dentro de él. Con «reducir movimiento», nada se mueve. En el ordenador no
+   cambia nada: las dos funciones siguen por su camino de siempre. */
+const BMR={};
+function bmrClave(el,attr){
+  const c=el.parentElement&&el.parentElement.closest('[id]');if(!c)return null;
+  const i=[...c.querySelectorAll('['+attr+']')].indexOf(el);
+  return i<0?null:c.id+'|'+attr+'|'+i;
+}
+function bmrRueda(el,de,a){
+  const n=Math.max(de.length,a.length),D=de.padStart(n,' '),A=a.padStart(n,' ');
+  const sube=parseFloat(a)>=parseFloat(de);
+  let h='',j=0;
+  for(let i=0;i<n;i++){
+    const x=D[i],y=A[i];
+    if(x===y){if(y!==' ')h+=y;continue;}
+    h+='<span class="bmr-d '+(sube?'sube':'baja')+'" style="--i:'+(j++)+'">'+(y===' '?'':'<span class="bmr-n">'+y+'</span>')
+      +(x===' '?'':'<span class="bmr-o" aria-hidden="true">'+x+'</span>')+'</span>';
+  }
+  el.innerHTML=h;
+  setTimeout(()=>{if(el.isConnected)el.textContent=a;},760);
+}
 function animarAnillos(root){
   const R=root||document;
   let quieto=false;
@@ -17935,13 +17968,17 @@ function animarAnillos(root){
     /* el marcado ya viene con el valor final: aquí solo se rebobina para
        volver a contarlo, nunca se deja el anillo a cero */
     if(quieto)return;
+    /* v639 · En el móvil, un anillo que no cambia no se rebobina y uno que
+       cambia va desde el arco que tenía. */
+    let desde=0;
+    if(esMovil()){const k=bmrClave(el,'data-arc');if(k){const p=BMR[k];BMR[k]=deg;if(p!==undefined){if(Math.abs(p-deg)<0.05)return;desde=p;}}}
     const t0=performance.now();
     let fin=false;
-    pinta(0);
+    pinta(desde);
     requestAnimationFrame(function step(t){
       if(fin)return;
       const k=Math.min(1,(t-t0)/ARC_DUR), e=1-Math.pow(1-k,3);
-      pinta(deg*e);
+      pinta(desde+(deg-desde)*e);
       if(k<1)requestAnimationFrame(step);else fin=true;
     });
     setTimeout(()=>{if(!fin){fin=true;pinta(deg);}},ARC_DUR+300);
@@ -17954,6 +17991,11 @@ function animateKPIs(root){try{animarAnillos(root);}catch(e){}
   (root||document).querySelectorAll('[data-count]').forEach(el=>{
   const target=parseFloat(el.getAttribute('data-count'));if(isNaN(target))return;
   const dc=el.getAttribute('data-count');const dec=(dc.split('.')[1]||'').length;const t0=performance.now(),dur=700;
+  /* v639 · En el móvil, una cifra que ya se había visto no vuelve a contar desde 0. */
+  if(esMovil()){const k=bmrClave(el,'data-count');if(k){const p=BMR[k];BMR[k]=dc;if(p!==undefined){
+    let quieto=false;try{quieto=matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(_){}
+    if(p!==dc&&!quieto)bmrRueda(el,parseFloat(p).toFixed(dec),target.toFixed(dec));
+    return;}}}
   function step(t){const k=Math.min(1,(t-t0)/dur);const e=1-Math.pow(1-k,3);el.textContent=(target*e).toFixed(dec);if(k<1)requestAnimationFrame(step);else el.textContent=target.toFixed(dec);}
   requestAnimationFrame(step);});}
 
@@ -44276,6 +44318,19 @@ html.bmz .view.on{animation:none!important}
 .bm-al-bs button:active{background:var(--panel2)}
 @media (prefers-reduced-motion:reduce){.bm-al,.bm-al-c{transition:none}}
 </style>
+<style id="movil-v639">
+/* v639 · Cifras que ruedan. Sólo se crean en el móvil. */
+.bmr-d{position:relative;display:inline-block}
+.bmr-n{display:inline-block;animation:bmrEntraS .6s cubic-bezier(.32,.72,0,1) both;animation-delay:calc(var(--i,0)*40ms)}
+.bmr-o{position:absolute;left:0;top:0;animation:bmrSaleS .6s cubic-bezier(.32,.72,0,1) both;animation-delay:calc(var(--i,0)*40ms)}
+.bmr-d.baja .bmr-n{animation-name:bmrEntraB}
+.bmr-d.baja .bmr-o{animation-name:bmrSaleB}
+@keyframes bmrEntraS{from{transform:translateY(55%);opacity:0;filter:blur(3px)}to{transform:none;opacity:1;filter:none}}
+@keyframes bmrSaleS{from{transform:none;opacity:1}to{transform:translateY(-55%);opacity:0;filter:blur(3px)}}
+@keyframes bmrEntraB{from{transform:translateY(-55%);opacity:0;filter:blur(3px)}to{transform:none;opacity:1;filter:none}}
+@keyframes bmrSaleB{from{transform:none;opacity:1}to{transform:translateY(55%);opacity:0;filter:blur(3px)}}
+@media (prefers-reduced-motion:reduce){.bmr-n,.bmr-o{animation:none}.bmr-o{display:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -47841,8 +47896,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.18*/
-const VER_ACTUAL='2026-11-13.18';
+/*BUILD:2026-11-13.19*/
+const VER_ACTUAL='2026-11-13.19';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
