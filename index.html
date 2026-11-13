@@ -16390,6 +16390,77 @@ function bmprToca(k){
   /* Chart.js mide el lienzo al crearlo: uno que estaba plegado nació sin tamaño */
   if(ct&&i<0)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(ch=>{if(ch&&ch.canvas&&ct.contains(ch.canvas))ch.resize();});}catch(e){}},0);
 }
+/* v653 · El Resumen como Salud. Daniel, 13/11/2026, propuesta 3. Medido a
+   375 px: 5.600 px, 16 bloques, unas siete pantallas. Lo de HOY se queda
+   abierto arriba —la semana, Hoy, el próximo partido, el readiness, las
+   cifras, Destacados, «A vigilar» y «Ojo hoy»—, y los otros ocho bloques
+   pasan a una fila con su título, su cifra clave y una flecha, la misma pieza
+   que la ficha › Hoy (v629): tocarla lo abre entero y lo abierto se queda
+   abierto en ese teléfono (`bmnava-resumenab`, con guion).
+   La cifra NO se recalcula: se lee de lo que el bloque ya ha pintado, así que
+   la fila y el bloque no pueden decir cosas distintas. Los botones de acción
+   del título («Ver agenda», «＋ Registrar», «＋ Nueva») se ven al abrirlo, y la
+   fila no dispara lo que haga la tarjeta al tocarla (la de la semana abre el
+   Calendario). El editor del Resumen (v615) sigue igual. Sólo móvil. */
+const BMRF_K='bmnava-resumenab';
+const bmrfTx=(el,s)=>{const x=el&&el.querySelector(s);return x?String(x.textContent||'').replace(/\s+/g,' ').trim():'';};
+const bmrfCol=(el,s)=>{const x=el&&el.querySelector(s);return x?getComputedStyle(x).color:'';};
+const bmrfPrimero=pn=>{const c=[...pn.children].find(x=>!/^H[23]$/.test(x.tagName)&&!x.classList.contains('bm-pr')&&!x.classList.contains('ctrlrow')&&x.checkVisibility&&(x.textContent||'').trim());
+  const t=c?String(c.innerText||c.textContent||'').replace(/\s+/g,' ').trim():'';return t.length>90?t.slice(0,88)+'…':t;};
+const BMRF=[
+  {k:'next',id:'team-next',res:pn=>{const c=pn.querySelector('.tn-card');
+    if(!c)return {sub:pn.querySelector('.tn-vacio')?'Nada planificado':bmrfPrimero(pn)};
+    const n=pn.querySelectorAll('.tn-card,.tn-row').length,dur=bmrfTx(c,'.tn-dur b');
+    return {v:dur?bmprNum(dur+' min'):'',sub:[bmrfTx(c,'.tn-dia'),bmrfTx(c,'.tn-tipo'),bmrfTx(c,'.tn-hora')].filter(Boolean).join(' · ')+(n>1?' · y '+(n-1)+' más':'')};}},
+  {k:'sem',id:'eq-semana',res:pn=>{const n=bmrfTx(pn,'.bm-lee-n');if(!n)return {sub:bmrfPrimero(pn)};
+    return {v:bmprNum(n+' UA'),sub:'Media por día · '+bmrfTx(pn,'.bm-lee-s')};}},
+  {k:'well',id:'team-welllights',res:pn=>{const L=[...pn.querySelectorAll('.tw-light')].map(l=>{const b=l.querySelector('b');return {n:bmrfTx(l,':scope>span'),t:b?b.textContent.trim():'',v:b?parseFloat(b.textContent.replace(',','.')):NaN,col:b?getComputedStyle(b).color:''};}).filter(x=>!isNaN(x.v));
+    const m=(pn.querySelector('.wm-chip')||{}).textContent||'',r=(m.match(/(\d+)\s*respondid/)||[])[1];
+    if(!L.length)return {sub:bmrfPrimero(pn)};const w=L.reduce((a,b)=>b.v>a.v?b:a);
+    return {v:bmEsc(w.t),col:w.col,sub:'Lo peor (1 es lo mejor): '+w.n.toLowerCase()+(r?' · '+r+' han respondido':'')};}},
+  {k:'pos',id:'team-posband',res:pn=>{const C=[...pn.querySelectorAll('.posband-card')].map(c=>({p:bmrfTx(c,'.posband-pos'),r:bmrfTx(c,'.posband-rdy'),col:bmrfCol(c,'.posband-rdy')})).filter(x=>x.r);
+    if(!C.length)return {sub:bmrfPrimero(pn)};const lo=C.reduce((a,b)=>(+b.r<+a.r?b:a));
+    return {v:bmEsc(lo.r),col:lo.col,sub:'Más bajo: '+lo.p+' · '+C.filter(x=>x!==lo).map(x=>x.p+' '+x.r).join(' · ')};}},
+  {k:'citas',id:'team-citas',res:pn=>({sub:bmrfPrimero(pn)})},
+  {k:'fisio',id:'team-fisio',res:pn=>{const K=[...pn.querySelectorAll('.tf-kv')].map(k=>bmrfTx(k,'b')+' '+bmrfTx(k,'span'));
+    return {sub:K.length?K.join(' · '):bmrfPrimero(pn)};}},
+  {k:'reun',id:'team-reuniones',res:pn=>({sub:bmrfPrimero(pn)})},
+  {k:'carga',id:'team-meters-panel',res:pn=>{
+    /* plegado, el bloque no se pinta y innerText vuelve vacío: se lee rótulo y cifra de cada medidor */
+    const M={};pn.querySelectorAll('span.muted').forEach(l=>{const b=l.nextElementSibling&&l.nextElementSibling.querySelector('b');if(b)M[l.textContent.trim()]={t:b.textContent.trim(),col:getComputedStyle(b).color};});
+    const rd=M['Readiness medio'],dp=M['Disponibilidad'],acK=Object.keys(M).find(k=>/^ACWR/.test(k)),ac=acK&&M[acK];
+    if(!rd&&!dp)return {sub:bmrfPrimero(pn)};
+    return {v:rd?bmEsc(rd.t):'',col:rd?rd.col:'',sub:['Readiness medio',dp?'disponibilidad '+dp.t.replace(/\s*%/,' %'):'',ac?'ACWR '+ac.t:''].filter(Boolean).join(' · ')};}}];
+function bmrfAbiertos(){try{const a=JSON.parse(localStorage.getItem(BMRF_K)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function bmResumenFold(){
+  const v=document.getElementById('v-equipo');if(!v||!v.classList.contains('on'))return;
+  const ab=bmrfAbiertos();
+  BMRF.forEach(c=>{
+    const ct=document.getElementById(c.id);if(!ct)return;
+    const pn=ct.classList.contains('panel')?ct:ct.querySelector(':scope>.panel');if(!pn)return;
+    const abierto=ab.indexOf(c.k)>=0;
+    ct.classList.add('bm-pf');ct.classList.toggle('bm-po',abierto);pn.classList.add('bm-pp','bm-prs');
+    const h2=pn.querySelector(':scope>h2')||pn.querySelector(':scope>.ctrlrow>h2');
+    const tit=h2?[...h2.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim():'';
+    let r=null;try{r=c.res(pn);}catch(e){}
+    r=r||{};
+    const h='<span class="bm-pr-t"><b>'+bmEsc(tit)+'</b>'+(r.sub?'<small>'+bmEsc(r.sub)+'</small>':'')+'</span>'
+      +(r.v?'<span class="bm-pr-v"'+(r.col?' style="color:'+r.col+'"':'')+'>'+r.v+'</span>':'')+'<i class="bm-pr-ch" aria-hidden="true">›</i>';
+    let b=pn.querySelector(':scope>.bm-pr');
+    if(!b){b=document.createElement('button');b.type='button';b.className='bm-pr';b.dataset.k=c.k;b.setAttribute('data-noarr','1');
+      b.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();bmrfToca(c.k);});pn.insertBefore(b,pn.firstChild);}
+    if(b._h!==h){b._h=h;b.innerHTML=h;}
+    b.setAttribute('aria-expanded',abierto?'true':'false');
+    b.setAttribute('aria-label',tit+(r.sub?'. '+r.sub:'')+(abierto?'. Toca para plegarlo':'. Toca para verlo entero'));
+  });
+}
+function bmrfToca(k){
+  const ab=bmrfAbiertos(),i=ab.indexOf(k);if(i>=0)ab.splice(i,1);else ab.push(k);
+  try{localStorage.setItem(BMRF_K,JSON.stringify(ab));}catch(e){}
+  bmResumenFold();try{bmVibra();}catch(e){}
+  const c=BMRF.find(x=>x.k===k),ct=c&&document.getElementById(c.id);
+  if(ct&&i<0)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(ch=>{if(ch&&ch.canvas&&ct.contains(ch.canvas))ch.resize();});}catch(e){}},0);
+}
 /* v632 · La semana bajo el título del Resumen, como en Fitness y Calendario.
    Daniel, 13/11/2026, eligió la propuesta 1. Medido antes: para ir cinco días
    atrás había que tocar la flecha cinco veces, y la barra de 14 cuadros de la
@@ -16816,6 +16887,7 @@ function bmNotas(){
 function bmPulido(){
   if(!esMovil())return;
   try{bmNotas();}catch(e){console.error('bmnava · explicaciones al pie',e);}
+  try{bmResumenFold();}catch(e){console.error('bmnava · resumen plegado',e);}
   try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
   try{bmMedico();}catch(e){console.error('bmnava · médico',e);}
   try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
@@ -44712,6 +44784,34 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   .bm-nota.bm-nota-in{padding:0 16px!important}
 }
 </style>
+<style id="movil-v653">
+/* v653 · El Resumen como Salud: las filas reutilizan la pieza de la ficha
+   (v629). Aquí sólo lo propio del Resumen. Sólo se marca en el móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-prs>.ctrlrow>h2{display:none!important}
+  .bm-prs>.ctrlrow:not(:has(>:not(h2))){display:none!important}
+  /* abierto: el botón de acción del título se queda, sin repetir el título */
+  .bm-po.bm-prs>h2:has(.r button){display:flex!important;justify-content:flex-end;font-size:0!important;margin:0 0 8px!important;min-height:0}
+  .bm-po.bm-prs>h2:has(.r button)>*{font-size:var(--fs-body)}
+  .bm-prs>.bm-pr{cursor:pointer}
+  /* los dos pliegues que ya había al final, con la misma fila */
+  #v-equipo .eq-fold{min-height:68px!important;padding:12px 16px!important}
+  #v-equipo .eq-fold-t{font-size:17px!important;font-weight:600!important;letter-spacing:-.01em;line-height:1.25;gap:2px}
+  #v-equipo .eq-fold-t small{font-size:var(--fs-sm)!important;line-height:1.3}
+  #v-equipo .eq-fold-c{font-size:20px!important;font-weight:400!important;color:var(--muted2)!important}
+  #v-equipo #eq-plantilla{padding:0 16px!important}
+  #v-equipo #eq-plantilla>summary{list-style:none;display:block!important;text-align:left!important;min-height:68px;padding:13px 26px 13px 0!important;position:relative;cursor:pointer;box-sizing:border-box}
+  #v-equipo #eq-plantilla>summary>*{display:block!important;margin:0!important}
+  #v-equipo #eq-plantilla>summary>*+*{margin-top:2px!important}
+  #v-equipo #eq-plantilla>summary::-webkit-details-marker{display:none}
+  #v-equipo #eq-plantilla>summary::marker{content:''}
+  #v-equipo #eq-plantilla>summary::after{content:'›';position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:20px;color:var(--muted2);transition:transform .25s cubic-bezier(.32,.72,0,1)}
+  #v-equipo #eq-plantilla[open]>summary::after{transform:translateY(-50%) rotate(90deg)}
+  #v-equipo #eq-plantilla>summary b{font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+  #v-equipo #eq-plantilla>summary .muted{font-size:var(--fs-sm);line-height:1.3}
+  #v-equipo #eq-plantilla[open]{padding-bottom:16px!important}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48297,8 +48397,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.32*/
-const VER_ACTUAL='2026-11-13.32';
+/*BUILD:2026-11-13.33*/
+const VER_ACTUAL='2026-11-13.33';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
