@@ -244,6 +244,7 @@ Los estados de lesión los gobierna **exclusivamente el módulo Médico**. Dispo
 - **El cristal de las TARJETAS y los blobs del fondo se retiraron el 20/10/2026**, por decisión de Daniel: *«no ha cambiado casi nada»* tras la primera pasada de estilo Apple. Se le explicó que el degradado azulado con manchas de color y las tarjetas translúcidas eran justo lo que impedía el estilo que pedía —eso es glassmorphism de 2021; Apple usa fondo plano, tarjetas opacas y cristal solo en barras y sidebar— y **levantó él mismo el bloqueo que había puesto el 23/09/2026**. Ahora: fondo `#f2f2f7` plano (negro en oscuro), tarjetas opacas separadas por sombra, y **el cristal se conserva y se refuerza en cabecera y sidebar**, que es donde la guía lo pide. Reversible: borrando el bloque v421 vuelve el cristal. **Los semáforos siguen sin cambiarse por anillos.**
 - **Móvil es de primera clase**, no una adaptación. Carlos consulta el dashboard desde el teléfono.
 - **En el móvil la app tiene su propia carcasa** (v532–v537, §6.12): cabecera de una línea, barra inferior, el menú como hoja y cada pantalla larga reordenada o por pestañas. **Todo vive dentro de `@media(max-width:760px)`** y en el ordenador no cambia nada.
+- **El ordenador, desde la v662** (§6.12.20): Daniel levantó la regla de no tocarlo para llevar al ordenador lo del móvil. Va en bloques `esc-vNNN` con la condición contraria exacta a la del móvil (`BME_ESC`), así que el teléfono no ve nada de eso; y lo que en el móvil hace la pasada de acabado, en el ordenador lo hace el observador de la v663. **Un cambio del ordenador que no pidió Daniel sigue sin hacerse.**
 
 **No hagas rediseños especulativos.** No cambies nada que no se haya pedido. Si detectas algo mejorable, dilo; no lo implementes por tu cuenta.
 
@@ -1216,6 +1217,42 @@ Daniel, 13/11/2026: *«dame más aspectos de mejora»* y, ante seis propuestas m
 
 **Lo que NO está probado en un teléfono**: VoiceOver de verdad (los roles y los nombres están medidos en el DOM, no escuchados), la nitidez de las miniaturas en la pantalla del iPhone, y abrir y cerrar las filas del Resumen y del cobro con el dedo.
 
+
+#### 6.12.19 Cinco más en el móvil (v657–v661)
+
+Daniel, 13/11/2026: *«Vamos con todas las del móvil y las del ordenador»*.
+
+| Elemento | Regla |
+|---|---|
+| Pulsómetros › Sesión y ficha › Carga, plegados (v657) | `bmPliegues` con `BMPG`: la fila de la v629 (`bm-pf`/`bm-pp`/`bm-pr`) para cualquier panel de un grupo, con su clave de teléfono (`bmnava-hrab`, `bmnava-fichacarga`). Lo que dice la fila sale de lo pintado: la lectura del gráfico (`bm-lee`), la cifra que el bloque ya enseña (`bmpgRes`: último día y su normal, ACWR y monotonía, fatiga y DOMS del día siguiente) o el subtítulo del título. *Medido: 3.675 → 1.514 y 3.291 → 1.844 px* |
+| Los 14 días del Dashboard, en filas cortas (v658) | `bmD14`: cada día es su barra con la UA y el ACWR (v510) y lo demás —la sesión, los bloques de la v513, la línea de cifras— sale al tocar la fila. **La rejilla cerrada sólo declara las dos filas que se ven**: con las cinco, los huecos de las ocultas sumaban 21 px por fila. *Medido: 2.152 → 927 px* |
+| Médico › Configuración como Ajustes (v659) | `bmAjustes`: cuatro filas con icono que abren cada sección en su pantalla con «‹ Configuración»; «atrás» vuelve a la lista por `bmCierraCapa` (`bmAjCierra`) |
+| Los gráficos dibujados, como Salud (v660) | `bmGraficosSalud` con `BMGS`: los cuatro gráficos dibujados a mano que llevan un valor por marca (microciclo, «Su carga contra su normal», radar de capacidades, «Carga y dolor»). Lectura encima —qué y cuándo, la cifra en grande— que arranca en hoy o en la última marca, y se lee deslizando el dedo. **El texto es el de cada marca**; sin globo de la v585 encima (`data-bmgs`). *Las «20 piezas sin nombre» de la auditoría eran mapas, medidores y adornos: gráficos de serie son estos cuatro* |
+| El número en el icono (v661) | `bmInsignia`: con la app instalada, `navigator.setAppBadge` con el mismo recuento que `bdAlertas`. Interruptor en «Más › Este teléfono» (`bmnava-insignia`); pide permiso de notificaciones porque iOS lo exige. **Sin el servidor de avisos sólo cambia al abrir la app** |
+
+#### 6.12.20 El ordenador, con lo del móvil (v662–v673)
+
+Daniel, 13/11/2026, con la tabla de lo que se podía llevar del móvil al ordenador delante: *«Vamos con todas las del móvil y las del ordenador»*. **Es la primera vez que se cambia el diseño del ordenador desde la regla de no tocarlo (§6.12)**, y la levantó él para estas doce. Cada bloque va en `<style id="esc-vNNN">` con la condición **contraria exacta** a la del móvil —`(min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait)`, `BME_ESC` en el código—, así que el teléfono no ve nada de esto. **Lo que en el móvil hace la pasada de acabado, en el ordenador lo hace un observador ligero** (el de la v663, que llama a `bmlReescribe`, `bmlEnLinea`, `bmVoz` y `bmResumenEsc`).
+
+| Elemento | Regla |
+|---|---|
+| 1 · Armonía (v662) | Los controles con la letra de la app (**426 de 558 botones iban en Arial**), 26 px en las tarjetas grandes y 16 en los recuadros de cifra, sin borde ni sombra lo que va dentro de una tarjeta, las listas de tarjetas de Nutrición y Alertas fuera de su caja, **20 px entre tarjetas** (la regla anterior de 22 ganaba a un `:where()`: va con `!important` y a 0 dentro de las rejillas) y nada recortado. *Medido: 37 textos cortados → 2 (los dos en la lámina)* |
+| 2 · Una letra y una escala (v663) | `bmlReescribe` corre también en el ordenador y `#bm-sistema` da los valores en las dos condiciones. La letra monoespaciada pasa a la del sistema con cifras de ancho fijo, también en ejes y carteles. *Medido: Arial 426 → 0, monoespaciada 1.332 → 6, tamaños de letra 35 → 11, radios 20 → 15*; las sombras distintas apenas bajan porque casi todas son anillos de estado |
+| 3 · Ventanas propias (v664) | `bmPregunta`, `bmPide` y `alert` usan la alerta de la app (v638) también en el ordenador, con Escape; `bmAccion` es ahí esa alerta con dos botones. La hoja de cobro sale centrada (`bmHoja` centrada en el ordenador). Los formularios preguntan antes de perder lo escrito: **en el ordenador nadie apuntaba cuándo se abría un formulario**, y un observador de su contenido lo apunta. La barra Cancelar · Guardar de iOS no se lleva |
+| 4 · Menú lateral de macOS (v665) | Fondo del sistema con desenfoque real, iconos en cuadrado de color por grupo (`data-sg`) y fila elegida rellena del acento. **El oro del menú deja de usarse**: §2.3 lo reserva al menú, no obliga a usarlo |
+| 5 · Gráficos como Salud (v666) | `bmgPlugin` y `bmdPlugin` se registran fuera de la rama del móvil y sin su guarda. *15 de los 30 gráficos visibles llevan lectura, la misma regla que en el móvil* |
+| 6 · Contraste (v667) | Textos atenuados con opacidad (§3 lo prohíbe): los días del mes de al lado (0,48) y las posiciones del microciclo con pocos días (0,45). Se atenúa el dibujo y el texto va al gris de la escala. Y el ámbar de `CAL_INT` sobre una palabra (2,15:1) |
+| 7 · Teclado (v668) | `bmVoz` también en el ordenador, con anillo de foco sólo al llegar con el teclado. **Cierra el pendiente de §8 de los pulsables sin teclado** |
+| 8 · Avisos (v669) | Arriba a la derecha, bajo la cabecera, con el icono de la app y «Deshacer» (antes sólo en el móvil) |
+| 9 · Clic derecho y vista previa (v670) | El clic derecho abre la vista previa del móvil (`bmPrevia`) y el ratón quieto medio segundo sobre un jugador, su mini-ficha (`bmPreviaJ`, la misma tarjeta) |
+| 10 · Buscar con ⌘K (v671) | La búsqueda global (v572) con ⌘K, Ctrl+K, «/» y la lupa, que enseña el atajo |
+| 11 · Fotos ligeras (v672) | Miniaturas también en el ordenador; la grande donde se ve grande: la cabecera de la ficha, la ficha exportable y la foto de Perfil físico (102 px). *El arranque baja a 1 MB* |
+| 12 · Detalles del Resumen (v673) | La semana, Hoy, el próximo partido y Destacados en el Resumen del ordenador —una fila bajo el título y Destacados en columnas—, los semáforos planos, los medidores tipo Tiempo (**los de los documentos siguen con su arco**: se exportan a 1.180 px, que es condición de ordenador) y los interruptores. Los estilos son los del móvil reenvueltos en la condición del ordenador |
+
+**Cómo se comprobó.** Ya no se compara con «idéntico», porque el ordenador cambia a propósito: lo que tiene que quedar igual son **las cifras**, que estos cambios no tocan (son estilos y piezas de presentación), y **no puede desbordarse nada ni dar error**. En el ordenador, a 1.440 y a 1.024 px en las 29 pantallas: **ninguna se desborda y no hay errores**; las mediciones de cada propuesta van en su fila. En el móvil, el motor de Safari en las 29 pantallas y los dos temas, para comprobar que lo común (la vista previa, las fotos, la reescritura de la hoja) no se ha movido.
+
+**Lo que NO está probado**: el ordenador de Daniel con sus datos (todo se probó en la copia de prueba a 1.440 y 1.024 px), el desenfoque del menú en Safari de macOS y la mini-ficha con un ratón de verdad.
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1250,6 +1287,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **Lo de la v657–v673**: que Daniel vea el ordenador nuevo (§6.12.20) —es la primera vez que cambia— y en el móvil las filas plegadas, Ajustes de Médico y el número en el icono. Ver §6.12.19 y §6.12.20
 - **Lo de la v650–v656**: que Daniel vea en su iPhone el Resumen plegado, el cobro en filas y las fotos; y, si alguien usa VoiceOver, que lo pruebe. Ver §6.12.18
 - **Lo de la v642–v649**: que Daniel vea la pasada de armonía en su iPhone. Ver §6.12.17
 - **Lo de la v631–v641**: que Daniel lo vea en su iPhone con sus datos —la semana bajo el título, «Hoy», Destacados, Médico, el cobro, las ventanas propias y el acabado del cristal—. Ver §6.12.16
@@ -1277,7 +1315,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - ~~Revisión del modo oscuro~~ **Hecha el 10/11/2026** (v527 · v529): medidas las 29 pantallas en los dos temas. Lo que queda está en §3
 - **Coma decimal** (v530): quedan con punto la tabla de sesiones y la matriz de RPE de **Pulsómetros › Jugador** (unas 270 cifras) y cuatro sueltas en la ficha y en Perfil físico. El método es el de siempre: medir el DOM, no buscar `toFixed`
 - **Escala tipográfica** en las vistas que aún no la cumplen (la tienen la ficha, Perfil físico y Nutrición)
-- **Accesibilidad de teclado**: hay cientos de elementos pulsables que no son botones ni reciben el foco, los diálogos no se cierran con Escape y faltan textos alternativos. Los atajos 1–9 siguen el orden de `TABS`, no el del menú
+- **Accesibilidad de teclado**: ~~los pulsables que no son botones~~ resuelto en la v668; las alertas y hojas de la app se cierran con Escape (v664). Quedan los atajos 1–9, que siguen el orden de `TABS` y no el del menú
 - **Los `catch` vacíos**: 681 de 906 bloques `try`. Es el patrón que dejó el parte en blanco (v492) y Disponibilidad sin repintar (v531)
 - ~~Sin red no hay datos~~ **Resuelto**: las hojas tienen copia desde la v547 y la app abre sin cobertura en el móvil desde la v569
 
@@ -1450,6 +1488,8 @@ No los repitas.
 | Medir el contraste de un cambio de estilo en un solo tema | La cápsula de los botones secundarios de la v647 se dio por buena en claro y en oscuro quedaba a 3,83:1 en unos 80 botones; salió en la auditoría siguiente. **Un fondo nuevo se mide con su texto en los dos temas antes del commit**, no después |
 | Pintar una pestaña retirada porque cae en el `else` | Gimnasio y Perfil de partido no tenían rama en `renderCargaActive` y pintaban el panel de Cargas › RPE, retirado y oculto: 400 ms por cambio de pestaña durante semanas. **Al retirar una pestaña, buscar las ramas por defecto que todavía la pintan** |
 | Leer `innerText` de un bloque plegado | Con el bloque en `display:none`, `innerText` devuelve cadena vacía y la cifra de la fila salía vacía. Para leer lo que no se pinta, `textContent` o la estructura del bloque |
+| Copiar estilos del móvil al ordenador con su `order` dentro | Los bloques del móvil traen `order` para colocar cada pieza en el Resumen apilado; en el ordenador, al hacer el Resumen flexible, la semana y Destacados cayeron al final de la página. **Lo que se reenvuelve en otra condición se revisa entero**: posición, orden y anchos son del sitio de origen |
+| Dar por bueno un `:where()` frente a una regla que ya existe | `:where()` pesa cero: la separación de 22 px de los paneles le ganaba y la de 20 no se aplicaba. Se vio midiendo, no leyendo |
 
 ---
 
