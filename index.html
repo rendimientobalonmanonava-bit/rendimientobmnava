@@ -14219,20 +14219,11 @@ function bmPreviaCierra(){
   v.classList.remove('on');v.classList.add('sale');setTimeout(()=>{v.classList.remove('sale');v.innerHTML='';},220);
   return true;
 }
-function bmPrevia(x,acc){
-  if(!esMovil())return false;
-  let v=document.getElementById('bm-prev');
-  if(!v){v=document.createElement('div');v.id='bm-prev';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');document.body.appendChild(v);
-    v.addEventListener('click',e=>{
-      const b=e.target.closest('[data-a]');
-      if(!b){if(!e.target.closest('.bmp-tarjeta,.bmp-menu'))bmPreviaCierra();return;}
-      const f=(v._acc||{})[b.dataset.a];bmPreviaCierra();
-      setTimeout(()=>{try{f&&f();}catch(err){console.error('bmnava · vista previa',err);}},90);});
-    document.addEventListener('keydown',e=>{if(e.key==='Escape')bmPreviaCierra();});}
-  const E=bmjEsc;let tarjeta='',menu='',lab='';
-  const fila=(k,ic,l,rojo)=>'<button type="button" class="bmp-f'+(rojo?' bmp-f-r':'')+'" data-a="'+k+'"><span>'+l+'</span>'+ic+'</button>';
-  if(x.t==='j'){
-    const n=x.n,p=STATE.players[n]||{},foto=p.avatar||photoFor(n)||'';
+/* v670 · La tarjeta de un jugador de la vista previa, sacada a una función: la
+   usan mantener pulsado (móvil), el clic derecho y el paso del ratón (ordenador). */
+function bmPreviaJ(n){
+  const E=bmjEsc;let tarjeta='';
+    const p=STATE.players[n]||{},foto=p.avatar||photoFor(n)||'';
     const rd=(p.readiness!=null&&isFinite(p.readiness))?Math.round(p.readiness):null;
     const sev=p.sev||'na',col=sev==='ok'?'var(--ok)':sev==='warn'?'var(--warn)':sev==='bad'?'var(--bad)':'var(--muted)';
     const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null,acCol=ac!=null?'var(--'+acwrClass(ac)+')':'var(--muted)';
@@ -14248,6 +14239,22 @@ function bmPrevia(x,acc){
         +'<i class="bmp-est" style="color:'+colTexto(estC)+'">'+E(est)+'</i></div>'
       +'<div class="bmp-cifras">'+cifra('Readiness',rd!=null?rd:'—',rd!=null?col:'')+cifra('ACWR',ac!=null?ac.toFixed(2).replace('.',','):'—',ac!=null?acCol:'')
         +cifra('Carga 7d',c7!=null?c7.toLocaleString('es-ES'):'—','')+'</div></div>';
+  return tarjeta;
+}
+function bmPrevia(x,acc){
+  /* v670 · también en el ordenador (clic derecho) */
+  let v=document.getElementById('bm-prev');
+  if(!v){v=document.createElement('div');v.id='bm-prev';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');document.body.appendChild(v);
+    v.addEventListener('click',e=>{
+      const b=e.target.closest('[data-a]');
+      if(!b){if(!e.target.closest('.bmp-tarjeta,.bmp-menu'))bmPreviaCierra();return;}
+      const f=(v._acc||{})[b.dataset.a];bmPreviaCierra();
+      setTimeout(()=>{try{f&&f();}catch(err){console.error('bmnava · vista previa',err);}},90);});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')bmPreviaCierra();});}
+  const E=bmjEsc;let tarjeta='',menu='',lab='';
+  const fila=(k,ic,l,rojo)=>'<button type="button" class="bmp-f'+(rojo?' bmp-f-r':'')+'" data-a="'+k+'"><span>'+l+'</span>'+ic+'</button>';
+  if(x.t==='j'){
+    const n=x.n;tarjeta=bmPreviaJ(n);
     menu=fila('ficha',BMLP_IC.ficha,'Ver la ficha')
       +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
       +(window.ojoMarcar?fila('ojo',BMLP_IC.ojo,'Ojo hoy'):'')
@@ -14302,6 +14309,44 @@ function bmPrevia(x,acc){
   /* El menú del sistema (copiar, guardar imagen) no sale sobre lo que tiene el nuestro. */
   document.addEventListener('contextmenu',e=>{if(esMovil()&&e.target.closest&&e.target.closest(BMLP_SEL))e.preventDefault();});
 })();
+/* v670 · ORDENADOR · Clic derecho y vista previa. Daniel, 13/11/2026. En el
+   móvil, mantener pulsado un jugador o un día abre su vista previa con las
+   acciones (v573, v599); en el ordenador el clic derecho sacaba el menú del
+   navegador. Ahora abre esa misma vista previa —es el Vista Rápida de macOS—
+   con las mismas acciones. Y al quedarse el ratón medio segundo sobre un
+   jugador sale su mini-ficha al lado (foto, estado, readiness, ACWR y carga de
+   7 días): la misma tarjeta, sin abrir nada. No se pinta en los documentos. */
+document.addEventListener('contextmenu',e=>{
+  if(esMovil()||!e.target||!e.target.closest)return;
+  if(e.target.closest('input,textarea,select,'+BMG_DOC))return;
+  const c=e.target.closest(BMLP_SEL);if(!c)return;
+  const x=bmlpDe(c);if(!x)return;
+  e.preventDefault();bmHovQuita();
+  try{bmlpMenu(x);}catch(err){console.error('bmnava · clic derecho',err);}
+});
+const BMHOV={t:null,el:null,n:''};
+function bmHovQuita(){clearTimeout(BMHOV.t);BMHOV.t=null;BMHOV.el=null;const h=document.getElementById('bm-hov');if(h)h.classList.remove('on');}
+document.addEventListener('mouseover',e=>{
+  if(esMovil()||!e.target||!e.target.closest)return;
+  const c=e.target.closest('[onclick*="openPlayer("]');
+  if(c===BMHOV.el)return;
+  bmHovQuita();
+  if(!c||c.closest(BMG_DOC+',#v-jugador .phero,#bm-prev,.bmh'))return;
+  const x=bmlpDe(c);if(!x||x.t!=='j'||!(STATE.players||{})[x.n])return;
+  BMHOV.el=c;
+  BMHOV.t=setTimeout(()=>{
+    if(BMHOV.el!==c||!c.isConnected)return;
+    let h=document.getElementById('bm-hov');
+    if(!h){h=document.createElement('div');h.id='bm-hov';h.setAttribute('aria-hidden','true');document.body.appendChild(h);}
+    h.innerHTML=bmPreviaJ(x.n);
+    const r=c.getBoundingClientRect(),W=320,H=h.offsetHeight||190,vw=innerWidth,vh=innerHeight;
+    let L=r.right+12;if(L+W>vw-12)L=r.left-W-12;if(L<12)L=Math.min(Math.max(12,r.left),vw-W-12);
+    let T=Math.min(Math.max(12,r.top),vh-H-12);
+    h.style.left=Math.round(L)+'px';h.style.top=Math.round(T)+'px';
+    h.classList.add('on');
+  },550);
+});
+['scroll','mousedown','keydown'].forEach(t=>window.addEventListener(t,bmHovQuita,{passive:true,capture:true}));
 /* v574 · Gráficos para el dedo, en el móvil. Tres cosas:
    1 · La lectura en una frase, encima de cada gráfico (HIG · Charting data:
        texto que diga lo importante). Sale de los propios datos del gráfico: el
@@ -45465,6 +45510,21 @@ html[data-theme="dark"]{--sb-esc:rgba(30,31,36,.78);--sb-esc-borde:rgba(255,255,
   @media (prefers-reduced-motion:reduce){html body #toast{transition:opacity .2s ease!important}}
 }
 </style>
+<style id="esc-v670">
+/* v670 · ORDENADOR · La mini-ficha al pasar el ratón. */
+#bm-hov{display:none}
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  #bm-hov{display:block;position:fixed;z-index:10060;width:320px;pointer-events:none;opacity:0;transform:translateY(4px) scale(.98);
+    transition:opacity .15s ease,transform .22s cubic-bezier(.32,.72,0,1)}
+  #bm-hov.on{opacity:1;transform:none}
+  #bm-hov .bmp-tarjeta{border-radius:16px;box-shadow:0 16px 44px rgba(0,0,0,.2),0 2px 6px rgba(0,0,0,.08);border:.5px solid var(--hair);cursor:default}
+  #bm-hov .bmp-j{grid-template-columns:96px minmax(0,1fr)}
+  #bm-hov .bmp-foto{height:104px}
+  #bm-hov .bmp-foto img{width:104px;height:104px}
+  #bm-hov .bmp-quien b{font-size:17px}
+  @media (prefers-reduced-motion:reduce){#bm-hov{transition:opacity .15s ease}}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -49050,8 +49110,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.49*/
-const VER_ACTUAL='2026-11-13.49';
+/*BUILD:2026-11-13.50*/
+const VER_ACTUAL='2026-11-13.50';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
