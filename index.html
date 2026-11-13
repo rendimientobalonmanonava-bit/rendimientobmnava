@@ -24693,7 +24693,7 @@ function renderFicha(name){
       </div>
       <div class="fh2-main">
         <div class="fh2-ph"><div class="fh2-ph-in">
-          ${(p.avatar||window.__AVATAR__)?`<img src="${p.avatar||window.__AVATAR__}" alt="${name}">`:`<div class="fh2-ini">${initials}</div>`}
+          ${(p.avatar||window.__AVATAR__)?`<img src="${(window.phGrande?phGrande(p.avatar):p.avatar)||window.__AVATAR__}" alt="${name}">`:`<div class="fh2-ini">${initials}</div>`}
         </div></div>
         <div class="fh2-id">
           <div class="fh2-name">${name}</div>
@@ -38532,7 +38532,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
       escrito como pendiente en CLAUDE.md. El anillo suelto de readiness
       desaparece: su cifra entra en la rejilla de datos de la derecha, que es
       justo lo que llenaba de blanco la mitad de la tarjeta. */
-   const foto=p.avatar||window.__AVATAR__||'';
+   const foto=(window.phGrande?phGrande(p.avatar):p.avatar)||window.__AVATAR__||'';
    const rd=p.readiness!=null?Math.round(p.readiness):null;
    const sev=p.sev||'na';
    const col=sev==='ok'?'var(--ok)':sev==='warn'?'var(--warn)':sev==='bad'?'var(--bad)':'var(--muted)';
@@ -47812,6 +47812,22 @@ const PH_DIR='fotos/';
 const PH_VER='2';
 const PH_QS=PH_VER?('?v='+PH_VER):'';
 const PH_EXT=['png','webp','jpg','jpeg','PNG','JPG'];
+/* v651 · Fotos ligeras en el móvil. Daniel, 13/11/2026, propuesta 1. Medido:
+   recorrer la app descargaba 68 fotos y 5,9 MB, y cada cara se pinta a
+   40–108 px con un archivo de 400 × 400 —todas las visibles con más de tres
+   veces la resolución que necesita el iPhone—. Además el escaneo del arranque
+   (`phTry`) carga la foto ENTERA de cada jugador para saber si existe.
+   En el móvil se piden las miniaturas de `fotos/m/` (160 px, el mismo nombre:
+   1,3 MB las 37 frente a 5,0) y, si alguna no existe, la de siempre, así que
+   una foto nueva sin miniatura sigue saliendo. La foto GRANDE sólo donde se
+   ve grande: la cabecera de la ficha y la ficha exportable (`phGrande`).
+   En el ordenador no cambia nada: sigue pidiendo `fotos/`.
+   AL AÑADIR O CAMBIAR UNA FOTO: `sips -Z 160 "fotos/X.png" --out "fotos/m/X.png"`
+   y subir PH_VER. */
+const PH_DIR_M='fotos/m/';
+function phDirs(ext){return (ext==='png'&&typeof esMovil==='function'&&esMovil())?[PH_DIR_M,PH_DIR]:[PH_DIR];}
+function phGrande(u){return u?String(u).replace(PH_DIR_M,PH_DIR):u;}
+window.phGrande=phGrande;
 const PH_SIZE=220;          // lado del recorte cuadrado guardado
 let PH_MEM=null;            // caché en memoria de lo guardado en localStorage
 let PH_FILE={};             // nombre → URL encontrada en la carpeta
@@ -47891,8 +47907,10 @@ window.phBuscar=async function(name){
   const vars=sinTilde!==name?[sinTilde,name]:[name];
   for(const ext of PH_EXT){
     for(const v of vars){
-      const url=PH_DIR+encodeURIComponent(v)+'.'+ext+PH_QS;
-      if(await phTry(url)){PH_FILE[name]=url;return url;}
+      for(const dir of phDirs(ext)){
+        const url=dir+encodeURIComponent(v)+'.'+ext+PH_QS;
+        if(await phTry(url)){PH_FILE[name]=url;return url;}
+      }
     }
   }
   PH_NOFILE[name]=1;
@@ -47930,8 +47948,10 @@ async function phScanFolder(){
      nombres a la vez; una foto que exista en png se resuelve en una petición. */
   await Promise.all(names.map(async n=>{
     for(const ext of PH_EXT){
-      const url=PH_DIR+encodeURIComponent(n)+'.'+ext+PH_QS;
-      if(await phTry(url)){PH_FILE[n]=url;return;}
+      for(const dir of phDirs(ext)){
+        const url=dir+encodeURIComponent(n)+'.'+ext+PH_QS;
+        if(await phTry(url)){PH_FILE[n]=url;return;}
+      }
     }
   }));
   /* v320 · Con las fotos ya fuera de la sincronización, las copias en base64 que
@@ -48268,8 +48288,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.30*/
-const VER_ACTUAL='2026-11-13.30';
+/*BUILD:2026-11-13.31*/
+const VER_ACTUAL='2026-11-13.31';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
