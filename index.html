@@ -18265,6 +18265,12 @@ function buildChartTheme(){
       C.elements.bar.borderRadius=5;
       C.plugins.tooltip.cornerRadius=10;C.plugins.tooltip.displayColors=true;
       try{AX.grid.lineWidth=.5;AX.ticks.maxTicksLimit=6;AX.ticks.padding=6;}catch(e){}
+      /* v640 · Una sola letra: en el móvil, ejes y carteles con la del sistema. */
+      try{const SF='-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif';
+        C.font.family=SF;AX.ticks.font=Object.assign({},AX.ticks.font,{family:SF});
+        C.plugins.tooltip.bodyFont=Object.assign({},C.plugins.tooltip.bodyFont,{family:SF});
+        C.plugins.tooltip.titleFont=Object.assign({},C.plugins.tooltip.titleFont,{family:SF});
+        C.plugins.legend.labels.font=Object.assign({},C.plugins.legend.labels.font,{family:SF});}catch(e){}
       /* v564 · Los valores por defecto no alcanzan a los gráficos que fijan los
          suyos, que son la mayoría. Este plugin los iguala al crearlos: leyenda
          debajo, valor al tocar cerca y barras redondeadas —salvo las apiladas,
@@ -23963,7 +23969,19 @@ function renderTestsExtra(){
       return colSobre('rgb('+c.join(',')+')');};
     let html=`<div style="display:grid;grid-template-columns:90px repeat(${TT.length},1fr);gap:3px;min-width:420px"><div></div>`+TT.map(t=>`<div class="small muted" style="text-align:center">${shortLbl(t)}</div>`).join('');
     TT.forEach(rt=>{html+=`<div class="small muted">${shortLbl(rt)}</div>`+TT.map(ct=>{const r=rt.k===ct.k?1:pear(zv[rt.k],zv[ct.k]);return `<div title="r=${fmt(r,2)}" style="height:28px;background:${rcol(r)};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${colTexto(rtxt(r))}">${isNaN(r)?'—':fmt(r,2)}</div>`;}).join('');});
-    html+=`</div>`;cm.innerHTML=html;}
+    html+=`</div>`;
+    /* v640 · En el móvil la matriz (que había que arrastrar de lado y eran 204
+       cifras en letra de máquina de escribir) pasa a una lista con las
+       relaciones más fuertes: las mismas r, de `pear`, de mayor a menor en
+       valor absoluto. HIG · Charting data: «not every collection of data needs
+       to be displayed in a chart … consider a list». No se pone «fuerte» ni
+       «débil»: la app no tiene cortes para r y no se inventan. En el ordenador
+       la lista no se ve y la matriz sigue igual. */
+    const pares=[];TT.forEach((a,i)=>TT.forEach((b,j)=>{if(j<=i)return;const r=pear(zv[a.k],zv[b.k]);if(r!=null&&isFinite(r))pares.push({a,b,r});}));
+    pares.sort((x,y)=>Math.abs(y.r)-Math.abs(x.r));
+    const lista=pares.slice(0,10).map(p=>`<div class="bmc-f"><span class="bmc-t"><b>${shortLbl(p.a)} · ${shortLbl(p.b)}</b><small>${p.r>=0?'suben juntos':'uno sube y el otro baja'}</small></span>`
+      +`<span class="bmc-b" aria-hidden="true"><i style="${p.r>=0?'left:50%':'right:50%'};width:${(Math.abs(p.r)*50).toFixed(1)}%" class="${p.r>=0?'pos':'neg'}"></i></span><em>${fmt(p.r,2)}</em></div>`).join('');
+    cm.innerHTML=html+(pares.length?`<div class="bm-corr"><p class="bmc-p">Las ${Math.min(10,pares.length)} relaciones más fuertes entre tests, de ${pares.length}. r de Pearson sobre los z.</p>${lista}</div>`:'');}
   // selects scatter
   ['sc-x','sc-y'].forEach((id,idx)=>{const s=document.getElementById(id);if(s&&!s.options.length){s.innerHTML=TESTS.map(t=>`<option value="${t.k}">${t.name}</option>`).join('');s.value=TESTS[idx===0?0:1].k;}});
   renderTestScatter();
@@ -44331,6 +44349,31 @@ html.bmz .view.on{animation:none!important}
 @keyframes bmrSaleB{from{transform:none;opacity:1}to{transform:translateY(55%);opacity:0;filter:blur(3px)}}
 @media (prefers-reduced-motion:reduce){.bmr-n,.bmr-o{animation:none}.bmr-o{display:none}}
 </style>
+<style id="movil-v640">
+/* v640 · Una sola letra. Daniel, 13/11/2026, eligió la propuesta 9. Había 236
+   textos en letra monoespaciada en el móvil: 21 en el Resumen, 204 en la
+   matriz de correlaciones, 6 en el Calendario y 5 en Alertas. iOS escribe las
+   cifras con su propia letra y cifras de ancho fijo (tabular-nums), que es lo
+   que alinea las columnas sin cambiar de letra. En el ordenador no cambia. */
+.bm-corr{display:none}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  :root{--mono:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif}
+  .mono,.hm td.cell,.mc-p-v,.cg-p-v,.he-v b,.he-z,[style*="monospace"]{font-family:var(--mono)!important;font-variant-numeric:tabular-nums}
+  #corr-matrix>div:first-child{display:none!important}
+  .bm-corr{display:block}
+  .bmc-p{margin:0 0 6px;font-size:var(--fs-sm);color:var(--muted)}
+  .bmc-f{display:grid;grid-template-columns:minmax(0,1fr) 84px 44px;align-items:center;gap:10px;min-height:52px;padding:6px 0;border-top:.5px solid var(--hair)}
+  .bmc-t{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+  .bmc-t b{font-size:var(--fs-body);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bmc-t small{font-size:var(--fs-sm);color:var(--muted)}
+  .bmc-b{position:relative;height:8px;border-radius:999px;background:var(--seg-carril)}
+  .bmc-b::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--line)}
+  .bmc-b i{position:absolute;top:0;bottom:0;border-radius:999px}
+  .bmc-b i.pos{background:var(--gi-teal)}
+  .bmc-b i.neg{background:var(--gi-violeta)}
+  .bmc-f em{font-style:normal;text-align:right;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -47896,8 +47939,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.19*/
-const VER_ACTUAL='2026-11-13.19';
+/*BUILD:2026-11-13.20*/
+const VER_ACTUAL='2026-11-13.20';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
