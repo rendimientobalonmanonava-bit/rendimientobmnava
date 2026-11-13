@@ -21183,8 +21183,8 @@ function nutPagarMes(j,mes){
   const sin=cs.filter(c=>!c.pagado);
   if(sin.length){
     const t=nutRedondea(sin.reduce((a,c)=>a+(+c.importe||0),0));
-    if(!confirm('¿Marcar como pagado?\n\n'+j+' · '+nutMesLab(mes)+'\n'+nutEur(t)))return;
-    nutMarcar(sin,true);
+    nutHojaCobro(j,sin,'¿Marcar como pagado?\n\n'+j+' · '+nutMesLab(mes)+'\n'+nutEur(t),()=>{nutMarcar(sin,true);nutPersist();renderNutri();});
+    return;
   } else {
     if(!confirm('¿Deshacer el pago de '+j+' en '+nutMesLab(mes)+'?'))return;
     nutMarcar(cs,false);
@@ -21261,9 +21261,9 @@ function nutFichaHTML(name){
 function nutPagarMesFicha(j,m){nutPagarMes(j,m);if(typeof renderPlayer==='function')renderPlayer(j);}
 function nutPagarUnoFicha(j,m,con){
   const c=nutCobro(j,m,con);if(!c)return;
-  if(!c.pagado&&!confirm('¿Marcar como pagado?\n\n'+j+' · '+nutMesLab(m)+'\n'+nutEur(c.importe)))return;
-  nutTogglePago(j,m,con);
-  if(typeof renderPlayer==='function')renderPlayer(j);
+  const hecho=()=>{nutTogglePago(j,m,con);if(typeof renderPlayer==='function')renderPlayer(j);};
+  if(!c.pagado){nutHojaCobro(j,[c],'¿Marcar como pagado?\n\n'+j+' · '+nutMesLab(m)+'\n'+nutEur(c.importe),hecho);return;}
+  hecho();
 }
 window.nutPagarMesFicha=nutPagarMesFicha;window.nutPagarUnoFicha=nutPagarUnoFicha;
 /* ── entrada de líneas a mano ── */
@@ -21492,6 +21492,42 @@ function nutPagadoDe(j){
 /* `sel` vacío cobra todo lo pendiente de esa persona; `mes|concepto` cobra
    solo ese apunte. **Siempre con el desglose y la cifra delante**, porque
    esto mueve dinero: es la regla que `nutPagarMes` ya tenía escrita. */
+/* v637 · Cobrar como Apple Pay. Daniel, 13/11/2026, eligió la propuesta 6.
+   En el móvil, cobrar abría la ventana genérica del navegador con el desglose
+   en texto plano. Ahora sube una hoja con la cara, el importe en grande, el
+   desglose apunte a apunte y un botón «Cobrar 35,00 €»; al pulsarlo se marca
+   pagado —la misma `nutMarcar` de siempre— y la hoja enseña un ✓ con la
+   vibración de «hecho» antes de cerrarse. HIG · Feedback: «people appreciate
+   getting feedback that confirms a successful transaction».
+   **Sigue pidiendo confirmación**: la hoja ES la confirmación, y cerrarla o
+   deslizarla no cobra nada. Los externos van con iniciales, como en las
+   tarjetas (v515). En el ordenador sale exactamente el `confirm` de antes,
+   con su mismo texto. */
+function nutHojaCobro(j,cs,txtOrdenador,hecho){
+  if(!esMovil()){if(!confirm(txtOrdenador))return;hecho();return;}
+  const esc=bmEsc,t=nutRedondea(cs.reduce((a,c)=>a+(+c.importe||0),0));
+  const ext=!(STATE.players||{})[j],ph=nutFoto(j,ext);
+  const filas=cs.slice().sort((a,b)=>String(a.mes).localeCompare(String(b.mes)))
+    .map(c=>'<div class="bmh-fila nco-l"><span class="tx">'+esc(NUT_LAB(c.concepto))+'<small>'+esc(nutMesLab(c.mes))+'</small></span><b>'+nutEur(c.importe)+'</b></div>').join('');
+  let listo=false;
+  const h=bmHoja({id:'cobro',titulo:'Cobrar',clase:'bm-cobro',html:
+    '<div class="nco"><span class="nco-av">'+(ph?'<img src="'+esc(ph)+'" alt="">':'<i>'+esc(nutInic(j))+'</i>')+'</span>'
+    +'<b class="nco-n">'+esc(j)+'</b><span class="nco-t">'+nutEur(t)+'</span>'
+    +'<small class="nco-s">'+(cs.length===1?'1 apunte':cs.length+' apuntes')+'</small></div>'
+    +'<div class="bmh-grupo">'+filas+'</div>'
+    +'<button type="button" class="nco-b">Cobrar '+nutEur(t)+'</button>'
+    +'<p class="nco-p">Se marca como pagado lo de arriba. Si te equivocas, se deshace desde la tarjeta.</p>'});
+  const b=h.querySelector('.nco-b');
+  b.addEventListener('click',()=>{
+    if(listo)return;listo=true;
+    try{hecho();}catch(e){console.error('bmnava · cobrar',e);}
+    try{bmVibra();}catch(_){}
+    const cu=h.querySelector('.bmh-cuerpo');
+    cu.innerHTML='<div class="nco-ok" role="status"><svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg>'
+      +'<b>Cobrado</b><span>'+esc(j)+' · '+nutEur(t)+'</span></div>';
+    setTimeout(()=>bmHojaCierra('bmh-cobro'),1350);
+  });
+}
 function nutCobrar(j,sel){
   const N=nutLoad();
   let cs=N.cobros.filter(c=>c.jugador===j&&!c.pagado);
@@ -21500,9 +21536,7 @@ function nutCobrar(j,sel){
   const t=nutRedondea(cs.reduce((a,c)=>a+(+c.importe||0),0));
   const det=cs.slice().sort((a,b)=>String(a.mes).localeCompare(String(b.mes)))
     .map(c=>'· '+nutMesLab(c.mes)+' · '+NUT_LAB(c.concepto)+' · '+nutEur(c.importe)).join('\n');
-  if(!confirm('¿Lo ha pagado?\n\n'+j+'\n'+det+'\n\nTotal: '+nutEur(t)))return;
-  nutMarcar(cs,true);
-  nutPersist();renderNutri();
+  nutHojaCobro(j,cs,'¿Lo ha pagado?\n\n'+j+'\n'+det+'\n\nTotal: '+nutEur(t),()=>{nutMarcar(cs,true);nutPersist();renderNutri();});
 }
 /* Deshacer un apunte ya cobrado, desde la misma tarjeta. */
 function nutDescobrar(j,sel){
@@ -44106,6 +44140,32 @@ html.bmz .view.on{animation:none!important}
   .bmtl-si input{margin-left:auto}
 }
 </style>
+<style id="movil-v637">
+/* v637 · La hoja de cobro. Sólo se crea en el móvil. */
+.bm-cobro .nco{display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 0 16px;text-align:center}
+.bm-cobro .nco-av{display:grid;place-items:center;width:72px;height:72px;border-radius:50%;overflow:hidden;background:var(--bmh-celda)}
+.bm-cobro .nco-av img{width:100%;height:100%;object-fit:cover;display:block}
+.bm-cobro .nco-av i{font-style:normal;font-size:24px;font-weight:600;color:var(--muted)}
+.bm-cobro .nco-n{margin-top:8px;font-size:17px;font-weight:600}
+.bm-cobro .nco-t{font-size:44px;font-weight:700;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.bm-cobro .nco-s{font-size:var(--fs-sm);color:var(--muted)}
+.bm-cobro .nco-l{cursor:default}
+.bm-cobro .nco-l:active{background:none}
+.bm-cobro .nco-l .tx small{white-space:normal}
+.bm-cobro .nco-l b{flex:none;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.bm-cobro .nco-b{display:block;width:100%;min-height:56px;margin-top:18px;border:none;border-radius:16px;background:var(--txt);color:var(--bg);
+  font:inherit;font-size:19px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease}
+.bm-cobro .nco-b:active{transform:scale(.98)}
+.bm-cobro .nco-p{margin:10px 6px 4px;font-size:var(--fs-sm);color:var(--muted);text-align:center;line-height:1.35}
+.bm-cobro .nco-ok{display:flex;flex-direction:column;align-items:center;gap:6px;padding:26px 0 40px;text-align:center}
+.bm-cobro .nco-ok svg{width:88px;height:88px;margin-bottom:6px}
+.bm-cobro .nco-ok circle{fill:none;stroke:var(--ok);stroke-width:3;stroke-dasharray:151;stroke-dashoffset:151;animation:ncoTrazo .45s ease forwards}
+.bm-cobro .nco-ok path{fill:none;stroke:var(--ok);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:36;stroke-dashoffset:36;animation:ncoTrazo .3s .35s ease forwards}
+.bm-cobro .nco-ok b{font-size:24px;font-weight:700}
+.bm-cobro .nco-ok span{font-size:15px;color:var(--muted)}
+@keyframes ncoTrazo{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){.bm-cobro .nco-ok circle,.bm-cobro .nco-ok path{animation:none;stroke-dashoffset:0}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -47671,8 +47731,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.16*/
-const VER_ACTUAL='2026-11-13.16';
+/*BUILD:2026-11-13.17*/
+const VER_ACTUAL='2026-11-13.17';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
