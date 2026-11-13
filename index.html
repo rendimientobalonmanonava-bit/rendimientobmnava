@@ -15796,7 +15796,7 @@ function bmFhAcciones(){
    sobre ella. */
 const BMRS_K='bmnava-resumen';
 const BMRS=[
-  ['team-hero','Readiness del equipo'],['team-strip','Titulares del día'],['team-ojo','Ojo hoy',1],
+  ['team-hero','Readiness del equipo'],['team-strip','Titulares del día'],['team-ojo','Ojo hoy',1],['bm-dest','Destacados'],
   ['team-rings','A vigilar y destacados'],['team-next','Próximas sesiones'],['eq-semana','Carga de la semana'],
   ['team-welllights','Semáforos de wellness'],['team-posband','Estado por línea'],['team-citas','Médico esta semana'],
   ['team-fisio','Fisioterapia'],['team-reuniones','Reuniones'],['team-meters-panel','Estado de carga del equipo'],
@@ -16468,10 +16468,119 @@ function bmHoyFalta(){
     +'</div>';
   bmHoja({id:'hoyf',titulo:'Quién falta',html,clase:'bm-pvh'});
 }
+/* v634 · «Destacados», como en Salud. Daniel, 13/11/2026, eligió la
+   propuesta 3. El Resumen eran cifras del día y ninguna frase decía qué había
+   cambiado. HIG · Charting data: «display brief descriptive text that serves
+   as a headline or summary for a chart».
+   Cuatro tarjetas, cada una con una frase y su minigráfico, y SÓLO con
+   comparaciones que la app ya hace, con sus mismos listones:
+   · Carga: el ritmo de la semana (UA por día, la del Dashboard,
+     `cgSerieEquipo`) contra el de las cuatro semanas cerradas anteriores —
+     ritmo contra ritmo, nunca una semana a medias contra semanas enteras
+     (v437)—. Sale si se separa más que `CONFIG.load.weekJump` (15 %).
+   · Wellness: la variable del equipo que más se sale de su línea base, la
+     misma cuenta que el titular del parte (`wellEquipoDias`). Sale por encima
+     de 0,6 desviaciones, el listón del parte. «Mejor» o «peor», nunca «por
+     encima» (§2.2).
+   · Pulso: los minutos en Z4+Z5 por jugador y sesión de la semana (la unidad
+     de «Tiempo en zonas», `wzSemanas`) fuera de la franja p33–p66 de vuestras
+     semanas, con las mismas guardas de referencia (`WZ_MIN_SES_REF`, `WZ_MIN_SEM`).
+   · Dolor: quien lleva 3 días o más declarando dolor en la misma zona y lo
+     sigue declarando (`fisRachas`, «Dolor que no se va»).
+   Si nada se sale, el bloque no aparece. Los colores son de CATEGORÍA (los de
+   las listas de la v598), nunca verde, ámbar o rojo. */
+const BMD_IC={
+  carga:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  well:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
+  pulso:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>',
+  dolor:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"/></svg>'};
+const bmdN0=x=>Math.round(x).toLocaleString('es-ES');
+const bmdN1=x=>(Math.round(x*10)/10).toFixed(1).replace('.',',');
+function bmdCarga(){
+  const serie=cgSerieEquipo();if(!serie.length)return null;
+  const ref=dkey(REF()),lunes=dkey(calWeekStart(REF()));
+  const cur=serie.filter(d=>d.dk>=lunes&&d.dk<=ref);
+  /* Hoy, mientras no tenga carga registrada, todavía no ha pasado: contarlo como
+     0 UA haría que cada mañana la semana pareciera más floja. */
+  if(cur.length&&cur[cur.length-1].vacio&&cur[cur.length-1].dk===dkey(new Date()))cur.pop();
+  if(!cur.length)return null;
+  const sems=cgSemanasEquipo(serie).filter(w=>!w.parcial&&dkey(w.ini)<lunes).slice(-4);
+  if(sems.length<4)return null;
+  const ritmo=sum(cur.map(d=>d.ua))/cur.length,base=mean(sems.map(w=>w.ua/7));
+  if(!(base>0))return null;
+  const dif=(ritmo-base)/base;
+  if(Math.abs(dif)<((CONFIG.load&&CONFIG.load.weekJump)||0.15))return null;
+  const pct=Math.round(Math.abs(dif)*100),tope=Math.max(ritmo,base)||1;
+  const fila=(lab,v,cls)=>'<span class="bmd-fila"><small>'+lab+'</small><span class="bmd-barra"><i class="'+cls+'" style="width:'+Math.max(4,v/tope*100).toFixed(1)+'%"></i></span><b>'+bmdN0(v)+'</b></span>';
+  return {k:'carga',cat:'azul',tit:'Carga',cuando:'Esta semana',ir:"go('carga');cargasTab('resumen')",
+    frase:'Esta semana vais a '+bmdN0(ritmo)+' UA por día, un '+pct+' % '+(dif>0?'más':'menos')+' que la media de las cuatro anteriores.',
+    graf:fila('Media de 4 semanas',base,'bmd-ref')+fila(cur.length===1?'Esta semana · 1 día':'Esta semana · '+cur.length+' días',ritmo,'bmd-act')};
+}
+function bmdWell(){
+  const refdk=dkey(REF()),{dayTeam,hist}=wellEquipoDias();
+  const t=dayTeam.find(d=>d.dk===refdk);if(!t)return null;
+  let k=null,za=0;
+  WELL_VARS.forEach(([x])=>{const h=hist[x];const z=(h&&h.s>0)?(t[x]-h.m)/h.s:0;if(isFinite(z)&&Math.abs(z)>Math.abs(za)){za=z;k=x;}});
+  if(!k||Math.abs(za)<0.6)return null;
+  const NOM={fatiga:['La fatiga','está'],sueno:['El descanso','está'],doms:['Las agujetas','están'],stress:['El estrés','está'],mood:['El ánimo','está']};
+  const h=hist[k],ult=dayTeam.filter(d=>d.dk<=refdk&&!isNaN(d[k])).slice(-14);
+  const vs=ult.map(d=>d[k]),lo=Math.min(h.m,...vs),hi=Math.max(h.m,...vs),rg=(hi-lo)||1;
+  const W=280,H=60,px=i=>(ult.length<2?W/2:6+i*(W-12)/(ult.length-1)),py=v=>6+(v-lo)/rg*(H-12);
+  const pts=vs.map((v,i)=>px(i).toFixed(1)+','+py(v).toFixed(1)).join(' ');
+  const graf='<svg class="bmd-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">'
+    +'<line x1="0" x2="'+W+'" y1="'+py(h.m).toFixed(1)+'" y2="'+py(h.m).toFixed(1)+'" class="bmd-media"/>'
+    +'<polyline points="'+pts+'" class="bmd-linea"/>'
+    +'<circle cx="'+px(vs.length-1).toFixed(1)+'" cy="'+py(vs[vs.length-1]).toFixed(1)+'" r="4.5" class="bmd-punto"/></svg>'
+    +'<span class="bmd-pie">Últimos '+ult.length+' días · la raya es vuestra media · más abajo es mejor</span>';
+  return {k:'well',cat:'violeta',tit:'Wellness',cuando:refdk===dkey(new Date())?'Hoy':'Este día',ir:"go('estado');estadoTab('parte')",
+    frase:NOM[k][0]+' del equipo '+NOM[k][1]+' '+(za<0?'mejor':'peor')+' de lo normal: '+bmdN1(t[k])+' frente a '+bmdN1(h.m)+' de media.',graf};
+}
+function bmdPulso(){
+  const weeks=wzSemanas(),cur=hrMonday(dkey(REF())).getTime(),W=weeks[cur];if(!W||!W.n)return null;
+  const refKeys=Object.keys(weeks).map(Number).filter(m=>m!==cur&&weeks[m].nSes>=WZ_MIN_SES_REF);
+  if(refKeys.length<WZ_MIN_SEM)return null;
+  const arr=refKeys.map(m=>weeks[m].m54),lo=hrpQ(arr,1/3),hi=hrpQ(arr,2/3),v=W.m54;
+  if(v>=lo&&v<=hi)return null;
+  const tope=Math.max(v,hi,...arr)*1.08||1,x=u=>Math.max(0,Math.min(100,u/tope*100)).toFixed(1)+'%';
+  const graf='<span class="bmd-banda"><i class="bmd-fr" style="left:'+x(lo)+';width:calc('+x(hi)+' - '+x(lo)+')"></i><i class="bmd-pt" style="left:'+x(v)+'"></i></span>'
+    +'<span class="bmd-pie">La franja es lo habitual en vuestras semanas: '+bmdN1(lo)+'–'+bmdN1(hi)+' min</span>';
+  return {k:'pulso',cat:'teal',tit:'Pulso',cuando:'Esta semana',ir:"go('hr');hrModo('equipo')",
+    frase:'Cada jugador pasa '+bmdN1(v)+' min por sesión en Z4+Z5: '+(v>hi?'más':'menos')+' de lo habitual en vuestras semanas'+(W.nSes===1?' (1 sesión medida).':' ('+W.nSes+' sesiones medidas).'),graf};
+}
+function bmdDolor(){
+  const ref=dkey(REF()),r=fisRachas(3).filter(x=>x.fin>=fisDkSuma(ref,-1));if(!r.length)return null;
+  const a=r[0],nom=String(a.name).split(' ')[0];
+  const dias=[];for(let i=13;i>=0;i--)dias.push(fisDkSuma(ref,-i));
+  const con=new Set((STATE.wellness||[]).filter(w=>w&&w.name===a.name&&w.dolor&&fisZonas(w.zona).some(z=>z.toLowerCase()===String(a.zona).toLowerCase())).map(w=>w.dk));
+  const graf='<span class="bmd-dias">'+dias.map(d=>'<i class="'+(con.has(d)?'on':'')+'"></i>').join('')+'</span>'
+    +'<span class="bmd-pie">Últimos 14 días · cada marca es un día con dolor declarado'+(r.length>1?' · y '+(r.length-1)+(r.length===2?' caso más':' casos más'):'')+'</span>';
+  const q=String(a.name).replace(/'/g,"\\'");
+  return {k:'dolor',cat:'pizarra',tit:'Dolor',cuando:'Seguido',ir:"openPlayer('"+q+"')",
+    frase:nom+' lleva '+(a.tope?'más de 30':a.dias)+' días declarando dolor en '+String(a.zona).toLowerCase()+'.',graf};
+}
+function bmDestacados(){
+  const v=document.getElementById('v-equipo');if(!v||!v.classList.contains('on'))return;
+  if(!bmEstadoEstable())return;
+  const k=[dkey(REF()),(STATE.wellness||[]).length,(STATE.rpe||[]).length,(STATE.hr||[]).length].join('|');
+  let el=document.getElementById('bm-dest');
+  if(el&&el.dataset.k===k)return;
+  const cs=[];
+  [bmdCarga,bmdWell,bmdPulso,bmdDolor].forEach(f=>{try{const c=f();if(c)cs.push(c);}catch(e){console.error('bmnava · destacado',e);}});
+  if(!el){el=document.createElement('section');el.id='bm-dest';el.className='bm-dest';
+    const ref=v.querySelector(':scope>.bm-prox')||v.querySelector(':scope>.bm-hoy')||v.querySelector(':scope>.pagehead');
+    if(ref&&ref.nextSibling)v.insertBefore(el,ref.nextSibling);else v.appendChild(el);}
+  el.dataset.k=k;
+  if(!cs.length){el.innerHTML='';el.hidden=true;return;}
+  el.hidden=false;
+  el.innerHTML='<h3 class="bmd-tit">Destacados</h3>'+cs.map(c=>'<button type="button" class="bmd-c" style="--cat:var(--gi-'+c.cat+')" onclick="'+c.ir+'">'
+    +'<span class="bmd-h"><i aria-hidden="true">'+BMD_IC[c.k]+'</i><b>'+c.tit+'</b><small>'+c.cuando+'</small><u aria-hidden="true">›</u></span>'
+    +'<span class="bmd-f">'+bmEsc(c.frase)+'</span><span class="bmd-g">'+c.graf+'</span></button>').join('');
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
   try{bmHoy();}catch(e){console.error('bmnava · cápsula de hoy',e);}
+  try{bmDestacados();}catch(e){console.error('bmnava · destacados',e);}
   try{bmDosTonos();}catch(e){}
   try{bmFichaHoy();}catch(e){console.error('bmnava · ficha plegada',e);}
   try{bmFormasHoja();}catch(e){console.error('bmnava · formularios en hoja',e);}
@@ -28343,20 +28452,28 @@ window.vendFichaHTML=vendFichaHTML;
 /* ===================== WELLNESS · PARTE DIARIO ===================== */
 function ringSVG(pct,col,size,stroke){const r=(size-stroke)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,pct||0))/100);return `<svg width="${size}" height="${size}" class="ring"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" style="--arc-c:${c.toFixed(1)}" class="arc-in" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;}
 function parteNote(p){if(!p)return'Sin datos del día.';const f=(p.factors||[])[0];if(!f)return'Buenos valores de bienestar.';const l=f.label.toLowerCase();if(l.includes('sueñ')||l.includes('hora'))return'Ha dormido poco / mal.';if(l.includes('fatiga'))return'Signos de fatiga general.';if(l.includes('doms'))return'Agujetas / molestia muscular.';if(l.includes('estrés')||l.includes('estres'))return'Estrés elevado.';if(l.includes('ánimo')||l.includes('animo'))return'Ánimo bajo.';if(l.includes('dolor'))return f.label+'.';if(l.includes('acwr')||l.includes('carga'))return'Carga acumulada a vigilar.';return f.label+'.';}
-function renderParte(){
-  const wrap=document.getElementById('parte-wrap');if(!wrap)return;buildPhysio();
-  const VARS=[['fatiga','Fatiga'],['sueno','Descanso'],['doms','DOMS'],['stress','Estrés'],['mood','Mood']];
-  const rd=REF();const refdk=dkey(rd);
+/* v634 · Las medias del equipo por día y su línea base, extraídas del parte
+   para que «Destacados» del Resumen lea exactamente lo mismo que el titular
+   del parte: una copia se desincronizaría al primer ajuste. */
+const WELL_VARS=[['fatiga','Fatiga'],['sueno','Descanso'],['doms','DOMS'],['stress','Estrés'],['mood','Mood']];
+function wellEquipoDias(){
   const byDay={};(STATE.wellness||[]).forEach(w=>{if(!w.dk)return;(byDay[w.dk]=byDay[w.dk]||[]).push(w);});
   const days=Object.keys(byDay).sort();
-  if(!days.length){wrap.innerHTML='<div class="panel"><p class="muted">Sin datos de wellness cargados.</p></div>';return;}
   /* v500 · las medias del día son de quien estaba ese día: el que viaja con su
      selección puede seguir rellenando el cuestionario —se le pide— pero su
      fatiga no describe lo que ha hecho el grupo. Se filtra por DÍA, no de una
      vez, porque el parón tiene principio y fin. */
   const sinSel=(dk,rs)=>rs.filter(r=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(r.name,dk)));
-  const dayTeam=days.map(dk=>{const rs=sinSel(dk,byDay[dk]);const o={dk};VARS.forEach(([k])=>{o[k]=mean(rs.map(r=>r[k]).filter(x=>x!=null&&!isNaN(x)));});return o;});
-  const hist={};VARS.forEach(([k])=>{const arr=dayTeam.map(d=>d[k]).filter(x=>!isNaN(x));hist[k]={m:mean(arr),s:sd(arr)};});
+  const dayTeam=days.map(dk=>{const rs=sinSel(dk,byDay[dk]);const o={dk};WELL_VARS.forEach(([k])=>{o[k]=mean(rs.map(r=>r[k]).filter(x=>x!=null&&!isNaN(x)));});return o;});
+  const hist={};WELL_VARS.forEach(([k])=>{const arr=dayTeam.map(d=>d[k]).filter(x=>!isNaN(x));hist[k]={m:mean(arr),s:sd(arr)};});
+  return {byDay,days,dayTeam,hist};
+}
+function renderParte(){
+  const wrap=document.getElementById('parte-wrap');if(!wrap)return;buildPhysio();
+  const VARS=WELL_VARS;
+  const rd=REF();const refdk=dkey(rd);
+  const {byDay,days,dayTeam,hist}=wellEquipoDias();
+  if(!days.length){wrap.innerHTML='<div class="panel"><p class="muted">Sin datos de wellness cargados.</p></div>';return;}
   let todayT=dayTeam.find(d=>d.dk===refdk)||dayTeam[dayTeam.length-1];
   const md=(byDay[todayT.dk]||[]).map(r=>r.mdx).find(x=>x)||'—';
   const dlabel=rd.toLocaleDateString('es',{day:'numeric',month:'long'});const wd=rd.toLocaleDateString('es',{weekday:'long'});
@@ -43790,6 +43907,42 @@ html.bmz .view.on{animation:none!important}
   .bmhy-aro small{margin-top:1px;font-size:11px;font-weight:600;color:var(--muted)}
 }
 </style>
+<style id="movil-v634">
+/* v634 · «Destacados», como en Salud. En el ordenador no existe. */
+.bm-dest{display:none}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-equipo>.bm-dest{order:13;display:flex;flex-direction:column;gap:10px}
+  #v-equipo>.bm-dest[hidden]{display:none}
+  .bmd-tit{margin:6px 2px -2px;font-size:var(--fs-h2);font-weight:700;color:var(--txt);letter-spacing:-.01em}
+  .bmd-c{display:flex;flex-direction:column;gap:8px;width:100%;padding:14px 16px 14px;box-sizing:border-box;border:none;border-radius:20px;background:var(--panel);
+    box-shadow:var(--lg-shadow);font:inherit;color:var(--txt);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bmd-h{display:flex;align-items:center;gap:7px;font-size:var(--fs-sm)}
+  .bmd-h i{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--cat);color:#fff}
+  .bmd-h b{font-weight:600;color:color-mix(in srgb,var(--cat) 55%,var(--txt))}
+  .bmd-h small{margin-left:auto;font-size:var(--fs-sm);color:var(--muted)}
+  .bmd-h u{text-decoration:none;font-size:18px;line-height:1;color:var(--muted2)}
+  .bmd-f{font-size:17px;font-weight:600;line-height:1.3;letter-spacing:-.01em}
+  .bmd-g{display:flex;flex-direction:column;gap:6px}
+  .bmd-fila{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"l v" "b b";gap:3px 8px;align-items:baseline}
+  .bmd-fila small{grid-area:l;font-size:var(--fs-sm);color:var(--muted)}
+  .bmd-fila b{grid-area:v;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .bmd-barra{grid-area:b;display:block;height:10px;border-radius:999px;background:var(--seg-carril);overflow:hidden}
+  .bmd-barra i{display:block;height:100%;border-radius:999px}
+  .bmd-ref{background:var(--muted);opacity:.45}
+  .bmd-act{background:var(--cat)}
+  .bmd-svg{display:block;width:100%;height:60px}
+  .bmd-media{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
+  .bmd-linea{fill:none;stroke:var(--cat);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+  .bmd-punto{fill:var(--cat);stroke:var(--panel);stroke-width:2;vector-effect:non-scaling-stroke}
+  .bmd-pie{font-size:var(--fs-xs);color:var(--muted);line-height:1.35}
+  .bmd-banda{position:relative;display:block;height:14px;margin:4px 0 2px;border-radius:999px;background:var(--seg-carril)}
+  .bmd-fr{position:absolute;top:0;bottom:0;border-radius:999px;background:var(--muted);opacity:.35}
+  .bmd-pt{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:var(--cat);box-shadow:0 0 0 2.5px var(--panel)}
+  .bmd-dias{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px}
+  .bmd-dias i{display:block;height:16px;border-radius:5px;background:var(--seg-carril)}
+  .bmd-dias i.on{background:var(--cat)}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -47355,8 +47508,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.13*/
-const VER_ACTUAL='2026-11-13.13';
+/*BUILD:2026-11-13.14*/
+const VER_ACTUAL='2026-11-13.14';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
