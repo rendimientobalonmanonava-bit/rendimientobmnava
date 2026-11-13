@@ -14688,9 +14688,11 @@ function bmeEstilo(){
   const lista=(o,p,i)=>Object.keys(o).map(k=>'--'+p+k+':'+o[k][i]+(p==='w'?'':'px'));
   const mov=lista(BME.t,'t',1).concat(lista(BME.w,'w',1),lista(BME.r,'r',1)).join(';');
   const ori=lista(BME.t,'t',0).concat(lista(BME.w,'w',0),lista(BME.r,'r',0)).join(';');
-  const css='@media '+BME_MOV+'{:root{'+mov+';--sh1:var(--lg-shadow);--sh2:0 10px 30px rgba(20,29,46,.16),0 1px 3px rgba(20,29,46,.07)}'
+  const sis=':root{'+mov+';--sh1:var(--lg-shadow);--sh2:0 10px 30px rgba(20,29,46,.16),0 1px 3px rgba(20,29,46,.07)}'
     +'html[data-theme="dark"]{--sh2:0 10px 30px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.35)}'
-    +'.panel>*{--sh-hijo:none}}'
+    +'.panel>*{--sh-hijo:none}';
+  /* v663 · el mismo sistema en el ordenador (la condición contraria a la del móvil) */
+  const css='@media '+BME_MOV+'{'+sis+'}@media '+BME_ESC+'{'+sis+'html{--fmin:11px}}'
     +BME_EXC+'{'+ori+';--sh1:initial;--sh2:initial;--sh-hijo:initial}';
   if(css===BME.css)return;BME.css=css;
   let el=document.getElementById('bm-sistema');
@@ -14698,6 +14700,7 @@ function bmeEstilo(){
   el.textContent=css;
 }
 const BME_MOV='(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse)';
+const BME_ESC='(min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait)';
 const BME_EXC='header,#tabbar,.sb-tools,svg,#parte-card,.pt-card,.ficha-card,.ficha-overlay,.sa-page,.sa-page-wk,.a4-page,#sescal-a4-page,.iso-hoja,#iso-overlay,#fis-cap-png,#sy-gate,#splash';
 function bmlReescribe(){
   const una=st=>{
@@ -14736,7 +14739,9 @@ function bmlEnLinea(){
 }
 function bmlAplica(){
   const raiz=document.documentElement;
-  if(!esMovil()){raiz.style.removeProperty('--ft');BML.f=1;return 1;}
+  /* v663 · En el ordenador la hoja se reescribe igual (escala, radios, sombras),
+     sin el factor de letra del teléfono: `--ft` se queda en 1. */
+  if(!esMovil()){raiz.style.removeProperty('--ft');BML.f=1;if(!BML.hecho){bmlReescribe();BML.hecho=true;bmlEnLinea();}return 1;}
   const f=bmlEscala();
   /* v579 · En el móvil la hoja se reescribe siempre, también con la letra
      normal: es lo que pone el suelo de 11 px. Con `--ft` = 1, cada tamaño de 11
@@ -14789,6 +14794,29 @@ function bmInsigniaPinta(){
   });
 }
 document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}});
+/* v663 · ORDENADOR · Una letra y una escala. Daniel, 13/11/2026. Medido a
+   1.440 px: 35 tamaños de letra (629 textos a 9 px, alguno a 7,5), 1.332 textos
+   en letra monoespaciada, 20 radios de esquina y 39 sombras distintas. Se usa
+   la MISMA reescritura que el móvil (v592): cada valor queda envuelto en una
+   variable con el original de respaldo y `#bm-sistema` da el nuevo, así que
+   quitando ese bloque vuelve todo. Seis tamaños (34 · 24 · 17 · 14 · 12,5 · 11),
+   cuatro pesos, radios sólo hacia arriba y dos sombras; la letra
+   monoespaciada pasa a la del sistema con cifras de ancho fijo. Los documentos
+   (parte, ficha exportable, láminas, informe isocinético) no se tocan
+   (`BME_EXC`). En el móvil esto ya corría; aquí se añade lo que en el móvil
+   hacía `bmFormasYa`: reescribir las hojas y los tamaños en línea que
+   aparecen al pintar una pantalla. */
+(function(){
+  if(typeof MutationObserver!=='function')return;
+  let t=null;
+  const pasa=()=>{clearTimeout(t);t=setTimeout(()=>{if(esMovil()||!BML.hecho)return;
+    try{if(document.styleSheets.length!==BME.n)bmlReescribe();bmlEnLinea();}catch(e){}},120);};
+  const arma=()=>{const m=document.querySelector('main');if(!m)return;
+    new MutationObserver(pasa).observe(m,{childList:true,subtree:true});
+    new MutationObserver(pasa).observe(document.head,{childList:true});
+    new MutationObserver(pasa).observe(document.body,{childList:true});};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arma);else arma();
+})();
 /* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
 function bmTelefono(){
   const ops=[['sis','Como el teléfono'],['0.9','Pequeña'],['1','Normal'],['1.15','Grande'],['1.3','Muy grande']];
@@ -18654,7 +18682,7 @@ function buildChartTheme(){
        ink:gv('--c-ink')||'#2b3543',line2:gv('--c-line2')||'#b4b9c2',
        ok:gv('--ok')||'#1ea863',warn:gv('--warn')||'#e08a00',bad:gv('--bad')||'#e23b32'};
   PAL.matchday=PAL.bad;
-  AX={grid:{color:grid,lineWidth:1,drawTicks:false},border:{display:false},ticks:{color:tick,font:{family:'JetBrains Mono',size:10},padding:8}};
+  AX={grid:{color:grid,lineWidth:1,drawTicks:false},border:{display:false},ticks:{color:tick,font:{family:'-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif',size:11},padding:8}};
   BASE={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tick,usePointStyle:true,pointStyle:'circle',boxWidth:7,boxHeight:7,padding:14,font:{family:'Inter',size:11,weight:'600'}}}},scales:{x:AX,y:AX}};
   if(window.Chart){
     const C=Chart.defaults;
@@ -18668,7 +18696,7 @@ function buildChartTheme(){
     tt.titleColor='#fff'; tt.bodyColor='rgba(255,255,255,.86)';
     tt.borderColor=dark?'rgba(255,255,255,.12)':'rgba(255,255,255,.08)'; tt.borderWidth=1;
     tt.padding={top:10,right:13,bottom:10,left:13}; tt.cornerRadius=10;
-    tt.titleFont={family:'Inter',size:12,weight:'700'}; tt.bodyFont={family:'JetBrains Mono',size:12};
+    tt.titleFont={family:'Inter',size:12,weight:'700'}; tt.bodyFont={family:'-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif',size:12};
     tt.boxPadding=6; tt.usePointStyle=true; tt.caretSize=5; tt.displayColors=true;
     // Elementos: líneas suaves, puntos sutiles, barras redondeadas
     C.elements.line.tension=0.35; C.elements.line.borderWidth=2.5; C.elements.line.capBezierPoints=true;
@@ -45274,6 +45302,15 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   main .view .pl-pd-v{overflow-wrap:anywhere}
 }
 </style>
+<style id="esc-v663">
+/* v663 · ORDENADOR · La letra monoespaciada pasa a la del sistema con cifras de
+   ancho fijo (lo que el móvil hace desde la v640). Los documentos, fuera. */
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  :root{--mono:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif}
+  main :is(.mono,.hm td.cell,.mc-p-v,.cg-p-v,.he-v b,.he-z,[style*="monospace"]):not(#parte-card *):not(.ficha-card *):not(.sa-page *):not(.sa-page-wk *){
+    font-family:var(--mono)!important;font-variant-numeric:tabular-nums}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48859,8 +48896,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.42*/
-const VER_ACTUAL='2026-11-13.42';
+/*BUILD:2026-11-13.43*/
+const VER_ACTUAL='2026-11-13.43';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
