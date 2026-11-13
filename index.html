@@ -14403,7 +14403,8 @@ function bmgTitulo(cv){
    vista a pantalla completa no cambian. */
 const bmdPlugin={id:'bmDir',
   beforeInit(chart){
-    const cv=chart.canvas;if(!cv||!cv.closest||!esMovil()||cv.closest(BMG_DOC)||cv.closest('#bm-gv'))return;
+    /* v666 · también en el ordenador */
+    const cv=chart.canvas;if(!cv||!cv.closest||cv.closest(BMG_DOC)||cv.closest('#bm-gv'))return;
     try{
       const cf=chart.config,co=cf.options||(cf.options={}),DS=(cf.data&&cf.data.datasets)||[];
       if(!DS.length||co.indexAxis==='y')return;
@@ -14460,7 +14461,7 @@ const bmgPlugin={id:'bmGraf',
   beforeInit(chart){
     const cv=chart.canvas;if(!cv||!cv.closest)return;
     const visor=!!cv.closest('#bm-gv');
-    if(!visor&&(!esMovil()||cv.closest(BMG_DOC)))return;
+    if(!visor&&cv.closest(BMG_DOC))return;   /* v666 · también en el ordenador */
     chart.$bmg=true;
     /* El dedo recorre el eje: el valor que sale es el de esa posición, con todas
        sus series. Se pone en la configuración —no en las opciones ya resueltas,
@@ -18799,9 +18800,13 @@ function buildChartTheme(){
       }
       /* v574 · Gráficos para el dedo: la frase de lectura, la regla que sigue al
          dedo y el botón de verlo grande. Todo vive en `bmgPlugin`. */
-      if(!Chart.registry.plugins.get('bmGraf'))Chart.register(bmgPlugin);
-      if(!Chart.registry.plugins.get('bmDir'))Chart.register(bmdPlugin);
     }
+    /* v666 · Los gráficos como Salud también en el ordenador: la lectura con la
+       cifra grande, «7 d · 30 d · Todo», el nombre al final de cada línea, el
+       eje a la derecha y la regla que sigue al ratón. Antes se registraban
+       sólo dentro de la rama del móvil. */
+    if(!Chart.registry.plugins.get('bmGraf'))Chart.register(bmgPlugin);
+    if(!Chart.registry.plugins.get('bmDir'))Chart.register(bmdPlugin);
   }
 }
 buildChartTheme();
@@ -45376,6 +45381,26 @@ html[data-theme="dark"]{--sb-esc:rgba(30,31,36,.78);--sb-esc-borde:rgba(255,255,
   #sidebar .sb-item::after,#sidebar .sb-item.on::after{display:none!important}
 }
 </style>
+<style id="esc-v666">
+/* v666 · ORDENADOR · Los gráficos como Salud (v597, v609): la lectura encima,
+   la ventana de días y el botón de verlo grande, a la medida de un puntero. */
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  .bm-gw{position:relative}
+  .bm-lee{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 12px;color:var(--txt)}
+  .bm-lee[hidden]{display:none}
+  .bm-lee-t{display:flex;flex-direction:column;min-width:0}
+  .bm-lee-c{font-size:12.5px;font-weight:600;color:var(--muted);line-height:1.3}
+  .bm-lee-n{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.12;font-variant-numeric:tabular-nums;color:var(--txt)}
+  .bm-lee-s{font-size:12.5px;color:var(--muted);line-height:1.35;font-variant-numeric:tabular-nums}
+  .bm-ven{display:flex;flex:none;gap:2px;padding:2px;border-radius:8px;background:var(--seg-carril,var(--panel2));margin-right:36px}
+  .bm-ven[hidden]{display:none}
+  .bm-ven button{min-width:40px;height:24px;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--txt);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .bm-ven button.on{background:var(--seg-on,var(--panel));box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .bm-gx{display:grid;place-items:center;position:absolute;top:-4px;right:-4px;z-index:2;width:28px;height:28px;padding:0;border:none;border-radius:50%;
+    background:var(--panel2);color:var(--muted);cursor:pointer;opacity:0;transition:opacity .15s ease}
+  .bm-gw:hover .bm-gx,.bm-gx:focus-visible{opacity:1}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48961,8 +48986,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.45*/
-const VER_ACTUAL='2026-11-13.45';
+/*BUILD:2026-11-13.46*/
+const VER_ACTUAL='2026-11-13.46';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
