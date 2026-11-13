@@ -16402,6 +16402,46 @@ function bmprToca(k){
    del título («Ver agenda», «＋ Registrar», «＋ Nueva») se ven al abrirlo, y la
    fila no dispara lo que haga la tarjeta al tocarla (la de la semana abre el
    Calendario). El editor del Resumen (v615) sigue igual. Sólo móvil. */
+/* v654 · Cobrar como Wallet. Daniel, 13/11/2026, propuesta 4. Medido a
+   375 px: «A quién hay que cobrar» medía 4.000 px —17 tarjetas de 218 px de
+   media, cada una con todos sus apuntes a la vista—. En el móvil cada persona
+   queda en una fila: cara, nombre, cuántos apuntes tiene y desde cuándo, lo
+   que debe y una flecha. Tocar la fila la abre AHÍ MISMO con sus apuntes y
+   sus botones de siempre (un apunte, o «Lo ha pagado todo»), así que cobrar
+   sigue siendo exactamente lo que era —`nutCobrar`, con su hoja de cobro— y
+   sólo cuesta un toque más. Deslizar la fila para cobrar todo sigue igual.
+   La ficha del jugador, que se abría tocando el nombre, pasa a un botón
+   dentro de la fila abierta: en una fila de iOS toda la fila hace una cosa.
+   Lo abierto se recuerda mientras la app está abierta, también tras cobrar. */
+const BMNUC=new Set();
+function bmCobroLista(){
+  const v=document.getElementById('v-nutri');if(!v||!v.classList.contains('on'))return;
+  v.querySelectorAll('.nuc-grid>.nuc-c').forEach(c=>{
+    const h=c.querySelector(':scope>.nuc-c-h'),nm=h&&h.querySelector('.nuc-n');if(!h||!nm)return;
+    /* el nombre son los nodos de texto; el cargo de la gente de fuera va en un <em> dentro */
+    const quien=[...nm.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim()||nm.textContent.trim();
+    const cargo=((nm.querySelector('em')||{}).textContent||'').trim();
+    c.classList.add('bm-nucf');c.classList.toggle('bm-nuco',BMNUC.has(quien));
+    const ch=[...c.querySelectorAll('.nuc-chip')];
+    const desde=ch.length?((ch[0].querySelector('span')||{}).textContent||'').split(' · ')[0]:'';
+    const sub=(cargo?cargo+' · ':'')+(ch.length===1?'1 apunte':ch.length+' apuntes')+(desde?' · desde '+desde:'');
+    let s=h.querySelector(':scope>.bm-nuc-s');
+    if(!s){s=document.createElement('small');s.className='bm-nuc-s';nm.insertAdjacentElement('afterend',s);
+      const i=document.createElement('i');i.className='bm-nuc-ch';i.setAttribute('aria-hidden','true');i.textContent='›';h.appendChild(i);}
+    if(s.textContent!==sub)s.textContent=sub;
+    if(!h._bmnuc){h._bmnuc=1;h.setAttribute('role','button');h.tabIndex=0;
+      const toca=e=>{if(!esMovil())return;e.preventDefault();e.stopPropagation();
+        if(BMNUC.has(quien))BMNUC.delete(quien);else BMNUC.add(quien);
+        c.classList.toggle('bm-nuco',BMNUC.has(quien));h.setAttribute('aria-expanded',BMNUC.has(quien)?'true':'false');try{bmVibra();}catch(_){}};
+      h.addEventListener('click',toca,true);
+      h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')toca(e);});}
+    h.setAttribute('aria-expanded',BMNUC.has(quien)?'true':'false');
+    h.setAttribute('aria-label',quien+', debe '+((h.querySelector('.nuc-d')||{}).textContent||'').trim()+', '+sub);
+    if(nm.getAttribute('onclick')&&!c.querySelector(':scope>.bm-nuc-fi')){
+      const f=document.createElement('button');f.type='button';f.className='bm-nuc-fi';f.textContent='Ver la ficha de '+quien.split(' ')[0]+' ›';
+      f.addEventListener('click',e=>{e.stopPropagation();try{nm.onclick&&nm.onclick.call(nm,e);}catch(_){}});c.appendChild(f);}
+  });
+}
 const BMRF_K='bmnava-resumenab';
 const bmrfTx=(el,s)=>{const x=el&&el.querySelector(s);return x?String(x.textContent||'').replace(/\s+/g,' ').trim():'';};
 const bmrfCol=(el,s)=>{const x=el&&el.querySelector(s);return x?getComputedStyle(x).color:'';};
@@ -16888,6 +16928,7 @@ function bmPulido(){
   if(!esMovil())return;
   try{bmNotas();}catch(e){console.error('bmnava · explicaciones al pie',e);}
   try{bmResumenFold();}catch(e){console.error('bmnava · resumen plegado',e);}
+  try{bmCobroLista();}catch(e){console.error('bmnava · cobrar en filas',e);}
   try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
   try{bmMedico();}catch(e){console.error('bmnava · médico',e);}
   try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
@@ -44812,6 +44853,26 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   #v-equipo #eq-plantilla[open]{padding-bottom:16px!important}
 }
 </style>
+<style id="movil-v654">
+/* v654 · Cobrar como Wallet: una fila por persona que se abre ahí mismo. */
+.bm-nuc-s,.bm-nuc-ch,.bm-nuc-fi{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-nutri .nuc-c.bm-nucf>.nuc-c-h{display:grid!important;grid-template-columns:44px minmax(0,1fr) auto 14px;grid-template-rows:auto auto;
+    column-gap:10px;row-gap:1px;align-items:center;min-height:44px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  #v-nutri .nuc-c.bm-nucf>.nuc-c-h>img,#v-nutri .nuc-c.bm-nucf>.nuc-c-h>.nuc-av{grid-row:1/3;grid-column:1}
+  #v-nutri .nuc-c.bm-nucf>.nuc-c-h>.nuc-n{grid-row:1;grid-column:2;align-self:end;pointer-events:none}
+  #v-nutri .nuc-c.bm-nucf>.nuc-c-h>.nuc-n>em{display:none!important}
+  #v-nutri .nuc-c.bm-nucf>.nuc-c-h>.bm-nuc-s{display:block;grid-row:2;grid-column:2/5;align-self:start;font-size:var(--fs-sm);color:var(--muted);line-height:1.3}
+  #v-nutri .nuc-c.bm-nucf>.nuc-c-h>.nuc-d{grid-row:1;grid-column:3;align-self:end}
+  #v-nutri .nuc-c.bm-nucf>.nuc-c-h>.bm-nuc-ch{display:block;grid-row:1;grid-column:4;align-self:end;line-height:1.2;font-style:normal;font-size:20px;color:var(--muted2);
+    transition:transform .25s cubic-bezier(.32,.72,0,1)}
+  #v-nutri .nuc-c.bm-nuco>.nuc-c-h>.bm-nuc-ch{transform:rotate(90deg)}
+  #v-nutri .nuc-c.bm-nucf:not(.bm-nuco)>:not(.nuc-c-h){display:none!important}
+  #v-nutri .nuc-c.bm-nuco>.bm-nuc-fi{display:block;width:100%;min-height:44px;margin-top:4px;border:none;background:none;font:inherit;
+    font-size:var(--fs-body);font-weight:600;color:var(--accent);text-align:center;cursor:pointer}
+  @media (prefers-reduced-motion:reduce){#v-nutri .bm-nuc-ch{transition:none}}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48397,8 +48458,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.33*/
-const VER_ACTUAL='2026-11-13.33';
+/*BUILD:2026-11-13.34*/
+const VER_ACTUAL='2026-11-13.34';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
