@@ -13985,6 +13985,8 @@ function bmArrastre(caja,o){
     const v=dy/Math.max(1,performance.now()-t0);
     caja.style.transition='';if(o.fondo)o.fondo.style.transition='';
     if(dy>Math.min(170,alto()*0.34)||(v>0.55&&dy>44)){
+      /* v631 · Si cerrar perdería lo escrito, la hoja vuelve a su sitio y se pregunta. */
+      if(o.retener&&o.retener()){caja.style.transform='';if(o.fondo)o.fondo.style.opacity='';y0=null;act=false;return;}
       if(o.fondo)o.fondo.style.opacity='0';
       caja.style.transform='translateY(105%)';
       setTimeout(()=>{try{o.cerrar&&o.cerrar();}finally{caja.style.transform='';if(o.fondo)o.fondo.style.opacity='';}},210);
@@ -15012,10 +15014,127 @@ function bmfFecha(inp){
     inp.value=v;bmfDispara(inp);pinta();});
   inp._bmPinta=pinta;pinta();inp.addEventListener('change',pinta);inp.addEventListener('input',pinta);
 }
+/* v631 · Las hojas de formulario, con su barra y sin perder lo escrito.
+   Daniel, 13/11/2026, eligió la propuesta 5. Medido antes: con una nota
+   escrita en «Parte del día», tocar fuera de la hoja la cerraba sin preguntar y
+   al volver a abrirla la nota ya no estaba. HIG · Modality: «if closing the
+   view could result in the loss of user-generated content … present an action
+   sheet», y el botón para cerrar va en la barra de arriba.
+   · La cabecera de la hoja pasa a ser la barra de iOS: «Cancelar» a la
+     izquierda, el título en medio y «Guardar» a la derecha. «Guardar» pulsa el
+     botón de guardar de siempre, que deja de verse abajo; si en el pie queda
+     otro botón («Esto es una lesión →»), el pie se queda con él. Sólo cuando
+     la hoja tiene un botón de guardar inequívoco; si no, sigue el aspa.
+   · Un formulario está «sucio» cuando, abierto ya, cambia un campo. Entonces
+     las cuatro formas de cerrarlo —tocar fuera, arrastrar, «atrás» y
+     Cancelar— preguntan con una hoja de acción. Guardar no pregunta: cierra
+     desde su propia función.
+   Todo esto sólo corre en el móvil: en el ordenador nada llama a estas piezas. */
+function bmfFicha(c){
+  if(c.classList.contains('info-modal')){const b=c.querySelector('#info-mbody');return b&&b.firstElementChild;}
+  return c.firstElementChild;
+}
+function bmfAlDia(c){const f=bmfFicha(c);if(f&&c._bmfF!==f){c._bmfF=f;c._bmfT=performance.now();c._bmfSucio=false;}return f;}
+function bmfSucio(c){const f=bmfFicha(c);return !!(f&&c._bmfF===f&&c._bmfSucio);}
+function bmfCierraOv(ov){
+  if(ov.id==='ph-overlay'&&window.closeHeroForm){closeHeroForm();return;}
+  if(ov.id==='med-overlay'&&window.closeMedAgenda){closeMedAgenda();return;}
+  if(ov.classList.contains('info-overlay')&&typeof closeInfoEdit==='function'){closeInfoEdit();return;}
+  ov.style.display='none';
+}
+function bmfRetiene(ov,cerrar){
+  if(!esMovil()||!ov||!ov.querySelector)return false;
+  const c=ov.querySelector(':scope>.med-modal.bmf,:scope>.info-modal.bmf');
+  if(!c||!bmfSucio(c))return false;
+  bmAccion({titulo:'Hay cambios sin guardar',texto:'Si cierras ahora, se pierde lo que has escrito.',si:'Descartar cambios',no:'Seguir editando'})
+    .then(ok=>{if(!ok)return;c._bmfSucio=false;try{(cerrar||(()=>bmfCierraOv(ov)))();}catch(e){console.error('bmnava · cerrar hoja',e);}});
+  return true;
+}
+['input','change'].forEach(t=>document.addEventListener(t,e=>{
+  if(!esMovil()||!e.target||!e.target.closest)return;
+  const c=e.target.closest('.med-modal.bmf,.info-modal.bmf');if(!c)return;
+  bmfAlDia(c);
+  if(performance.now()-(c._bmfT||0)<400)return;   // lo que el propio formulario hace al abrirse no es escribir
+  c._bmfSucio=true;
+},true));
+document.addEventListener('click',e=>{
+  if(!esMovil()||!e.target||!e.target.closest)return;
+  const t=e.target;
+  if(t.matches('.med-overlay,.info-overlay')){if(bmfRetiene(t)){e.stopImmediatePropagation();e.preventDefault();}return;}
+  const b=t.closest('.med-modal.bmf>h2 .r .btn.ghost,.info-modal.bmf .info-mhead .btn.ghost');
+  if(!b||!/close|Cerrar/.test((b.getAttribute('onclick')||'')+b.textContent))return;
+  if(bmfRetiene(b.closest('.med-overlay,.info-overlay'),()=>b.click())){e.stopImmediatePropagation();e.preventDefault();}
+},true);
+/* La barra de la hoja. */
+function bmfBarra(c){
+  bmfAlDia(c);
+  const info=c.classList.contains('info-modal');
+  const head=info?c.querySelector(':scope>.info-mhead'):c.querySelector(':scope>h2');
+  if(!head)return;
+  const bs=[...head.querySelectorAll('.btn')];
+  const x=bs.find(b=>b.classList.contains('ghost')&&/close|Cerrar/.test((b.getAttribute('onclick')||'')+b.textContent));
+  let prim=null,pie=null;
+  if(x){
+    const otros=bs.filter(b=>b!==x&&!b.classList.contains('bmf-ok'));
+    if(info){if(otros.length===1&&!otros[0].classList.contains('ghost'))prim=otros[0];else if(otros.length)return head.classList.remove('bmf-barra');
+      else{/* El guardar al final del cuerpo: sólo si es el ÚNICO botón relleno y dice «Guardar». */
+        const cand=[...c.querySelectorAll('#info-mbody .btn:not(.ghost)')].filter(b=>b.checkVisibility()||b.classList.contains('bmf-ocu'));
+        if(cand.length===1&&/^\s*guardar/i.test(cand[0].textContent))prim=cand[0];}}
+    else if(!otros.length){pie=c.querySelector('.bmf-pie');prim=pie&&pie.querySelector(':scope>.btn:not(.ghost)');}
+  }
+  /* La cabecera del editor de info es la misma para todos sus formularios: un
+     «Guardar» que se quedó de otro formulario se quita. */
+  const viejo=head.querySelector(':scope>.bmf-ok');
+  if(!prim||(info&&head.contains(prim))){if(viejo)viejo.remove();}
+  if(!prim){head.classList.remove('bmf-barra');return;}
+  head.classList.add('bmf-barra');x.setAttribute('aria-label','Cancelar');
+  if(info&&head.contains(prim)){prim.classList.add('bmf-ok-t');return;}
+  if(!info&&!head.querySelector(':scope>.bmf-tit')){
+    const tit=document.createElement('span');tit.className='bmf-tit';
+    [...head.childNodes].filter(n=>!(n.nodeType===1&&n.classList.contains('r'))).forEach(n=>tit.appendChild(n));
+    head.insertBefore(tit,head.firstChild);
+  }
+  let ok=head.querySelector(':scope>.bmf-ok');
+  if(!ok){ok=document.createElement('button');ok.type='button';ok.className='bmf-ok';head.appendChild(ok);
+    ok.addEventListener('click',()=>{const p=ok._prim;if(p&&!p.disabled)p.click();});}
+  ok._prim=prim;
+  const t=(prim.textContent||'').replace(/[^\p{L}\p{N}\s]/gu,'').replace(/\s+/g,' ').trim();
+  ok.textContent=t&&t.length<=12?t:'Guardar';ok.disabled=!!prim.disabled;
+  prim.classList.add('bmf-ocu');
+  if(pie){const quedan=[...pie.children].some(n=>n!==prim&&n.matches('.btn,button')&&!n.classList.contains('bmf-ocu'));pie.classList.toggle('bmf-pie-vacio',!quedan);}
+}
+/* La hoja de acción de iOS: dos grupos abajo, lo que se va a hacer arriba y
+   «quedarse» abajo y en negrita. Devuelve una promesa con sí o no. Tocar
+   fuera, «atrás» o Escape es «no». No usa el rojo: aquí el rojo es sólo de
+   alertas (§2.3). */
+let BMACC=null;
+function bmAccCierra(){if(!BMACC)return false;const a=BMACC;BMACC=null;a.fin(false);return true;}
+function bmAccion(o){
+  o=o||{};bmAccCierra();
+  return new Promise(res=>{
+    const d=document.createElement('div');d.className='bm-acc';
+    const txt=v=>bmEsc(v).replace(/\n/g,'<br>');
+    d.innerHTML='<div class="bm-acc-fondo"></div><div class="bm-acc-c" role="alertdialog" aria-modal="true"'+(o.titulo?' aria-label="'+bmEsc(o.titulo)+'"':'')+'>'
+      +'<div class="bm-acc-g">'+((o.titulo||o.texto)?'<div class="bm-acc-t">'+(o.titulo?'<b>'+txt(o.titulo)+'</b>':'')+(o.texto?'<span>'+txt(o.texto)+'</span>':'')+'</div>':'')
+      +'<button type="button" class="bm-acc-b" data-v="1">'+bmEsc(o.si||'Aceptar')+'</button></div>'
+      +(o.no===false?'':'<div class="bm-acc-g"><button type="button" class="bm-acc-b bm-acc-no" data-v="0">'+bmEsc(o.no||'Cancelar')+'</button></div>')
+      +'</div>';
+    document.body.appendChild(d);
+    let hecho=false;
+    const fin=v=>{if(hecho)return;hecho=true;if(BMACC&&BMACC.d===d)BMACC=null;d.classList.add('sale');
+      setTimeout(()=>{try{d.remove();}catch(_){}},260);res(!!v);};
+    BMACC={d,fin};
+    d.addEventListener('click',e=>{const b=e.target.closest('.bm-acc-b');if(b){fin(b.dataset.v==='1');return;}if(!e.target.closest('.bm-acc-c'))fin(false);});
+    requestAnimationFrame(()=>d.classList.add('on'));
+    setTimeout(()=>{const b=d.querySelector('.bm-acc-no')||d.querySelector('.bm-acc-b');try{b&&b.focus({preventScroll:true});}catch(_){}},60);
+  });
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BMACC){e.stopPropagation();bmAccCierra();}},true);
 function bmfHojas(){
   document.querySelectorAll(BMF_CONT).forEach(c=>{
     if(!c.checkVisibility||!c.checkVisibility())return;
     c.classList.add('bmf');
+    try{bmfBarra(c);}catch(e){console.error('bmnava · barra del formulario',e);}
     c.querySelectorAll('label').forEach(l=>{
       if(l.dataset.bmf)return;
       const cs=l.querySelectorAll('select,input,textarea');
@@ -15036,6 +15155,7 @@ function bmfHojas(){
       const pie=hijos.reverse().find(x=>x.querySelector(':scope>.btn:not(.ghost)')&&!x.querySelector('label,input,select,textarea'));
       if(pie)pie.classList.add('bmf-pie');
     }
+    try{bmfBarra(c);}catch(e){console.error('bmnava · barra del formulario',e);}
   });
 }
 /* El teclado. En el iPhone no cambia el alto de la página: tapa su parte de
@@ -16711,8 +16831,11 @@ function bmCierraCapa(){
   if(document.querySelector('.bm-tv')){bmTablaCierra();return true;}
   if((e=vis('iso-overlay'))){if(typeof isoCerrar==='function')isoCerrar();else e.style.display='none';return true;}
   if((e=vis('ficha-overlay'))){e.style.display='none';return true;}
-  if((e=vis('ph-overlay'))){e.style.display='none';return true;}
-  if((e=vis('med-overlay'))){e.style.display='none';return true;}
+  if(typeof bmAccCierra==='function'&&bmAccCierra())return true;
+  /* v631 · Con algo escrito, «atrás» pregunta antes de descartarlo. */
+  if((e=vis('ph-overlay'))){if(!bmfRetiene(e))e.style.display='none';return true;}
+  if((e=vis('med-overlay'))){if(!bmfRetiene(e))e.style.display='none';return true;}
+  if((e=vis('info-overlay'))){if(!bmfRetiene(e))closeInfoEdit();return true;}
   const d=document.getElementById('drawer');if(d&&d.classList.contains('on')){closeDrawer();return true;}
   const am=document.getElementById('add-menu');if(am&&am.classList.contains('open')){closeAddData();return true;}
   const dp=document.getElementById('dp-pop');if(dp&&!dp.hidden){dpClose();return true;}
@@ -16952,7 +17075,8 @@ document.addEventListener('click',e=>{
     if(!esMovil()||!e.target||!e.target.closest)return;
     const m=e.target.closest('.med-overlay>.med-modal,.info-overlay>.info-modal,#drawer');
     if(!m||m._bmArr)return;m._bmArr=true;
-    bmArrastre(m,{solo:esMovil,zona:(ev,c)=>(ev.touches[0].clientY-c.getBoundingClientRect().top)<64,cerrar:()=>cierra(m)});
+    bmArrastre(m,{solo:esMovil,zona:(ev,c)=>(ev.touches[0].clientY-c.getBoundingClientRect().top)<64,cerrar:()=>cierra(m),
+      retener:()=>m.id!=='drawer'&&typeof bmfRetiene==='function'&&bmfRetiene(m.parentElement,()=>cierra(m))});
   },{capture:true,passive:true});
 })();
 /* v576 · La foto vuela de la lista a la ficha. Al tocar a un jugador, su foto
@@ -43399,6 +43523,47 @@ html.bmz .view.on{animation:none!important}
   .cwm-pie{margin:6px 0 0;font-size:var(--fs-xs);color:var(--muted);line-height:1.4}
 }
 </style>
+<style id="movil-v631">
+/* v631 · La barra «Cancelar · Título · Guardar» de las hojas de formulario y la
+   hoja de acción. En el ordenador ninguna de las dos piezas se crea. */
+.bm-acc{position:fixed;inset:0;z-index:10080;display:flex;flex-direction:column;justify-content:flex-end}
+.bm-acc-fondo{position:absolute;inset:0;background:rgba(0,0,0,.38);opacity:0;transition:opacity .25s ease}
+.bm-acc-c{position:relative;padding:0 8px calc(8px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;
+  transform:translateY(110%);transition:transform .32s cubic-bezier(.32,.72,0,1)}
+.bm-acc.on .bm-acc-fondo{opacity:1}
+.bm-acc.on .bm-acc-c{transform:none}
+.bm-acc.sale .bm-acc-fondo{opacity:0}
+.bm-acc.sale .bm-acc-c{transform:translateY(110%);transition-duration:.24s}
+.bm-acc-g{background:var(--panel);border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.bm-acc-t{display:flex;flex-direction:column;gap:3px;padding:14px 16px 12px;text-align:center;font-size:13px;line-height:1.35;color:var(--muted);
+  border-bottom:.5px solid var(--hair)}
+.bm-acc-t b{font-size:13px;font-weight:600;color:var(--muted)}
+.bm-acc-b{display:block;width:100%;min-height:56px;border:none;background:none;font:inherit;font-size:20px;font-weight:400;color:var(--accent);
+  cursor:pointer;-webkit-tap-highlight-color:transparent}
+.bm-acc-b+.bm-acc-b{border-top:.5px solid var(--hair)}
+.bm-acc-b:active{background:var(--panel2)}
+.bm-acc-no{font-weight:600}
+@media (prefers-reduced-motion:reduce){.bm-acc-c,.bm-acc-fondo{transition:none}}
+.bmf-ok{display:none}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .med-modal.bmf>h2.bmf-barra{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 12px;margin:0 -16px 8px;min-height:52px}
+  .med-modal.bmf>h2.bmf-barra>.r{order:-1;margin:0}
+  .med-modal.bmf>h2.bmf-barra>.bmf-tit{order:0;min-width:0;text-align:center;font-size:16px;font-weight:600;line-height:1.2;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .med-modal.bmf>h2.bmf-barra .r .btn.ghost,.info-modal.bmf .info-mhead.bmf-barra .btn.ghost{width:auto;height:44px;min-width:44px;margin:0;padding:0 4px;
+    background:none!important;font-size:0;color:transparent}
+  .med-modal.bmf>h2.bmf-barra .r .btn.ghost::after,.info-modal.bmf .info-mhead.bmf-barra .btn.ghost::after{content:"Cancelar";font-size:17px;font-weight:400;line-height:44px;color:var(--accent)}
+  .bmf-ok,.info-modal.bmf .info-mhead.bmf-barra .btn.bmf-ok-t{display:block;order:1;min-height:44px;min-width:44px;padding:0 4px;border:none;background:none!important;
+    box-shadow:none;font:inherit;font-size:17px;font-weight:600;color:var(--accent);cursor:pointer;white-space:nowrap}
+  .bmf-ok:disabled{color:var(--muted2)}
+  .info-modal.bmf .info-mhead.bmf-barra{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;padding:14px 12px 8px}
+  .info-modal.bmf .info-mhead.bmf-barra>div{display:contents}
+  .info-modal.bmf .info-mhead.bmf-barra #info-mtitle{order:0;min-width:0;text-align:center;font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .info-modal.bmf .info-mhead.bmf-barra .btn.ghost{order:-1}
+  .bmf .btn.bmf-ocu{display:none}
+  .bmf .bmf-pie.bmf-pie-vacio{display:none}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46964,8 +47129,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.10*/
-const VER_ACTUAL='2026-11-13.10';
+/*BUILD:2026-11-13.11*/
+const VER_ACTUAL='2026-11-13.11';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
