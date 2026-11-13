@@ -1136,6 +1136,23 @@ Daniel, 13/11/2026, tras pedir «cosas importantes, cosas que se vean» y ver se
 
 **Lo que NO está probado en un teléfono**, y hay que decirlo cada vez: la vibración (sólo iOS 18 o posterior), las hojas de formulario con el teclado de verdad, y cómo se ven la lista de Jugadores, la previa y la ficha plegada en el iPhone.
 
+
+#### 6.12.15 Las semanas del mes en el Calendario (v630)
+
+Daniel, 13/11/2026, con la captura del «Resumen por semana» del móvil: *«es súper poco práctica y sencilla de entender, cámbiala por completo»*. Preguntado antes de tocar nada, porque una de las cifras era un cálculo y no un dibujo.
+
+| Elemento | Regla |
+|---|---|
+| Lo que se midió antes | Diez cifras por semana en tarjetas de tres columnas, con letra monoespaciada, y **tres que mentían**. **(1) La monotonía**: `calWeekSummary` la calcula sólo sobre los días CON carga, así que el domingo libre no entra, la desviación casi desaparece y el cociente se dispara: la semana del 26/10 daba **11,58 en el Calendario y 2,02 en Cargas › Dashboard**, que la calcula con los días libres a 0 (Foster). **(2)** La calculaba también con la semana a medias, que el Dashboard se niega a hacer desde la v439. **(3) La desviación de la semana en curso** comparaba el plan de los siete días con lo hecho en los que van, así que a mitad de semana siempre salía «por debajo» |
+| Una fila por semana (elegida por Daniel) | Fechas, una etiqueta «en curso» o «planificada», el % a la derecha y debajo una barra: **lo hecho en el color de acción, lo planificado en gris y una raya donde estaba el plan de los días con carga**. Es el código de color del microciclo de justo debajo (plan gris, real en acción). Debajo, «Hecho X · plan Y» y la palabra de `calDev` («Según lo previsto», «Por encima del plan», «Por debajo del plan»). El % y la palabra van en el color de `calDev`, los tramos 15/30 de siempre |
+| La comparación, de `calSemA4Efectos` | **La misma función que la lámina A4**, no una copia: sólo entran los días con plan Y carga. La semana en curso dice «Hecho X de Y hasta hoy» y «Quedan Z UA planificadas»; un día pasado con plan y sin carga se dice en una línea en vez de contar como cero |
+| La monotonía, del Dashboard (elegido por Daniel) | Se lee de `cgSemanasEquipo(cgSerieEquipo())`, la función del Dashboard, así que las dos pantallas no pueden discrepar. Sólo con la semana cerrada. **«Poco variada» por encima de `CONFIG.load.monoHi` (1,5)**, en ámbar; por debajo, «variada» en gris. El listón de 1,5 lo eligió Daniel **sólo para este bloque**: `calMonoTier` sigue en 2 |
+| El strain sale (elegido por Daniel) | Ya está en el Dashboard como índice de fatiga |
+| Pasada, en curso o planificada | **Por el reloj**, no por el día elegido: el mes describe el mes (§2.1) |
+| En el ordenador | No cambia: `.cal-wkm` está oculto fuera de la regla del móvil y la tabla `.cal-wksum` sigue con sus cálculos, **incluida la monotonía de `calWeekSummary`**. Ver §8 |
+
+**Cómo se comprobó.** Huella de posiciones de las 29 pantallas y la cabecera a 1.440 px, con el calendario sembrado en las dos copias, contra la v629: **idénticas las 30**. En el móvil, en Chromium y en el motor de Safari, en claro y en oscuro: la página no se ensancha, sin errores, contraste sin fallos. En el banco de Safari no hay minutos de sesión guardados, así que ahí se probaron también los casos «sin carga registrada».
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1163,10 +1180,12 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - **Blanco sobre el rojo y el verde del semáforo** (4,28 y 4,37 frente a 4,5): o texto negro en esas insignias, o un tono más oscuro del semáforo, o se deja. Ver §3
 - Los cargos de Pablo Gallego y Victor Recio, que figuran como «Staff»
 - Qué pruebas físicas tiene sentido valorar a un portero (hoy se les mide con las de jugador de campo y quedan últimos del TSA)
-- **La monotonía tiene DOS umbrales y no coinciden.** `CONFIG.load.monoHi` vale **1,5** —es la línea que dibuja el gráfico ⑤ y la marca de la celda en el dashboard de cargas— y `calMonoTier` dice «ok» hasta **2** y «elevada» por encima, que es lo que usan el calendario y «Cada jugador, esta semana». *Medido el 9/11/2026 sobre los 14 días: **5 de los 11 días con dato** salen verdes con un criterio y pasados con el otro.* Preguntado, Daniel dijo que **manda 1,5**, pero **no se ha tocado `calMonoTier`**: cambiarlo reclasifica el calendario y el panel por jugador, que es un cambio de criterio con efecto en dos pantallas más y necesita su visto bueno expreso. Mientras tanto, la columna de monotonía del dashboard **no lleva color** —solo la marca del 1,5—, para que ninguna pantalla afirme lo que la otra niega
+- **La monotonía tiene DOS umbrales y no coinciden.** `CONFIG.load.monoHi` vale **1,5** —es la línea que dibuja el gráfico ⑤ y la marca de la celda en el dashboard de cargas— y `calMonoTier` dice «ok» hasta **2** y «elevada» por encima, que es lo que usan el calendario y «Cada jugador, esta semana». *Medido el 9/11/2026 sobre los 14 días: **5 de los 11 días con dato** salen verdes con un criterio y pasados con el otro.* Preguntado, Daniel dijo que **manda 1,5**, pero **no se ha tocado `calMonoTier`**: cambiarlo reclasifica el calendario y el panel por jugador, que es un cambio de criterio con efecto en dos pantallas más y necesita su visto bueno expreso. Mientras tanto, la columna de monotonía del dashboard **no lleva color** —solo la marca del 1,5—, para que ninguna pantalla afirme lo que la otra niega. *13/11/2026: las semanas del mes del Calendario en el móvil (v630) usan 1,5 por elección de Daniel, sólo ahí.*
+- **La monotonía de la tabla semanal del Calendario en el ORDENADOR** sigue saliendo de `calWeekSummary`, que se salta los días libres (11,58 contra 2,02 del Dashboard en la semana del 26/10). En el móvil ya usa la del Dashboard (v630); en el ordenador no se ha tocado porque Daniel pidió no cambiar nada ahí. Falta que decida si se iguala
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **Lo de la v630**: que Daniel vea en su iPhone las semanas del mes con su calendario real
 - **Lo de la v622–v629**: que Daniel lo vea en su iPhone —la previa del partido, la pregunta del rol, los formularios en hoja con el teclado, Jugadores, la ficha plegada— y que diga si nota la vibración. Ver §6.12.14
 - **Lo de la v612–v621**: que Daniel lo vea en su iPhone —el editor del Resumen, la barra que se encoge, el aviso de arriba, Fisioterapia › Hoy— y, si alguien lo usa, en un iPad. Ver §6.12.13
 - **Lo de la v602–v611**: que Daniel lo vea en su iPhone —el menú del título, las hojas a media altura, deslizar entre jugadores, la tarjeta que crece, el interruptor nativo y la letra redondeada—. Ver §6.12.12
@@ -1355,6 +1374,7 @@ No los repitas.
 | Medir el fondo de una tarjeta con `getComputedStyle` y darlo por opaco | Las tarjetas son blanco al 94 %: el primer «fondo opaco» que encontraba el pliegue era el lienzo gris, y el degradado del «más» salía gris sobre una tarjeta blanca. El color de detrás se calcula componiendo las capas hasta una opaca |
 | Mover un panel dentro de un contenedor que se reescribe con `innerHTML` | «Evolución de la disponibilidad» y «Vuelta prevista» se movían dentro de `avail-body` tras pintar (v209), y el siguiente `innerHTML` se los llevaba por delante: desaparecían a la segunda visita desde hacía meses, en el ordenador y en el móvil. Ninguna huella lo vio porque cada ruta se visita UNA vez. **Lo que se mueve dentro de algo que se repinta hay que sacarlo antes de repintar**; y una prueba de una pantalla tiene que pasar por ella dos veces |
 | Dar por bueno un barrido de barras pegadas mirando sólo la opacidad del color | El carril translúcido de la ficha estaba bien en reposo y mal pegado; se encontró midiendo el `backgroundColor` de todo lo que tiene `position:sticky` en las 29 pantallas. **Lo que se pega encima de otra cosa necesita fondo opaco**: el error de la cabecera del móvil (v560) con otra cara |
+| Una monotonía que se salta los días libres | `calWeekSummary` promediaba sólo los días con carga: sin el domingo libre la desviación casi desaparece y el Calendario enseñaba **12,10** donde el Dashboard, con el día libre a 0, da 2,0. Dos pantallas con la misma palabra y dos fórmulas. **En la monotonía el día libre es parte de la semana y cuenta como 0** —la definición de Foster, y lo que el Dashboard ya hacía—; no confundir con las medias de referencia (`calRefMD`), donde un día sin dato no entra. Y la cifra se lee de la función que ya la calcula (`cgSemanasEquipo`) en vez de rehacerla |
 
 ---
 
