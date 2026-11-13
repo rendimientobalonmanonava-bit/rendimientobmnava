@@ -35375,6 +35375,82 @@ function calMDmap(weekDks){
   return {map,ref:dentro||ref};
 }
 function calWeekSummary(mon){const dks=calWeekDks(mon);const real=calRealMap();let planUA=0,realUA=0;const realVals=[];dks.forEach(dk=>{const pl=calDayPlan(dk);planUA+=pl.planUA||0;const rv=real[dk];if(rv!=null){realUA+=rv;realVals.push(rv);}});const m=mean(realVals),s=sd(realVals);const mono=realVals.length>=2&&s>0?m/s:NaN;const strain=isNaN(mono)?NaN:mono*realUA;return {dks,planUA:Math.round(planUA),realUA:Math.round(realUA),mono,strain,nReal:realVals.length};}
+/* v630 · Las semanas del mes, en el móvil. Daniel, 13/11/2026, con la captura
+   del «Resumen por semana» delante: «es súper poco práctica y sencilla de
+   entender, cámbiala por completo». Eran diez cifras por semana en tarjetas de
+   tres columnas, con letra monoespaciada, y tres de ellas mentían:
+   · La MONOTONÍA salía de `calWeekSummary`, que promedia sólo los días con
+     carga: sin el domingo libre la desviación casi desaparece y el cociente se
+     dispara. Medido sobre la semana del 26/10: 11,58 aquí y 2,02 en Cargas ›
+     Dashboard. Y se calculaba también con la semana a medias, que el Dashboard
+     se niega a hacer (v439). Daniel eligió el cálculo del Dashboard: se lee de
+     `cgSemanasEquipo`, la misma función, así que las dos pantallas no pueden
+     discrepar. El STRAIN sale de aquí: ya está en el Dashboard como índice de
+     fatiga.
+   · La DESVIACIÓN de la semana en curso comparaba el plan de los siete días
+     con lo hecho en los que van: un miércoles siempre decía «por debajo». Se
+     compara sólo lo que tiene plan Y real, que es la regla de la lámina A4
+     (`calSemA4Efectos`, la misma función), y lo que falta se dice aparte.
+   · «Poco variada» se decide con `CONFIG.load.monoHi` (1,5), elegido por
+     Daniel SÓLO para este bloque; `calMonoTier` sigue como estaba.
+   Semana pasada, en curso o planificada va por el reloj, no por el día elegido:
+   el mes describe el mes (§2.1). En el ordenador no se ve: allí sigue la tabla. */
+function calWkMovilHTML(lista){
+  const hoy=dkey(new Date());
+  const real=calRealMap();
+  let sems=[];try{sems=cgSemanasEquipo(cgSerieEquipo());}catch(e){console.error('bmnava · semanas del equipo',e);}
+  const MO=(CONFIG.load&&CONFIG.load.monoHi)||1.5;
+  const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const n0=x=>Math.round(x).toLocaleString('es-ES');
+  const etiqueta=dks=>{const a=dks[0].split('-').map(Number),b=dks[6].split('-').map(Number);
+    return a[1]===b[1]?a[2]+' – '+b[2]+' '+MES[b[1]-1]:a[2]+' '+MES[a[1]-1]+' – '+b[2]+' '+MES[b[1]-1];};
+  const filas=lista.map(({mon,s})=>{
+    const dks=s.dks, est=dks[6]<hoy?'pasada':(dks[0]>hoy?'futura':'curso');
+    let ef=null;
+    if(est!=='futura'){try{ef=calSemA4Efectos(dks).ua||null;}catch(e){console.error('bmnava · semana del calendario',e);}}
+    let sinDato=0,quedan=0;
+    dks.forEach(dk=>{const pl=calDayPlan(dk);if(!(pl.n&&pl.planUA>0))return;
+      const rv=real[dk];if(rv!=null&&isFinite(rv))return;
+      if(dk>=hoy)quedan+=pl.planUA;else sinDato++;});
+    return {mon,s,dks,est,ef,sinDato,quedan};
+  });
+  const tope=Math.max(1,...filas.map(f=>Math.max(f.s.planUA||0,f.ef?Math.max(f.ef.plan,f.ef.real):0)));
+  const pc=v=>Math.max(0,Math.min(100,v/tope*100)).toFixed(1)+'%';
+  const html=filas.map(f=>{
+    const {s,est,ef}=f;
+    const dev=ef?calDev(ef.plan,ef.real):null;
+    const tag=est==='curso'?'<span class="cwm-tag">en curso</span>':(est==='futura'?'<span class="cwm-tag">planificada</span>':'');
+    const der=dev?`<span class="cwm-dv" style="color:${colTexto(dev.col)}">${dev.pct>0?'+':''}${dev.pct}%</span>`
+      :(est==='futura'&&s.planUA?`<span class="cwm-dv cwm-dv--n">${n0(s.planUA)} <small>UA</small></span>`:'');
+    const barra=`<div class="cwm-bar" aria-hidden="true">`
+      +(s.planUA?`<i class="cwm-pl" style="width:${pc(s.planUA)}"></i>`:'')
+      +(ef?`<i class="cwm-re" style="width:${pc(ef.real)}"></i><i class="cwm-mk" style="left:${pc(ef.plan)}"></i>`:'')
+      +`</div>`;
+    const lineas=[];
+    if(ef){
+      lineas.push(`<div class="cwm-l"><span>Hecho <b>${n0(ef.real)}</b> ${est==='curso'?'de':'· plan'} <b>${n0(ef.plan)}</b>${est==='curso'?' hasta hoy':''}</span>`
+        +`<span class="cwm-w" style="color:${colTexto(dev.col)}">${dev.lab}</span></div>`);
+    }else if(est!=='futura'){
+      lineas.push(`<div class="cwm-l"><span>${s.planUA?(est==='curso'?'Aún sin carga registrada esta semana':'Sin carga registrada'):'Sin plan · hecho <b>'+n0(s.realUA)+'</b> UA'}</span></div>`);
+    }
+    const notas=[];
+    if(est==='curso'&&f.quedan>0)notas.push(`Quedan <b>${n0(f.quedan)}</b> UA planificadas`);
+    if(f.sinDato>0)notas.push(f.sinDato===1?'1 día con plan y sin carga registrada':f.sinDato+' días con plan y sin carga registrada');
+    if(est==='pasada'){
+      const w=sems.find(x=>x.week===weekKey(f.mon));
+      const m=(w&&!w.parcial&&isFinite(w.mono))?Math.round(w.mono*100)/100:NaN;
+      if(isFinite(m))notas.push(`Monotonía <b>${fmt(m,2)}</b> · `+(m>MO?`<span class="cwm-mono">poco variada</span>`:'variada'));
+    }
+    if(notas.length)lineas.push(`<div class="cwm-n">${notas.join('<br>')}</div>`);
+    return `<div class="cwm-f cwm--${est}"><div class="cwm-h"><b>${etiqueta(f.dks)}</b>${tag}${der}</div>${barra}${lineas.join('')}</div>`;
+  }).join('');
+  return `<section class="cal-wkm"><h3 class="cwm-tit">Las semanas del mes</h3>`
+    +`<p class="cwm-sub">Lo hecho frente a lo planificado, en UA</p>`
+    +`<div class="cwm-lista">${html}</div>`
+    +`<p class="cwm-ley"><span><i class="cwm-sw cwm-sw--re"></i>Hecho</span><span><i class="cwm-sw cwm-sw--pl"></i>Planificado</span><span><i class="cwm-sw cwm-sw--mk"></i>Plan de los días con carga</span></p>`
+    +`<p class="cwm-pie">El % compara sólo los días que tienen plan y carga registrada. La monotonía es la del Dashboard de cargas y sólo sale con la semana cerrada; por encima de ${fmt(MO,1)} la semana es poco variada.</p>`
+    +`</section>`;
+}
 function calMonoTier(mono){if(isNaN(mono))return {c:'var(--muted)',lab:'—'};if(mono>2.5)return {c:'#e23b32',lab:'alta'};if(mono>2)return {c:'#e08a00',lab:'elevada'};return {c:'#1ea863',lab:'ok'};}
 /* v393 · Mes y Semana son dos miradas al mismo calendario, pero el cambio se
    pintaba de golpe y parecían dos pantallas distintas. Un fundido corto —y solo
@@ -35517,6 +35593,7 @@ function renderCalendar(){
     const barReal=s.nReal?`<div class="cal-wkbar"><div class="cal-wkbar-fill" style="width:${Math.round(s.realUA/maxLoad*100)}%;background:var(--c-data,#3f5572)"></div><span>${s.realUA}</span></div>`:'<span class="muted">—</span>';
     const barStr=isNaN(s.strain)?'<span class="muted">—</span>':`<div class="cal-wkbar"><div class="cal-wkbar-fill" style="width:${Math.round(s.strain/maxStrain*100)}%;background:${mt.c}"></div><span>${Math.round(s.strain)}</span></div>`;
     return `<tr><td>${label}</td><td>${barPlan}</td><td>${barReal}</td><td class="mono">${dev?`<span style="color:${colTexto(dev.col)};font-weight:800">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:'—'}</td><td class="mono" style="color:${colTexto(mt.c)};font-weight:800">${isNaN(s.mono)?'—':fmt(s.mono,2)}</td><td>${barStr}</td></tr>`;}).join('');
+  let wkMovil='';if(wkRows){try{wkMovil=calWkMovilHTML(wsums);}catch(e){console.error('bmnava · semanas del mes',e);}}
   const wkTable=wkRows?`<div class="cal-wksum"><div class="cal-wksum-h">Resumen por semana · monotonía y strain (sobre carga real)</div><div class="wrap-x"><table class="tbl cal-wktbl"><thead><tr><th>Semana</th><th>Plan UA</th><th>Real UA</th><th>Desv.</th><th>Monotonía</th><th>Strain</th></tr></thead><tbody>${wkRows}</tbody></table></div></div>`:'';
   box.innerHTML=`
    <div class="cal-head">
@@ -35527,7 +35604,7 @@ function renderCalendar(){
    <div class="cal-grid">${wd.map(w=>`<div class="cal-wd">${w}</div>`).join('')}${cells}</div>
    <section class="cal-dia" id="cal-dia" aria-live="polite"></section>
    <div class="cal-scale"><span class="small muted">Semáforo = intensidad programada:</span><span class="cal-sc"><i style="background:#1ea863"></i>Baja</span><span class="cal-sc"><i style="background:#e6a700"></i>Media</span><span class="cal-sc"><i style="background:#e23b32"></i>Alta</span><span class="small muted" style="margin-left:8px"><span class="cal-clock">◷</span> = min · <b>Real</b> = carga (UA) · esquina = <b>desviación</b> · <span class="cal-risk">⚠</span> pico · ⚕ bajas</span></div>
-   ${wkTable}
+   ${wkTable}${wkMovil}
    <!-- v397 · El microciclo vive aquí, debajo del resumen por semana, por
         decisión de Daniel el 15/10/2026. Se pinta después de este innerHTML. -->
    <div class="panel" id="cal-micro-panel" style="margin-top:14px"></div>
@@ -43284,6 +43361,44 @@ html.bmz .view.on{animation:none!important}
 }
 @media(max-width:760px) and (prefers-reduced-motion:reduce){.bm-pr-ch{transition:none}}
 </style>
+<style id="movil-v630">
+/* v630 · Calendario › las semanas del mes, una fila por semana. En el
+   ordenador la pieza no existe a la vista y sigue la tabla de siempre. */
+.cal-wkm{display:none}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #cal-body .cal-wksum{display:none}
+  .cal-wkm{display:block;margin-top:16px;padding:16px 16px 12px;border-radius:20px;background:var(--panel);box-shadow:var(--lg-shadow)}
+  .cwm-tit{margin:0;font-size:var(--fs-h2);font-weight:600;color:var(--txt);letter-spacing:0}
+  .cwm-sub{margin:2px 0 6px;font-size:var(--fs-sm);color:var(--muted)}
+  .cwm-f{padding:12px 0;border-bottom:.5px solid var(--hair)}
+  .cwm-f:last-child{border-bottom:none}
+  .cwm-h{display:flex;align-items:baseline;gap:8px}
+  .cwm-h>b{font-size:var(--fs-body);font-weight:600;color:var(--txt)}
+  .cwm-tag{font-size:var(--fs-xs);font-weight:600;color:var(--muted);background:var(--seg-carril);padding:2px 8px;border-radius:999px}
+  .cwm-dv{margin-left:auto;font-size:var(--fs-h2);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cwm-dv--n{color:var(--muted);font-weight:600}
+  .cwm-dv small{font-size:var(--fs-xs);font-weight:600}
+  .cwm-bar{position:relative;height:10px;margin:8px 0 7px;border-radius:999px;background:var(--seg-carril)}
+  .cwm-bar i{position:absolute;top:0;bottom:0;left:0;border-radius:999px}
+  .cwm-pl{background:var(--muted);opacity:.32}
+  .cwm-re{background:var(--accent)}
+  .cwm-mk{width:2px;top:-3px!important;bottom:-3px!important;margin-left:-1px;border-radius:1px!important;background:var(--txt)}
+  .cwm-l{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:var(--fs-sm);color:var(--muted)}
+  .cwm-l b{color:var(--txt);font-weight:600;font-variant-numeric:tabular-nums}
+  .cwm-w{font-weight:600;text-align:right}
+  .cwm-n{margin-top:3px;font-size:var(--fs-sm);color:var(--muted);line-height:1.45}
+  .cwm-n b{color:var(--txt);font-weight:600;font-variant-numeric:tabular-nums}
+  .cwm-mono{color:var(--warn-text);font-weight:600}
+  .cwm--futura .cwm-h>b{color:var(--muted)}
+  .cwm-ley{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0 0;font-size:var(--fs-xs);color:var(--muted)}
+  .cwm-ley span{display:inline-flex;align-items:center;gap:6px}
+  .cwm-sw{display:inline-block;width:14px;height:8px;border-radius:999px}
+  .cwm-sw--re{background:var(--accent)}
+  .cwm-sw--pl{background:var(--muted);opacity:.32}
+  .cwm-sw--mk{width:2px;height:12px;border-radius:1px;background:var(--txt)}
+  .cwm-pie{margin:6px 0 0;font-size:var(--fs-xs);color:var(--muted);line-height:1.4}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46849,8 +46964,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.9*/
-const VER_ACTUAL='2026-11-13.9';
+/*BUILD:2026-11-13.10*/
+const VER_ACTUAL='2026-11-13.10';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
