@@ -16477,6 +16477,27 @@ document.addEventListener('keydown',e=>{
   const t=e.target;if(!t||!t.getAttribute||t.getAttribute('data-bmvoz')!=='1'||t.getAttribute('role')!=='button')return;
   if(e.key==='Enter'||e.key===' '){e.preventDefault();t.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));}
 },true);
+/* v658 · Los 14 días del Dashboard de Cargas, en filas cortas. Daniel,
+   13/11/2026, propuesta 2. Medido a 375 px: 2.152 px, de 138 a 167 por día
+   con sesión. En el móvil cada día queda en su barra con la UA y el ACWR
+   —lo que se mira de un vistazo (v510)— y lo demás (la sesión, los bloques
+   del día de la v513 y la línea de cifras) sale al tocar la fila. Ninguna
+   cifra se quita: está a un toque. Lo abierto se recuerda mientras la app
+   está abierta. Los días libres no se tocan: ya son una línea. Sólo móvil. */
+const BMD14=new Set();
+function bmD14(){
+  const v=document.getElementById('v-carga');if(!v||!v.classList.contains('on'))return;
+  v.querySelectorAll('.cg-d14-list>.cg-d14:not(.cg-r--off)').forEach(r=>{
+    const dia=((r.querySelector('.cg-d14-d b')||{}).textContent||'').trim();if(!dia)return;
+    r.classList.add('bm-d14');r.classList.toggle('bm-d14o',BMD14.has(dia));
+    if(!r.querySelector(':scope>.bm-d14-ch')){const i=document.createElement('i');i.className='bm-d14-ch';i.setAttribute('aria-hidden','true');i.textContent='›';r.appendChild(i);}
+    if(!r._bmd14){r._bmd14=1;r.setAttribute('role','button');r.tabIndex=0;
+      const toca=e=>{if(!esMovil())return;e.preventDefault();if(BMD14.has(dia))BMD14.delete(dia);else BMD14.add(dia);
+        r.classList.toggle('bm-d14o',BMD14.has(dia));r.setAttribute('aria-expanded',BMD14.has(dia)?'true':'false');try{bmVibra();}catch(_){}};
+      r.addEventListener('click',toca);r.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')toca(e);});}
+    r.setAttribute('aria-expanded',BMD14.has(dia)?'true':'false');
+  });
+}
 const BMNUC=new Set();
 function bmCobroLista(){
   const v=document.getElementById('v-nutri');if(!v||!v.classList.contains('on'))return;
@@ -17058,6 +17079,7 @@ function bmPulido(){
   try{bmNotas();}catch(e){console.error('bmnava · explicaciones al pie',e);}
   try{bmResumenFold();}catch(e){console.error('bmnava · resumen plegado',e);}
   try{bmPliegues();}catch(e){console.error('bmnava · pliegues',e);}
+  try{bmD14();}catch(e){console.error('bmnava · 14 días',e);}
   try{bmCobroLista();}catch(e){console.error('bmnava · cobrar en filas',e);}
   try{bmVoz();}catch(e){console.error('bmnava · voiceover',e);}
   try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
@@ -45038,6 +45060,19 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   .bm-po.bm-pgp>h2:has(.r button)>*{font-size:var(--fs-body)}
 }
 </style>
+<style id="movil-v658">
+/* v658 · Los 14 días: la barra, la UA y el ACWR; el resto, al tocar la fila. */
+.bm-d14-ch{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-carga .cg-d14.bm-d14{position:relative;padding-right:22px!important;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  #v-carga .cg-d14.bm-d14:not(.bm-d14o)>:is(.cg-d14-ses,.cg-d14-sub,.cg-d14-det){display:none!important}
+  #v-carga .cg-d14.bm-d14:not(.bm-d14o){grid-template-areas:"d u a" "b b b"!important;grid-template-rows:auto auto!important}
+  #v-carga .cg-d14.bm-d14>.bm-d14-ch{display:block;position:absolute;right:2px;top:12px;font-style:normal;font-size:20px;line-height:1;color:var(--muted2);
+    transition:transform .25s cubic-bezier(.32,.72,0,1)}
+  #v-carga .cg-d14.bm-d14o>.bm-d14-ch{transform:rotate(90deg)}
+  @media (prefers-reduced-motion:reduce){#v-carga .bm-d14-ch{transition:none}}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48623,8 +48658,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.37*/
-const VER_ACTUAL='2026-11-13.37';
+/*BUILD:2026-11-13.38*/
+const VER_ACTUAL='2026-11-13.38';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
