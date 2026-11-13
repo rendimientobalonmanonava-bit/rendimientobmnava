@@ -14733,7 +14733,8 @@ function bmTelefono(){
   const pinta=()=>{const p=bmlPref(),sis=bmlSistema(),f=bmlEscala();
     const nom=x=>({0.9:'pequeña',1:'normal',1.15:'grande',1.3:'muy grande'})[x]||'normal';
     const pos=['Izquierda','Centro','Derecha'],ks=TABBAR.map(t=>t[0]);
-    const barra='<div class="bmh-rot">Barra de abajo</div><div class="bmh-grupo">'
+    const barra='<div class="bmh-rot">Quién usa este teléfono</div><div class="bmh-grupo"><button type="button" class="bmh-fila" data-rol-abre="1"><span class="tx">'+bmRolNombre()+'<small>Deja la barra y el Resumen a medida</small></span><span class="ch">›</span></button></div>'
+      +'<div class="bmh-rot">Barra de abajo</div><div class="bmh-grupo">'
       +ks.map((k,i)=>'<label class="bmh-fila bmt-sel"><span class="tx">'+pos[i]+'</span><select data-barra="'+i+'" aria-label="Pestaña '+pos[i].toLowerCase()+'">'
         +Object.keys(TB_CAT).map(c=>'<option value="'+c+'"'+(c===k?' selected':'')+'>'+(TB_NOM[c]||TB_CAT[c])+'</option>').join('')+'</select></label>').join('')
       +(ks.join()!==TB_DEF.join()?'<button type="button" class="bmh-fila" data-barra-def="1"><span class="tx">Volver a Resumen · Calendario · Disponibilidad</span></button>':'')
@@ -14757,6 +14758,7 @@ function bmTelefono(){
   c.onclick=e=>{if(e.target.closest('[data-barra-def]')){tbGuarda(TB_DEF.slice());repinta();return;}
     if(e.target.closest('[data-nov-abre]')){bmHojaCierra('bmh-tel');setTimeout(bmNovedades,260);return;}
     if(e.target.closest('[data-rs-abre]')){bmHojaCierra('bmh-tel');setTimeout(bmrsEditar,260);return;}
+    if(e.target.closest('[data-rol-abre]')){bmHojaCierra('bmh-tel');setTimeout(()=>bmRol(false),260);return;}
     const b=e.target.closest('[data-letra]');if(!b)return;
     try{localStorage.setItem(BML.k,b.dataset.letra);}catch(err){}
     bmlAplica();c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
@@ -16030,6 +16032,61 @@ function bmPreviaPartido(dk){
     +'</div>';
   bmHoja({id:'previa',titulo:'Previa del partido',html,clase:'bm-pvh'});
 }
+/* v627 · 4 · Cada uno, su app. Daniel, 13/11/2026, eligió la propuesta 4.
+   La barra de abajo (v583) y el orden del Resumen (v615) ya se podían elegir,
+   pero había que saber que existían y configurarlos a mano. La primera vez que
+   se abre la app en un teléfono, una hoja pregunta quién lo usa y deja las dos
+   cosas a su medida:
+   · Entrenador: Resumen · Calendario · Disponibilidad, y el Resumen abre con
+     el readiness, «Ojo hoy» y las próximas sesiones;
+   · Fisioterapia: Disponibilidad · Fisioterapia · Vendajes, y el Resumen abre
+     con «Ojo hoy», la fisioterapia, las citas y los semáforos de wellness;
+   · Preparación física: Resumen · Cargas · Pulsómetros, y el Resumen como viene.
+   No se oculta ningún bloque: sólo se ordenan. Si el teléfono ya tenía la
+   barra o el Resumen a su gusto, no se pregunta: se respeta lo que hay. Se
+   cambia cuando se quiera en «Más › Este teléfono». `bmnava-rol` va con guion:
+   es de ESTE aparato y no se sincroniza. */
+const BMROL={k:'bmnava-rol'};
+const BMROL_L=[
+  {k:'entrenador',t:'Entrenador',d:'Abajo, Resumen, Calendario y Disponibilidad. El Resumen abre con quién está y lo que viene.',
+    ic:'<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+    barra:['equipo','cal','dispo'],rs:['team-hero','team-ojo','team-next','team-strip','team-rings','team-posband','eq-semana','team-welllights','team-citas','team-fisio','team-reuniones','team-meters-panel','_an','eq-plantilla']},
+  {k:'fisio',t:'Fisioterapia',d:'Abajo, Disponibilidad, Fisioterapia y Vendajes. El Resumen abre con los avisos, la fisioterapia y las citas.',
+    ic:'<path d="M9 11.5V5a1.8 1.8 0 0 1 3.6 0v5.5"/><path d="M12.6 10.5V9a1.7 1.7 0 0 1 3.4 0v2"/><path d="M16 11v-.5a1.7 1.7 0 0 1 3.4 0V15a6.5 6.5 0 0 1-6.5 6.5h-1.2a5 5 0 0 1-4-2L5 15.5a1.7 1.7 0 0 1 2.6-2.2L9 14.5"/>',
+    barra:['dispo','fisio','vend'],rs:['team-ojo','team-fisio','team-citas','team-welllights','team-hero','team-rings','team-strip','team-next','team-posband','eq-semana','team-reuniones','team-meters-panel','_an','eq-plantilla']},
+  {k:'pf',t:'Preparación física',d:'Abajo, Resumen, Cargas y Pulsómetros. El Resumen, tal como viene.',
+    ic:'<path d="M3 12h4l2.5-6 5 12 2.5-6h4"/>',barra:['equipo','carga','hr'],rs:null}];
+function bmRolActual(){try{return localStorage.getItem(BMROL.k)||'';}catch(e){return '';}}
+function bmRolNombre(){const r=BMROL_L.find(x=>x.k===bmRolActual());return r?r.t:'Sin elegir';}
+function bmRolAplica(k){
+  const r=BMROL_L.find(x=>x.k===k);if(!r)return;
+  try{localStorage.setItem(BMROL.k,k);}catch(e){}
+  try{tbGuarda(r.barra.slice());}catch(e){console.error('bmnava · rol · barra',e);}
+  try{if(r.rs)bmrsGuarda({orden:r.rs.slice(),oculto:[]});else{localStorage.removeItem(BMRS_K);bmrsCss();}}catch(e){console.error('bmnava · rol · resumen',e);}
+  try{toast('Listo: la barra y el Resumen, para '+r.t.toLowerCase());}catch(e){}
+}
+function bmRol(primera){
+  const act=bmRolActual();
+  const h=bmHoja({id:'rol',titulo:'¿Quién usa este teléfono?',clase:'bmrol',html:
+    '<p class="bmrol-in">La barra de abajo y el orden del Resumen se quedan a tu medida. No se oculta nada, y se cambia cuando quieras en «Más › Este teléfono».</p>'
+    +'<div class="bmh-grupo">'+BMROL_L.map(r=>'<button type="button" class="bmh-fila'+(act===r.k?' on':'')+'" data-rol="'+r.k+'"><span class="ic">'+BMN_I(r.ic)+'</span>'
+      +'<span class="tx">'+r.t+'<small>'+r.d+'</small></span>'+(act===r.k?'<span class="ch bml-ok">✓</span>':'<span class="ch">›</span>')+'</button>').join('')+'</div>'
+    +(primera?'<button type="button" class="bmh-btn" data-rol="nada">Ahora no</button>':''),
+    alCerrar:()=>{try{if(!localStorage.getItem(BMROL.k))localStorage.setItem(BMROL.k,'nada');}catch(e){}
+      if(primera)setTimeout(()=>{try{bmNovedadesSiToca();}catch(e){}},700);}});
+  h.querySelector('.bmh-cuerpo').onclick=e=>{const b=e.target.closest('[data-rol]');if(!b)return;
+    const k=b.dataset.rol;if(k!=='nada')bmRolAplica(k);else{try{localStorage.setItem(BMROL.k,'nada');}catch(err){}}
+    bmHojaCierra('bmh-rol');};
+}
+function bmRolSiToca(){
+  if(!esMovil())return;
+  let r='',tb=null,rs=null;try{r=localStorage.getItem(BMROL.k)||'';tb=localStorage.getItem(TB_K);rs=localStorage.getItem(BMRS_K);}catch(e){return;}
+  if(r)return;
+  /* ya lo tenía a su gusto: no se pregunta y no se toca */
+  if(tb||rs){try{localStorage.setItem(BMROL.k,'propio');}catch(e){}return;}
+  if(BMH.pila.length||document.body.classList.contains('modal-open')||document.body.classList.contains('sb-open')){setTimeout(bmRolSiToca,15000);return;}
+  bmRol(true);
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
@@ -16306,6 +16363,8 @@ function bmNovedadesSiToca(){
   if(!esMovil())return;
   let v=null;try{v=localStorage.getItem(BMN.k);}catch(e){return;}
   if(v===BMN.id)return;
+  /* v627 · si aún no se ha contestado quién usa el teléfono, esa hoja va antes */
+  try{if(!localStorage.getItem('bmnava-rol')&&!localStorage.getItem(TB_K)&&!localStorage.getItem(BMRS_K)){setTimeout(bmNovedadesSiToca,20000);return;}}catch(e){}
   if(BMH.pila.length||document.body.classList.contains('modal-open')||document.body.classList.contains('sb-open')){setTimeout(bmNovedadesSiToca,20000);return;}
   bmNovedades();
 }
@@ -36861,6 +36920,8 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   restoreFromHash();
   window.__BM_LISTO=true;   /* v539 · a partir de aquí, navegar deja historial en el móvil */
   try{bmAtrasPinta();}catch(e){}
+  /* v627 · primero, quién usa el teléfono; las novedades esperan a que se cierre */
+  try{setTimeout(()=>{if(typeof bmRolSiToca==='function')bmRolSiToca();},1200);}catch(e){}
   try{setTimeout(()=>{if(typeof bmNovedadesSiToca==='function')bmNovedadesSiToca();},1800);}catch(e){}
   /* v388 · La barra del día se pinta varias veces durante el arranque, y la
      última que quedaba podía ser de antes de fijar la fecha: salía el aviso de
@@ -43080,6 +43141,16 @@ html.bmz .view.on{animation:none!important}
 .bm-pvh .pv-cal{width:100%;min-height:50px;border:none;border-radius:14px;background:var(--accent);color:var(--on-accent,#fff);font:inherit;font-size:17px;font-weight:600;cursor:pointer}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.bm-pvh .pv-cal:active,.bm-pvh .pv-pill:active,.bm-pvh .pv-ac:active{opacity:.7}}
 </style>
+<style id="movil-v627">
+/* v627 · 4 · ¿Quién usa este teléfono? La hoja sólo la crea código que antes pregunta esMovil(). */
+.bmrol .bmrol-in{margin:2px 4px 14px;font-size:15px;line-height:1.4;color:var(--muted)}
+.bmrol .bmh-fila{align-items:flex-start;padding:12px 14px;min-height:64px}
+.bmrol .bmh-fila .ic{margin-top:1px}
+.bmrol .bmh-fila .tx{font-weight:600}
+.bmrol .bmh-fila .tx small{white-space:normal;font-weight:400;line-height:1.35;margin-top:3px}
+.bmrol .bmh-fila .ch{align-self:center}
+.bmrol .bmh-btn{margin-top:16px;background:none;color:var(--accent)}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46645,8 +46716,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.5*/
-const VER_ACTUAL='2026-11-13.5';
+/*BUILD:2026-11-13.6*/
+const VER_ACTUAL='2026-11-13.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
