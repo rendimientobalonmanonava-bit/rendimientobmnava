@@ -16759,8 +16759,28 @@ function bmtlElige(id){
   medTimelineSelect(id);
   setTimeout(()=>{try{const c=document.querySelector('#med-dashboard .cx-panel');if(c&&c.checkVisibility())window.scrollTo({top:Math.max(0,c.getBoundingClientRect().top+window.scrollY-110),behavior:'smooth'});}catch(e){}},140);
 }
+/* v644 · Un solo recuadro de cifras. En una fila de recuadros, la cifra
+   grande tiene que caer a la misma altura aunque un rótulo ocupe dos líneas y
+   el de al lado una: se iguala la altura de los rótulos de cada fila. Sólo en
+   el móvil; al pasar al diseño de ordenador se quita lo puesto. */
+const BMAC=[['#team-strip .eq-strip','.eq-tile','.eq-l'],['.alert-summary','.asum','.asum-l'],['.fis-kpis','.fis-k','.l'],['.lbc-kpis','.lbc-kpi','span'],
+  ['.phy-kpis','.phy-kpi','.phy-kpi-l'],['#tsa-team-sum .tsum-k','.tsum-t','.l'],['.nuc-head-r','.nuc-st','em'],['.cgr-hero-r','.cgr-stat','em'],['.pln-k','.pln-c','em']];
+function bmAlineaCifras(){
+  if(!esMovil()){document.querySelectorAll('[data-bmac]').forEach(x=>{x.style.minHeight='';x.removeAttribute('data-bmac');});return;}
+  BMAC.forEach(([g,t,l])=>document.querySelectorAll(g).forEach(G=>{
+    if(!G.checkVisibility())return;
+    const tiles=[...G.querySelectorAll(':scope>'+t)].filter(x=>x.checkVisibility());
+    const labs=tiles.map(x=>x.querySelector(':scope>'+l));
+    labs.forEach(x=>{if(x){x.style.minHeight='';x.setAttribute('data-bmac','1');}});
+    const filas={};
+    tiles.forEach((x,i)=>{if(!labs[i])return;const k=Math.round(x.getBoundingClientRect().top/4);(filas[k]=filas[k]||[]).push(labs[i]);});
+    Object.values(filas).forEach(f=>{if(f.length<2)return;const h=Math.max(...f.map(x=>x.getBoundingClientRect().height));f.forEach(x=>{x.style.minHeight=h.toFixed(1)+'px';});});
+  }));
+}
+(function(){let t=null;window.addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(()=>{try{bmAlineaCifras();}catch(e){}},160);});})();
 function bmPulido(){
   if(!esMovil())return;
+  try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
   try{bmMedico();}catch(e){console.error('bmnava · médico',e);}
   try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
   try{bmHoy();}catch(e){console.error('bmnava · cápsula de hoy',e);}
@@ -44472,6 +44492,58 @@ html[data-theme="dark"]{--glass-luz:inset 0 .5px 0 rgba(255,255,255,.24),inset 0
   #v-nutri .nuc-chip b{color:var(--warn-text)}
 }
 </style>
+<style id="movil-v644">
+/* v644 · Un solo recuadro de cifras. Medido antes: cinco diseños distintos de
+   cifra (los recuadros del Resumen; las cifras sueltas sobre el fondo en
+   Nutrición y Cargas; el número con el rótulo al lado en Fisioterapia; los
+   recuadros con banda de color metidos en otra tarjeta en Alertas y Perfil
+   físico; y «Carga de la semana» con las cifras de una fila descuadradas hasta
+   24 px y un porcentaje en tamaño de cifra por una regla que alcanzaba a
+   cualquier negrita del recuadro). Ahora todas son lo mismo: rótulo arriba,
+   cifra grande y una línea debajo, con la cifra a la misma altura en cada
+   fila (`bmAlineaCifras`). Sueltas, en un recuadro; dentro de una tarjeta, en
+   columnas con filete (v643). Las versalitas que Daniel decidió conservar se
+   quedan: cambian la estructura, los tamaños y la alineación. Sólo móvil. */
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  /* recuadros sueltos */
+  #team-strip .eq-tile,.alert-summary>.asum,.fis-kpis>.fis-k{background:var(--panel)!important;border:none!important;border-radius:16px!important;
+    box-shadow:var(--lg-shadow)!important;padding:12px 14px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;
+    justify-content:flex-start!important;gap:0!important;text-align:left!important;min-width:0}
+  #v-equipo .eq-strip>.eq-tile:first-child{display:none!important}   /* v591: el readiness ya está en el anillo */
+  /* En la fila de tres no cabe el icono al lado del rótulo: va encima, como los recuadros pequeños de Salud */
+  #team-strip .eq-tile .eq-l{flex-direction:column!important;align-items:flex-start!important;gap:6px!important;white-space:normal!important;
+    overflow:visible!important;text-overflow:clip!important}
+  .alert-summary,.fis-kpis{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
+  .asum-l{order:-1}
+  .asum.bad .asum-v{color:var(--bad-text)}
+  .asum.warn .asum-v{color:var(--warn-text)}
+  /* rótulo · cifra · línea, los mismos tamaños en toda la app */
+  #team-strip .eq-l,.asum-l,.fis-k>.l,.lbc-kpi>span,.phy-kpi-l,#tsa-team-sum .tsum-t>.l,.nuc-st>em,.cgr-stat>em,.pln-c>em{
+    font-size:12.5px!important;font-weight:600!important;line-height:1.25!important;margin:0!important;font-style:normal!important}
+  .asum-l,.fis-k>.l,.lbc-kpi>span,.phy-kpi-l,#tsa-team-sum .tsum-t>.l,.nuc-st>em,.cgr-stat>em,.pln-c>em{color:var(--muted)!important}
+  #team-strip .eq-v,.asum-v,.fis-k>.v,.lbc-kpi>b,.phy-kpi-v,#tsa-team-sum .tsum-t>.v,.nuc-st>b,.cgr-stat>b,.pln-c>b{
+    font-size:26px!important;font-weight:700!important;line-height:1.15!important;margin:4px 0 0!important;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  #team-strip .eq-s,.asum-s,.fis-k>.s,.lbc-ctx,#tsa-team-sum .tsum-t>.s,.nuc-st>u,.cgr-stat>u,.pln-c>u{
+    font-size:12px!important;font-weight:500!important;line-height:1.3!important;color:var(--muted)!important;margin:3px 0 0!important;text-decoration:none!important;font-style:normal!important}
+  .lbc-kpi,.phy-kpi{display:flex!important;flex-direction:column!important;align-items:stretch!important}
+  .phy-kpi-l{order:-1}
+  .lbc-kpi>span{order:-1}
+  .lbc-ctx b{font-size:inherit!important;font-weight:600!important;line-height:inherit!important;margin:0!important}
+  /* las cifras sueltas de Nutrición y Cargas, en su tarjeta */
+  #v-nutri .nuc-head,#v-carga .cgr-hero{display:block!important;background:var(--panel)!important;border-radius:20px!important;box-shadow:var(--lg-shadow)!important;
+    padding:16px!important;margin:0 0 12px!important}
+  #v-nutri .nuc-head-r,#v-carga .cgr-hero-r{display:grid!important;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:0!important;width:100%!important;
+    margin:14px 0 0!important;padding:0!important;border-top:.5px solid var(--hair)}
+  #v-nutri .nuc-st,#v-carga .cgr-stat{display:flex!important;flex-direction:column;padding:12px 12px 0 0!important;margin:0!important;min-width:0}
+  #v-nutri .nuc-st+.nuc-st,#v-carga .cgr-stat+.cgr-stat{padding-left:12px!important;border-left:.5px solid var(--hair)}
+  #v-carga .cgr-hero-top{gap:0!important}
+  /* Nutrición: dos columnas y el pedido en su propia fila */
+  #v-nutri .nuc-head-r{grid-auto-flow:row!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #v-nutri .nuc-st:nth-child(3){grid-column:1/-1;border-left:none!important;padding-left:0!important;margin-top:12px!important;border-top:.5px solid var(--hair)}
+  #v-nutri .nuc-st>b,#v-carga .cgr-stat>b{white-space:nowrap}
+  .fis-k>*,.asum>*,#team-strip .eq-tile>*{text-align:left!important;justify-content:flex-start!important;align-self:stretch!important;grid-column:auto!important;grid-row:auto!important}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48037,8 +48109,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.23*/
-const VER_ACTUAL='2026-11-13.23';
+/*BUILD:2026-11-13.24*/
+const VER_ACTUAL='2026-11-13.24';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
