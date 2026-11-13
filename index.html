@@ -16778,8 +16778,44 @@ function bmAlineaCifras(){
   }));
 }
 (function(){let t=null;window.addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(()=>{try{bmAlineaCifras();}catch(e){}},160);});})();
+/* v649 · Las explicaciones, al pie de su tarjeta. Daniel, 13/11/2026,
+   propuesta 8 de la pasada de armonía. Medido a 375 px: en 13 tarjetas una
+   frase gris de 50 caracteres o más («la barra es la carga del día…»,
+   «pulsa un concepto para cobrar solo ese…», «TSA sobre 100…») iba entre el
+   título y el contenido, así que lo primero que se leía era cómo leer, no el
+   dato. HIG · Lists and tables: el texto que explica un grupo va en su pie.
+   Se MUEVE el nodo al final de la tarjeta —delante de la nota que ya tuviera
+   al pie—, no se reordena con CSS: así el lector de pantalla lo lee en el
+   mismo orden en que se ve. Sólo frases de texto, sin cifras en negrita
+   (una línea con datos, como la del pedido, es un subtítulo y se queda), y
+   sólo si la tarjeta tiene algo más que enseñar. Se quedan arriba a
+   propósito la pregunta del perfil de carga-respuesta (es lo que el panel
+   contesta), las leyendas que hacen falta para leer el gráfico, la lectura
+   de los gráficos y los avisos de «sin datos». Lo repinta quien pinta la
+   tarjeta; esta pasada vuelve a bajarla. En el ordenador no corre. */
+const BMNA=[[':scope>.cgr-card-h>span','.cgr-card'],[':scope>.pro-sub','.card-pro'],[':scope>.ctrlrow>span.small','.panel'],
+  [':scope>h2>span.r','.panel'],[':scope>.fband-h>.s','.panel'],[':scope>h2+p.hint','#v-config .panel']];
+function bmNotas(){
+  const v=document.querySelector('main .view.on');if(!v)return;
+  BMNA.forEach(([ns,cs])=>v.querySelectorAll(cs).forEach(c=>{
+    if(!c.checkVisibility()||c.closest(BMG_DOC))return;
+    const n=c.querySelector(ns);if(!n||n.classList.contains('bm-nota')||!n.checkVisibility())return;
+    if(!n.matches('p.hint')&&n.querySelector('*:not(i):not(em)'))return;
+    if(n.querySelector('button,input,select,a,canvas,svg,img'))return;
+    const t=(n.textContent||'').trim();if(t.length<50||t.length>320)return;
+    const cab=n.parentElement===c?n:n.parentElement;
+    let tras=0;for(let x=cab.nextElementSibling;x;x=x.nextElementSibling)if(x.checkVisibility()&&!x.matches('p.hint,.hint'))tras++;
+    if(!tras)return;
+    n.classList.add('bm-nota');
+    const ult=c.lastElementChild;
+    if(ult&&ult!==cab&&ult.matches('p.hint,.hint')&&ult.checkVisibility())c.insertBefore(n,ult);else c.appendChild(n);
+    /* una tarjeta deshecha en filas (v643) no tiene relleno: la nota se alinea con el texto de las filas */
+    if(parseFloat(getComputedStyle(c).paddingLeft)<8)n.classList.add('bm-nota-in');
+  }));
+}
 function bmPulido(){
   if(!esMovil())return;
+  try{bmNotas();}catch(e){console.error('bmnava · explicaciones al pie',e);}
   try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
   try{bmMedico();}catch(e){console.error('bmnava · médico',e);}
   try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
@@ -44650,6 +44686,17 @@ html[data-theme="dark"]{--glass-luz:inset 0 .5px 0 rgba(255,255,255,.24),inset 0
   .fh-panel .fis-h .pro-title::first-letter,.fc-nav .fc-tit::first-letter,.vd-fecha span::first-letter{text-transform:uppercase}
 }
 </style>
+<style id="movil-v649">
+/* v649 · La explicación que baja al pie de su tarjeta: la nota de pie de
+   siempre, en el gris de la escala. Sólo se marca en el móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-nota{display:block!important;float:none!important;margin:14px 0 0!important;padding:0!important;max-width:none!important;
+    font-size:var(--fs-sm)!important;font-weight:400!important;letter-spacing:0!important;text-transform:none!important;
+    color:var(--muted)!important;line-height:1.4!important;text-align:left!important;white-space:normal!important}
+  .bm-nota+.hint,.bm-nota+p.hint{margin-top:6px!important}
+  .bm-nota.bm-nota-in{padding:0 16px!important}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48215,8 +48262,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.28*/
-const VER_ACTUAL='2026-11-13.28';
+/*BUILD:2026-11-13.29*/
+const VER_ACTUAL='2026-11-13.29';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
