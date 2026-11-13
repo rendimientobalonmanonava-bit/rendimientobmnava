@@ -16539,6 +16539,57 @@ function bmAjCierra(){
   delete b.dataset.ajk;b.querySelectorAll('.bm-aj-sec.on').forEach(p=>p.classList.remove('on'));
   window.scrollTo({top:0,behavior:'instant'});return true;
 }
+/* v660 · Los gráficos dibujados, con el trato de Salud. Daniel, 13/11/2026,
+   propuesta 4. Los gráficos de Chart.js tienen desde la v597 su cifra de
+   lectura y se leen deslizando el dedo; los que la app dibuja a mano no. Con
+   el inventario hecho son cuatro con un valor en cada marca: el microciclo
+   del Calendario, «Su carga contra su normal» y el radar de capacidades de la
+   ficha, y «Carga y dolor» de Fisioterapia. (Los mapas corporales, los
+   medidores y las tablas no son gráficos de serie y no entran.)
+   Encima de cada uno, la lectura como en Salud —qué y cuándo en pequeño, la
+   cifra en grande—, que arranca en la última marca; deslizando el dedo se
+   lee cada una y se resalta. El texto es el MISMO que ya llevaba cada marca:
+   no se calcula nada. Mientras se lee así, no sale el globo de la v585. */
+const BMGS=[{sel:'#v-cal .mc-cols',m:':scope>[title]',x:1,ante:'.mc-chart'},{sel:'svg.fis-cd',m:'title',x:1},{sel:'.pln-ch svg',m:'title',x:1},{sel:'svg.plr-svg',m:'title',x:0,ante:'.plr-w'}];
+function bmgsMarcas(h,c){return [...h.querySelectorAll(c.m)].map(t=>t.tagName.toLowerCase()==='title'?{el:t.parentElement,tx:t.textContent}:{el:t,tx:t.getAttribute('title')})
+  .filter(o=>o.el&&o.tx&&o.el.getBoundingClientRect().width+o.el.getBoundingClientRect().height>0);}
+function bmgsPartes(tx){
+  let p=String(tx||'').replace(/\s+/g,' ').trim().split(' · ');
+  if(p.length===1){const m=p[0].match(/^(.*?)\s+([\d.,\/+−-]+.*)$/);return m?{c:m[1],v:m[2],s:''}:{c:'',v:p[0],s:''};}
+  let c=p.shift();const dk=c.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(dk){try{c=new Date(+dk[1],+dk[2]-1,+dk[3]).toLocaleDateString('es',{weekday:'short',day:'numeric',month:'numeric'});}catch(e){}}
+  let i=p.findIndex(x=>/^real\s/.test(x));if(i<0)i=p.findIndex(x=>/\d/.test(x));if(i<0)i=0;
+  const sel=p.splice(i,1)[0]||'',real=/^real\s/.test(sel);
+  return {c:c+(real?' · real':''),v:sel.replace(/^real\s+/,''),s:p.join(' · ')};
+}
+function bmgsPon(h,o){
+  const L=h._bmgsL;if(!L)return;
+  const q=bmgsPartes(o?o.tx:'');
+  L.innerHTML=o?'<span class="c">'+bmEsc(q.c)+'</span><b>'+bmEsc(q.v)+'</b>'+(q.s?'<span class="s">'+bmEsc(q.s)+'</span>':''):'<span class="c">Toca o desliza el dedo para leerlo</span>';
+  h.querySelectorAll('.bm-gs-on').forEach(x=>x.classList.remove('bm-gs-on'));
+  if(o){o.el.classList.add('bm-gs-on');h.classList.add('bm-gs-lee');}else h.classList.remove('bm-gs-lee');
+}
+function bmGraficosSalud(){
+  BMGS.forEach(c=>document.querySelectorAll(c.sel).forEach(h=>{
+    if(!h.checkVisibility()||h.closest(BMG_DOC))return;
+    const M=bmgsMarcas(h,c);if(M.length<3)return;
+    if(!h._bmgsL||!h._bmgsL.isConnected){
+      const L=document.createElement('div');L.className='bm-gs-l';L.setAttribute('aria-live','polite');
+      ((c.ante&&h.closest(c.ante))||h).insertAdjacentElement('beforebegin',L);h._bmgsL=L;h.setAttribute('data-bmgs','1');
+      const mira=e=>{const ms=bmgsMarcas(h,c);if(!ms.length)return;const X=e.clientX,Y=e.clientY;
+        let b=null,d=1e9;ms.forEach(o=>{const r=o.el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+          const dd=c.x?Math.abs(cx-X):Math.hypot(cx-X,cy-Y);if(dd<d){d=dd;b=o;}});
+        if(b&&b.el!==h._bmgsU){h._bmgsU=b.el;bmgsPon(h,b);try{bmVibra();}catch(_){}}};
+      h.addEventListener('pointerdown',e=>{if(!esMovil())return;h._bmgsA=1;mira(e);});
+      h.addEventListener('pointermove',e=>{if(h._bmgsA||e.pointerType==='mouse')mira(e);});
+      ['pointerup','pointercancel','pointerleave'].forEach(t=>h.addEventListener(t,()=>{h._bmgsA=0;}));
+      h.style.touchAction='pan-y';
+      /* arranca en hoy si el gráfico lo tiene; si no, en la última marca */
+      const hoy=typeof dkey==='function'?dkey(new Date()):'';const m0=c.x?(M.find(o=>hoy&&o.tx.indexOf(hoy)===0)||M[M.length-1]):null;
+      bmgsPon(h,m0);if(m0)h._bmgsU=m0.el;
+    }
+  }));
+}
 const BMNUC=new Set();
 function bmCobroLista(){
   const v=document.getElementById('v-nutri');if(!v||!v.classList.contains('on'))return;
@@ -17122,6 +17173,7 @@ function bmPulido(){
   try{bmPliegues();}catch(e){console.error('bmnava · pliegues',e);}
   try{bmD14();}catch(e){console.error('bmnava · 14 días',e);}
   try{bmAjustes();}catch(e){console.error('bmnava · ajustes de médico',e);}
+  try{bmGraficosSalud();}catch(e){console.error('bmnava · gráficos dibujados',e);}
   try{bmCobroLista();}catch(e){console.error('bmnava · cobrar en filas',e);}
   try{bmVoz();}catch(e){console.error('bmnava · voiceover',e);}
   try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
@@ -17573,6 +17625,8 @@ function bmTablaCierra(){
 const BMX={de:null};
 function bmxTexto(t){
   if(!t||!t.closest||t.closest('#bm-ex'))return null;
+  /* v660 · en un gráfico que se lee con el dedo, la lectura va encima: sin globo */
+  if(t.closest('[data-bmgs]'))return null;
   let n=null,txt='';
   const sv=t.closest('svg');
   if(sv){for(let x=t;x&&x.nodeType===1;x=x.parentNode){
@@ -45135,6 +45189,19 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   @media (prefers-reduced-motion:reduce){.bm-aj-sec.bm-aj-entra{animation:none}}
 }
 </style>
+<style id="movil-v660">
+/* v660 · La lectura de los gráficos dibujados, como la de Salud (v597). */
+.bm-gs-l{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-gs-l{display:flex;flex-direction:column;gap:1px;margin:2px 0 10px;min-height:52px}
+  .bm-gs-l .c{font-size:var(--fs-sm);font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+  .bm-gs-l b{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.15;color:var(--txt);font-variant-numeric:tabular-nums}
+  .bm-gs-l .s{font-size:var(--fs-sm);color:var(--muted);line-height:1.3}
+  [data-bmgs].bm-gs-lee :is(rect,circle,path,.mc-col,[title]):not(.bm-gs-on){transition:opacity .15s ease}
+  [data-bmgs] .bm-gs-on{filter:drop-shadow(0 0 3px var(--accent))}
+  .mc-cols[data-bmgs] .bm-gs-on{outline:2px solid var(--accent);outline-offset:1px;border-radius:6px}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48720,8 +48787,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.39*/
-const VER_ACTUAL='2026-11-13.39';
+/*BUILD:2026-11-13.40*/
+const VER_ACTUAL='2026-11-13.40';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
