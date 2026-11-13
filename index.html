@@ -16498,6 +16498,47 @@ function bmD14(){
     r.setAttribute('aria-expanded',BMD14.has(dia)?'true':'false');
   });
 }
+/* v659 · Médico › Configuración como los Ajustes de iOS. Daniel, 13/11/2026,
+   propuesta 3. Medido a 375 px: un solo bloque de 3.016 px con cuatro
+   secciones una detrás de otra (Valoraciones y cuestionarios, Configuración
+   médica, Fisioterapia y Modelo de readaptación). En el móvil son cuatro
+   filas con su icono, su nombre y su descripción, y cada una abre SU pantalla
+   con «‹ Configuración» arriba; «atrás» (gesto, botón o Escape) vuelve a la
+   lista. Las secciones son las mismas, con su contenido y sus botones: sólo
+   cambia que se ve una cada vez. HIG · Navigation: «use a hierarchical
+   structure… people move from a general list to specific detail». */
+function bmAjCuerpo(){return document.querySelector('#medpane-config .med-cfg-body');}
+function bmAjustes(){
+  const b=bmAjCuerpo();if(!b)return;
+  const pane=document.getElementById('medpane-config');
+  if(!pane.checkVisibility()){if(b.dataset.ajk)bmAjCierra();return;}
+  const secs=[...b.querySelectorAll(':scope>.grid>.panel,:scope>.panel')];if(!secs.length)return;
+  b.classList.add('bm-aj');
+  let L=b.querySelector(':scope>.bm-aj-lista');
+  if(!L){L=document.createElement('div');L.className='bm-aj-lista bmh-grupo';b.insertBefore(L,b.firstChild);
+    const at=document.createElement('button');at.type='button';at.className='bm-aj-atras';at.innerHTML='<i aria-hidden="true">‹</i>Configuración';
+    at.addEventListener('click',()=>bmAjCierra());L.insertAdjacentElement('afterend',at);}
+  const filas=secs.map((p,i)=>{
+    p.classList.add('bm-aj-sec');p.dataset.ajk=String(i);
+    const h=p.querySelector(':scope>h2');
+    const t=h?[...h.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim():'Sección';
+    const r=h&&h.querySelector('.r');const sub=r&&!r.querySelector('button')?r.textContent.replace(/\s+/g,' ').trim():'';
+    return '<button type="button" class="bmh-fila bm-aj-f" data-ajk="'+i+'">'+(typeof bmGi==='function'?bmGi(bmGlifo(t)):'')
+      +'<span class="tx">'+bmEsc(t)+(sub?'<small>'+bmEsc(sub)+'</small>':'')+'</span><i class="ch" aria-hidden="true">›</i></button>';}).join('');
+  if(L._h!==filas){L._h=filas;L.innerHTML=filas;
+    L.querySelectorAll('.bm-aj-f').forEach(f=>f.addEventListener('click',()=>bmAjAbre(f.dataset.ajk)));}
+}
+function bmAjAbre(k){
+  const b=bmAjCuerpo();if(!b)return;b.dataset.ajk=k;
+  b.querySelectorAll('.bm-aj-sec').forEach(p=>p.classList.toggle('on',p.dataset.ajk===k));
+  try{bmVibra();}catch(_){}window.scrollTo({top:0,behavior:'instant'});
+  const p=b.querySelector('.bm-aj-sec.on');if(p){p.classList.remove('bm-aj-entra');void p.offsetWidth;p.classList.add('bm-aj-entra');}
+}
+function bmAjCierra(){
+  const b=bmAjCuerpo();if(!b||!b.dataset.ajk)return false;
+  delete b.dataset.ajk;b.querySelectorAll('.bm-aj-sec.on').forEach(p=>p.classList.remove('on'));
+  window.scrollTo({top:0,behavior:'instant'});return true;
+}
 const BMNUC=new Set();
 function bmCobroLista(){
   const v=document.getElementById('v-nutri');if(!v||!v.classList.contains('on'))return;
@@ -17080,6 +17121,7 @@ function bmPulido(){
   try{bmResumenFold();}catch(e){console.error('bmnava · resumen plegado',e);}
   try{bmPliegues();}catch(e){console.error('bmnava · pliegues',e);}
   try{bmD14();}catch(e){console.error('bmnava · 14 días',e);}
+  try{bmAjustes();}catch(e){console.error('bmnava · ajustes de médico',e);}
   try{bmCobroLista();}catch(e){console.error('bmnava · cobrar en filas',e);}
   try{bmVoz();}catch(e){console.error('bmnava · voiceover',e);}
   try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
@@ -17618,6 +17660,8 @@ function bmPriVe(){const b=document.getElementById('bm-pri');if(!b)return;let t=
 function bmCierraCapa(){
   const vis=id=>{const e=document.getElementById(id);return e&&getComputedStyle(e).display!=='none'?e:null;};
   let e;
+  /* v659 · dentro de una sección de Médico › Configuración, «atrás» vuelve a la lista */
+  if(typeof bmAjCierra==='function'&&esMovil()&&bmAjCierra())return true;
   if(typeof bmtCierra==='function'&&bmtCierra())return true;
   if(typeof bmPreviaCierra==='function'&&bmPreviaCierra())return true;
   if(BMG.ch){bmgCierra();return true;}
@@ -18040,6 +18084,7 @@ function bmCapaAbierta(){
   const pv=document.getElementById('bm-prev');if(pv&&pv.classList.contains('on'))return true;
   const tm=document.getElementById('bm-tmenu');if(tm&&tm.classList.contains('on'))return true;
   if(document.querySelector('.bm-tv'))return true;
+  if(document.querySelector('.bm-aj[data-ajk]'))return true;
   if(vis('iso-overlay')||vis('ficha-overlay')||vis('ph-overlay')||vis('med-overlay'))return true;
   const d=document.getElementById('drawer');if(d&&d.classList.contains('on'))return true;
   return document.body.classList.contains('sb-open');
@@ -45073,6 +45118,23 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   @media (prefers-reduced-motion:reduce){#v-carga .bm-d14-ch{transition:none}}
 }
 </style>
+<style id="movil-v659">
+/* v659 · Médico › Configuración como Ajustes: la lista y una sección cada vez. */
+.bm-aj-lista,.bm-aj-atras{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-aj>.bm-aj-lista{display:block;margin:0 0 12px}
+  .bm-aj:not([data-ajk]) .bm-aj-sec{display:none!important}
+  .bm-aj[data-ajk]>.bm-aj-lista{display:none}
+  .bm-aj[data-ajk] .bm-aj-sec:not(.on){display:none!important}
+  .bm-aj[data-ajk]>.bm-aj-atras{display:inline-flex;align-items:center;gap:2px;min-height:44px;margin:0 0 8px -6px;padding:0 6px;border:none;background:none;
+    font:inherit;font-size:17px;color:var(--accent);cursor:pointer}
+  .bm-aj-atras i{font-style:normal;font-size:26px;line-height:1;margin-top:-2px}
+  .bm-aj .bm-aj-f .tx small{display:block;font-size:var(--fs-sm);color:var(--muted);font-weight:400;white-space:normal}
+  .bm-aj-sec.bm-aj-entra{animation:bmAjEntra .3s cubic-bezier(.32,.72,0,1)}
+  @keyframes bmAjEntra{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.bm-aj-sec.bm-aj-entra{animation:none}}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48658,8 +48720,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.38*/
-const VER_ACTUAL='2026-11-13.38';
+/*BUILD:2026-11-13.39*/
+const VER_ACTUAL='2026-11-13.39';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
