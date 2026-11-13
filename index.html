@@ -16562,6 +16562,8 @@ function bmrfToca(k){
   const ab=bmrfAbiertos(),i=ab.indexOf(k);if(i>=0)ab.splice(i,1);else ab.push(k);
   try{localStorage.setItem(BMRF_K,JSON.stringify(ab));}catch(e){}
   bmResumenFold();try{bmVibra();}catch(e){}
+  /* lo que estaba plegado no se pintaba: sus notas y sus gráficos se repasan al abrirlo */
+  setTimeout(()=>{try{bmNotas();bmVoz();}catch(_){}},60);
   const c=BMRF.find(x=>x.k===k),ct=c&&document.getElementById(c.id);
   if(ct&&i<0)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(ch=>{if(ch&&ch.canvas&&ct.contains(ch.canvas))ch.resize();});}catch(e){}},0);
 }
@@ -44938,6 +44940,32 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   @media (prefers-reduced-motion:reduce){#v-nutri .bm-nuc-ch{transition:none}}
 }
 </style>
+<style id="movil-v656">
+/* v656 · Lo que quedaba de contraste y de toque. Daniel, 13/11/2026,
+   propuesta 6. Medido en las 29 pantallas a 375 px, en los dos temas:
+   · «Dónde carga dentro del ciclo» (ficha › Carga): las posiciones con pocos
+     días se atenuaban con `opacity:.55` y sus 18 textos quedaban a 2,2:1. §3:
+     un texto no se atenúa con opacidad. Se atenúa la barra; el texto pasa al
+     gris de la escala.
+   · «Hoy» / «Mañana» de Próximas sesiones: el color del tipo de sesión sobre
+     su propio tinte daba 3,2:1 en claro y 3,9 en oscuro. Se mezcla con el
+     color del texto, como `colTinta`, y vira con el tema.
+   · El «Hoy» de la semana bajo el título medía 35 px de ancho: 44.
+   Sólo en el móvil. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .plm-c--poco{opacity:1!important}
+  .plm-c--poco .plm-plot{opacity:.55}
+  .plm-c--poco :is(.plm-v,.plm-md,.plm-n){color:var(--muted)!important}
+  .tn-dia,.tn-dur i{color:color-mix(in srgb,var(--tc) 50%,var(--txt))!important}
+  .bms-hoy{min-width:44px;text-align:center}
+  /* Calendario: el rótulo de la sesión va en el color del texto (el punto ya dice
+     el tipo, regla de la v560), la desviación se mezcla con el texto y los grises
+     pequeños pasan al gris de la escala que se lee */
+  .cw-ev-tx{color:var(--txt)!important}
+  .cw-dev{color:color-mix(in srgb,var(--vc) 55%,var(--txt))!important}
+  .cw-md-tag:not(.is-md),.mc-pend,.mc-pend::after{color:var(--muted)!important}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48523,8 +48551,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.35*/
-const VER_ACTUAL='2026-11-13.35';
+/*BUILD:2026-11-13.36*/
+const VER_ACTUAL='2026-11-13.36';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
