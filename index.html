@@ -16117,9 +16117,74 @@ function bmRolSiToca(){
   if(BMH.pila.length||document.body.classList.contains('modal-open')||document.body.classList.contains('sb-open')){setTimeout(bmRolSiToca,15000);return;}
   bmRol(true);
 }
+/* v629 · 6 · La pestaña Hoy de la ficha, plegada a lo esencial, como los
+   destacados de Salud. Daniel, 13/11/2026, eligió la propuesta 6. Medido a
+   375 px: Hoy eran 4.337 px y cuatro bloques se llevaban 2.831 —«Intensidad de
+   su última sesión» (928), «Readiness» (788), «Z-score por variable» (230) y
+   «Sus últimos entrenamientos» (885)—. En el móvil cada uno queda en una fila
+   con su título, su cifra clave y una flecha; tocarla lo abre entero, y lo
+   que se abre se queda abierto en ese teléfono (`bmnava-fichahoy`, con
+   guion). El orden de la v470 no cambia.
+   La cifra NO se recalcula: se lee de lo que el propio bloque ya ha pintado
+   (la carga del primer medidor y su %Z4+Z5, el readiness del jugador, la
+   variable con el z más lejos de cero con su color, y la última sesión del
+   registro), así que la fila y el bloque no pueden decir cosas distintas. */
+const BMPR_K='bmnava-fichahoy';
+const bmprNum=t=>{const m=String(t||'').trim().match(/^([−\-+]?[\d.,]+)\s*(.*)$/);return m?bmEsc(m[1])+(m[2]?'<small>'+bmEsc(m[2])+'</small>':''):bmEsc(String(t||'').trim());};
+const BMPR=[
+  {k:'int',cont:'#pl-intens',pan:'#pl-intens>.panel',res:(pn,fecha)=>{
+    const g=[...pn.querySelectorAll('.ag')].map(a=>({v:((a.querySelector('.ag-bv')||{}).textContent||'').trim(),l:((a.querySelector('.ag-lab')||{}).textContent||'').trim()})).filter(x=>x.v);
+    if(!g.length)return null;const z=g.find(x=>/Z4\+Z5/.test(x.v+' '+x.l));const zp=z&&(z.v.match(/[\d.,]+\s*%/)||[])[0];
+    return {v:bmprNum(g[0].v),sub:[fecha.split(' · ')[0],zp?zp.replace(/\s*%/,' %')+' en Z4+Z5':'',/Temporada/.test(fecha)?'temporada pasada':''].filter(Boolean).join(' · ')};}},
+  {k:'rd',cont:'#player-readiness',pan:'#player-readiness',res:(pn,fecha)=>{
+    const p=(STATE.players||{})[STATE.curPlayer]||{};const r=p.readiness!=null&&!isNaN(p.readiness)?Math.round(p.readiness):null;
+    if(r==null)return null;return {v:String(r),col:colTexto('var(--'+recSev(r)+')'),sub:'Wellness del '+(fecha.split(' · ')[0]||'último parte')};}},
+  {k:'z',cont:'#pl-zrow',pan:'#pl-zrow',res:()=>{
+    const zs=[...document.querySelectorAll('#pl-zrow .zc')].map(c=>{const t=((c.querySelector('.z')||{}).textContent||'').replace(/^z\s*/,'').trim();
+      const n=parseFloat(t.replace('−','-').replace(',','.'));return {l:((c.querySelector('.l')||{}).textContent||'').trim(),t,n,col:(c.querySelector('.z')||{style:{}}).style.color};}).filter(x=>!isNaN(x.n));
+    if(!zs.length)return null;const m=zs.reduce((a,b)=>Math.abs(b.n)>Math.abs(a.n)?b:a);
+    return {v:bmEsc(m.t),col:m.col||'',sub:'Lo que más se aparta de su normal: '+m.l.toLowerCase()};}},
+  {k:'reg',cont:'#pl-reg',pan:'#pl-reg>.panel',res:pn=>{
+    const r=pn.querySelector('.plg-r:not(.plg-h)');if(!r)return null;
+    const d=r.querySelector('.plg-d');const dia=((d&&d.querySelector('b'))||{}).textContent||'',tipo=((d&&d.querySelector('span'))||{}).textContent||'';
+    const val=k=>{const v=[...r.querySelectorAll('.plg-v')].find(x=>((x.querySelector('em')||{}).textContent||'')===k);return v?((v.querySelector('b')||{}).textContent||'').trim():'';};
+    const rpe=val('RPE'),ua=val('Carga');
+    return {v:rpe&&rpe!=='—'?bmprNum(rpe+' RPE'):'',sub:['Última: '+dia,tipo,ua&&ua!=='—'?ua+' UA':''].filter(Boolean).join(' · ')};}}];
+function bmprAbiertos(){try{const a=JSON.parse(localStorage.getItem(BMPR_K)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function bmFichaHoy(){
+  const v=document.getElementById('v-jugador');if(!v||!v.classList.contains('on'))return;
+  const ab=bmprAbiertos();
+  BMPR.forEach(c=>{
+    const ct=document.querySelector(c.cont),pn=document.querySelector(c.pan);if(!ct||!pn||!pn.classList.contains('panel'))return;
+    const abierto=ab.indexOf(c.k)>=0;
+    ct.classList.add('bm-pf');ct.classList.toggle('bm-po',abierto);pn.classList.add('bm-pp');
+    const h2=pn.querySelector(':scope>h2');
+    const tit=h2?[...h2.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim():'';
+    const fecha=h2&&h2.querySelector('.r')?h2.querySelector('.r').textContent.trim():'';
+    let r=null;try{r=c.res(pn,fecha);}catch(e){}
+    r=r||{sub:fecha};
+    const h='<span class="bm-pr-t"><b>'+bmEsc(tit)+'</b>'+(r.sub?'<small>'+bmEsc(r.sub)+'</small>':'')+'</span>'
+      +(r.v?'<span class="bm-pr-v"'+(r.col?' style="color:'+r.col+'"':'')+'>'+r.v+'</span>':'')+'<i class="bm-pr-ch" aria-hidden="true">›</i>';
+    let b=pn.querySelector(':scope>.bm-pr');
+    if(!b){b=document.createElement('button');b.type='button';b.className='bm-pr';b.dataset.k=c.k;
+      b.addEventListener('click',()=>bmprToca(c.k));pn.insertBefore(b,pn.firstChild);}
+    if(b._h!==h){b._h=h;b.innerHTML=h;}
+    b.setAttribute('aria-expanded',abierto?'true':'false');
+    b.setAttribute('aria-label',tit+(r.sub?'. '+r.sub:'')+(abierto?'. Toca para plegarlo':'. Toca para verlo entero'));
+  });
+}
+function bmprToca(k){
+  const ab=bmprAbiertos(),i=ab.indexOf(k);if(i>=0)ab.splice(i,1);else ab.push(k);
+  try{localStorage.setItem(BMPR_K,JSON.stringify(ab));}catch(e){}
+  bmFichaHoy();try{bmVibra();}catch(e){}
+  const c=BMPR.find(x=>x.k===k),ct=c&&document.querySelector(c.cont);
+  /* Chart.js mide el lienzo al crearlo: uno que estaba plegado nació sin tamaño */
+  if(ct&&i<0)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(ch=>{if(ch&&ch.canvas&&ct.contains(ch.canvas))ch.resize();});}catch(e){}},0);
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmFichaHoy();}catch(e){console.error('bmnava · ficha plegada',e);}
   try{bmFormasHoja();}catch(e){console.error('bmnava · formularios en hoja',e);}
   try{bmTarjetasT();}catch(e){}
   try{bmProx();}catch(e){console.error('bmnava · próximo partido',e);}
@@ -43190,6 +43255,26 @@ html.bmz .view.on{animation:none!important}
 /* v628 · 5 · El interruptor oculto que hace vibrar el teléfono: fuera de la pantalla, sin ocupar sitio ni recibir toques. */
 .bm-vib{position:fixed;left:-200px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
 </style>
+<style id="movil-v629">
+/* v629 · 6 · Ficha › Hoy, cada bloque plegado a su cifra clave. Sólo en el móvil. */
+.bm-pr{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-pp>h2{display:none!important}
+  .bm-pf:not(.bm-po) .bm-pp>:not(.bm-pr),.bm-pf.bm-pp:not(.bm-po)>:not(.bm-pr){display:none!important}
+  .bm-pp>.bm-pr{display:flex;align-items:center;gap:12px;width:calc(100% + 16px);min-height:52px;margin:-8px -8px 0;padding:8px;box-sizing:border-box;border:none;
+    border-radius:14px;background:none;font:inherit;color:var(--txt);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  .bm-po .bm-pp>.bm-pr,.bm-pp.bm-po>.bm-pr{margin-bottom:12px}
+  .bm-pr:active{background:var(--seg-carril)}
+  .bm-pr-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .bm-pr-t b{font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+  .bm-pr-t small{font-size:var(--fs-sm);color:var(--muted);line-height:1.3}
+  .bm-pr-v{flex:none;font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .bm-pr-v small{font-size:13px;font-weight:600;color:var(--muted);margin-left:3px;letter-spacing:0}
+  .bm-pr-ch{flex:none;font-style:normal;font-size:20px;color:var(--muted2);transition:transform .25s cubic-bezier(.32,.72,0,1)}
+  .bm-po .bm-pr-ch{transform:rotate(90deg)}
+}
+@media(max-width:760px) and (prefers-reduced-motion:reduce){.bm-pr-ch{transition:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46755,8 +46840,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.7*/
-const VER_ACTUAL='2026-11-13.7';
+/*BUILD:2026-11-13.8*/
+const VER_ACTUAL='2026-11-13.8';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
