@@ -10624,8 +10624,8 @@ window.bkpAutoRestaurar=function(dia){
   if(!c)return 'No hay ninguna copia automática guardada.';
   const ks=Object.keys(c.datos||{});
   const det=ks.map(k=>'· '+lsNombre(k)+': '+(lsTieneDatos(k)?bkpCuenta(localStorage.getItem(k)):0)+' → '+bkpCuenta(c.datos[k])).join('\n');
-  if(!confirm('Restaurar la copia automática del '+c.dia+'.\n\nSe SUSTITUYE lo que hay ahora:\n\n'+det
-    +'\n\nSi la sincronización está activa, esto se repartirá al resto del staff.\n¿Continuar?'))return 'Cancelado.';
+  if(!bmPregunta('Restaurar la copia automática del '+c.dia+'.\n\nSe SUSTITUYE lo que hay ahora:\n\n'+det
+    +'\n\nSi la sincronización está activa, esto se repartirá al resto del staff.\n¿Continuar?',()=>window.bkpAutoRestaurar(dia)))return 'Cancelado.';
   ks.forEach(k=>{try{LS_LEIDAS[k]=true;try{lsPerdonarTumbas(k,JSON.parse(c.datos[k]));}catch(e2){}localStorage.setItem(k,c.datos[k]);}catch(e){}});
   return 'Restaurada la copia del '+c.dia+' ('+ks.length+' bloques). Recarga la página.';
 };
@@ -12129,7 +12129,7 @@ window.pbDolor=function(injId){
 };
 window.pbDolorDel=function(injId,i){
   const e=medInj(injId);if(!e||!e.pain)return;
-  if(!confirm('¿Borrar este valor de dolor?'))return;
+  if(!bmPregunta('¿Borrar este valor de dolor?',()=>window.pbDolorDel(injId,i)))return;
   e.pain.splice(i,1);medPersist();pbDolor(injId);
   try{renderMedico&&renderMedico();}catch(err){}
 };
@@ -12175,7 +12175,7 @@ window.pbNotas=function(injId){
 };
 window.pbNotaDel=function(injId,i){
   const e=medInj(injId);if(!e||!e.notes)return;
-  if(!confirm('¿Borrar esta nota?'))return;
+  if(!bmPregunta('¿Borrar esta nota?',()=>window.pbNotaDel(injId,i)))return;
   e.notes.splice(i,1);medPersist();pbNotas(injId);
 };
 window.pbNotasGuardar=function(injId){
@@ -12208,7 +12208,7 @@ window.pbEditar=function(tipo,name,id){
 };
 window.pbBorrar=function(tipo,name,id){
   if(tipo==='parte'||tipo==='episodio'){
-    if(!confirm('¿Borrar este parte del día? No se puede deshacer.'))return;
+    if(!bmPregunta('¿Borrar este parte del día? No se puede deshacer.',()=>window.pbBorrar(tipo,name,id)))return;
     physioEnsure();
     const arr=(STATE.physioUser||{})[name]||[];
     const i=arr.findIndex(e=>e&&e._id===id);
@@ -12216,10 +12216,10 @@ window.pbBorrar=function(tipo,name,id){
     arr.splice(i,1);physioPersist();
     STATE.physioEx=null;try{buildPhysio();}catch(e){}
   }else if(tipo==='trat'){
-    if(!confirm('¿Borrar este tratamiento? No se puede deshacer.'))return;
+    if(!bmPregunta('¿Borrar este tratamiento? No se puede deshacer.',()=>window.pbBorrar(tipo,name,id)))return;
     STATE.med.treat=(STATE.med.treat||[]).filter(t=>t&&t.id!==id);medPersist();
   }else if(tipo==='cita'){
-    if(!confirm('¿Borrar esta consulta? No se puede deshacer.'))return;
+    if(!bmPregunta('¿Borrar esta consulta? No se puede deshacer.',()=>window.pbBorrar(tipo,name,id)))return;
     if(window.medLogRW)medLogRW();
     if(STATE.medLog&&STATE.medLog[name])
       STATE.medLog[name]=STATE.medLog[name].filter(m=>m&&m.id!==id);
@@ -12881,7 +12881,7 @@ window.pbDeshacerFusiones=function(){
   try{medDbLoad();}catch(e){}
   const n=((STATE.med||{}).inj||[]).filter(x=>x&&x.mergedInto).length;
   if(!n){if(window.toast)toast('No hay fusiones que deshacer');return;}
-  if(!confirm('¿Deshacer las '+n+' fusiones? Los problemas vuelven a listarse por separado. Los partes enlazados no se tocan.'))return;
+  if(!bmPregunta('¿Deshacer las '+n+' fusiones? Los problemas vuelven a listarse por separado. Los partes enlazados no se tocan.',()=>window.pbDeshacerFusiones()))return;
   ((STATE.med||{}).inj||[]).forEach(x=>{if(x&&x.mergedInto)delete x.mergedInto;});
   medPersist();pbRenderAgrupar();
   if(window.toast)toast(n+' fusiones deshechas');
@@ -13493,12 +13493,12 @@ function medCritHtml(injId,c){
    se perdían sus mediciones. Ahora se corrige el texto y el objetivo. */
 function medCritEdit(injId,cid){
   const {c}=medFindCrit(injId,cid);if(!c)return;
-  const t=prompt('Texto del criterio:',c.txt);
+  const t=bmPide('Texto del criterio:',c.txt,()=>medCritEdit(injId,cid));
   if(t===null)return;
   if(!t.trim()){if(window.toast)toast('El criterio necesita un texto');return;}
   c.txt=t.trim();
   if(c.tipo==='num'){
-    const o=prompt('Objetivo'+(c.unidad?' ('+c.unidad+')':'')+':',c.obj!=null?c.obj:'');
+    const o=bmPide('Objetivo'+(c.unidad?' ('+c.unidad+')':'')+':',c.obj!=null?c.obj:'',()=>medCritEdit(injId,cid));
     if(o!==null&&o.trim()!==''){const n=parseFloat(o);if(!isNaN(n))c.obj=n;}
   }
   medPersist();try{renderMedico();}catch(e){}
@@ -13508,28 +13508,28 @@ window.medCritEdit=medCritEdit;
 function medFindCrit(injId,cid){const e=medInj(injId);if(!e)return{};const f=e.phases[e.phaseIdx]||{crit:[]};return {e,f,c:f.crit.find(x=>x.id===cid)};}
 function medCritCheck(injId,cid){const {c}=medFindCrit(injId,cid);if(!c)return;if(c.tipo==='num'&&c.med.length){toast('Este criterio se evalúa por medidas');return;}c.done=!c.done;medPersist();renderMedico();}
 function medCritMeasure(injId,cid){const {c}=medFindCrit(injId,cid);if(!c)return;const el=document.getElementById('cm-'+cid);const v=parseFloat(el&&el.value);if(isNaN(v)){toast('Introduce el valor');return;}c.med.push({dk:medToday(),v});medPersist();renderMedico();toast('Medida registrada');}
-function medCritDel(injId,cid){const {f}=medFindCrit(injId,cid);if(!f)return;if(!confirm('¿Eliminar este criterio?'))return;f.crit=f.crit.filter(x=>x.id!==cid);medPersist();renderMedico();}
+function medCritDel(injId,cid){const {f}=medFindCrit(injId,cid);if(!f)return;if(!bmPregunta('¿Eliminar este criterio?',()=>medCritDel(injId,cid)))return;f.crit=f.crit.filter(x=>x.id!==cid);medPersist();renderMedico();}
 function medCritNew(injId){const e=medInj(injId);const f=e&&e.phases[e.phaseIdx];if(!f)return;
- const txt=prompt('Texto del criterio (p. ej. "CMJ unilateral · simetría"):');if(!txt)return;
- const objS=prompt('Valor objetivo numérico (deja vacío si es solo un check):','');
+ const txt=bmPide('Texto del criterio (p. ej. "CMJ unilateral · simetría"):',undefined,()=>medCritNew(injId));if(!txt)return;
+ const objS=bmPide('Valor objetivo numérico (deja vacío si es solo un check):','',()=>medCritNew(injId));
  let c;
  if(objS!==null&&objS.trim()!==''&&!isNaN(parseFloat(objS))){
-  const unidad=prompt('Unidad (%, °, /10…):','')||'';
-  const low=confirm('¿El objetivo es POR DEBAJO del valor? (Aceptar = mejor bajo, p. ej. dolor ≤3)');
+  const unidad=bmPide('Unidad (%, °, /10…):','',()=>medCritNew(injId))||'';
+  const low=bmPregunta('¿El objetivo es POR DEBAJO del valor? (Aceptar = mejor bajo, p. ej. dolor ≤3)',()=>medCritNew(injId),{si:'Mejor bajo',no:'Mejor alto',t:'¿El objetivo es por debajo del valor?',x:'Elige si lo bueno es quedarse por debajo o por encima del objetivo.'});
   c={id:medUid('c'),txt:txt.trim(),tipo:'num',obj:parseFloat(objS),unidad:unidad.trim(),low,med:[],done:false};
  }else c={id:medUid('c'),txt:txt.trim(),tipo:'check',obj:null,unidad:'',low:false,med:[],done:false};
  f.crit.push(c);medPersist();renderMedico();}
 function medPhaseEdit(injId){const e=medInj(injId);const f=e&&e.phases[e.phaseIdx];if(!f)return;
- const nom=prompt('Nombre de la fase:',f.nom);if(nom===null)return;
- const sub=prompt('Duración orientativa (p. ej. "6–12 sem"):',f.sub||'');
+ const nom=bmPide('Nombre de la fase:',f.nom,()=>medPhaseEdit(injId));if(nom===null)return;
+ const sub=bmPide('Duración orientativa (p. ej. "6–12 sem"):',f.sub||'',()=>medPhaseEdit(injId));
  f.nom=(nom||f.nom).trim();if(sub!==null)f.sub=sub.trim();medPersist();renderMedico();}
 function medPhaseAdd(injId){const e=medInj(injId);if(!e)return;
- const nom=prompt('Nombre de la nueva fase:','Fase '+(e.phases.length+1));if(!nom)return;
+ const nom=bmPide('Nombre de la nueva fase:','Fase '+(e.phases.length+1),()=>medPhaseAdd(injId));if(!nom)return;
  e.phases.push({nom:nom.trim(),sub:'',obj:[],crit:[]});if(e.phases.length===1){e.phases[0].startDk=medToday();e.phaseIdx=0;}
  medPersist();renderMedico();}
-function medGoPhase(injId,i){const e=medInj(injId);if(!e||i===e.phaseIdx)return;if(!confirm('¿Mover el episodio a la fase «'+(e.phases[i]||{}).nom+'»?'))return;e.phaseIdx=i;if(!e.phases[i].startDk)e.phases[i].startDk=medToday();medPersist();renderMedico();}
+function medGoPhase(injId,i){const e=medInj(injId);if(!e||i===e.phaseIdx)return;if(!bmPregunta('¿Mover el episodio a la fase «'+(e.phases[i]||{}).nom+'»?',()=>medGoPhase(injId,i)))return;e.phaseIdx=i;if(!e.phases[i].startDk)e.phases[i].startDk=medToday();medPersist();renderMedico();}
 function medNextPhase(injId){const e=medInj(injId);if(!e)return;const f=e.phases[e.phaseIdx];const pend=f?f.crit.filter(c=>!medCritOk(c)).length:0;
- if(pend&&!confirm('Quedan '+pend+' criterio(s) sin cumplir en esta fase. ¿Pasar igualmente?'))return;
+ if(pend&&!bmPregunta('Quedan '+pend+' criterio(s) sin cumplir en esta fase. ¿Pasar igualmente?',()=>medNextPhase(injId)))return;
  e.phaseIdx++;const nf=e.phases[e.phaseIdx];if(nf&&!nf.startDk)nf.startDk=medToday();medPersist();renderMedico();toast('Fase: '+(nf?nf.nom:''));}
 /* ---------- Dolor ---------- */
 /* v297 · La curva de dolor era una polilínea roja sobre blanco. Ahora lleva
@@ -13679,7 +13679,7 @@ window.medNoteSave=function(injId,idx){
 };
 window.medNoteDel=function(injId,idx){
   const e=medInj(injId);if(!e||!e.notes||!e.notes[idx])return;
-  if(!confirm('¿Eliminar esta nota?\n\n'+e.notes[idx].txt.slice(0,120)))return;
+  if(!bmPregunta('¿Eliminar esta nota?\n\n'+e.notes[idx].txt.slice(0,120),()=>window.medNoteDel(injId,idx)))return;
   e.notes.splice(idx,1);medPersist();renderMedico();toast('Nota eliminada');
 };
 function medSetStatus(injId,st){const e=medInj(injId);if(!e)return;e.status=st;medPhysioSet(e,st);medPersist();renderMedico();toast('Estado: '+(PHYSTAT[st]||{}).lab);}
@@ -13690,7 +13690,7 @@ function medSetRtp(injId,v){const e=medInj(injId);if(!e)return;e.rtp=v||null;med
    ya está bien. Cerrar el caso es otra acción, medArchivar, y se hace a mano
    cuando de verdad se ha terminado. */
 function medClose(injId){const e=medInj(injId);if(!e)return;
- if(!confirm('¿Dar el alta a «'+e.title+'»? El jugador vuelve a entrenar con normalidad.\n\nEl caso NO se cierra: sigue abierto para poder seguir tratándolo.'))return;
+ if(!bmPregunta('¿Dar el alta a «'+e.title+'»? El jugador vuelve a entrenar con normalidad.\n\nEl caso NO se cierra: sigue abierto para poder seguir tratándolo.',()=>medClose(injId)))return;
  e.altaDk=medToday();e.status='';medPhysioClose(e);medPersist();
  try{renderMedico();}catch(err){}
  try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}
@@ -13698,7 +13698,7 @@ function medClose(injId){const e=medInj(injId);if(!e)return;
  toast('Alta deportiva · '+e.name+' · el caso sigue abierto');}
 /* Archivar de verdad: el caso se acabó y pasa al historial. */
 function medArchivar(injId){const e=medInj(injId);if(!e)return;
- if(!confirm('¿Cerrar definitivamente «'+e.title+'»?\n\nPasa al historial y deja de aparecer entre los problemas abiertos. Se puede reabrir.'))return;
+ if(!bmPregunta('¿Cerrar definitivamente «'+e.title+'»?\n\nPasa al historial y deja de aparecer entre los problemas abiertos. Se puede reabrir.',()=>medArchivar(injId)))return;
  e.open=false;e.closeDk=medToday();if(!e.altaDk)e.altaDk=medToday();
  medPhysioClose(e);medPersist();
  try{renderMedico();}catch(err){}
@@ -13706,9 +13706,9 @@ function medArchivar(injId){const e=medInj(injId);if(!e)return;
  toast('Caso cerrado · '+e.title);}
 window.medArchivar=medArchivar;
 function medReopen(injId){const e=medInj(injId);if(!e)return;e.open=true;e.closeDk=null;e.altaDk=null;if(e.status)medPhysioOpen(e.name,e.status,e.zona,e.lado,e.title,e.id,e.dk);medPersist();try{renderMedico();}catch(err){}try{if(STATE.curPlayer)renderProblemas(STATE.curPlayer);}catch(err){}}
-function medDelete(injId){const e=medInj(injId);if(!e)return;if(!confirm('¿Eliminar definitivamente «'+e.title+'» y todo su registro?'))return;
+function medDelete(injId){const e=medInj(injId);if(!e)return;if(!bmPregunta('¿Eliminar definitivamente «'+e.title+'» y todo su registro?',()=>medDelete(injId)))return;
  medPhysioClose(e);STATE.med.inj=STATE.med.inj.filter(x=>x.id!==injId);STATE.med.treat=STATE.med.treat.filter(t=>t.injId!==injId);if(MED_SEL===injId)MED_SEL=null;medPersist();renderMedico();}
-function medTreatDel(id){if(!confirm('¿Eliminar tratamiento?'))return;STATE.med.treat=STATE.med.treat.filter(t=>t.id!==id);medPersist();renderMedico();}
+function medTreatDel(id){if(!bmPregunta('¿Eliminar tratamiento?',()=>medTreatDel(id)))return;STATE.med.treat=STATE.med.treat.filter(t=>t.id!==id);medPersist();renderMedico();}
 /* ---------- Valoraciones (panel inferior) ---------- */
 var MED_AS={name:'',cat:''};
 function medAssessRender(){const box=document.getElementById('med-assess');if(!box)return;
@@ -13739,17 +13739,17 @@ function medAssessRender(){const box=document.getElementById('med-assess');if(!b
  }
  box.innerHTML='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"><label class="small" style="font-weight:700">Jugador <select onchange="MED_AS.name=this.value;medAssessRender()" style="margin-left:4px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'+nOpts+'</select></label>'
  +'<label class="small" style="font-weight:700">Valoración <select onchange="MED_AS.cat=this.value;medAssessRender()" style="margin-left:4px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'+cOpts+'</select></label></div>'+chart;}
-function medAlogDel(id){if(!confirm('¿Eliminar este registro?'))return;STATE.med.alog=STATE.med.alog.filter(a=>a.id!==id);medPersist();renderMedico();toast('Registro eliminado');}
+function medAlogDel(id){if(!bmPregunta('¿Eliminar este registro?',()=>medAlogDel(id)))return;STATE.med.alog=STATE.med.alog.filter(a=>a.id!==id);medPersist();renderMedico();toast('Registro eliminado');}
 /* v202 · Edición de un registro de seguimiento: valor, fecha y observación. */
 window.medAlogEdit=function(id){
   const a=(STATE.med.alog||[]).find(x=>x.id===id);if(!a)return;
-  const nv=prompt('Valor:',a.v);
+  const nv=bmPide('Valor:',a.v,()=>window.medAlogEdit(id));
   if(nv===null)return;
   const num=parseFloat(String(nv).replace(',','.'));
   if(isNaN(num)){toast('El valor debe ser un número');return;}
-  const nd=prompt('Fecha (AAAA-MM-DD):',a.dk);
+  const nd=bmPide('Fecha (AAAA-MM-DD):',a.dk,()=>window.medAlogEdit(id));
   if(nd===null)return;
-  const nn=prompt('Observación:',a.notas||'');
+  const nn=bmPide('Observación:',a.notas||'',()=>window.medAlogEdit(id));
   if(nn===null)return;
   a.v=num;
   if(/^\d{4}-\d{2}-\d{2}$/.test(nd))a.dk=nd;
@@ -13774,7 +13774,7 @@ function medStatusAdd(){const lab=(document.getElementById('ms-lab').value||'').
  const k='cs_'+norm(lab).replace(/[^a-z0-9]+/g,'').slice(0,18);
  if(PHYSTAT[k]){toast('Ya existe un estado similar');return;}
  STATE.med.statuses.push({k,lab,c,sev});medApplyStatuses();medPersist();renderMedico();toast('Estado creado: '+lab);}
-function medStatusDel(k){const s=(STATE.med.statuses||[]).find(x=>x.k===k);if(!s)return;if(!confirm('¿Eliminar el estado «'+s.lab+'»?'))return;
+function medStatusDel(k){const s=(STATE.med.statuses||[]).find(x=>x.k===k);if(!s)return;if(!bmPregunta('¿Eliminar el estado «'+s.lab+'»?',()=>medStatusDel(k)))return;
  STATE.med.statuses=STATE.med.statuses.filter(x=>x.k!==k);delete PHYSTAT[k];delete MED_SEV[k];medPersist();renderMedico();}
 function medTTypeDel(t){STATE.med.ttypes=(STATE.med.ttypes||[]).filter(x=>x!==t);medPersist();renderMedico();}
 
@@ -15014,6 +15014,95 @@ function bmfFecha(inp){
     inp.value=v;bmfDispara(inp);pinta();});
   inp._bmPinta=pinta;pinta();inp.addEventListener('change',pinta);inp.addEventListener('input',pinta);
 }
+/* v638 · Las ventanas del navegador pasan a ventanas propias de la app, en el
+   móvil. Daniel, 13/11/2026, con la propuesta 6: «después se pueden pasar las
+   otras ventanas del navegador a ventanas propias». Eran 42 confirmaciones,
+   34 avisos y 15 campos de escribir con la ventana genérica del navegador,
+   que no sigue el tema de la app ni su letra.
+   · Avisos (`alert`): una alerta centrada de iOS con «OK». Todos los de la
+     app sólo informan, así que no esperar a que se cierre no cambia nada.
+   · Confirmaciones (`bmPregunta`): la hoja de acción de la v631, con el verbo
+     de la pregunta en el botón («Borrar», «Eliminar», «Deshacer»…).
+   · Campos (`bmPide`): la alerta de iOS con un campo de texto.
+   Cómo funciona sin reescribir cada función: una ventana sin contestar
+   PARA la función en ese punto (lanza una pausa que nadie ve) y, al
+   contestar —sí, no, un texto o cancelar—, la función se vuelve a ejecutar
+   entera con esa respuesta ya puesta. Las respuestas se guardan mientras dure
+   la cadena —hay funciones que piden tres cosas seguidas— y se borran en
+   cuanto la función termina sin pedir nada más. Antes de cada ventana sólo
+   hay lecturas, así que repetirlas no cambia nada (comprobado sitio a sitio).
+   En el ordenador `bmPregunta` y `bmPide` son exactamente `confirm` y
+   `prompt`, y el `alert` de siempre. Quedan con la ventana del navegador, a
+   propósito, la restauración de una copia desde un archivo (va dentro de la
+   lectura del archivo) y el campo de respaldo para copiar el pedido. */
+const BMQ={r:{},n:0};
+const BMQ_PAUSA={bmqPausa:true,toString(){return 'bmnava · esperando una respuesta';}};
+window.addEventListener('error',e=>{if(e&&e.error&&e.error.bmqPausa)e.preventDefault();});
+window.addEventListener('unhandledrejection',e=>{if(e&&e.reason&&e.reason.bmqPausa)e.preventDefault();});
+function bmqHay(k){return Object.prototype.hasOwnProperty.call(BMQ.r,k);}
+function bmqSigue(re){
+  const n0=BMQ.n;
+  try{re();}catch(e){if(e&&e.bmqPausa)return;BMQ.r={};console.error('bmnava · tras la ventana',e);return;}
+  if(BMQ.n===n0)BMQ.r={};
+}
+function bmqPartes(msg){
+  msg=String(msg==null?'':msg);
+  let t=msg,x='';
+  const i=msg.indexOf('\n\n');
+  if(i>0){t=msg.slice(0,i);x=msg.slice(i+2);}
+  else{const j=msg.indexOf('? ');if(j>0&&j<msg.length-2){t=msg.slice(0,j+1);x=msg.slice(j+2);}}
+  const q=msg.indexOf('¿');const base=q>=0?msg.slice(q+1):msg;
+  let v=(base.match(/^\s*([A-Za-zÁÉÍÓÚÑáéíóúñü]+)/)||[])[1]||'Aceptar';
+  if(/^\s*Dar el alta/.test(base))v='Dar el alta';
+  if(/^\s*Marcar como pagado/.test(base))v='Marcar como pagado';
+  v=v.charAt(0).toUpperCase()+v.slice(1).toLowerCase();
+  return {t:t.trim(),x:x.trim(),v};
+}
+function bmPregunta(msg,re,o){
+  if(!esMovil()||!re)return confirm(msg);
+  const k='c|'+msg;if(bmqHay(k))return BMQ.r[k];
+  BMQ.n++;o=o||{};
+  const p=bmqPartes(msg);
+  bmAccion({titulo:o.t||p.t,texto:o.x!=null?o.x:p.x,si:o.si||p.v,no:o.no||'Cancelar'}).then(ok=>{BMQ.r[k]=!!ok;bmqSigue(re);});
+  throw BMQ_PAUSA;
+}
+function bmPide(msg,def,re){
+  if(!esMovil()||!re)return prompt(msg,def);
+  const k='p|'+msg;if(bmqHay(k))return BMQ.r[k];
+  BMQ.n++;
+  bmAlerta(msg,{campo:def==null?'':String(def)}).then(v=>{BMQ.r[k]=v;bmqSigue(re);});
+  throw BMQ_PAUSA;
+}
+/* La alerta de iOS: centrada, el título en negrita, el texto debajo y los
+   botones abajo separados por un filete. Una cada vez: si llega otra mientras
+   hay una abierta, espera su turno. */
+const BMAL={cola:[],abierta:false};
+function bmAlerta(msg,o){
+  o=o||{};
+  return new Promise(res=>{BMAL.cola.push({msg,o,res});bmAlSiguiente();});
+}
+function bmAlSiguiente(){
+  if(BMAL.abierta||!BMAL.cola.length)return;
+  const {msg,o,res}=BMAL.cola.shift();BMAL.abierta=true;
+  const p=bmqPartes(msg),txt=v=>bmEsc(v).replace(/\n/g,'<br>');
+  const campo=o.campo!=null;
+  const d=document.createElement('div');d.className='bm-al';
+  d.innerHTML='<div class="bm-al-c" role="alertdialog" aria-modal="true" aria-label="'+bmEsc(p.t)+'">'
+    +'<div class="bm-al-tx"><b>'+txt(p.t)+'</b>'+(p.x?'<span>'+txt(p.x)+'</span>':'')
+    +(campo?'<input type="text" class="bm-al-in" value="'+bmEsc(o.campo)+'" autocomplete="off">':'')+'</div>'
+    +'<div class="bm-al-bs">'+(campo?'<button type="button" data-v="0">Cancelar</button><button type="button" class="pri" data-v="1">Aceptar</button>'
+      :'<button type="button" class="pri" data-v="1">OK</button>')+'</div></div>';
+  document.body.appendChild(d);
+  const inp=d.querySelector('.bm-al-in');
+  const fin=v=>{d.classList.add('sale');setTimeout(()=>{try{d.remove();}catch(_){}BMAL.abierta=false;bmAlSiguiente();},200);res(v);};
+  d.addEventListener('click',e=>{const b=e.target.closest('button[data-v]');if(!b)return;
+    if(campo)fin(b.dataset.v==='1'?inp.value:null);else fin(true);});
+  if(inp)inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();fin(inp.value);}else if(e.key==='Escape')fin(null);});
+  requestAnimationFrame(()=>d.classList.add('on'));
+  setTimeout(()=>{try{(inp||d.querySelector('.pri')).focus({preventScroll:true});if(inp)inp.select();}catch(_){}},60);
+}
+const BM_ALERT0=window.alert.bind(window);
+window.alert=function(m){if(!esMovil())return BM_ALERT0(m);bmAlerta(m);};
 /* v631 · Las hojas de formulario, con su barra y sin perder lo escrito.
    Daniel, 13/11/2026, eligió la propuesta 5. Medido antes: con una nota
    escrita en «Parte del día», tocar fuera de la hoja la cerraba sin preguntar y
@@ -21158,7 +21247,7 @@ function nutCrearApunte(j,mes,con){
   const N=nutLoad();
   const lab=((NUT_CONCEPTOS.find(c=>c[0]===con)||[])[1])||con;
   const def=con==='cuota'?(+N.cuota.importe||0):0;
-  const v=prompt(lab+' de '+nutMesLab(mes)+'\n'+j+'\n\nImporte en €:', def?String(def).replace('.',','):'');
+  const v=bmPide(lab+' de '+nutMesLab(mes)+'\n'+j+'\n\nImporte en €:', def?String(def).replace('.',','):'',()=>nutCrearApunte(j,mes,con));
   if(v===null)return;
   const imp=+String(v).replace(',','.');
   if(!(imp>0)){alert('Pon un importe mayor que cero.');return;}
@@ -21168,7 +21257,7 @@ function nutCrearApunte(j,mes,con){
 function nutDelApunte(j,mes,con){
   const N=nutLoad();
   const c=nutCobro(j,mes,con);if(!c)return;
-  if(!confirm('¿Quitar '+(((NUT_CONCEPTOS.find(x=>x[0]===con)||[])[1])||con).toLowerCase()+' de '+nutMesLab(mes)+' de '+j+' ('+nutEur(c.importe)+')?'))return;
+  if(!bmPregunta('¿Quitar '+(((NUT_CONCEPTOS.find(x=>x[0]===con)||[])[1])||con).toLowerCase()+' de '+nutMesLab(mes)+' de '+j+' ('+nutEur(c.importe)+')?',()=>nutDelApunte(j,mes,con)))return;
   N.cobros=N.cobros.filter(x=>x!==c);
   try{lsTumbarIds(NUT_LS,[String(c.id)]);}catch(e){}
   nutPersist();renderNutri();
@@ -21186,7 +21275,7 @@ function nutPagarMes(j,mes){
     nutHojaCobro(j,sin,'¿Marcar como pagado?\n\n'+j+' · '+nutMesLab(mes)+'\n'+nutEur(t),()=>{nutMarcar(sin,true);nutPersist();renderNutri();});
     return;
   } else {
-    if(!confirm('¿Deshacer el pago de '+j+' en '+nutMesLab(mes)+'?'))return;
+    if(!bmPregunta('¿Deshacer el pago de '+j+' en '+nutMesLab(mes)+'?',()=>nutPagarMes(j,mes)))return;
     nutMarcar(cs,false);
   }
   nutPersist();renderNutri();
@@ -21542,7 +21631,7 @@ function nutCobrar(j,sel){
 function nutDescobrar(j,sel){
   const a=String(sel||'').split('|');
   const c=nutCobro(j,a[0],a[1]);if(!c||!c.pagado)return;
-  if(!confirm('¿Deshacer este pago?\n\n'+j+'\n· '+nutMesLab(c.mes)+' · '+NUT_LAB(c.concepto)+' · '+nutEur(c.importe)))return;
+  if(!bmPregunta('¿Deshacer este pago?\n\n'+j+'\n· '+nutMesLab(c.mes)+' · '+NUT_LAB(c.concepto)+' · '+nutEur(c.importe),()=>nutDescobrar(j,sel)))return;
   nutMarcar([c],false);
   nutPersist();renderNutri();
 }
@@ -26076,7 +26165,7 @@ function availQuitarParte(n,id){
   if(i<0){if(window.toast)toast('Ese registro es de ejemplo y no se puede borrar');return;}
   const e=arr[i];
   const qu=(PHYSTAT[e.status]||{}).lab||e.status;
-  if(!confirm('¿Borrar este parte del día?\n\n'+n+' · '+qu+(e.zone?' · '+e.zone:'')+'\n'+(e.dk||'').split('-').reverse().join('/')+'\n\nNo se puede deshacer.'))return;
+  if(!bmPregunta('¿Borrar este parte del día?\n\n'+n+' · '+qu+(e.zone?' · '+e.zone:'')+'\n'+(e.dk||'').split('-').reverse().join('/')+'\n\nNo se puede deshacer.',()=>availQuitarParte(n,id)))return;
   arr.splice(i,1);
   physioPersist();
   STATE.physioEx=null;try{buildPhysio();}catch(err){}
@@ -26192,7 +26281,7 @@ window.reuDel=function(id){
   reuLoad();
   const i=STATE.reuniones.findIndex(x=>x.id===id);
   if(i<0)return;
-  if(!confirm('¿Borrar esta reunión? No se puede deshacer.'))return;
+  if(!bmPregunta('¿Borrar esta reunión? No se puede deshacer.',()=>window.reuDel(id)))return;
   STATE.reuniones.splice(i,1);reuPersist();
   try{if(STATE.curPlayer)renderReuniones(STATE.curPlayer);}catch(e){}
   try{renderTeamReuniones&&renderTeamReuniones();}catch(e){}
@@ -27241,7 +27330,7 @@ window.fisSerieCrear=function(){
       ? 'Ningún día marcado cae desde la fecha de inicio. Empieza antes o añade semanas.'
       : 'Marca al menos un día de la semana.';
     return;}
-  if(!confirm('¿Crear '+f.length+' sesiones de «'+tipo+'» para '+name+'?'))return;
+  if(!bmPregunta('¿Crear '+f.length+' sesiones de «'+tipo+'» para '+name+'?',()=>window.fisSerieCrear()))return;
   medDbLoad();
   let inj='';
   /* mismo criterio que el resto: solo se cuelga solo si hay UN problema abierto */
@@ -28313,7 +28402,7 @@ function vendCopiarUltimo(dk){
       W.reg=W.reg.filter(r=>ids.indexOf(r.id)<0);vendPersist();renderFisio();}});
     return;
   }
-  if(!confirm('Copiar los '+src.length+' vendaje'+(src.length===1?'':'s')+' del '+prev.split('-').reverse().join('/')+' a este día.\n\nNo se toca nada de lo que ya tengas puesto hoy.'))return;
+  if(!bmPregunta('Copiar los '+src.length+' vendaje'+(src.length===1?'':'s')+' del '+prev.split('-').reverse().join('/')+' a este día.\n\nNo se toca nada de lo que ya tengas puesto hoy.',()=>vendCopiarUltimo(dk)))return;
   let n=0;
   src.forEach(r=>{
     if(vendDe(dk,r.jugador,r.zona))return;
@@ -28328,7 +28417,7 @@ function vendBorrarDia(dk){
   const V=vendLoad();
   const hoy=vendDia(dk);
   if(!hoy.length)return;
-  if(!confirm('¿Borrar los '+hoy.length+' vendajes de este día?\n\nNo se puede deshacer.'))return;
+  if(!bmPregunta('¿Borrar los '+hoy.length+' vendajes de este día?\n\nNo se puede deshacer.',()=>vendBorrarDia(dk)))return;
   try{lsTumbarIds(VEND_LS,hoy.map(r=>String(r.id)));}catch(e){}
   V.reg=V.reg.filter(r=>hoy.indexOf(r)<0);
   vendPersist();renderFisio();
@@ -31941,7 +32030,7 @@ function isoBorrar(id){
   const L=isoLoad(), i=L.findIndex(x=>x&&x._id===id);
   if(i<0)return;
   const D=L[i];
-  if(!confirm('¿Borrar la prueba de '+((D.jugador||{}).nombre||'')+' del '+((D.prueba||{}).fecha||'')+'?'))return;
+  if(!bmPregunta('¿Borrar la prueba de '+((D.jugador||{}).nombre||'')+' del '+((D.prueba||{}).fecha||'')+'?',()=>isoBorrar(id)))return;
   L.splice(i,1);
   isoPersist();
   if(ISO_VIS===id)isoCerrar();
@@ -32115,7 +32204,7 @@ function isoFormGuardar(){
    los informes. */
 function isoRefsForm(reset){
   if(reset){
-    if(!confirm('¿Volver a las referencias de partida?'))return;
+    if(!bmPregunta('¿Volver a las referencias de partida?',()=>isoRefsForm(reset)))return;
     isoRefsGuardar({});
   }else{
     const n=(id,def)=>{const e=document.getElementById(id);const v=e?+e.value:NaN;return isFinite(v)&&v>0?v:def;};
@@ -33569,7 +33658,7 @@ function hrDeleteSession(key){
   const afectados=(STATE.hr||[]).filter(r=>r&&r.manual&&hrKey(r)===key);
   if(!afectados.length){const m=document.getElementById('hr-msg');if(m)m.textContent='Esa sesión no se puede borrar: no la cargaste tú.';return;}
   const s=hrSesLab(key);
-  if(!confirm('¿Borrar la sesión «'+s.lab+'» del '+hrFechaEs(s.dk)+'?\n\nSe eliminarán los datos de '+afectados.length+' jugadores. No se puede deshacer.'))return;
+  if(!bmPregunta('¿Borrar la sesión «'+s.lab+'» del '+hrFechaEs(s.dk)+'?\n\nSe eliminarán los datos de '+afectados.length+' jugadores. No se puede deshacer.',()=>hrDeleteSession(key)))return;
   STATE.hr=(STATE.hr||[]).filter(r=>!(r&&r.manual&&hrKey(r)===key));
   /* v371 · Sin esto el borrado solo valía hasta la siguiente sincronización: la
      fusión conserva lo que está en un lado y no en el otro, así que el servidor
@@ -36017,9 +36106,9 @@ function calWeekPrev(){if(!CALWEEK)CALWEEK=calWeekStart(new Date());CALWEEK=new 
 function calWeekNext(){if(!CALWEEK)CALWEEK=calWeekStart(new Date());CALWEEK=new Date(CALWEEK);CALWEEK.setDate(CALWEEK.getDate()+7);renderCalendar();}
 function calWeekToday(){CALWEEK=calWeekStart(new Date());renderCalendar();}
 function calDupWeek(){calLoad();const mon=CALWEEK||calWeekStart(new Date());const dks=calWeekDks(mon);let n=0;dks.forEach(dk=>{const evs=(STATE.calendar[dk]||[]);if(!evs.length)return;const nd=new Date(dkToDate(dk));nd.setDate(nd.getDate()+7);const ndk=dkey(nd);STATE.calendar[ndk]=(STATE.calendar[ndk]||[]).concat(evs.map(e=>({...e,id:'e'+Math.random().toString(36).slice(2,8)})));n+=evs.length;});if(!n){alert('Esta semana no tiene sesiones que duplicar.');return;}calPersist();CALWEEK=new Date(mon);CALWEEK.setDate(mon.getDate()+7);renderCalendar();}
-function calTplSaveFromWeek(){calLoad();const mon=CALWEEK||calWeekStart(new Date());const dks=calWeekDks(mon);const days=dks.map(dk=>(STATE.calendar[dk]||[]).map(e=>({type:e.type,intens:evIntens(e),dur:evDur(e),title:e.title||'',time:e.time||'',note:e.note||'',objs:evObjs(e)})));if(!days.some(d=>d.length)){alert('Esta semana no tiene sesiones que guardar como plantilla.');return;}const name=prompt('Nombre de la plantilla (microciclo):','Microciclo '+((STATE.calTpl||[]).length+1));if(!name)return;STATE.calTpl=STATE.calTpl||[];STATE.calTpl.push({name:name.trim(),days});calTplPersist();renderCalendar();}
+function calTplSaveFromWeek(){calLoad();const mon=CALWEEK||calWeekStart(new Date());const dks=calWeekDks(mon);const days=dks.map(dk=>(STATE.calendar[dk]||[]).map(e=>({type:e.type,intens:evIntens(e),dur:evDur(e),title:e.title||'',time:e.time||'',note:e.note||'',objs:evObjs(e)})));if(!days.some(d=>d.length)){alert('Esta semana no tiene sesiones que guardar como plantilla.');return;}const name=bmPide('Nombre de la plantilla (microciclo):','Microciclo '+((STATE.calTpl||[]).length+1),()=>calTplSaveFromWeek());if(!name)return;STATE.calTpl=STATE.calTpl||[];STATE.calTpl.push({name:name.trim(),days});calTplPersist();renderCalendar();}
 function calTplApply(idx){calLoad();const tpl=(STATE.calTpl||[])[idx];if(!tpl)return;const mon=CALWEEK||calWeekStart(new Date());const dks=calWeekDks(mon);dks.forEach((dk,i)=>{const evs=(tpl.days[i]||[]).map(e=>({...e,id:'e'+Math.random().toString(36).slice(2,8)}));if(evs.length)STATE.calendar[dk]=(STATE.calendar[dk]||[]).concat(evs);});calPersist();renderCalendar();}
-function calTplDel(idx){if(!confirm('¿Borrar esta plantilla guardada?'))return;STATE.calTpl.splice(idx,1);calTplPersist();renderCalendar();}
+function calTplDel(idx){if(!bmPregunta('¿Borrar esta plantilla guardada?',()=>calTplDel(idx)))return;STATE.calTpl.splice(idx,1);calTplPersist();renderCalendar();}
 function calExportWeek(){exportNodePNG('cal-week-card','semana_'+(CALWEEK?dkey(CALWEEK):dkey(new Date()))+'.png');}
 /* v205 · semana que muestra el panel superior del calendario. Independiente del
    mes que se esté viendo, para poder mirar la semana pasada sin perder el mes. */
@@ -37234,7 +37323,7 @@ function ptBorrar(dk){
   ptLoad();
   const fuera=ptFilas().filter(r=>r.dk===dk);
   if(!fuera.length)return;
-  if(!confirm('¿Borrar los datos de pulsómetro del partido del '+dk.split('-').reverse().join('/')+'?\n\nSe eliminan '+fuera.length+' jugadores. No se puede deshacer.'))return;
+  if(!bmPregunta('¿Borrar los datos de pulsómetro del partido del '+dk.split('-').reverse().join('/')+'?\n\nSe eliminan '+fuera.length+' jugadores. No se puede deshacer.',()=>ptBorrar(dk)))return;
   /* v485 · La tumba se anota ANTES de guardar y sólo desde este borrado, que es
      una acción confirmada: sin ella la fusión devolvía el partido entero en la
      siguiente bajada. Por diferencia no se anota nunca (LS_TUMBAS_NO_DIFF),
@@ -38116,7 +38205,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   try{if(window.renderAvail&&document.getElementById('v-estado'))renderAvail();}catch(err){}
   try{if(window.renderCalendar)renderCalendar();}catch(err){}
   if(_m&&window.toast)toast(_e.afecta==='pierde'?'Cita guardada · marcado como no disponible ese día':'Cita guardada · marcado como entrenamiento modificado');};
- window.medDel=function(name,id){if(!confirm('¿Eliminar este registro médico?'))return;load();
+ window.medDel=function(name,id){if(!bmPregunta('¿Eliminar este registro médico?',()=>window.medDel(name,id)))return;load();
   STATE.medLog[name]=(STATE.medLog[name]||[]).filter(x=>x.id!==id);persist();
   if(citaUnsync(name,id)){try{if(window.physioPersist)physioPersist();}catch(e){}try{if(window.buildPhysio)buildPhysio();}catch(e){}}
   medRenderPlayer(name);
@@ -39076,7 +39165,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    var est=pdVal('rh-pd-est-'+i);
    f.durDays=(est===''||est==null)?0:(Math.max(0,parseInt(est))||0);
   });
-  if(desorden&&!confirm('Hay fases que empiezan antes que la anterior. ¿Guardar de todas formas?'))return;
+  if(desorden&&!bmPregunta('Hay fases que empiezan antes que la anterior. ¿Guardar de todas formas?',()=>window.medPhaseDatesSave(injId)))return;
   if(ini)e.dk=ini;
   if(fin&&!e.open)e.closeDk=fin;
   medPersist();closeInfoEdit();renderMedico();
@@ -39109,7 +39198,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   if(e.phaseIdx>=e.phases.length-1){toast('Última fase');return;}
   medRehabAdvance(e,e.phaseIdx+1,'Criterios cumplidos',false,[]);
  };
- window.medGoPhase=function(injId,i){var e=medInj(injId);if(!e||i===e.phaseIdx)return;if(!confirm('¿Mover el episodio a la fase «'+((e.phases[i]||{}).nom||'')+'»?'))return;var from=e.phaseIdx;e.phaseIdx=i;if(e.phases[i]&&!e.phases[i].startDk)e.phases[i].startDk=today();if(e.phases[i])e.phases[i].status='current';pushHist(e,from,i,'Cambio manual de fase',false,[]);medRehabSyncAvailability(e);medPersist();renderMedico();};
+ window.medGoPhase=function(injId,i){var e=medInj(injId);if(!e||i===e.phaseIdx)return;if(!bmPregunta('¿Mover el episodio a la fase «'+((e.phases[i]||{}).nom||'')+'»?',()=>window.medGoPhase(injId,i)))return;var from=e.phaseIdx;e.phaseIdx=i;if(e.phases[i]&&!e.phases[i].startDk)e.phases[i].startDk=today();if(e.phases[i])e.phases[i].status='current';pushHist(e,from,i,'Cambio manual de fase',false,[]);medRehabSyncAvailability(e);medPersist();renderMedico();};
 
  // ---- dashboard ----
  window.MED_RHF={tissue:'',risk:'',phase:''};
@@ -39174,11 +39263,11 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
  };
  window.medRehabNewTemplate=function(){medRehabEnsureState();var t={id:uid('tpl'),name:'Nueva plantilla',tissue:'general',desc:'',version:'1.0',color:'#3056c4',phases:buildGeneralPhases()};STATE.med.rehab.templates.push(t);medPersist();medRehabEditTemplate(t.id);};
  window.medRehabDuplicateTemplate=function(id){var t=findTpl(id);if(!t)return;var c=JSON.parse(JSON.stringify(t));c.id=uid('tpl');c.name=t.name+' (copia)';c.phases.forEach(function(f){f.id=uid('ph');(f.crit||[]).forEach(function(x){x.id=uid('c');});});STATE.med.rehab.templates.push(c);medPersist();renderMedico();toast('Plantilla duplicada');};
- window.medRehabDeleteTemplate=function(id){var t=findTpl(id);if(!t)return;if(!confirm('¿Eliminar la plantilla «'+t.name+'»?'))return;STATE.med.rehab.templates=STATE.med.rehab.templates.filter(function(x){return x.id!==id;});medPersist();renderMedico();};
- window.medRehabRestoreDefaults=function(){if(!confirm('¿Restaurar las plantillas por defecto? Se añadirán/reemplazarán las plantillas base; tus plantillas propias se conservan.'))return;var defs=medRehabDefaultTemplates();var byId={};(STATE.med.rehab.templates||[]).forEach(function(t){byId[t.id]=t;});defs.forEach(function(d){byId[d.id]=d;});STATE.med.rehab.templates=Object.keys(byId).map(function(k){return byId[k];});medPersist();renderMedico();toast('Plantillas por defecto restauradas');};
+ window.medRehabDeleteTemplate=function(id){var t=findTpl(id);if(!t)return;if(!bmPregunta('¿Eliminar la plantilla «'+t.name+'»?',()=>window.medRehabDeleteTemplate(id)))return;STATE.med.rehab.templates=STATE.med.rehab.templates.filter(function(x){return x.id!==id;});medPersist();renderMedico();};
+ window.medRehabRestoreDefaults=function(){if(!bmPregunta('¿Restaurar las plantillas por defecto? Se añadirán/reemplazarán las plantillas base; tus plantillas propias se conservan.',()=>window.medRehabRestoreDefaults()))return;var defs=medRehabDefaultTemplates();var byId={};(STATE.med.rehab.templates||[]).forEach(function(t){byId[t.id]=t;});defs.forEach(function(d){byId[d.id]=d;});STATE.med.rehab.templates=Object.keys(byId).map(function(k){return byId[k];});medPersist();renderMedico();toast('Plantillas por defecto restauradas');};
  window.medRehabExportTemplate=function(id){var t=findTpl(id);if(!t)return;try{var blob=new Blob([JSON.stringify(t,null,2)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='bmnava_plantilla_'+(t.tissue||'rehab')+'.json';a.click();toast('Plantilla exportada');}catch(e){toast('No se pudo exportar');}};
  window.medRehabImportTemplate=function(){var inp=document.createElement('input');inp.type='file';inp.accept='application/json,.json';inp.onchange=function(){var file=inp.files[0];if(!file)return;var r=new FileReader();r.onload=function(){try{var t=JSON.parse(r.result);if(!t.phases||!t.name)throw 0;t.id=uid('tpl');STATE.med.rehab.templates.push(t);medPersist();renderMedico();toast('Plantilla importada: '+t.name);}catch(e){toast('JSON no válido');}};r.readAsText(file);};inp.click();};
- window.medRehabApplyTemplateToInjury=function(id){var t=findTpl(id);var e=medInj(MED_SEL);if(!t||!e)return;if(!confirm('¿Aplicar «'+t.name+'» a la lesión de '+e.name+'? Se reemplazan las fases actuales (se conserva dolor, tratamientos y notas).'))return;e.phases=deepCopyPhases(t.phases);e.phaseIdx=0;e.rehabTemplateId=t.id;e.rehabTemplateName=t.name;e.tissueTypeNormalized=t.tissue;if(e.phases[0]){e.phases[0].startDk=today();e.phases[0].status='current';}medRehabSyncAvailability(e);medPersist();renderMedico();toast('Plantilla aplicada');};
+ window.medRehabApplyTemplateToInjury=function(id){var t=findTpl(id);var e=medInj(MED_SEL);if(!t||!e)return;if(!bmPregunta('¿Aplicar «'+t.name+'» a la lesión de '+e.name+'? Se reemplazan las fases actuales (se conserva dolor, tratamientos y notas).',()=>window.medRehabApplyTemplateToInjury(id)))return;e.phases=deepCopyPhases(t.phases);e.phaseIdx=0;e.rehabTemplateId=t.id;e.rehabTemplateName=t.name;e.tissueTypeNormalized=t.tissue;if(e.phases[0]){e.phases[0].startDk=today();e.phases[0].status='current';}medRehabSyncAvailability(e);medPersist();renderMedico();toast('Plantilla aplicada');};
  window.medRehabEditTemplate=function(id){var t=findTpl(id);if(!t)return;
   var pr=t.phases.map(function(f,i){return '<div class="rh-pe-row"><span class="rh-tpl-c" style="background:'+(f.color||'#888')+'"></span><div class="rh-pe-main"><b>'+esc(f.nom)+'</b> <span class="small muted">'+esc(f.type)+' · '+(f.durDays||0)+'d · '+(f.crit?f.crit.length:0)+' crit.</span></div>'
    +'<button class="med-chipbtn" onclick="medRehabEditPhase(\''+t.id+'\',\''+f.id+'\')">Editar</button><button class="med-chipbtn" onclick="medRehabPhaseMove(\''+t.id+'\',\''+f.id+'\',-1)">↑</button><button class="med-chipbtn" onclick="medRehabPhaseMove(\''+t.id+'\',\''+f.id+'\',1)">↓</button><button class="med-chipbtn" onclick="medRehabPhaseDup(\''+t.id+'\',\''+f.id+'\')">⧉</button><button class="med-chipbtn" style="color:var(--bad-text)" onclick="medRehabPhaseDel(\''+t.id+'\',\''+f.id+'\')">✕</button></div>';}).join('');
@@ -39197,7 +39286,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
  function tplPhase(t,pid){return (t.phases||[]).find(function(f){return f.id===pid;});}
  window.medRehabPhaseMove=function(tid,pid,dir){var t=findTpl(tid);if(!t)return;var i=t.phases.findIndex(function(f){return f.id===pid;});var j=i+dir;if(i<0||j<0||j>=t.phases.length)return;var tmp=t.phases[i];t.phases[i]=t.phases[j];t.phases[j]=tmp;medPersist();medRehabEditTemplate(tid);};
  window.medRehabPhaseDup=function(tid,pid){var t=findTpl(tid);var f=tplPhase(t,pid);if(!f)return;var c=JSON.parse(JSON.stringify(f));c.id=uid('ph');c.nom=f.nom+' (copia)';(c.crit||[]).forEach(function(x){x.id=uid('c');});var i=t.phases.findIndex(function(x){return x.id===pid;});t.phases.splice(i+1,0,c);medPersist();medRehabEditTemplate(tid);};
- window.medRehabPhaseDel=function(tid,pid){var t=findTpl(tid);if(!t)return;if(!confirm('¿Eliminar esta fase de la plantilla?'))return;t.phases=t.phases.filter(function(f){return f.id!==pid;});medPersist();medRehabEditTemplate(tid);};
+ window.medRehabPhaseDel=function(tid,pid){var t=findTpl(tid);if(!t)return;if(!bmPregunta('¿Eliminar esta fase de la plantilla?',()=>window.medRehabPhaseDel(tid,pid)))return;t.phases=t.phases.filter(function(f){return f.id!==pid;});medPersist();medRehabEditTemplate(tid);};
  window.medRehabPhaseAdd=function(tid){var t=findTpl(tid);if(!t)return;t.phases.push({id:uid('ph'),key:'custom',nom:'Nueva fase',sub:'',type:'fase',color:'#3056c4',avail:'readapt',permits:['gimnasio'],durDays:14,obj:[],prescription:{},entry:[],crit:[],restrictions:[],alerts:[],status:'pending',startDk:null});medPersist();medRehabEditTemplate(tid);};
  window.medRehabEditPhase=function(tid,pid){var t=findTpl(tid);var f=tplPhase(t,pid);if(!f)return;
   var permKeys=['gimnasio','individual','grupo_parcial','grupo_completo','competicion'];
@@ -40006,7 +40095,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var dur=parseFloat(g('mtq-dur'))||null;
   var zone=(g('mtq-zone')||'').trim();
   var sug=tipo+(zone?' '+zone:'')+(dur?" "+dur+"'":'');
-  var nom=prompt('Nombre de la plantilla:',sug);
+  var nom=bmPide('Nombre de la plantilla:',sug,()=>window.medTplGuardar());
   if(nom===null)return;
   nom=nom.trim();if(!nom){if(window.toast)toast('La plantilla necesita un nombre');return;}
   var objs=[];document.querySelectorAll('#mtq-objs .mtq-chip.on').forEach(function(b){objs.push(b.dataset.v);});
@@ -40020,7 +40109,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
  };
  window.medTplBorrar=function(i){
   var tpl=tplLoad();if(!tpl[i])return;
-  if(!confirm('¿Borrar la plantilla «'+tpl[i].nom+'»?'))return;
+  if(!bmPregunta('¿Borrar la plantilla «'+tpl[i].nom+'»?',()=>window.medTplBorrar(i)))return;
   tpl.splice(i,1);tplSave();
   var barra=document.getElementById('mtq-atajos');
   if(barra)barra.innerHTML=medTplBarra((document.getElementById('mtq-name')||{}).value||'');
@@ -44166,6 +44255,27 @@ html.bmz .view.on{animation:none!important}
 @keyframes ncoTrazo{to{stroke-dashoffset:0}}
 @media (prefers-reduced-motion:reduce){.bm-cobro .nco-ok circle,.bm-cobro .nco-ok path{animation:none;stroke-dashoffset:0}}
 </style>
+<style id="movil-v638">
+/* v638 · La alerta de iOS. Sólo se crea en el móvil. */
+.bm-al{position:fixed;inset:0;z-index:10085;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,0);transition:background .2s ease}
+.bm-al.on{background:rgba(0,0,0,.36)}
+.bm-al-c{width:min(290px,100%);border-radius:16px;overflow:hidden;background:var(--panel);box-shadow:0 18px 50px rgba(0,0,0,.28);
+  transform:scale(1.12);opacity:0;transition:transform .25s cubic-bezier(.32,.72,0,1),opacity .2s ease}
+.bm-al.on .bm-al-c{transform:none;opacity:1}
+.bm-al.sale{background:rgba(0,0,0,0)}
+.bm-al.sale .bm-al-c{opacity:0;transform:scale(.96)}
+.bm-al-tx{display:flex;flex-direction:column;gap:4px;padding:20px 16px 16px;text-align:center}
+.bm-al-tx b{font-size:17px;font-weight:600;line-height:1.3;color:var(--txt)}
+.bm-al-tx span{font-size:13px;line-height:1.4;color:var(--txt)}
+.bm-al-in{margin-top:10px;width:100%;box-sizing:border-box;min-height:36px;padding:0 10px;border:.5px solid var(--line);border-radius:8px;background:var(--bmh-celda,var(--panel2));
+  font:inherit;font-size:16px;color:var(--txt)}
+.bm-al-bs{display:flex;border-top:.5px solid var(--hair)}
+.bm-al-bs button{flex:1;min-height:46px;border:none;background:none;font:inherit;font-size:17px;color:var(--accent);cursor:pointer}
+.bm-al-bs button+button{border-left:.5px solid var(--hair)}
+.bm-al-bs button.pri{font-weight:600}
+.bm-al-bs button:active{background:var(--panel2)}
+@media (prefers-reduced-motion:reduce){.bm-al,.bm-al-c{transition:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -45315,7 +45425,7 @@ window.qdCfgSave=function(){
   toast(werr.length?('Guardado con avisos: '+werr.join(' · ')+' (deben sumar 100)'):'Configuración guardada');
   qdRerender();
 };
-window.qdCfgReset=function(){if(!confirm('¿Restaurar la configuración de Cuadrantes a los valores predeterminados?'))return;qdCfg();STATE.quadrants.config=qdDefaultConfig();qdPersist();qdInvalidate();qdRerender();toast('Configuración restaurada');};
+window.qdCfgReset=function(){if(!bmPregunta('¿Restaurar la configuración de Cuadrantes a los valores predeterminados?',()=>window.qdCfgReset()))return;qdCfg();STATE.quadrants.config=qdDefaultConfig();qdPersist();qdInvalidate();qdRerender();toast('Configuración restaurada');};
 window.qdCfgExport=function(){const blob=new Blob([JSON.stringify(qdCfg(),null,2)],{type:'application/json'});qdDownloadBlob(blob,'bmnava_cuadrantes_config.json');};
 window.qdCfgImport=function(inp){const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{STATE.quadrants.config=qdMergeCfg(qdDefaultConfig(),JSON.parse(r.result));qdPersist();qdInvalidate();qdRerender();toast('Configuración importada');}catch(e){toast('JSON no válido');}};r.readAsText(f);};
 window.qdBackupImport=function(inp){const f=inp.files&&inp.files[0];if(!f)return;QDRepo.importJSON(f,err=>{toast(err?('Error: '+err.message):'Copia importada');if(!err)qdRerender();});};
@@ -47108,7 +47218,7 @@ window.exAltaRapida=function(n){
   exRender();
 };
 window.exQuitar=function(n){
-  if(!confirm('¿Quitar a '+n+' de los jugadores históricos?\n\nSus valoraciones dejarán de contar en los récords.'))return;
+  if(!bmPregunta('¿Quitar a '+n+' de los jugadores históricos?\n\nSus valoraciones dejarán de contar en los récords.',()=>window.exQuitar(n)))return;
   exDel(n);exRender();
 };
 window.exRender=exRender;
@@ -47308,8 +47418,8 @@ window.phUsarCarpeta=function(){
   const m=phLoad();
   const quitar=Object.keys(m).filter(n=>PH_FILE[n]);
   if(!quitar.length){if(window.toast)toast('No hay ninguna foto guardada que tape a la carpeta');return;}
-  if(!confirm('¿Usar las fotos de la carpeta para '+quitar.length+' jugador'+(quitar.length>1?'es':'')+'?\n\n'
-    +'Se quitan las guardadas en este navegador. Los archivos de la carpeta no se tocan, y puedes volver a subir una a mano cuando quieras.'))return;
+  if(!bmPregunta('¿Usar las fotos de la carpeta para '+quitar.length+' jugador'+(quitar.length>1?'es':'')+'?\n\n'
+    +'Se quitan las guardadas en este navegador. Los archivos de la carpeta no se tocan, y puedes volver a subir una a mano cuando quieras.',()=>window.phUsarCarpeta()))return;
   quitar.forEach(n=>{delete m[n];});
   phPersist();
   phApply();phRepaint();
@@ -47731,8 +47841,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.17*/
-const VER_ACTUAL='2026-11-13.17';
+/*BUILD:2026-11-13.18*/
+const VER_ACTUAL='2026-11-13.18';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
