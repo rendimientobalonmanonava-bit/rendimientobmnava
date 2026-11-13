@@ -15120,7 +15120,8 @@ function bmqPartes(msg){
   return {t:t.trim(),x:x.trim(),v};
 }
 function bmPregunta(msg,re,o){
-  if(!esMovil()||!re)return confirm(msg);
+  /* v664 · también en el ordenador: la ventana de la app, no la del navegador */
+  if(!re)return confirm(msg);
   const k='c|'+msg;if(bmqHay(k))return BMQ.r[k];
   BMQ.n++;o=o||{};
   const p=bmqPartes(msg);
@@ -15128,7 +15129,7 @@ function bmPregunta(msg,re,o){
   throw BMQ_PAUSA;
 }
 function bmPide(msg,def,re){
-  if(!esMovil()||!re)return prompt(msg,def);
+  if(!re)return prompt(msg,def);
   const k='p|'+msg;if(bmqHay(k))return BMQ.r[k];
   BMQ.n++;
   bmAlerta(msg,{campo:def==null?'':String(def)}).then(v=>{BMQ.r[k]=v;bmqSigue(re);});
@@ -15152,18 +15153,22 @@ function bmAlSiguiente(){
     +'<div class="bm-al-tx"><b>'+txt(p.t)+'</b>'+(p.x?'<span>'+txt(p.x)+'</span>':'')
     +(campo?'<input type="text" class="bm-al-in" value="'+bmEsc(o.campo)+'" autocomplete="off">':'')+'</div>'
     +'<div class="bm-al-bs">'+(campo?'<button type="button" data-v="0">Cancelar</button><button type="button" class="pri" data-v="1">Aceptar</button>'
+      :o.dos?((o.dos[0]?'<button type="button" data-v="0">'+bmEsc(o.dos[0])+'</button>':'')+'<button type="button" class="pri" data-v="1">'+bmEsc(o.dos[1])+'</button>')
       :'<button type="button" class="pri" data-v="1">OK</button>')+'</div></div>';
   document.body.appendChild(d);
   const inp=d.querySelector('.bm-al-in');
   const fin=v=>{d.classList.add('sale');setTimeout(()=>{try{d.remove();}catch(_){}BMAL.abierta=false;bmAlSiguiente();},200);res(v);};
   d.addEventListener('click',e=>{const b=e.target.closest('button[data-v]');if(!b)return;
-    if(campo)fin(b.dataset.v==='1'?inp.value:null);else fin(true);});
+    if(campo)fin(b.dataset.v==='1'?inp.value:null);else fin(o.dos?b.dataset.v==='1':true);});
+  /* v664 · Escape cierra: «no» en una pregunta, nada en un campo, OK en un aviso */
+  const esc=e=>{if(e.key!=='Escape'||!d.isConnected)return;e.stopPropagation();e.preventDefault();document.removeEventListener('keydown',esc,true);fin(campo?null:(o.dos?false:true));};
+  document.addEventListener('keydown',esc,true);
   if(inp)inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();fin(inp.value);}else if(e.key==='Escape')fin(null);});
   requestAnimationFrame(()=>d.classList.add('on'));
   setTimeout(()=>{try{(inp||d.querySelector('.pri')).focus({preventScroll:true});if(inp)inp.select();}catch(_){}},60);
 }
 const BM_ALERT0=window.alert.bind(window);
-window.alert=function(m){if(!esMovil())return BM_ALERT0(m);bmAlerta(m);};
+window.alert=function(m){bmAlerta(m);};
 /* v631 · Las hojas de formulario, con su barra y sin perder lo escrito.
    Daniel, 13/11/2026, eligió la propuesta 5. Medido antes: con una nota
    escrita en «Parte del día», tocar fuera de la hoja la cerraba sin preguntar y
@@ -15193,28 +15198,39 @@ function bmfCierraOv(ov){
   ov.style.display='none';
 }
 function bmfRetiene(ov,cerrar){
-  if(!esMovil()||!ov||!ov.querySelector)return false;
-  const c=ov.querySelector(':scope>.med-modal.bmf,:scope>.info-modal.bmf');
+  if(!ov||!ov.querySelector)return false;
+  /* v664 · en el ordenador los formularios no llevan la clase del móvil */
+  const c=ov.querySelector(esMovil()?':scope>.med-modal.bmf,:scope>.info-modal.bmf':':scope>.med-modal,:scope>.info-modal');
   if(!c||!bmfSucio(c))return false;
   bmAccion({titulo:'Hay cambios sin guardar',texto:'Si cierras ahora, se pierde lo que has escrito.',si:'Descartar cambios',no:'Seguir editando'})
     .then(ok=>{if(!ok)return;c._bmfSucio=false;try{(cerrar||(()=>bmfCierraOv(ov)))();}catch(e){console.error('bmnava · cerrar hoja',e);}});
   return true;
 }
 ['input','change'].forEach(t=>document.addEventListener(t,e=>{
-  if(!esMovil()||!e.target||!e.target.closest)return;
-  const c=e.target.closest('.med-modal.bmf,.info-modal.bmf');if(!c)return;
+  if(!e.target||!e.target.closest)return;
+  const c=e.target.closest(esMovil()?'.med-modal.bmf,.info-modal.bmf':'.med-modal,.info-modal');if(!c)return;
   bmfAlDia(c);
   if(performance.now()-(c._bmfT||0)<400)return;   // lo que el propio formulario hace al abrirse no es escribir
   c._bmfSucio=true;
 },true));
 document.addEventListener('click',e=>{
-  if(!esMovil()||!e.target||!e.target.closest)return;
+  if(!e.target||!e.target.closest)return;
   const t=e.target;
   if(t.matches('.med-overlay,.info-overlay')){if(bmfRetiene(t)){e.stopImmediatePropagation();e.preventDefault();}return;}
-  const b=t.closest('.med-modal.bmf>h2 .r .btn.ghost,.info-modal.bmf .info-mhead .btn.ghost');
+  const b=t.closest(esMovil()?'.med-modal.bmf>h2 .r .btn.ghost,.info-modal.bmf .info-mhead .btn.ghost':'.med-modal>h2 .r .btn.ghost,.info-modal .info-mhead .btn.ghost');
   if(!b||!/close|Cerrar/.test((b.getAttribute('onclick')||'')+b.textContent))return;
   if(bmfRetiene(b.closest('.med-overlay,.info-overlay'),()=>b.click())){e.stopImmediatePropagation();e.preventDefault();}
 },true);
+/* v664 · En el ordenador nadie apunta cuándo se abre un formulario (en el móvil
+   lo hace la pasada de los formularios): se apunta al pintarse su contenido,
+   para que lo que hace al abrirse no cuente como escrito. */
+(function(){
+  if(typeof MutationObserver!=='function')return;
+  const arma=()=>['ph-body','med-modal-body','info-mbody'].forEach(id=>{const el=document.getElementById(id);if(!el)return;
+    const c=el.classList.contains('med-modal')?el:el.closest('.info-modal');if(!c)return;
+    new MutationObserver(()=>{if(!esMovil()){c._bmfF=null;bmfAlDia(c);}}).observe(el,{childList:true});});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arma);else arma();
+})();
 /* La barra de la hoja. */
 function bmfBarra(c){
   bmfAlDia(c);
@@ -15261,6 +15277,8 @@ let BMACC=null;
 function bmAccCierra(){if(!BMACC)return false;const a=BMACC;BMACC=null;a.fin(false);return true;}
 function bmAccion(o){
   o=o||{};bmAccCierra();
+  /* v664 · En el ordenador no hay hoja de acción: es la alerta centrada de macOS */
+  if(!esMovil())return bmAlerta((o.titulo||'')+(o.texto?'\n\n'+o.texto:''),{dos:[o.no===false?null:(o.no||'Cancelar'),o.si||'Aceptar']}).then(v=>!!v);
   return new Promise(res=>{
     const d=document.createElement('div');d.className='bm-acc';
     const txt=v=>bmEsc(v).replace(/\n/g,'<br>');
@@ -22143,7 +22161,7 @@ function nutPagadoDe(j){
    tarjetas (v515). En el ordenador sale exactamente el `confirm` de antes,
    con su mismo texto. */
 function nutHojaCobro(j,cs,txtOrdenador,hecho){
-  if(!esMovil()){if(!confirm(txtOrdenador))return;hecho();return;}
+  /* v664 · también en el ordenador, como hoja centrada */
   const esc=bmEsc,t=nutRedondea(cs.reduce((a,c)=>a+(+c.importe||0),0));
   const ext=!(STATE.players||{})[j],ph=nutFoto(j,ext);
   const filas=cs.slice().sort((a,b)=>String(a.mes).localeCompare(String(b.mes)))
@@ -45311,6 +45329,21 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
     font-family:var(--mono)!important;font-variant-numeric:tabular-nums}
 }
 </style>
+<style id="esc-v664">
+/* v664 · ORDENADOR · Ventanas propias. Las hojas de la app (la de cobro y las
+   demás que se abran con `bmHoja`) salen centradas, como una hoja de macOS, y
+   la alerta es la misma del móvil (v638). */
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  .bmh-caja{left:50%;right:auto;top:50%;bottom:auto;width:min(480px,92vw);max-height:82vh;border-radius:16px;
+    box-shadow:0 24px 70px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.12);transform:translate(-50%,-47%) scale(.98);opacity:0;
+    transition:transform .28s cubic-bezier(.32,.72,0,1),opacity .2s ease;padding-bottom:0}
+  .bmh.vis .bmh-caja{transform:translate(-50%,-50%);opacity:1}
+  .bmh-asa{display:none}
+  .bmh-cab{padding-top:16px}
+  .bm-al-c{width:min(320px,100%)}
+  @media (prefers-reduced-motion:reduce){.bmh-caja{transition:none}}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48896,8 +48929,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.43*/
-const VER_ACTUAL='2026-11-13.43';
+/*BUILD:2026-11-13.44*/
+const VER_ACTUAL='2026-11-13.44';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
