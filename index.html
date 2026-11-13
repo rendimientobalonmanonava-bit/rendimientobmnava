@@ -13869,7 +13869,34 @@ function buildTabbar(){const tb=document.getElementById('tabbar');if(!tb)return;
   try{if(typeof bmDosTonos==='function')bmDosTonos();}catch(e){}}
 /* Tocar la pestaña en la que ya se está sube al principio, como en cualquier
    aplicación de teléfono; tocar otra, navega. */
-function tbGo(v){const abierta=document.body.classList.contains('sb-open');sbToggleMobile(false);
+/* v628 · 5 · La vibración al tocar, como en iOS. Daniel, 13/11/2026, eligió
+   la propuesta 5. Safari no tiene `navigator.vibrate`; lo que sí hace, desde
+   iOS 18, es dar el toque del sistema cuando cambia un interruptor nativo
+   (`<input type=checkbox switch>`, v608). `bmVibra` pulsa por código un
+   interruptor oculto —fuera de la pantalla, sin foco y sin que su cambio salga
+   de él— y el teléfono vibra. En Android se usa `navigator.vibrate`. Respeta
+   el ajuste del sistema: con la vibración del sistema apagada, no vibra. Se
+   llama sólo en momentos que cierran una acción, como hace iOS: cambiar de
+   pestaña o de sección, pasar el punto de «tirar para actualizar» o de
+   deslizar una fila, abrir el menú de mantener pulsado, elegir un segmento y
+   marcar un cobro. Sólo en el móvil.
+   OJO: no se puede probar aquí; la vibración sólo se nota en el teléfono. */
+let BMV_L=null,BMV_T=0;
+function bmVibra(){
+  try{if(!esMovil())return;}catch(e){return;}
+  const t=Date.now();if(t-BMV_T<70)return;BMV_T=t;
+  const ios=(typeof HTMLInputElement!=='undefined')&&('switch' in HTMLInputElement.prototype);
+  if(!ios){try{if(typeof navigator.vibrate==='function')navigator.vibrate(8);}catch(e){}return;}
+  try{
+    if(!BMV_L){BMV_L=document.createElement('label');BMV_L.className='bm-vib';BMV_L.setAttribute('aria-hidden','true');
+      const i=document.createElement('input');i.type='checkbox';i.setAttribute('switch','');i.tabIndex=-1;i.dataset.bmi='1';
+      ['change','input','click'].forEach(ev=>i.addEventListener(ev,e=>e.stopPropagation()));
+      BMV_L.addEventListener('click',e=>e.stopPropagation());
+      BMV_L.appendChild(i);document.body.appendChild(BMV_L);}
+    BMV_L.click();
+  }catch(e){}
+}
+function tbGo(v){try{bmVibra();}catch(e){}const abierta=document.body.classList.contains('sb-open');sbToggleMobile(false);
   if(v==='vend'){
     const enFis=window.__TB_V==='fisio';
     let sub='';try{sub=localStorage.getItem('bmnava_fisiotab')||'';}catch(e){}
@@ -14257,6 +14284,7 @@ function bmPrevia(x,acc){
     el=c;x0=e.touches[0].clientX;y0=e.touches[0].clientY;
     const mio=c;
     tm=setTimeout(()=>{if(el!==mio)return;
+      try{bmVibra();}catch(err){}
       window.__BM_LP=1;                   /* el toque que viene al soltar no cuenta */
       mio.classList.remove('bm-lp');el=null;
       try{bmlpMenu(x);}catch(err){console.error('bmnava · mantener pulsado',err);}
@@ -14952,6 +14980,7 @@ function bmfSelect(sel){
       d.classList.toggle('bmf-seg--a',ops.length>=3||largo>12);}
     [...d.children].forEach((b,i)=>{const on=i===sel.selectedIndex;b.classList.toggle('on',on);b.setAttribute('aria-checked',on?'true':'false');});};
   d.addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b||b.getAttribute('aria-disabled')==='true')return;e.preventDefault();
+    if(sel.selectedIndex!==+b.dataset.i){try{bmVibra();}catch(err){}}
     sel.selectedIndex=+b.dataset.i;bmfDispara(sel);pinta();});
   sel._bmPinta=pinta;pinta();sel.addEventListener('change',pinta);
 }
@@ -15262,6 +15291,7 @@ function bmtAbre(btn){
     m.querySelector('.bmt-caja').addEventListener('click',e=>{const b=e.target.closest('.bmt-it');if(!b)return;
       const gg=bmtGrupo();const x=gg&&gg.items[+b.dataset.i];const ya=b.classList.contains('on');bmtCierra();
       if(!x||ya)return;
+      try{bmVibra();}catch(err){}
       setTimeout(()=>{window.__BM_TAB=1;try{x.fn();}catch(err){console.error('bmnava · menú del título',err);}finally{window.__BM_TAB=0;}
         try{bmtPinta();}catch(err){}},90);});
   }
@@ -16656,7 +16686,9 @@ window.addEventListener('popstate',e=>{
       if(dy>14&&dy>dx*1.6)act=true;else return;
     }
     const i=ind();if(!i)return;
+    const yaListo=i.classList.contains('listo');
     i.classList.add('on');i.classList.toggle('listo',dy>=UMB);
+    if(!yaListo&&dy>=UMB){try{bmVibra();}catch(err){}}
     i.style.transform='translate(-50%,'+Math.round(Math.min(dy*.55,70))+'px) rotate('+Math.round(Math.min(dy,UMB)/UMB*180)+'deg)';
   },{passive:true});
   const fin=()=>{
@@ -16712,7 +16744,7 @@ window.addEventListener('popstate',e=>{
     if(modo!==1){return;}
     const c=capa(g),w=c.children.length*ANCHO+HUECO,d=base+dx,lleno=-(g.getBoundingClientRect().width*0.55);
     if(d<=lleno){cierra(g);const b=prim(g);if(b)setTimeout(()=>b.click(),140);return;}
-    if(d<=-w/2)abre(g);else cierra(g);
+    if(d<=-w/2){abre(g);try{bmVibra();}catch(err){}}else cierra(g);
   };
   document.addEventListener('touchstart',e=>{
     if(!esMovil()||e.touches.length!==1)return;
@@ -16731,7 +16763,9 @@ window.addEventListener('popstate',e=>{
     }
     const W=f.getBoundingClientRect().width;
     const d=Math.max(-W*0.8,Math.min(0,base+dx));f.style.transform='translateX('+d+'px)';
+    const yaL=f.classList.contains('sw-listo');
     f.classList.toggle('sw-listo',d<=-(W*0.55));
+    if(!yaL&&d<=-(W*0.55)){try{bmVibra();}catch(err){}}
   },{passive:true});
   document.addEventListener('touchend',()=>{if(f)suelta();},{passive:true});
   document.addEventListener('touchcancel',()=>{const g=f;f=null;if(g)cierra(g);},{passive:true});
@@ -20485,6 +20519,7 @@ function nutGenerarCuota(mes){
    pago, el sello `upd` que la fusión necesita— uno se quedaría atrás y
    dos pantallas guardarían cosas distintas. Misma regla que `lbEsDe`. */
 function nutMarcar(cs,pagado){
+  if(pagado&&(cs||[]).length){try{if(typeof bmVibra==='function')bmVibra();}catch(e){}}
   const hoy=dkey(new Date());
   (cs||[]).forEach(c=>{if(!c)return;c.pagado=!!pagado;c.fechaPago=pagado?hoy:'';nutTocado(c);});
   return (cs||[]).length;
@@ -43151,6 +43186,10 @@ html.bmz .view.on{animation:none!important}
 .bmrol .bmh-fila .ch{align-self:center}
 .bmrol .bmh-btn{margin-top:16px;background:none;color:var(--accent)}
 </style>
+<style id="movil-v628">
+/* v628 · 5 · El interruptor oculto que hace vibrar el teléfono: fuera de la pantalla, sin ocupar sitio ni recibir toques. */
+.bm-vib{position:fixed;left:-200px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46716,8 +46755,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.6*/
-const VER_ACTUAL='2026-11-13.6';
+/*BUILD:2026-11-13.7*/
+const VER_ACTUAL='2026-11-13.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
