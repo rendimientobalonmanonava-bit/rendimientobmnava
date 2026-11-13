@@ -20679,7 +20679,17 @@ function renderCargaActive(){const t=FILTER.cargaTab||'resumen';
      demás. */
   try{const cr=document.querySelector('#v-carga .ctrlrow');
     if(cr)cr.style.display=(t==='resumen')?'none':'';}catch(e){}
-  if(t==='resumen')renderCargaResumen();else if(t==='cuadrantes'){if(window.qdRenderFull)qdRenderFull();}else if(t==='posicion')renderCargaPos();else if(t==='individual')renderLoadDetail();else renderCargaGrupal();}
+  /* v652 · Gimnasio y Perfil de partido caían en la rama por defecto y pintaban
+     entero el panel de Cargas › RPE, retirado de la navegación (§4.3.0b) y
+     oculto: 72 cálculos de `weekly()` y, en diferido, `renderCargaDecide` y
+     `renderLesCarga` para cuatro contenedores que ya no existen. Medido: abrir
+     Gimnasio 421 ms y Perfil de partido 400, frente a 32 del Dashboard. Cada
+     una pinta ahora lo suyo; ningún contenedor del panel retirado se ve en
+     ellas (comprobado: ninguna de sus funciones escribe fuera de él). */
+  if(t==='resumen')renderCargaResumen();else if(t==='cuadrantes'){if(window.qdRenderFull)qdRenderFull();}else if(t==='posicion')renderCargaPos();else if(t==='individual')renderLoadDetail();
+  else if(t==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}
+  else if(t==='partidos'){try{renderPartidos();}catch(e){console.error('partidos',e);}}
+  else renderCargaGrupal();}
 
 function renderLoad(){
   setTimeout(()=>{try{if(window.lbcMountCargas)lbcMountCargas();}catch(e){}},60);
@@ -37727,8 +37737,7 @@ function cargasTab(k){
   else if(k==='rpe'){const sub=RPE_KEYS.includes(FILTER.rpeSub)?FILTER.rpeSub:'grupal';FILTER.rpeSub=sub;FILTER.cargaTab=sub;showCargaPane(sub);go('carga');}
   else if(RPE_KEYS.includes(k)){FILTER.rpeSub=k;FILTER.cargaTab=k;showCargaPane(k);go('carga');}
   else{FILTER.cargaTab=k;showCargaPane(k);go('carga');
-    if(k==='partidos'){try{renderPartidos();}catch(e){console.error('partidos',e);}}
-    if(k==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}
+    /* v652 · `go('carga')` ya las pinta (renderCargaActive) */}
   syncCargasTabs();
 }
 function syncCargasTabs(){
@@ -48288,8 +48297,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.31*/
-const VER_ACTUAL='2026-11-13.31';
+/*BUILD:2026-11-13.32*/
+const VER_ACTUAL='2026-11-13.32';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
