@@ -14925,7 +14925,7 @@ function bmjMonta(sel){
    Las piezas nuevas son `<span role="radio">`, no `<button>`: dentro de un
    `<label>`, tocar el rótulo activa el primer control que encuentra, y con
    botones «Dolor (0–10)» habría marcado un cero. */
-const BMF_CONT='#ph-body,#med-modal-body,.info-modal';
+const BMF_CONT='#ph-body,#med-modal-body,.info-modal,.bm-fh-cont';
 const bmfDispara=e=>{e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));};
 function bmfSelect(sel){
   if(!sel.closest(BMF_CONT))return;
@@ -15840,9 +15840,97 @@ function bmTarjetasT(){
     e.dataset.bmtq='1';e.classList.add('bm-tq');
   });
 }
+/* v623 · 1 · Los formularios, en una hoja. Daniel, 13/11/2026, eligió la
+   propuesta 1. Medido a 375 px: Disponibilidad eran 5.218 px y dentro había
+   dos formularios abiertos en la pantalla («Marcar un estado», 300 px, y
+   «Prever una ausencia», 291) más siete recuadros que repetían el tablero; en
+   Cargas › Gimnasio, el emparejado de nombres eran 2.097 px de desplegables.
+   HIG · Modality: una tarea acotada —rellenar y guardar— va en una hoja que
+   sube encima, no en la pantalla en la que se lee.
+   En el móvil, en el sitio del formulario queda una fila con su nombre y, al
+   tocarla, el MISMO formulario sube en una hoja: el nodo se lleva a la hoja y
+   se devuelve a su sitio al cerrarla, así que sus campos conservan los ids y
+   lo guardan las funciones de siempre (`availMark`, `availAddPlan`,
+   `gymSetAlias`). Si la pantalla se repinta con la hoja abierta —que es lo que
+   hacen esas funciones al guardar—, la hoja se cierra si lo que se pulsó fue
+   un botón, y si no (elegir un nombre en el emparejado) se queda abierta con
+   el formulario nuevo y en el mismo punto del desplazamiento. En el ordenador
+   no se crea nada. */
+const BMFS_IC={
+  est:'<circle cx="10" cy="8" r="3.6"/><path d="M3.5 20a6.5 6.5 0 0 1 11.4-4.3"/><path d="M18 13.5v7M14.5 17h7"/>',
+  plan:'<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M12 12.5v5M9.5 15h5"/>',
+  gym:'<circle cx="7.5" cy="8" r="3.2"/><path d="M2.5 19a5 5 0 0 1 10 0"/><path d="M14.5 9.5h6.5M18.5 7l2.5 2.5-2.5 2.5M21 15.5h-6.5M17 13l-2.5 2.5L17 18"/>'};
+const BMFS=[
+  {k:'est',sel:'#avail-body .estado-add',tit:'Marcar un estado',ic:'est',sale:'[onclick*="openMedInjury"]',
+    sub:()=>'Dolor, tratamiento, baja o ausencia de un jugador'},
+  {k:'plan',sel:'#avail-body .plan-form',tit:'Prever una ausencia',ic:'plan',sale:'[onclick*="openAusenciaGrupo"]',
+    sub:()=>'Quién no entrenará y qué día, o varios a la vez'},
+  {k:'gym',sel:'#carga-gym>.panel:has(.gv-mrow)',tit:'Emparejar nombres',ic:'gym',tarjeta:true,
+    sub:el=>{const n=el.querySelectorAll('.gv-mrow').length,f=el.querySelectorAll('.gv-mraw.gv-sin').length;
+      return f?{t:f+(f===1?' nombre sin emparejar':' nombres sin emparejar')+' · '+(n-f)+' de '+n+' listos',aviso:true}
+              :{t:'Los '+n+' nombres de BuilderPro, emparejados'};}}];
+const BMFS_AB={f:null,el:null,lan:null,vuelve:null};
+function bmFormasHoja(){
+  BMFS.forEach(f=>{document.querySelectorAll(f.sel).forEach(el=>{
+    if(el.closest('.bmh'))return;
+    let lan=el.previousElementSibling;
+    if(!(lan&&lan.classList.contains('bm-fhl')&&lan.dataset.fhk===f.k)){
+      lan=document.createElement('button');lan.type='button';lan.className='bm-fhl'+(f.tarjeta?' bm-fhl--t':'');lan.dataset.fhk=f.k;
+      lan.addEventListener('click',()=>bmFsAbre(f,lan));el.parentNode.insertBefore(lan,el);}
+    el.classList.add('bm-fh-oc');
+    let sb=f.sub(el);if(typeof sb==='string')sb={t:sb};
+    const h='<i class="bm-fhl-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+BMFS_IC[f.ic]+'</svg></i>'
+      +'<span class="bm-fhl-t"><b>'+bmEsc(f.tit)+'</b><small'+(sb.aviso?' class="bm-fhl-av"':'')+'>'+bmEsc(sb.t)+'</small></span><i class="bm-fhl-ch" aria-hidden="true">›</i>';
+    if(lan._h!==h){lan._h=h;lan.innerHTML=h;lan.setAttribute('aria-label',f.tit+'. '+sb.t);}
+  });});
+  /* La pantalla se repintó con la hoja abierta: se adopta el formulario nuevo. */
+  const a=BMFS_AB;
+  if(a.f&&a.lan&&!a.lan.isConnected){
+    const nuevo=[...document.querySelectorAll(a.f.sel)].find(e=>!e.closest('.bmh'));
+    const lan=nuevo&&nuevo.previousElementSibling;
+    if(nuevo&&lan&&lan.classList.contains('bm-fhl'))bmFsMete(a.f,nuevo,lan,true);
+    else bmHojaCierra('bmh-fh');
+  }
+}
+function bmFsVuelve(){
+  const v=BMFS_AB.vuelve;BMFS_AB.vuelve=null;if(!v)return;clearTimeout(v.t);
+  if(v.lan&&v.lan.isConnected&&!v.lan.nextElementSibling?.isSameNode(v.el)){v.lan.after(v.el);v.el.classList.add('bm-fh-oc');}
+  else if(v.el.closest('.bmh'))v.el.remove();
+}
+function bmFsMete(f,el,lan,repinta){
+  const h=document.getElementById('bmh-fh');if(!h)return;
+  const c=h.querySelector('.bmh-cuerpo'),y=c.scrollTop;
+  if(BMFS_AB.el&&BMFS_AB.el!==el&&BMFS_AB.el.closest('.bmh'))BMFS_AB.el.remove();
+  c.appendChild(el);el.classList.remove('bm-fh-oc');
+  /* lo que se miró fuera de la hoja se vuelve a mirar dentro: aquí un desplegable corto pasa a segmentos */
+  el.querySelectorAll('select').forEach(x=>{if(!x.dataset.bmf)delete x._bmNo;});
+  Object.assign(BMFS_AB,{f,el,lan});
+  if(repinta)c.scrollTop=y;
+  try{bmFormasYa();}catch(e){}
+}
+function bmFsAbre(f,lan){
+  bmFsVuelve();
+  const el=lan.nextElementSibling;if(!el||!el.matches(f.sel))return;
+  const h=bmHoja({id:'fh',titulo:f.tit,html:'',clase:'bm-fhh',alCerrar:()=>{
+    const a=BMFS_AB;if(!a.el)return;
+    /* se devuelve al acabar de bajar la hoja: antes, se vaciaría mientras baja */
+    BMFS_AB.vuelve={el:a.el,lan:a.lan,t:setTimeout(bmFsVuelve,330)};
+    a.f=null;a.el=null;a.lan=null;}});
+  const c=h.querySelector('.bmh-cuerpo');c.classList.add('bm-fh-cont');
+  if(!h._bmfh){h._bmfh=1;
+    /* Tras pulsar un botón del formulario: si guardó, la pantalla se ha repintado
+       y la hoja se cierra; si abre otra cosa (una lesión, una ausencia de varios),
+       también. Si no pasó nada —un aviso de que falta algo—, se queda. */
+    c.addEventListener('click',e=>{const b=e.target.closest('button,.btn');const a=BMFS_AB;if(!b||!a.f)return;
+      if(b.closest('.bm-jsel,.bmf-seg,.bmf-dias,.bmf-esc'))return;
+      if((a.f.sale&&b.matches(a.f.sale))||(a.lan&&!a.lan.isConnected))setTimeout(()=>bmHojaCierra('bmh-fh'),0);});}
+  bmFsMete(f,el,lan,false);
+  try{const cj=h.querySelector('.bmh-caja');bmDetenteQuita(cj);bmDetente(cj);}catch(e){}
+}
 function bmPulido(){
   if(!esMovil())return;
   try{bmDosTonos();}catch(e){}
+  try{bmFormasHoja();}catch(e){console.error('bmnava · formularios en hoja',e);}
   try{bmTarjetasT();}catch(e){}
   try{bmProx();}catch(e){console.error('bmnava · próximo partido',e);}
   try{bmrsPie();}catch(e){console.error('bmnava · resumen a la carta',e);}
@@ -24975,6 +25063,8 @@ function renderAvail(){
   const bdAv=(n,col)=>'<span class="bd-av" style="border-color:'+col+'">'+(avReal(n)?'<img src="'+av(n)+'" alt="" loading="lazy">':'<span class="bd-ini">'+bmEsc(String(n).trim().charAt(0))+'</span>')+'</span>';
   const tablero='<section class="dsp-bd" aria-label="La plantilla hoy, por estado">'
     +'<div class="bd-h"><b>La plantilla hoy</b><span>'+dispCount+' de '+roster.length+' disponibles</span></div>'
+    /* v623 · lo que decían los siete recuadros y el tablero no: las mismas cifras */
+    +'<div class="bd-res">'+pct+' % de la plantilla · '+lost+' días-jugador perdidos'+(regS.length?' · más afectada: '+topZone:'')+'</div>'
     +GRUPOS.map(g=>{const list=estItems.filter(g.test);if(!list.length)return '';
       const cab='<div class="bd-g-h"><i style="background:'+g.col+'"></i>'+g.lab+'<em>'+list.length+'</em></div>';
       if(g.k==='ok')return '<div class="bd-g">'+cab+'<div class="bd-caras">'+list.map(o=>'<button type="button" class="bd-cara" onclick="openPlayer(\''+esc(o.n)+'\')" aria-label="'+bmEsc(o.n)+'">'+bdAv(o.n,g.col)+'<span>'+bmEsc(o.n.split(' ')[0])+'</span></button>').join('')+'</div></div>';
@@ -24983,7 +25073,10 @@ function renderAvail(){
         return '<button type="button" class="bd-pill" onclick="openPlayer(\''+esc(o.n)+'\')">'+bdAv(o.n,sM.c)+'<span class="bd-t"><b>'+bmEsc(bdCorto(o.n))+'</b><em>'+bmEsc(sM.lab+(zona?' · '+zona:''))+'</em></span></button>';}).join('')+'</div></div>';
     }).join('')
     +'<button type="button" class="bd-al" id="bd-al" onclick="go(\'alertas\')" hidden></button>'
-    +'</section>';
+    +'</section>'
+    /* v623 · en el móvil, el análisis de la plantilla queda detrás de un botón */
+    +'<button type="button" class="dsp-fold" aria-expanded="'+(box.classList.contains('dsp-mas')?'true':'false')+'" onclick="dspFold()">'
+      +'<span class="dsp-fold-t">Más sobre la plantilla<small>Readiness en aviso, zonas, mapa, matriz y evolución</small></span><span class="dsp-fold-c" aria-hidden="true">›</span></button>';
   box.innerHTML=`
   <div class="card-pro">
     <div class="pro-head"><div><div class="eyebrow">Disponibilidad</div><div class="pro-title">Atención hoy</div></div>
@@ -25048,6 +25141,9 @@ function renderAvail(){
 }
 /* v535 · El recuento de alertas del tablero del móvil. Lee `STATE.alerts`, lo
    mismo que cuenta la vista Alertas, y se repinta cuando ella se repinta. */
+function dspFold(){const b=document.getElementById('avail-body');if(!b)return;
+  const ab=b.classList.toggle('dsp-mas');const f=b.querySelector('.dsp-fold');if(f)f.setAttribute('aria-expanded',ab?'true':'false');
+  if(ab)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(c=>{if(c&&c.canvas&&c.canvas.closest('#avail-body'))c.resize();});}catch(e){}},0);}
 function bdAlertas(){const all=STATE.alerts||[];
   const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;
   /* v538 · El mismo recuento, en la barra inferior: sobre «Más», que es por
@@ -42669,6 +42765,64 @@ html.bmz .view.on{animation:none!important}
   #v-jugador .plt-bar{background:linear-gradient(var(--seg-carril),var(--seg-carril)),var(--bg)!important}
 }
 </style>
+<style id="movil-v623">
+/* v623 · 1 · Formularios en hoja (Disponibilidad y Gimnasio) y Disponibilidad ordenada. Sólo en el móvil. */
+.bm-fhl,.dsp-fold,.bd-res{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-fh-oc{display:none!important}
+  .bm-fhl{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;margin:6px 0 12px;padding:8px 12px 8px 10px;box-sizing:border-box;
+    border:none;border-radius:14px;background:var(--panel2);color:var(--txt);font:inherit;text-align:left;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .bm-fhl--t{margin:0 0 14px;background:var(--panel);border-radius:18px;padding:12px 14px 12px 12px;box-shadow:var(--sh1,var(--lg-shadow))}
+  .bm-fhl-ic{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:var(--accent);color:var(--on-accent,#fff)}
+  .bm-fhl-ic svg{width:20px;height:20px}
+  .bm-fhl-t{flex:1;min-width:0}
+  .bm-fhl-t b{display:block;font-size:var(--fs-body);font-weight:600}
+  .bm-fhl-t small{display:block;font-size:var(--fs-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bm-fhl-t small.bm-fhl-av{color:var(--warn-text)}
+  .bm-fhl-ch{flex:none;font-style:normal;font-size:20px;color:var(--muted2)}
+  /* Dentro de la hoja */
+  .bm-fh-cont{padding-top:4px}
+  .bm-fh-cont .estado-add{flex-direction:column;align-items:stretch;flex-wrap:nowrap;gap:12px;margin:0;padding:0;border:none}
+  .bm-fh-cont .estado-add>select:not(.bm-oc),.bm-fh-cont .estado-add>input{width:100%;min-height:48px;box-sizing:border-box;padding:0 14px;border:none;border-radius:12px;
+    background:var(--bmh-celda);color:var(--txt);font-size:17px;font-family:inherit;-webkit-appearance:none;appearance:none;min-width:0;min-height:48px!important}
+  .bm-fh-cont .estado-add>select:not(.bm-oc){padding-right:34px;background:var(--bmh-celda) no-repeat right 12px center/12px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+  .bm-fh-cont .estado-add>input::placeholder{color:var(--muted2)}
+  .bm-fh-cont .estado-add>.bm-jsel{min-height:52px;border:none;border-radius:12px;background:var(--bmh-celda);font-size:17px}
+  .bm-fh-cont .estado-add>#est-hint{order:4;margin:0!important;font-size:var(--fs-sm)}
+  .bm-fh-cont .estado-add>.btn{order:5;width:100%;min-height:50px;font-size:17px}
+  .bm-fh-cont .estado-add>.btn.ghost{order:6;font-size:15px!important}
+  .bm-fh-cont .bmf-seg:has(+select[style*="none"]){display:none}
+  .bm-fh-cont .plan-form{grid-template-columns:minmax(0,1fr)!important;gap:14px;margin:0;padding:0;border:none}
+  .bm-fh-cont .plan-form .wide{flex-direction:column;gap:10px!important}
+  .bm-fh-cont .plan-form .wide .btn{width:100%;min-height:50px;font-size:17px}
+  .bm-fh-cont .plan-form .wide .btn:first-child{background:var(--accent);color:var(--on-accent,#fff);border:none}
+  .bm-fh-cont>.panel{background:none!important;box-shadow:none!important;border:none!important;padding:0!important;margin:0!important}
+  .bm-fh-cont>.panel>h2{display:none}
+  .bm-fh-cont .gv-mrow{min-height:60px}
+
+  /* Disponibilidad, en orden: el tablero, lo que hay que mirar hoy, quién vuelve,
+     los dos formularios (en su fila) y, detrás de un botón, el análisis. */
+  #avail-body>.kpi-grid{display:none}
+  #avail-body>.av-2:not(.dsp-an),#avail-body>.av-2:not(.dsp-an)>.av-col,#avail-body>#ev-slot{display:contents}
+  #avail-body .av-col>.card-pro,#avail-body>.av-2>.card-pro,#ev-slot>.panel{margin:0}
+  #avail-body #ev-rtp-panel{order:1}
+  #avail-body>.av-2:not(.dsp-an)>.card-pro{order:2}
+  #avail-body .av-col>.card-pro:first-child{order:3}
+  #avail-body>.dsp-an{order:4}
+  #avail-body>.dsp-fold{order:10;display:flex;align-items:center;gap:10px;width:100%;min-height:56px;padding:12px 16px;box-sizing:border-box;
+    border:none;border-radius:16px;background:var(--panel);color:var(--txt);font:inherit;font-size:var(--fs-body);font-weight:600;text-align:left;
+    cursor:pointer;box-shadow:var(--lg-shadow);touch-action:manipulation}
+  .dsp-fold small{display:block;font-size:var(--fs-sm);font-weight:400;color:var(--muted);margin-top:1px}
+  .dsp-fold .dsp-fold-t{flex:1;min-width:0}
+  .dsp-fold .dsp-fold-c{flex:none;color:var(--muted);font-size:17px;transition:transform .25s cubic-bezier(.32,.72,0,1)}
+  #avail-body.dsp-mas .dsp-fold .dsp-fold-c{transform:rotate(90deg)}
+  #avail-body .av-col>.card-pro:not(:first-child),#avail-body #ev-avail-panel{order:11}
+  #avail-body:not(.dsp-mas) .av-col>.card-pro:not(:first-child),#avail-body:not(.dsp-mas) #ev-avail-panel{display:none}
+  .dsp-bd .bd-res{display:block;margin-top:3px;font-size:var(--fs-sm);color:var(--muted)}
+}
+@media(max-width:760px) and (prefers-reduced-motion:reduce){.dsp-fold .dsp-fold-c{transition:none}}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -46234,8 +46388,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.1*/
-const VER_ACTUAL='2026-11-13.1';
+/*BUILD:2026-11-13.2*/
+const VER_ACTUAL='2026-11-13.2';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
