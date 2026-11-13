@@ -16576,8 +16576,103 @@ function bmDestacados(){
     +'<span class="bmd-h"><i aria-hidden="true">'+BMD_IC[c.k]+'</i><b>'+c.tit+'</b><small>'+c.cuando+'</small><u aria-hidden="true">›</u></span>'
     +'<span class="bmd-f">'+bmEsc(c.frase)+'</span><span class="bmd-g">'+c.graf+'</span></button>').join('');
 }
+/* v636 · Médico, rehecho para el teléfono. Daniel, 13/11/2026, eligió la
+   propuesta 4. Medido antes, a 375 px: antes del primer dato había 5
+   desplegables apilados con su rótulo al lado, 4 filtros de texto y 2 botones
+   azules grandes; con cero lesiones eran 1.134 px de controles.
+   · Los filtros pasan a un botón «Filtrar» que abre una hoja con listas de
+     marca ✓ (periodo y orden), un desplegable del sistema para jugador y
+     tejido, e interruptores para los cuatro filtros sí/no, como Mail o Fotos.
+     Debajo, una fila de chips con lo que está puesto, cada uno con su ×:
+     HIG · Searching, «clearly display the current scope».
+   · «＋ Nueva lesión» y «Parte del día / incidencia» salen de la pantalla:
+     el botón flotante de esta pestaña es «Registrar», que abre las dos.
+     «Exportar cronograma» pasa a un icono en la misma barra.
+   · El cronograma (una tabla de tiempo de 760 px de ancho que había que
+     arrastrar de lado) pasa a una lista: cada lesión con la foto, el título,
+     la fase actual en una barra de fases y los días que lleva. Tocarla la
+     elige, igual que en el ordenador, y su contexto sale debajo.
+   No se toca ni un dato ni un filtro: la hoja llama a `medTimelineSet` y
+   `medTimelineToggle`, las mismas funciones que los controles de siempre.
+   «Agrupar» no está en la hoja porque la lista no agrupa. */
+const BMTL_RANGO=[['30','30 días'],['60','60 días'],['90','90 días'],['season','Temporada']];
+const BMTL_ORDEN=[['fecha','Fecha de la lesión'],['dias','Días lesionado'],['fase','Fase'],['riesgo','Riesgo previo'],['rtp','Vuelta más próxima']];
+const BMTL_SI=[['closed','Incluir las cerradas'],['risk','Sólo con riesgo'],['delay','Sólo con retraso'],['recid','Sólo recidivas']];
+const BMTL_TEJ=['general','muscular','tendinosa','ligamentosa','osea','tobillo'];
+const BMTL_FIL='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"/></svg>';
+const BMTL_EXP='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+function bmtlActivos(){
+  const t=window.MED_TL||{},f=t.f||{},out=[];
+  if(t.range&&t.range!=='90')out.push({l:(BMTL_RANGO.find(x=>x[0]===t.range)||[0,t.range])[1],q:"medTimelineSet('range','90')"});
+  if(t.sort&&t.sort!=='fecha')out.push({l:'Orden: '+String((BMTL_ORDEN.find(x=>x[0]===t.sort)||[0,t.sort])[1]).toLowerCase(),q:"medTimelineSet('sort','fecha')"});
+  if(f.player)out.push({l:f.player,q:"medTimelineSet('f.player','')"});
+  if(f.tissue)out.push({l:'Tejido: '+f.tissue,q:"medTimelineSet('f.tissue','')"});
+  BMTL_SI.forEach(([k,l])=>{if(f[k])out.push({l,q:"medTimelineToggle('"+k+"')"});});
+  return out;
+}
+function bmtlHoja(){
+  const t=window.MED_TL||{},f=t.f||{},esc=bmEsc;
+  const marca=(on)=>'<span class="ch" aria-hidden="true" style="color:var(--accent);font-weight:600">'+(on?'✓':'')+'</span>';
+  const fila=(lab,on,q)=>'<button type="button" class="bmh-fila" role="menuitemradio" aria-checked="'+(on?'true':'false')+'" onclick="'+q+';bmtlHoja()"><span class="tx">'+esc(lab)+'</span>'+marca(on)+'</button>';
+  const players=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const sel=(id,cur,opts,q)=>'<label class="bmh-fila bmtl-sel"><span class="tx">'+id+'</span><select onchange="'+q+';bmtlHoja()">'+opts.map(([v,l])=>'<option value="'+esc(v)+'"'+(v===cur?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';
+  const html='<div class="bmh-rot">Periodo</div><div class="bmh-grupo">'+BMTL_RANGO.map(([v,l])=>fila(l,t.range===v,"medTimelineSet('range','"+v+"')")).join('')+'</div>'
+    +'<div class="bmh-rot">Ordenar por</div><div class="bmh-grupo">'+BMTL_ORDEN.map(([v,l])=>fila(l,t.sort===v,"medTimelineSet('sort','"+v+"')")).join('')+'</div>'
+    +'<div class="bmh-rot">Quién y qué</div><div class="bmh-grupo">'
+      +sel('Jugador',f.player||'',[['','Todos']].concat(players.map(n=>[n,n])),"medTimelineSet('f.player',this.value)")
+      +sel('Tejido',f.tissue||'',[['','Todos']].concat(BMTL_TEJ.map(x=>[x,x])),"medTimelineSet('f.tissue',this.value)")+'</div>'
+    +'<div class="bmh-rot">Mostrar</div><div class="bmh-grupo">'+BMTL_SI.map(([k,l])=>'<label class="bmh-fila bmtl-si"><span class="tx">'+l+'</span>'
+      +'<input type="checkbox" switch'+(f[k]?' checked':'')+' onchange="medTimelineToggle(\''+k+'\');bmtlHoja()"></label>').join('')+'</div>'
+    +(bmtlActivos().length?'<div class="bmh-grupo" style="margin-top:16px"><button type="button" class="bmh-fila" onclick="bmtlLimpia();bmtlHoja()"><span class="tx" style="color:var(--accent)">Quitar todos los filtros</span></button></div>':'');
+  const h=document.getElementById('bmh-tlf');const y=h?h.querySelector('.bmh-cuerpo').scrollTop:0;
+  bmHoja({id:'tlf',titulo:'Filtrar',html});
+  if(y){const c=document.getElementById('bmh-tlf').querySelector('.bmh-cuerpo');c.scrollTop=y;}
+}
+function bmtlLimpia(){const t=window.MED_TL;if(!t)return;t.range='90';t.sort='fecha';Object.keys(t.f).forEach(k=>{t.f[k]=typeof t.f[k]==='boolean'?false:'';});medRehabRenderDashboard();}
+function bmMedico(){
+  const p=document.querySelector('#med-dashboard .tl-panel');if(!p||!p.checkVisibility())return;
+  if(p.querySelector(':scope>.bm-tlbar'))return;
+  const act=bmtlActivos(),esc=bmEsc;
+  const bar=document.createElement('div');bar.className='bm-tlbar';
+  bar.innerHTML='<button type="button" class="bm-tlf" onclick="bmtlHoja()" aria-label="Filtrar el cronograma'+(act.length?', '+act.length+' filtros puestos':'')+'">'+BMTL_FIL+'<span>Filtrar</span>'+(act.length?'<em>'+act.length+'</em>':'')+'</button>'
+    +'<button type="button" class="bm-tlx" onclick="medTimelineExport()" aria-label="Exportar el cronograma">'+BMTL_EXP+'</button>'
+    +(act.length?'<div class="bm-tlchips">'+act.map(a=>'<button type="button" class="bm-tlchip" onclick="'+a.q+'" aria-label="Quitar el filtro '+esc(a.l)+'">'+esc(a.l)+'<i aria-hidden="true">×</i></button>').join('')+'</div>':'');
+  const head=p.querySelector(':scope>.tl-head');if(head&&head.nextSibling)p.insertBefore(bar,head.nextSibling);else p.prepend(bar);
+  /* la lista, en vez de la tabla de tiempo */
+  let eps=[];try{eps=medTimelineData();}catch(e){console.error('bmnava · cronograma',e);}
+  const sc=p.querySelector(':scope>.tl-scroll');if(!sc||!eps.length)return;
+  const hoy=dkey(new Date()),q=n=>String(n).replace(/'/g,"\\'");
+  const dias=(a,b)=>Math.max(0,Math.round((dkToDate(b)-dkToDate(a))/864e5));
+  const fc=k=>{const x=dkToDate(k);return x.getDate()+'/'+(x.getMonth()+1);};
+  const foto=n=>{const r=(window.photoFor&&photoFor(n))||(STATE.players[n]&&STATE.players[n].avatar)||window.__AVATAR__||'';
+    return r?'<img src="'+r+'" alt="" loading="lazy">':'<i>'+esc(String(n).charAt(0))+'</i>';};
+  const lista=document.createElement('div');lista.className='bm-tll';
+  lista.innerHTML=eps.map(e=>{
+    const fs=e.phases||[],i=Math.max(0,e.phaseIdx||0),cf=fs[i]||{};
+    const d=dias(e.dk,e.closeDk||hoy),rtp=e.competitiveDischargeEstimated||e.rtp;
+    let risk='';try{risk=medTimelineRisk(e);}catch(_){}
+    let tarde=false;try{tarde=medTimelineDelayed(e);}catch(_){}
+    const sel=window.MED_TL&&window.MED_TL.sel===e.id;
+    return '<button type="button" class="bm-tl-f'+(sel?' sel':'')+(e.open?'':' cerr')+'" onclick="bmtlElige(\''+q(e.id)+'\')">'
+      +'<span class="bm-tl-av" style="border-color:'+(cf.color||'var(--hair)')+'">'+foto(e.name)+'</span>'
+      +'<span class="bm-tl-t"><b>'+esc(e.name)+'</b><small>'+esc(e.title||e.zona||'Lesión')+'</small>'
+        +(fs.length?'<span class="bm-tl-fs" aria-hidden="true">'+fs.map((x,j)=>'<i style="background:'+(j<=i?(x.color||'var(--accent)'):'var(--seg-carril)')+'"></i>').join('')+'</span>'
+          +'<small class="bm-tl-fn">'+esc(cf.nom||cf.key||'')+(fs.length?' · fase '+(i+1)+' de '+fs.length:'')+'</small>':'')
+      +'</span>'
+      +'<span class="bm-tl-d"><b>'+d+'</b><small>'+(d===1?'día':'días')+'</small>'
+        +(e.open&&rtp?'<small>vuelta '+fc(rtp)+'</small>':(e.open?'':'<small>cerrada</small>'))
+        +(risk==='riesgo'?'<em class="bm-tl-rk">Riesgo</em>':(tarde?'<em class="bm-tl-tr">Retraso</em>':''))
+      +'</span></button>';
+  }).join('');
+  p.insertBefore(lista,sc);
+}
+function bmtlElige(id){
+  medTimelineSelect(id);
+  setTimeout(()=>{try{const c=document.querySelector('#med-dashboard .cx-panel');if(c&&c.checkVisibility())window.scrollTo({top:Math.max(0,c.getBoundingClientRect().top+window.scrollY-110),behavior:'smooth'});}catch(e){}},140);
+}
 function bmPulido(){
   if(!esMovil())return;
+  try{bmMedico();}catch(e){console.error('bmnava · médico',e);}
   try{bmSemana();}catch(e){console.error('bmnava · semana del resumen',e);}
   try{bmHoy();}catch(e){console.error('bmnava · cápsula de hoy',e);}
   try{bmDestacados();}catch(e){console.error('bmnava · destacados',e);}
@@ -43967,6 +44062,50 @@ html.bmz .view.on{animation:none!important}
   #team-strip .eq-tile:nth-child(6) .eq-l::before{background:var(--gi-violeta) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z'/%3E%3C/svg%3E") center/13px no-repeat}
 }
 </style>
+<style id="movil-v636">
+/* v636 · Médico › cronograma en el teléfono. En el ordenador no existe nada de esto. */
+.bm-tlbar,.bm-tll{display:none}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #med-dashboard .tl-ctrls,#med-dashboard .tl-actions,#med-dashboard .tl-scroll,#med-dashboard .tl-legend{display:none}
+  .mcx-quick{display:none}
+  #med-dashboard .tl-head h2{font-size:var(--fs-h2)}
+  .bm-tlbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 6px}
+  .bm-tlf{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:none;border-radius:999px;background:var(--seg-carril);
+    font:inherit;font-size:15px;font-weight:600;color:var(--txt);cursor:pointer}
+  .bm-tlf em{font-style:normal;min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;border-radius:10px;background:var(--accent);color:var(--on-accent,#fff);
+    font-size:12px;line-height:20px;text-align:center}
+  .bm-tlx{margin-left:auto;display:grid;place-items:center;width:44px;height:44px;border:none;border-radius:50%;background:var(--seg-carril);color:var(--accent);cursor:pointer}
+  .bm-tlchips{flex:0 0 100%;display:flex;flex-wrap:wrap;gap:6px}
+  .bm-tlchip{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px 0 12px;border:none;border-radius:999px;
+    background:color-mix(in srgb,var(--accent) 14%,transparent);font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--txt);cursor:pointer}
+  .bm-tlchip::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+  .bm-tlchip i{font-style:normal;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--seg-carril);font-size:14px;line-height:1;color:var(--txt)}
+  .bm-tll{display:flex;flex-direction:column;margin:6px 0 4px}
+  .bm-tl-f{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:72px;padding:10px 4px;border:none;background:none;font:inherit;color:var(--txt);
+    text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bm-tl-f+.bm-tl-f::before{content:"";position:absolute;left:60px;right:0;top:0;height:.5px;background:var(--hair)}
+  .bm-tl-f.sel{background:color-mix(in srgb,var(--accent) 8%,transparent);border-radius:14px}
+  .bm-tl-f.cerr .bm-tl-t b{color:var(--muted)}
+  .bm-tl-av{flex:none;width:46px;height:46px;box-sizing:border-box;border-radius:50%;border:3px solid var(--hair);overflow:hidden;display:grid;place-items:center;background:var(--panel2)}
+  .bm-tl-av img{width:100%;height:100%;object-fit:cover;display:block}
+  .bm-tl-av i{font-style:normal;font-weight:600;color:var(--muted)}
+  .bm-tl-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;line-height:1.25}
+  .bm-tl-t b{font-size:var(--fs-body);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bm-tl-t small{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bm-tl-fs{display:flex;gap:3px;margin-top:3px}
+  .bm-tl-fs i{flex:1;height:5px;border-radius:3px}
+  .bm-tl-d{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:1px;min-width:56px}
+  .bm-tl-d b{font-size:22px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .bm-tl-d small{font-size:11px;color:var(--muted)}
+  .bm-tl-d em{font-style:normal;margin-top:3px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600}
+  .bm-tl-rk{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad-text)}
+  .bm-tl-tr{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn-text)}
+  .bmtl-sel select{margin-left:auto;max-width:60%;min-height:36px;border:none;background:none;font:inherit;font-size:17px;color:var(--muted);text-align:right;
+    -webkit-appearance:none;appearance:none;padding-right:16px;background:no-repeat right center/10px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 9l5-5 5 5M7 15l5 5 5-5'/%3E%3C/svg%3E")}
+  .bmtl-si input{margin-left:auto}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -47532,8 +47671,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.15*/
-const VER_ACTUAL='2026-11-13.15';
+/*BUILD:2026-11-13.16*/
+const VER_ACTUAL='2026-11-13.16';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
