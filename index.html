@@ -14757,6 +14757,38 @@ function bmlAplica(){
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')ya();});
   try{window.matchMedia('(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse)').addEventListener('change',ya);}catch(e){}
 })();
+/* v661 · El número de alertas en el icono de la app, como Mail. Daniel,
+   13/11/2026, propuesta 5. Con la app instalada (iOS 16.4 o posterior, o un
+   ordenador que la tenga instalada), el icono lleva el MISMO recuento que la
+   barra de abajo (`bdAlertas`). Pide permiso de notificaciones una vez, porque
+   iOS lo exige para poner el número; no manda ningún aviso. Se activa en
+   «Más › Este teléfono» y se recuerda en ese aparato (`bmnava-insignia`, con
+   guion). **Sin el servidor de avisos (§8) el número sólo cambia cuando la app
+   se abre**: con la app cerrada se queda el último. */
+const BMI_K='bmnava-insignia';
+const bmiPuede=()=>'setAppBadge' in navigator;
+const bmiOn=()=>{try{return localStorage.getItem(BMI_K)==='1';}catch(e){return false;}};
+function bmInsignia(){
+  if(!bmiPuede()||!bmiOn())return;
+  if(window.Notification&&Notification.permission!=='granted')return;
+  const n=(STATE.alerts||[]).length;
+  try{(n?navigator.setAppBadge(n):navigator.clearAppBadge()).catch(()=>{});}catch(e){}
+}
+function bmInsigniaPinta(){
+  const c=document.getElementById('bmt-insignia');if(!c)return;
+  if(!bmiPuede()){c.innerHTML='';return;}
+  const on=bmiOn()&&(!window.Notification||Notification.permission==='granted');
+  c.innerHTML='<div class="bmh-rot">Icono de la app</div><div class="bmh-grupo"><label class="bmh-fila"><span class="tx">Número de alertas en el icono'
+    +'<small>El mismo que la barra de abajo. Se actualiza al abrir la app.</small></span><input type="checkbox" switch class="bm-sw-in"'+(on?' checked':'')+' data-bmi="1"></label></div>';
+  const i=c.querySelector('[data-bmi]');
+  i.addEventListener('change',()=>{
+    if(!i.checked){try{localStorage.setItem(BMI_K,'0');navigator.clearAppBadge().catch(()=>{});}catch(e){}return;}
+    const sigue=p=>{if(p==='granted'){try{localStorage.setItem(BMI_K,'1');}catch(e){}bmInsignia();try{bmVibra();}catch(_){}}
+      else{i.checked=false;try{toast('Sin permiso de notificaciones el iPhone no deja poner el número en el icono');}catch(_){}}};
+    try{if(window.Notification&&Notification.permission!=='granted')Notification.requestPermission().then(sigue);else sigue('granted');}catch(e){sigue('denied');}
+  });
+}
+document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}});
 /* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
 function bmTelefono(){
   const ops=[['sis','Como el teléfono'],['0.9','Pequeña'],['1','Normal'],['1.15','Grande'],['1.3','Muy grande']];
@@ -14775,12 +14807,12 @@ function bmTelefono(){
         +(o[0]==='sis'?'<small>Ahora mismo: '+nom(BML.pasos.reduce((a,b)=>Math.abs(b-Math.max(0.9,Math.min(1.3,sis)))<Math.abs(a-Math.max(0.9,Math.min(1.3,sis)))?b:a))+'</small>':'')
         +'</span>'+(p===o[0]?'<span class="ch bml-ok">✓</span>':'')+'</button>').join('')+'</div>'
       +'<p class="bml-nota">La cabecera, la barra de abajo y los documentos que se exportan no cambian de tamaño.</p>'
-      +'<div id="bmt-avisos"></div>'
+      +'<div id="bmt-avisos"></div><div id="bmt-insignia"></div>'
       +'<div class="bmh-grupo" style="margin-top:16px"><button type="button" class="bmh-fila" data-nov-abre="1"><span class="ic">'+BMN_IC.dedo+'</span><span class="tx">Novedades y gestos</span><span class="ch">›</span></button></div>'
       +'<p class="bml-ver">Versión '+bmjEsc(typeof VER_ACTUAL!=='undefined'?VER_ACTUAL:'')+'</p>';};
   const h=bmHoja({id:'tel',titulo:'Este teléfono',clase:'bmt',html:pinta()});
   const c=h.querySelector('.bmh-cuerpo');
-  const repinta=()=>{c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
+  const repinta=()=>{c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}try{bmInsigniaPinta();}catch(err){}};
   c.onchange=e=>{const sel=e.target.closest&&e.target.closest('select[data-barra]');if(!sel)return;
     const i=+sel.dataset.barra,ks=TABBAR.map(t=>t[0]),k=sel.value,j=ks.indexOf(k);
     if(j>=0&&j!==i)ks[j]=ks[i];        /* ya estaba en otra posición: se intercambian */
@@ -14791,8 +14823,9 @@ function bmTelefono(){
     if(e.target.closest('[data-rol-abre]')){bmHojaCierra('bmh-tel');setTimeout(()=>bmRol(false),260);return;}
     const b=e.target.closest('[data-letra]');if(!b)return;
     try{localStorage.setItem(BML.k,b.dataset.letra);}catch(err){}
-    bmlAplica();c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}};
+    bmlAplica();c.innerHTML=pinta();try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(err){}try{bmInsigniaPinta();}catch(err){}};
   try{if(typeof bmAvisosPinta==='function')bmAvisosPinta();}catch(e){}
+  try{bmInsigniaPinta();}catch(e){}
 }
 /* v577 · Avisos en el teléfono. La app es una página: no hay nada suyo que
    pueda mandar un aviso con la app cerrada. Quien lo manda es una función en
@@ -26595,7 +26628,7 @@ function renderAvail(){
 function dspFold(){const b=document.getElementById('avail-body');if(!b)return;
   const ab=b.classList.toggle('dsp-mas');const f=b.querySelector('.dsp-fold');if(f)f.setAttribute('aria-expanded',ab?'true':'false');
   if(ab)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(c=>{if(c&&c.canvas&&c.canvas.closest('#avail-body'))c.resize();});}catch(e){}},0);}
-function bdAlertas(){const all=STATE.alerts||[];
+function bdAlertas(){const all=STATE.alerts||[];try{bmInsignia();}catch(e){}
   const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;
   /* v538 · El mismo recuento, en la barra inferior: sobre «Más», que es por
      donde se llega a Alertas, y sobre la propia entrada dentro de la hoja.
@@ -48787,8 +48820,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.40*/
-const VER_ACTUAL='2026-11-13.40';
+/*BUILD:2026-11-13.41*/
+const VER_ACTUAL='2026-11-13.41';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
