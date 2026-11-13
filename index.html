@@ -16506,6 +16506,69 @@ function bmCobroLista(){
       f.addEventListener('click',e=>{e.stopPropagation();try{nm.onclick&&nm.onclick.call(nm,e);}catch(_){}});c.appendChild(f);}
   });
 }
+/* v657 · Las dos pantallas largas que quedaban, plegadas como el Resumen.
+   Daniel, 13/11/2026, propuesta 1 de la tanda siguiente. Medido a 375 px:
+   Pulsómetros › Equipo › Sesión 3.675 px («Tiempo total en zonas» 767, la
+   clasificación 762, «por jugador» 544, «Semana» 505) y ficha › Carga 3.291
+   (ocho bloques de unos 300). La tarjeta de la sesión (v616) y la cabecera de
+   la ficha se quedan abiertas; el resto pasa a la fila de la v629 —título,
+   lo que dice el bloque y una flecha—, y lo abierto se recuerda en el
+   teléfono. Lo que dice la fila se lee de lo pintado: la lectura del gráfico
+   (`bm-lee`) si la tiene, el subtítulo del título si no. Sólo móvil. */
+const BMPG=[
+  {vista:'v-hr',clave:'bmnava-hrab',paneles:()=>[...document.querySelectorAll('#v-hr .panel')].filter(p=>{
+      const m=p.closest('[data-mt]');return m&&m.getAttribute('data-mt')==='sesion'&&!p.parentElement.closest('.panel')&&!p.closest('#hr-kpis');})},
+  {vista:'v-jugador',clave:'bmnava-fichacarga',paneles:()=>{const pa=document.getElementById('plt-carga');if(!pa||!pa.checkVisibility())return [];
+      return [...pa.children].map(c=>c.classList.contains('panel')?c:c.querySelector(':scope>.panel')).filter(p=>p&&!p.closest('#player-hero,.player-hero'));}}];
+const bmpgSlug=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').slice(0,40);
+function bmpgAb(cl){try{const a=JSON.parse(localStorage.getItem(cl)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function bmpgRes(pn,h2,k){
+  const tx=s=>{const x=pn.querySelector(s);return x?String(x.textContent||'').replace(/\s+/g,' ').trim():'';};
+  const T=String(pn.textContent||'').replace(/\s+/g,' ');
+  /* la cifra que cada bloque de la ficha ya enseña */
+  if(k==='pl-normal'){const C=[...pn.querySelectorAll('.pln-c')].map(c=>({e:(c.querySelector('em')||{}).textContent||'',b:(c.querySelector('b')||{}).textContent||'',u:(c.querySelector('u')||{}).textContent||''}));
+    const u=C.find(c=>/Último/.test(c.e)),nm=C.find(c=>/normal/i.test(c.e));if(u)return {v:bmprNum(u.b.trim()),sub:['Último día',u.u.trim().toLowerCase(),nm?'su normal '+nm.b.trim():''].filter(Boolean).join(' · ')};}
+  if(k==='pl-resp'){const f=(T.match(/Fatiga\s*([+−-]?[\d,]+)/)||[])[1],d=(T.match(/DOMS\s*([+−-]?[\d,]+)/)||[])[1];if(f||d)return {sub:'Al día siguiente de uno duro: '+[f?'fatiga '+f:'',d?'DOMS '+d:''].filter(Boolean).join(' · ')};}
+  if(k==='pl-kpisem'){const a=(T.match(/ACWR \(7:21\)\s*([\d]+,[\d]+)/)||[])[1],m=(T.match(/Monotonía \(7d\)\s*([\d]+,[\d]+)/)||[])[1];if(a)return {v:bmEsc(a),sub:'ACWR (7:21)'+(m?' · monotonía '+m:'')};}
+  const n=tx('.bm-lee-n');if(n){const c=tx('.bm-lee-c'),sb=tx('.bm-lee-s').split(' · ')[0];return {v:bmprNum(n),sub:[c,sb].filter(Boolean).join(' · ')};}
+  if(pn.id==='hr-class'){const t=String(pn.textContent||'').replace(/\s+/g,' ');const m=t.match(/SESI[ÓO]N\s+(BAJA|MEDIA|ALTA)/i);return {v:m?m[1].charAt(0)+m[1].slice(1).toLowerCase():'',sub:'Nivel resultante de la sesión'};}
+  const z=String(pn.textContent||'').match(/% del tiempo en Z4\+Z5\s*([\d.,]+\s*%)/);if(z)return {v:bmprNum(z[1].replace(/\s*%/,' %')),sub:'del tiempo en Z4+Z5, por jugador y sesión'};
+  const r=h2&&h2.querySelector('.r');if(r)return {sub:r.textContent.replace(/\s+/g,' ').trim()};
+  return {sub:''};
+}
+function bmPliegues(){
+  BMPG.forEach(g=>{
+    const v=document.getElementById(g.vista);if(!v||!v.classList.contains('on'))return;
+    const ab=bmpgAb(g.clave);
+    g.paneles().forEach(pn=>{
+      if(!pn.checkVisibility()&&!pn.classList.contains('bm-pp'))return;
+      const h2=pn.querySelector(':scope>h2');
+      let tit=h2?[...h2.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim():'';
+      if(!tit&&pn.id==='hr-class')tit='Clasificación de sesión';
+      if(!tit)return;
+      const pa=pn.parentElement,k=pn.id||(pa&&pa.id&&!/^(plt-carga|hr-pane-equipo)$/.test(pa.id)?pa.id:'')||bmpgSlug(tit);
+      const abierto=ab.indexOf(k)>=0;
+      pn.classList.add('bm-pf','bm-pp','bm-pgp');pn.classList.toggle('bm-po',abierto);
+      let r={};try{r=bmpgRes(pn,h2,k)||{};}catch(e){}
+      const h='<span class="bm-pr-t"><b>'+bmEsc(tit)+'</b>'+(r.sub?'<small>'+bmEsc(r.sub)+'</small>':'')+'</span>'
+        +(r.v?'<span class="bm-pr-v">'+r.v+'</span>':'')+'<i class="bm-pr-ch" aria-hidden="true">›</i>';
+      let b=pn.querySelector(':scope>.bm-pr');
+      if(!b){b=document.createElement('button');b.type='button';b.className='bm-pr';b.setAttribute('data-noarr','1');
+        b.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();bmpgToca(g,b.dataset.k);});pn.insertBefore(b,pn.firstChild);}
+      b.dataset.k=k;
+      if(b._h!==h){b._h=h;b.innerHTML=h;}
+      b.setAttribute('aria-expanded',abierto?'true':'false');
+      b.setAttribute('aria-label',tit+(r.sub?'. '+r.sub:'')+(abierto?'. Toca para plegarlo':'. Toca para verlo entero'));
+    });
+  });
+}
+function bmpgToca(g,k){
+  const ab=bmpgAb(g.clave),i=ab.indexOf(k);if(i>=0)ab.splice(i,1);else ab.push(k);
+  try{localStorage.setItem(g.clave,JSON.stringify(ab));}catch(e){}
+  bmPliegues();try{bmVibra();}catch(e){}
+  setTimeout(()=>{try{bmNotas();bmVoz();
+    Object.values((window.Chart&&Chart.instances)||{}).forEach(ch=>{if(ch&&ch.canvas&&ch.canvas.closest('.bm-po'))ch.resize();});}catch(_){}},60);
+}
 const BMRF_K='bmnava-resumenab';
 const bmrfTx=(el,s)=>{const x=el&&el.querySelector(s);return x?String(x.textContent||'').replace(/\s+/g,' ').trim():'';};
 const bmrfCol=(el,s)=>{const x=el&&el.querySelector(s);return x?getComputedStyle(x).color:'';};
@@ -16994,6 +17057,7 @@ function bmPulido(){
   if(!esMovil())return;
   try{bmNotas();}catch(e){console.error('bmnava · explicaciones al pie',e);}
   try{bmResumenFold();}catch(e){console.error('bmnava · resumen plegado',e);}
+  try{bmPliegues();}catch(e){console.error('bmnava · pliegues',e);}
   try{bmCobroLista();}catch(e){console.error('bmnava · cobrar en filas',e);}
   try{bmVoz();}catch(e){console.error('bmnava · voiceover',e);}
   try{bmAlineaCifras();}catch(e){console.error('bmnava · cifras alineadas',e);}
@@ -44966,6 +45030,14 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   .cw-md-tag:not(.is-md),.mc-pend,.mc-pend::after{color:var(--muted)!important}
 }
 </style>
+<style id="movil-v657">
+/* v657 · Pulsómetros › Sesión y ficha › Carga plegados: la fila es la de la v629. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-pgp>.bm-pr{cursor:pointer}
+  .bm-po.bm-pgp>h2:has(.r button){display:flex!important;justify-content:flex-end;font-size:0!important;margin:0 0 8px!important;min-height:0}
+  .bm-po.bm-pgp>h2:has(.r button)>*{font-size:var(--fs-body)}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -48551,8 +48623,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-13.36*/
-const VER_ACTUAL='2026-11-13.36';
+/*BUILD:2026-11-13.37*/
+const VER_ACTUAL='2026-11-13.37';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
