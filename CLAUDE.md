@@ -1349,6 +1349,20 @@ Daniel, 15/11/2026, con una captura del Calendario del ordenador: *«madre mía 
 
 **Siguen en el ordenador, por decisión de Daniel**: el próximo partido en pequeño y la banda de Destacados del Resumen (v687), la vista previa con clic derecho y la mini-ficha al pasar el ratón (v670) y la búsqueda con ⌘K (v671).
 
+
+#### 6.12.26 El Resumen del ordenador como antes del 13/11, Destacados que pasan y la barra lateral nueva (v705–v708)
+
+Daniel, 15/11/2026, con una captura de la primera pantalla: *«me gustaría que este primer vistazo fuera mucho mejor. Corrige la banda lateral, no me convence … el logo de Handball Performance mal puesto … mucho espacio ocupado con las tarjetas que no me dan tanta información como para ser tan grandes. Yo lo compactaría muchísimo más … me dejes la parte de resumen tal y como estaba antes, pero el próximo partido tal y como está ahora … la interpretación en un solo bloque … que fueran pasando como los míticos anuncios»*. Preguntado cuál es «el de antes»: **el de antes del 13/11**; y la barra lateral: **«la clara de ahora, pero dale otro punto de vista, diferente. Sorpréndeme»**.
+
+| Elemento | Regla |
+|---|---|
+| v705 · El Resumen, como antes del 13/11 | Las reglas de ordenador de la v662, v663, v690, v693 y v695 que empiezan por `main` llevan `:not(#v-equipo *)` (se añadieron recorriendo cada bloque con un analizador, no a mano). Los tokens que la v690 cambió en `:root` se devuelven dentro del Resumen (`#v-equipo{--panel2;--lg-shadow;--e1}` y `html:has(#v-equipo.on){--bg}`, con sus valores de oscuro), y la escala, los radios y las sombras de la reescritura de la hoja vuelven con una regla de `#bm-sistema` en el ordenador (`#v-equipo{ori;FSO;--sh1:initial;…;--fmin:0px}`). Vuelven: el título grande con su aviso (`main>.view:not(#v-cal):not(#v-equipo)>.pagehead`), las notas a la vista (`bmInfoEsc` no entra en el Resumen), las tarjetas sin elevarse (`bmTarjetasT` no marca nada del Resumen en el ordenador), los medidores de «Estado de carga» abajo, y **la barra de 14 días del readiness, que ocultaba una regla del móvil (v632) copiada en la v673**. *Comparado con la v661 a 1.920 px: los recuadros de cifras, las tres columnas y la franja inferior coinciden elemento a elemento (posición, letra, esquina y sombra), salvo textos que dependen de la hora* |
+| v706 · Destacados, un bloque que pasa | `bmDestCarril` reescrita: las tarjetas de `bmDestacados` en un carril de una por vista (categoría y cuándo · la frase · su pequeño gráfico), con ‹ ›, puntos y deslizar con el trackpad. Pasa sola cada 7 s (`BMDC`); se para con el ratón o el teclado dentro, con la pestaña en segundo plano y con «reducir movimiento». 80 px de alto |
+| v707 · Cifras y «Ojo hoy», compactos | Cada recuadro: rótulo, cifra y línea a la izquierda y el micrográfico a la derecha (125 → 74–86 px). Sin avisos, seis en una fila; con avisos, 3 × 2 y «Ojo hoy» al lado con una fila por aviso. *Con un aviso, la parte de arriba pasa de ≈ 350 a 158 px* |
+| v708 · La barra lateral | La marca arriba (el escudo con su nombre y «Control de cargas · 26/27», sin la placa con sombra) y **Handball Performance al pie, entero**. Las secciones como pastillas: la elegida, una hoja blanca con su filo del color de acción (rojo en Alertas). Y bajo la marca, **el día de un vistazo** (`bmMenuHoy`, `#sb-hoy`): readiness medio, disponibles y con molestia del día que se está viendo, **leídos de la tira del Resumen** (`#team-strip`, con su color), y el próximo partido (la misma lista que su píldora), que abre la previa; pulsar la tarjeta lleva al Resumen. Plegado, sólo el escudo. **No calcula nada nuevo** |
+
+**Cómo se comprobó.** Ordenador a 1.024, 1.440 y 1.920 px: una sola vista, nada se sale ni de la página ni de la barra, sin errores; contraste de las piezas nuevas en los dos temas (mínimo 5,07). Móvil a 375 px: huella de siete pantallas y de la barra lateral idéntica a la v687 (el Resumen varía también entre dos cargas de la misma copia). Con 768 px de alto el menú lateral se desplaza (144 px) por la tarjeta del día.
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1383,6 +1397,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **Lo de la v705–v708**: que Daniel vea con sus datos el Resumen como antes del 13/11, el bloque de Destacados que pasa, los recuadros compactos y la barra lateral nueva con «el día de un vistazo» (§6.12.26)
 - **Lo de la v688–v698**: que Daniel vea con sus datos el ordenador como app de macOS (§6.12.24): el título y las secciones en la barra, Jugadores con la plantilla al lado de la ficha y Nutrición en tabla
 - **Lo de la v680–v686**: que Daniel vea con sus datos el Calendario, Jugadores, el tablero de Disponibilidad, la ficha, los contadores del menú y los atajos (§6.12.22)
 - **Lo de la v674–v679**: que Daniel vea el ordenador como app de Mac (§6.12.21) con sus datos —la rejilla del Resumen, la cabecera, el botón (i), las pestañas— y diga si el orden de las secciones del Resumen le vale
@@ -1598,6 +1613,7 @@ No los repitas.
 | Huellas de dos copias pintadas con días distintos | La copia de referencia abrió en el 3/11 y la nueva en el 15/11: Alertas salía con 17 tarjetas en una y 11 en otra con los mismos 50 avisos, porque la vista se quedó pintada con el día anterior. **Antes de comparar: `setRefDate` al mismo día y `renderAll()` en las dos**, y repetir la de referencia para saber cuánto varía sola |
 | Llevar al ordenador una pieza del móvil que inserta nodos junto a otro | La lectura de los gráficos (v597) se inserta como hermana del envoltorio del gráfico. En el móvil no rompía nada; en el ordenador, donde ese envoltorio es hijo directo de una rejilla de dos columnas, la lectura se convirtió en una celda más y mandó el gráfico a otra fila. **Lo que inserta nodos se comprueba en cada sitio donde va a insertarlos, no en la pantalla donde se diseñó** |
 | Dar un cambio por bueno con datos que no lo disparan | La copia de prueba tiene un solo día con carga en la semana y con un día la lectura no aparece: el Calendario se dio por bueno en la v666 y en la v680 y estaba roto en el ordenador de Daniel, que tenía cinco. **Antes de dar por buena una pantalla, sembrar los datos que activan cada pieza**, no sólo los que hay |
+| Copiar un bloque del móvil entero al ordenador | La v673 reenvolvió en la condición del ordenador el CSS completo de la semana del móvil (v632), y con él una regla que ocultaba la barra de 14 días del readiness: el Resumen del ordenador la perdió durante dos días sin que nadie lo pidiera. **Lo que se lleva del móvil se copia regla a regla, mirando qué oculta cada una**, no el bloque entero |
 
 ---
 
