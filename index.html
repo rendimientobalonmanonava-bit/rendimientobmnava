@@ -14942,6 +14942,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmMasonry();}catch(e){}
     /* v696 · la plantilla al lado de la ficha */
     try{bmJugLista();}catch(e){}
+    /* v708 · «Hoy, de un vistazo», en el menú */
+    try{bmMenuHoy();}catch(e){}
     try{bmMenuCuentas();}catch(e){}
     try{bmAtajosMenu();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
@@ -15035,7 +15037,13 @@ function bmMarcaMenu(){
   pl.title='Ir a Equipo · Resumen';pl.onclick=()=>go('equipo');
   pl.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go('equipo');}};
   const ci=club.cloneNode();ci.removeAttribute('id');ci.alt='BM Nava';pl.appendChild(ci);m.appendChild(pl);
-  hps.forEach(h=>{const c=h.cloneNode();c.removeAttribute('id');c.className='sbm-hp '+(h.classList.contains('hp-light')?'hp-light':'hp-dark');c.alt='Handball Performance';m.appendChild(c);});
+  /* v708 · debajo del escudo, qué es y de qué temporada; el logo de Handball
+     Performance baja al pie del menú, donde cabe entero (arriba salía cortado) */
+  const y=+(String(typeof TEMP_INICIO!=='undefined'?TEMP_INICIO:'').slice(2,4))||0;
+  const sub=document.createElement('span');sub.className='sbm-sub';sub.textContent='Control de cargas'+(y?' · '+y+'/'+(y+1):'');m.appendChild(sub);
+  const pie=document.createElement('div');pie.className='sbm-pie';pie.title='Handball Performance';
+  hps.forEach(h=>{const c=h.cloneNode();c.removeAttribute('id');c.className='sbm-hp '+(h.classList.contains('hp-light')?'hp-light':'hp-dark');c.alt='Handball Performance';pie.appendChild(c);});
+  const ft=document.querySelector('#sidebar .sb-foot');if(ft&&hps.length)ft.insertBefore(pie,ft.firstChild);
   b.appendChild(m);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmMarcaMenu);else bmMarcaMenu();
@@ -15352,6 +15360,42 @@ function bmJugLista(){
   c.querySelectorAll('.jl-f').forEach(f=>{const s=f.dataset.n===STATE.curPlayer;f.classList.toggle('on',s);if(s){act=f;f.setAttribute('aria-current','true');}else f.removeAttribute('aria-current');});
   if(act&&c.dataset.cur!==STATE.curPlayer){c.dataset.cur=STATE.curPlayer;
     const r=act.getBoundingClientRect(),cr=c.getBoundingClientRect();if(r.top<cr.top+60||r.bottom>cr.bottom-10)act.scrollIntoView({block:'center'});}
+}
+/* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
+   15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
+   Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
+   punto de vista, diferente. Sorpréndeme». Tres cosas: la marca arriba (el
+   escudo con su nombre y «Control de cargas · 26/27») y Handball Performance
+   al pie, entero; las secciones como pastillas, la elegida en blanco con su
+   filo del color de acción, como una hoja encima del menú; y, bajo la marca,
+   «el día de un vistazo»: el readiness medio, los disponibles y los que tienen
+   molestia del día que se está viendo, y el próximo partido, en cualquier
+   pantalla. **No calcula nada**: las tres cifras se leen de la tira de
+   titulares del Resumen (`#team-strip`), con su mismo color, y el partido sale
+   de la misma lista que la píldora del Resumen (`calPartidosDks`, `evRival`). */
+function bmMenuHoy(){
+  if(esMovil())return;
+  const sb=document.getElementById('sidebar'),br=sb&&sb.querySelector('.sb-brand');if(!br)return;
+  const tiles=[...document.querySelectorAll('#team-strip .eq-tile')];
+  const lee=k=>{const t=tiles.find(x=>{const l=x.querySelector('.eq-l');return l&&l.textContent.trim().toLowerCase().indexOf(k)===0;});
+    if(!t)return null;const v=t.querySelector('.eq-v');return v?{t:v.textContent.replace(/\s+/g,'').trim(),c:v.style.color||''}:null;};
+  const rd=lee('readiness'),di=lee('disponibles'),mo=lee('con molestia');
+  let par=null;try{const hoy=dkey(new Date());const sig=calPartidosDks().find(x=>x>=hoy);
+    if(sig){const ev=((STATE.calendar||{})[sig]||[]).find(evEsPartido)||{};const f=Math.round((dkToDate(sig)-dkToDate(hoy))/86400000);
+      par={dk:sig,riv:evRival(ev)||'Partido',cuando:f===0?'hoy':f===1?'mañana':'en '+f+' días'};}}catch(e){}
+  let dia='';try{const d=REF();const WD=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];dia=WD[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);}catch(e){}
+  let w=document.getElementById('sb-hoy');
+  if(!rd&&!di&&!par){if(w)w.remove();return;}
+  if(!w){w=document.createElement('div');w.id='sb-hoy';br.after(w);
+    w.addEventListener('click',e=>{const p=e.target.closest('.sbh-par');if(p&&p.dataset.dk){e.stopPropagation();try{bmPreviaPartido(p.dataset.dk);}catch(err){}return;}go('equipo');});}
+  const E=bmEsc;
+  const cifra=(x,l)=>x?'<span class="sbh-c"><b style="color:'+E(x.c?colTexto(x.c):'var(--txt)')+'">'+E(x.t)+'</b><small>'+l+'</small></span>':'';
+  const h='<div class="sbh-tit"><span>'+E(dia)+'</span></div>'
+    +'<div class="sbh-cs">'+cifra(rd,'readiness')+cifra(di,'disponibles')+cifra(mo,'molestia')+'</div>'
+    +(par?'<button type="button" class="sbh-par" data-dk="'+E(par.dk)+'" title="Abre la previa del partido"><i></i><span>'+E(par.riv)+'</span><b>'+E(par.cuando)+'</b></button>':'');
+  if(w.dataset.h!==h){w.dataset.h=h;w.innerHTML=h;}
+  w.setAttribute('role','button');w.tabIndex=0;w.setAttribute('aria-label','El día de un vistazo: abre el Resumen');
+  if(!w.dataset.k){w.dataset.k='1';w.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===w){e.preventDefault();go('equipo');}});}
 }
 /* v685 · ORDENADOR · Los contadores del menú. Cada cifra sale de lo que la
    app ya calcula: el estado efectivo del día (`effectiveStatus`, como la tira
@@ -46928,6 +46972,56 @@ html[data-theme="dark"]{--mac-alt:rgba(255,255,255,.035);--mac-fila-h:rgba(255,2
   #v-equipo #team-ojo .fh-mot{grid-area:m;margin:0!important;justify-content:flex-start;text-align:left}
   #v-equipo #team-ojo .ojo-nota{grid-column:2/-1;margin:0!important;font-size:12px}
   #v-equipo #team-ojo .ojo-pie{grid-area:p;display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin:0!important;padding:0!important;border:0!important}
+}
+</style>
+<style id="esc-v708">
+/* v708 · ORDENADOR · La barra lateral, con otro punto de vista. */
+#sb-hoy,.sbm-sub,.sbm-pie{display:none}
+:root{--sbh-bg:rgba(255,255,255,.72);--sbh-borde:rgba(0,0,0,.06);--sb-chip:#ffffff;--sb-chip-sombra:0 1px 2px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.06)}
+html[data-theme="dark"]{--sbh-bg:rgba(255,255,255,.05);--sbh-borde:rgba(255,255,255,.07);--sb-chip:rgba(255,255,255,.10);--sb-chip-sombra:none}
+@media (min-width:761px) and (pointer:fine){
+  /* la marca: el escudo con su nombre y, debajo, qué es y de qué temporada */
+  #sidebar .sb-brand{padding:16px 16px 12px!important;border-bottom:none!important}
+  #sidebar .sb-marca{display:flex!important;flex-direction:column;align-items:flex-start;gap:6px}
+  #sidebar .sbm-club{background:none!important;box-shadow:none!important;padding:0!important;border-radius:0!important}
+  #sidebar .sbm-club img{height:36px!important;width:auto!important;max-width:100%}
+  #sidebar .sb-marca>.sbm-hp{display:none!important}
+  #sidebar .sbm-sub{display:block;font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+  /* Handball Performance, al pie y entero */
+  #sidebar .sbm-pie{display:flex;align-items:center;padding:4px 18px 10px}
+  #sidebar .sbm-pie .sbm-hp{display:block;height:22px;width:auto;max-width:100%;object-fit:contain;object-position:left center;opacity:.9}
+  #sidebar .sbm-pie .sbm-hp.hp-light{display:none}
+  html[data-theme="dark"] #sidebar .sbm-pie .sbm-hp.hp-dark{display:none}
+  html[data-theme="dark"] #sidebar .sbm-pie .sbm-hp.hp-light{display:block}
+  /* «Hoy, de un vistazo» */
+  #sb-hoy{display:block;margin:0 12px 10px;padding:10px 12px 10px;border-radius:12px;background:var(--sbh-bg);box-shadow:0 0 0 .5px var(--sbh-borde);cursor:pointer;transition:background .15s ease}
+  #sb-hoy:hover{background:var(--sb-chip)}
+  #sb-hoy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  #sb-hoy .sbh-tit{display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-bottom:6px;font-size:11px;font-weight:600;color:var(--muted)}
+  #sb-hoy .sbh-tit em{font-style:normal;font-weight:500;white-space:nowrap}
+  #sb-hoy .sbh-cs{display:flex;justify-content:space-between;gap:6px}
+  #sb-hoy .sbh-c{display:flex;flex-direction:column;min-width:0}
+  #sb-hoy .sbh-c b{font-size:17px;font-weight:700;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #sb-hoy .sbh-c b small{font-size:11px}
+  #sb-hoy .sbh-c small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #sb-hoy .sbh-par{display:flex;align-items:center;gap:6px;width:100%;margin:8px 0 0;padding:6px 0 0;border:none;border-top:.5px solid var(--sbh-borde);background:none;
+    font:inherit;font-size:12px;color:var(--txt);text-align:left;cursor:pointer}
+  #sb-hoy .sbh-par i{width:14px;height:14px;flex:none;background:var(--accent);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 3v4M12 17v4M3 12h4M17 12h4'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 3v4M12 17v4M3 12h4M17 12h4'/%3E%3C/svg%3E") center/contain no-repeat}
+  #sb-hoy .sbh-par span{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #sb-hoy .sbh-par b{flex:none;font-weight:600;color:var(--accent)}
+  #sb-hoy .sbh-par:hover span{color:var(--accent)}
+  /* las secciones: pastillas; la elegida, una hoja blanca con su filo del color de acción */
+  #sidebar .sb-item{position:relative;min-height:30px!important;padding:5px 10px!important;margin:0 10px 2px!important;border-radius:8px!important}
+  #sidebar .sb-item:hover{background:rgba(0,0,0,.045)!important}
+  html[data-theme="dark"] #sidebar .sb-item:hover{background:rgba(255,255,255,.06)!important}
+  #sidebar .sb-item.on{background:var(--sb-chip)!important;box-shadow:var(--sb-chip-sombra);color:var(--txt)!important;font-weight:600!important}
+  #sidebar .sb-item.on::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+  #sidebar .sb-item[data-sg="5"].on::before{background:var(--bad)}
+  #sidebar .sb-glab{margin:16px 20px 5px!important}
+  /* plegado: sólo el escudo */
+  body.sb-min #sb-hoy,body.sb-min #sidebar .sbm-sub,body.sb-min #sidebar .sbm-pie{display:none!important}
+  body.sb-min #sidebar .sbm-club img{width:30px!important;height:34px!important;object-fit:cover;object-position:left center}
+  body.sb-min #sidebar .sb-item.on::before{display:none}
 }
 </style>
 <script>
