@@ -14502,6 +14502,63 @@ const bmdPlugin={id:'bmDir',
     }catch(e){}
   }
 };
+/* v684 · ORDENADOR · Los ejes como en los gráficos de Apple. Daniel,
+   15/11/2026. Medido a 1.745 px: 8 de los 11 gráficos visibles llevaban el
+   título del eje escrito en vertical («CARGA · UA», «RPE») y en el Calendario
+   las fechas salían inclinadas. La guía de gráficos de Apple pide etiquetas
+   que se lean sin girar la cabeza. Aquí: el título de cada eje vertical se
+   escribe en horizontal encima de su eje (a la izquierda o a la derecha), el
+   del eje horizontal al final, debajo, y las etiquetas del eje horizontal no
+   se inclinan nunca (si no caben, se saltan). Todo dentro del propio gráfico:
+   no se añade ni se mueve ningún nodo. No toca los documentos ni el móvil. */
+const bmEjesPlugin={id:'bmEjes',
+  beforeInit(chart){
+    if(esMovil())return;
+    const cv=chart.canvas;if(!cv||!cv.closest||cv.closest(BMG_DOC))return;
+    try{
+      const cf=chart.config,co=cf.options||(cf.options={});
+      const tipos=[cf.type].concat(((cf.data&&cf.data.datasets)||[]).map(d=>d.type)).filter(Boolean);
+      if(!tipos.length||!tipos.every(t=>t==='line'||t==='bar'||t==='scatter'||t==='bubble'))return;
+      co.scales=Object.assign({},co.scales);
+      const ejes=[];
+      Object.keys(co.scales).forEach(k=>{
+        const sc=co.scales[k];if(!sc||sc.display===false)return;
+        const horiz=co.indexAxis==='y'?/^y/.test(k):/^x/.test(k);
+        const t=sc.title||{};
+        if(t.display&&t.text){
+          const tx=Array.isArray(t.text)?t.text.join(' '):String(t.text);
+          ejes.push({k,horiz,tx:tx.trim()});
+          co.scales[k]=Object.assign({},sc,{title:Object.assign({},t,{display:false})});
+        }
+        if(horiz)co.scales[k]=Object.assign({},co.scales[k],{ticks:Object.assign({},co.scales[k].ticks,{maxRotation:0,minRotation:0,autoSkip:true,autoSkipPadding:12})});
+      });
+      if(!ejes.length)return;
+      chart.$bmEjes=ejes;
+      const lp=co.layout&&co.layout.padding;
+      const base=(typeof lp==='object'&&lp)?Object.assign({},lp):(typeof lp==='number'?{top:lp,left:lp,right:lp,bottom:lp}:{});
+      if(ejes.some(e=>!e.horiz))base.top=(base.top||0)+16;
+      if(ejes.some(e=>e.horiz))base.bottom=(base.bottom||0)+14;
+      co.layout=Object.assign({},co.layout,{padding:base});
+    }catch(e){}
+  },
+  afterDraw(chart){
+    const ejes=chart.$bmEjes;if(!ejes||!ejes.length)return;
+    try{
+      const ctx=chart.ctx,ca=chart.chartArea,rs=getComputedStyle(document.documentElement);
+      const col=(rs.getPropertyValue('--muted')||'#6b7280').trim();
+      const fam=(Chart.defaults.font&&Chart.defaults.font.family)||'-apple-system,system-ui,sans-serif';
+      ctx.save();ctx.font='600 11px '+fam;ctx.fillStyle=col;ctx.textBaseline='alphabetic';
+      ejes.forEach(e=>{
+        const sc=chart.scales[e.k];if(!sc)return;
+        if(e.horiz){ctx.textAlign='right';ctx.fillText(e.tx,ca.right,chart.height-3);return;}
+        const der=sc.position==='right'||(sc.left>=ca.right-1);
+        ctx.textAlign=der?'right':'left';
+        ctx.fillText(e.tx,der?sc.right:sc.left,ca.top-7);
+      });
+      ctx.restore();
+    }catch(e){}
+  }
+};
 const bmgPlugin={id:'bmGraf',
   beforeInit(chart){
     const cv=chart.canvas;if(!cv||!cv.closest)return;
@@ -19049,6 +19106,7 @@ function buildChartTheme(){
        sólo dentro de la rama del móvil. */
     if(!Chart.registry.plugins.get('bmGraf'))Chart.register(bmgPlugin);
     if(!Chart.registry.plugins.get('bmDir'))Chart.register(bmdPlugin);
+    if(!Chart.registry.plugins.get('bmEjes'))Chart.register(bmEjesPlugin);
   }
 }
 buildChartTheme();
