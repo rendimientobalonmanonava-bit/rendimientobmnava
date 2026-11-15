@@ -1239,16 +1239,16 @@ Daniel, 13/11/2026, con la tabla de lo que se podía llevar del móvil al ordena
 |---|---|
 | 1 · Armonía (v662) | Los controles con la letra de la app (**426 de 558 botones iban en Arial**), 26 px en las tarjetas grandes y 16 en los recuadros de cifra, sin borde ni sombra lo que va dentro de una tarjeta, las listas de tarjetas de Nutrición y Alertas fuera de su caja, **20 px entre tarjetas** (la regla anterior de 22 ganaba a un `:where()`: va con `!important` y a 0 dentro de las rejillas) y nada recortado. *Medido: 37 textos cortados → 2 (los dos en la lámina)* |
 | 2 · Una letra y una escala (v663) | `bmlReescribe` corre también en el ordenador y `#bm-sistema` da los valores en las dos condiciones. La letra monoespaciada pasa a la del sistema con cifras de ancho fijo, también en ejes y carteles. *Medido: Arial 426 → 0, monoespaciada 1.332 → 6, tamaños de letra 35 → 11, radios 20 → 15*; las sombras distintas apenas bajan porque casi todas son anillos de estado |
-| 3 · Ventanas propias (v664) | `bmPregunta`, `bmPide` y `alert` usan la alerta de la app (v638) también en el ordenador, con Escape; `bmAccion` es ahí esa alerta con dos botones. La hoja de cobro sale centrada (`bmHoja` centrada en el ordenador). Los formularios preguntan antes de perder lo escrito: **en el ordenador nadie apuntaba cuándo se abría un formulario**, y un observador de su contenido lo apunta. La barra Cancelar · Guardar de iOS no se lleva |
+| 3 · Ventanas propias (v664) · *las ventanas, retiradas en la v704; la hoja centrada se queda* | `bmPregunta`, `bmPide` y `alert` usan la alerta de la app (v638) también en el ordenador, con Escape; `bmAccion` es ahí esa alerta con dos botones. La hoja de cobro sale centrada (`bmHoja` centrada en el ordenador). Los formularios preguntan antes de perder lo escrito: **en el ordenador nadie apuntaba cuándo se abría un formulario**, y un observador de su contenido lo apunta. La barra Cancelar · Guardar de iOS no se lleva |
 | 4 · Menú lateral de macOS (v665) | Fondo del sistema con desenfoque real, iconos en cuadrado de color por grupo (`data-sg`) y fila elegida rellena del acento. **El oro del menú deja de usarse**: §2.3 lo reserva al menú, no obliga a usarlo |
 | 5 · Gráficos como Salud (v666) · **RETIRADA en la v699** | `bmgPlugin` y `bmdPlugin` se registran fuera de la rama del móvil y sin su guarda. *15 de los 30 gráficos visibles llevan lectura, la misma regla que en el móvil* |
 | 6 · Contraste (v667) | Textos atenuados con opacidad (§3 lo prohíbe): los días del mes de al lado (0,48) y las posiciones del microciclo con pocos días (0,45). Se atenúa el dibujo y el texto va al gris de la escala. Y el ámbar de `CAL_INT` sobre una palabra (2,15:1) |
 | 7 · Teclado (v668) | `bmVoz` también en el ordenador, con anillo de foco sólo al llegar con el teclado. **Cierra el pendiente de §8 de los pulsables sin teclado** |
-| 8 · Avisos (v669) | Arriba a la derecha, bajo la cabecera, con el icono de la app y «Deshacer» (antes sólo en el móvil) |
+| 8 · Avisos (v669) · **RETIRADA en la v703** | Arriba a la derecha, bajo la cabecera, con el icono de la app y «Deshacer» (antes sólo en el móvil) |
 | 9 · Clic derecho y vista previa (v670) | El clic derecho abre la vista previa del móvil (`bmPrevia`) y el ratón quieto medio segundo sobre un jugador, su mini-ficha (`bmPreviaJ`, la misma tarjeta) |
 | 10 · Buscar con ⌘K (v671) | La búsqueda global (v572) con ⌘K, Ctrl+K, «/» y la lupa, que enseña el atajo |
 | 11 · Fotos ligeras (v672) | Miniaturas también en el ordenador; la grande donde se ve grande: la cabecera de la ficha, la ficha exportable y la foto de Perfil físico (102 px). *El arranque baja a 1 MB* |
-| 12 · Detalles del Resumen (v673) · *el semáforo plano, retirado en la v700* | La semana, Hoy, el próximo partido y Destacados en el Resumen del ordenador —una fila bajo el título y Destacados en columnas—, los semáforos planos, los medidores tipo Tiempo (**los de los documentos siguen con su arco**: se exportan a 1.180 px, que es condición de ordenador) y los interruptores. Los estilos son los del móvil reenvueltos en la condición del ordenador |
+| 12 · Detalles del Resumen (v673) · *el semáforo plano, retirado en la v700; los medidores tipo Tiempo y los interruptores, en la v702* | La semana, Hoy, el próximo partido y Destacados en el Resumen del ordenador —una fila bajo el título y Destacados en columnas—, los semáforos planos, los medidores tipo Tiempo (**los de los documentos siguen con su arco**: se exportan a 1.180 px, que es condición de ordenador) y los interruptores. Los estilos son los del móvil reenvueltos en la condición del ordenador |
 
 **Cómo se comprobó.** Ya no se compara con «idéntico», porque el ordenador cambia a propósito: lo que tiene que quedar igual son **las cifras**, que estos cambios no tocan (son estilos y piezas de presentación), y **no puede desbordarse nada ni dar error**. En el ordenador, a 1.440 y a 1.024 px en las 29 pantallas: **ninguna se desborda y no hay errores**; las mediciones de cada propuesta van en su fila. En el móvil, el motor de Safari en las 29 pantallas y los dos temas, para comprobar que lo común (la vista previa, las fotos, la reescritura de la hoja) no se ha movido.
 
@@ -1328,7 +1328,7 @@ Daniel, 15/11/2026, tras la v687: *«me sigue pareciendo una app de móvil adapt
 **Lo que NO está probado**: el Mac de Daniel con sus datos, Safari de macOS con la ventana visible, y el iPad (no debería cambiar: todo va con `pointer:fine`).
 
 
-#### 6.12.25 Lo del móvil fuera del ordenador, y el Calendario como estaba (v699–v701)
+#### 6.12.25 Lo del móvil fuera del ordenador, y el Calendario como estaba (v699–v704)
 
 Daniel, 15/11/2026, con una captura del Calendario del ordenador: *«madre mía mira qué horror, hay cosas que al hacerlas para móvil las has modificado en la versión de ordenador, eso no puede ser. El calendario no me convence nada, vuelve a lo anterior»*. En la captura, «Carga de la semana» tenía las seis cifras en una columna y **el gráfico encogido debajo de ellas**, con un hueco enorme a la derecha.
 
@@ -1339,7 +1339,15 @@ Daniel, 15/11/2026, con una captura del Calendario del ordenador: *«madre mía 
 | v700 · Vuelve el semáforo de siempre | El semáforo plano en cápsula es del móvil (v614); la v673 lo había llevado al ordenador. Se quitan sus tres reglas de `esc-v673` |
 | v701 · El Calendario, como estaba | Fuera `esc-v680` entero (y el globo que puso en el botón de exportar). La v689 deja el Calendario fuera: `BMTB_SEC` sin `cal`, `BMTB_ACC` vacío, su título se pinta dentro de la pantalla (`main>.view:not(#v-cal)>.pagehead`) y el de la barra se oculta en esa pantalla. Las cajas de las cifras recuperan su borde y su radio (`:not(#v-cal *)` en las reglas de la v662 y la v690) y los ejes de su gráfico vuelven a su forma (`bmEjesPlugin` no toca lo que esté en `#v-cal`). *Comparado contra la versión de antes de todos los cambios de ordenador (v661) con el mismo calendario sembrado: la misma disposición — exportar encima del título, las cifras en cajas 2 × 3, el gráfico a la derecha, el mes en tarjetas con el semáforo clásico* |
 
-**Lo que siguen siendo piezas del móvil en el ordenador** (todas las pidió Daniel el 13/11 o el 15/11): el próximo partido y la banda de Destacados del Resumen (v687, pedidos expresamente), los medidores tipo Tiempo y los interruptores (v673), las ventanas propias y la hoja de cobro (v664), los avisos arriba a la derecha (v669), la vista previa con clic derecho (v670) y la búsqueda con ⌘K (v671). **Pendiente de que Daniel diga cuáles se quedan.**
+**Preguntado después cuáles de las piezas del móvil que quedaban en el ordenador se quitaban**, Daniel eligió quitar tres:
+
+| Elemento | Regla |
+|---|---|
+| v702 · El arco y las casillas | Los medidores en barra fina tipo Tiempo (v611) y los interruptores de iPhone (v608) se retiran de `esc-v673`; `bmInterruptores` vuelve a actuar sólo en el móvil. `arcGauge` sigue emitiendo las dos versiones y el CSS elige: en el ordenador, el arco |
+| v703 · Los avisos, abajo | Revierte la v669: el aviso vuelve a la píldora de abajo en el centro y «Deshacer» vuelve a ser sólo del móvil (`toast` con `esMovil()`) |
+| v704 · Las ventanas del navegador | Revierte la parte de ventanas de la v664: `bmPregunta`, `bmPide` y `alert` vuelven a `confirm`/`prompt`/`alert` en el ordenador; `bmAccion` pierde su rama de ordenador; el cobro vuelve a su `confirm` con el mismo texto (`nutHojaCobro`); y «no perder lo escrito» (`bmfRetiene`) vuelve a ser sólo del móvil, con su observador de ordenador retirado. **La hoja centrada de `esc-v664` se queda**: la usan la hoja de atajos (v686) y los formularios de Disponibilidad (v678) |
+
+**Siguen en el ordenador, por decisión de Daniel**: el próximo partido en pequeño y la banda de Destacados del Resumen (v687), la vista previa con clic derecho y la mini-ficha al pasar el ratón (v670) y la búsqueda con ⌘K (v671).
 
 ---
 
@@ -1375,7 +1383,6 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
-- **Las piezas del móvil que siguen en el ordenador** (§6.12.25): que Daniel diga cuáles se quedan
 - **Lo de la v688–v698**: que Daniel vea con sus datos el ordenador como app de macOS (§6.12.24): el título y las secciones en la barra, Jugadores con la plantilla al lado de la ficha y Nutrición en tabla
 - **Lo de la v680–v686**: que Daniel vea con sus datos el Calendario, Jugadores, el tablero de Disponibilidad, la ficha, los contadores del menú y los atajos (§6.12.22)
 - **Lo de la v674–v679**: que Daniel vea el ordenador como app de Mac (§6.12.21) con sus datos —la rejilla del Resumen, la cabecera, el botón (i), las pestañas— y diga si el orden de las secciones del Resumen le vale
