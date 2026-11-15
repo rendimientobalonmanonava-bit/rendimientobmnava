@@ -14876,6 +14876,25 @@ function bmResumenEsc(){
   if(esMovil())return;
   ['bmSemana','bmHoy','bmProx','bmDestacados','bmInterruptores'].forEach(f=>{try{if(typeof window[f]==='function')window[f]();}catch(e){console.error('bmnava · '+f,e);}});
 }
+/* v676 · ORDENADOR · Los logos, una sola vez: arriba del menú. Se copian las
+   imágenes que ya están en la cabecera (no se duplica ningún archivo) y el CSS
+   de la v676 decide dónde se ven: en el ordenador con ratón, aquí; en el
+   teléfono y en el iPad táctil, donde estaban. */
+function bmMarcaMenu(){
+  const b=document.querySelector('#sidebar .sb-brand');
+  if(!b||b.querySelector('.sb-marca'))return;
+  const club=document.querySelector('header .club-logo');
+  const hps=[...document.querySelectorAll('header .lockup img.hp')];
+  if(!club)return;
+  const m=document.createElement('div');m.className='sb-marca';
+  const pl=document.createElement('span');pl.className='sbm-club';pl.setAttribute('role','button');pl.tabIndex=0;
+  pl.title='Ir a Equipo · Resumen';pl.onclick=()=>go('equipo');
+  pl.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go('equipo');}};
+  const ci=club.cloneNode();ci.removeAttribute('id');ci.alt='BM Nava';pl.appendChild(ci);m.appendChild(pl);
+  hps.forEach(h=>{const c=h.cloneNode();c.removeAttribute('id');c.className='sbm-hp '+(h.classList.contains('hp-light')?'hp-light':'hp-dark');c.alt='Handball Performance';m.appendChild(c);});
+  b.appendChild(m);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmMarcaMenu);else bmMarcaMenu();
 /* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
 function bmTelefono(){
   const ops=[['sis','Como el teléfono'],['0.9','Pequeña'],['1','Normal'],['1.15','Grande'],['1.3','Muy grande']];
@@ -45779,6 +45798,109 @@ html[data-theme="dark"]{--sb-esc:rgba(30,31,36,.78);--sb-esc-borde:rgba(255,255,
     #v-equipo.on #team-reuniones,#v-equipo.on #team-citas,#v-equipo.on #team-next,#v-equipo.on #team-int-panel{grid-column:span 6}
     #v-equipo.on #team-hr-panel,#v-equipo.on #team-ultimas,#v-equipo.on #team-class-panel{grid-column:1/-1}
   }
+}
+</style>
+<style id="esc-v676">
+/* v676 · ORDENADOR · La cabecera como la barra de herramientas de una app de
+   Mac. Daniel, 15/11/2026. Medido: 90 px de alto, la marca tres veces (arriba
+   del menú, el escudo con «Control de cargas» y el logo de Handball
+   Performance), cinco emojis haciendo de iconos (🩺 🔍 🖨️ ⚙️ 🌙) al lado de los
+   iconos dibujados del menú, tres formas de botón y una raya azul y naranja
+   cuyo naranja no está en la paleta. Ahora: 52 px, los logos una sola vez,
+   arriba del menú (los pone `bmMarcaMenu`, que copia las mismas imágenes); el
+   día como un control agrupado a la izquierda; a la derecha el campo de
+   búsqueda con su atajo, «Añadir datos» como único botón relleno y las
+   herramientas como iconos de línea, los mismos que dibuja el móvil. No se
+   cambia ningún botón: los iconos son máscaras y el emoji se queda en el
+   marcado sin pintarse. Sólo con ratón o trackpad: el iPad táctil conserva su
+   cabecera de 44 px (v620). */
+:root{--tbar:rgba(246,246,248,.82);--tb-campo:rgba(118,118,128,.12);--tb-hover:rgba(118,118,128,.16);--tb-borde:rgba(60,60,67,.14)}
+html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.24);--tb-hover:rgba(118,118,128,.30);--tb-borde:rgba(255,255,255,.09)}
+.sb-marca{display:none}
+@media (min-width:761px) and (pointer:fine){
+  html body header{background:var(--tbar)!important;-webkit-backdrop-filter:saturate(180%) blur(24px)!important;backdrop-filter:saturate(180%) blur(24px)!important;
+    border-bottom:.5px solid var(--tb-borde)!important;box-shadow:none!important}
+  html body header::after{display:none!important}
+  header .bar{min-height:52px;padding:8px 20px!important;gap:10px!important;box-sizing:border-box}
+  header .lockup{display:none!important}
+  header .hub{margin-left:0!important;flex:1 1 auto;gap:8px!important;flex-wrap:nowrap!important;justify-content:flex-start!important;min-width:0}
+  header .hub>.vsep{display:none}
+  header #hdr-actions{display:contents}
+  /* el día: ‹ fecha › agrupados y «Hoy» al lado */
+  header .datepick{order:0;gap:1px!important;flex:none}
+  header .datepick .dp-nav,header .datepick .dp-trigger,header .datepick .dp-today{height:30px!important;border:none!important;box-shadow:none!important;background:var(--tb-campo)!important;color:var(--txt)!important}
+  header .datepick .dp-nav{width:30px!important;border-radius:0!important;font-size:17px!important;color:var(--muted)!important}
+  header .datepick .dp-nav:first-child{border-radius:8px 0 0 8px!important}
+  header .datepick .dp-trigger{border-radius:0!important;padding:0 12px!important;font-size:13px!important;font-weight:600!important}
+  header .datepick .dp-trigger+input+.dp-nav,header .datepick .dp-nav:nth-of-type(2){border-radius:0 8px 8px 0!important}
+  header .datepick .dp-today{border-radius:8px!important;margin-left:8px;padding:0 12px!important;font-size:13px!important}
+  header .datepick :is(.dp-nav,.dp-trigger,.dp-today):hover{background:var(--tb-hover)!important}
+  /* buscar: un campo de búsqueda con su atajo */
+  header [onclick="focusSearch()"]{order:2;margin-left:auto;width:230px;height:30px!important;justify-content:flex-start!important;gap:6px!important;padding:0 8px 0 9px!important;
+    border:none!important;border-radius:8px!important;background:var(--tb-campo)!important;box-shadow:none!important;font-size:0!important;color:var(--muted)!important}
+  header [onclick="focusSearch()"]:hover{background:var(--tb-hover)!important}
+  header [onclick="focusSearch()"]::before{content:"";width:15px;height:15px;flex:none;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E") center/contain no-repeat}
+  header [onclick="focusSearch()"] .t{display:inline!important;font-size:13px!important;font-weight:400!important;color:var(--muted)}
+  header [onclick*="focusSearch"][data-kbd]::after{margin-left:auto!important;font-size:11px!important;background:transparent!important;border:.5px solid var(--tb-borde)!important;color:var(--muted)!important}
+  /* añadir: el único botón relleno */
+  header .add-wrap{order:3;flex:none}
+  header #btn-adddata{height:30px!important;padding:0 12px 0 10px!important;border-radius:8px!important;gap:5px!important;font-size:17px!important;font-weight:500!important;
+    background:var(--accent)!important;color:var(--on-accent,#fff)!important;border:none!important;box-shadow:none!important}
+  header #btn-adddata .t{display:inline!important;font-size:13px!important;font-weight:600!important}
+  header #btn-adddata:hover{filter:brightness(1.06)}
+  /* herramientas: iconos de línea, sin marco */
+  header :is(#btn-agenda,[onclick="window.print()"],#btn-settings,#btn-theme),header #rf-btn{
+    height:30px!important;min-width:30px!important;padding:0 7px!important;border:none!important;border-radius:8px!important;background:transparent!important;box-shadow:none!important;
+    font-size:0!important;color:var(--txt)!important;display:inline-flex!important;align-items:center;justify-content:center;gap:6px!important;flex:none}
+  header :is(#btn-agenda,[onclick="window.print()"],#btn-settings,#btn-theme,#rf-btn):hover{background:var(--tb-hover)!important}
+  header :is(#btn-agenda,[onclick="window.print()"],#btn-settings,#btn-theme) .t{display:none!important}
+  header :is(#btn-agenda,[onclick="window.print()"],#btn-settings,#btn-theme)::before,header #rf-btn .rf-ico::before{content:"";width:18px;height:18px;flex:none;background:currentColor;opacity:.78}
+  header #btn-agenda{order:5;margin-left:4px}
+  header #btn-agenda::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='4' width='14' height='17' rx='2'/%3E%3Cpath d='M9 4V3h6v1'/%3E%3Cpath d='M12 10v6M9 13h6'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='4' width='14' height='17' rx='2'/%3E%3Cpath d='M9 4V3h6v1'/%3E%3Cpath d='M12 10v6M9 13h6'/%3E%3C/svg%3E") center/contain no-repeat}
+  header [onclick="window.print()"]{order:6}
+  header [onclick="window.print()"]::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9V3h12v6'/%3E%3Crect x='3' y='9' width='18' height='8' rx='2'/%3E%3Crect x='7' y='14' width='10' height='7'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9V3h12v6'/%3E%3Crect x='3' y='9' width='18' height='8' rx='2'/%3E%3Crect x='7' y='14' width='10' height='7'/%3E%3C/svg%3E") center/contain no-repeat}
+  header #btn-settings{order:7}
+  header #btn-settings::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h3M11.6 7H20M4 17h8.4M17 17h3'/%3E%3Ccircle cx='9.3' cy='7' r='2.3'/%3E%3Ccircle cx='14.7' cy='17' r='2.3'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h3M11.6 7H20M4 17h8.4M17 17h3'/%3E%3Ccircle cx='9.3' cy='7' r='2.3'/%3E%3Ccircle cx='14.7' cy='17' r='2.3'/%3E%3C/svg%3E") center/contain no-repeat}
+  header #btn-theme{order:8}
+  header #btn-theme::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z'/%3E%3C/svg%3E") center/contain no-repeat}
+  html[data-theme="dark"] header #btn-theme::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/%3E%3C/svg%3E") center/contain no-repeat}
+  header #rf-btn{order:9}
+  header #rf-btn .rf-ico{font-size:0!important;display:inline-flex;animation:none}
+  header #rf-btn .rf-ico::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.64-6.36'/%3E%3Cpolyline points='21 3 21 9 15 9'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.64-6.36'/%3E%3Cpolyline points='21 3 21 9 15 9'/%3E%3C/svg%3E") center/contain no-repeat}
+  header #rf-btn.spin .rf-ico::before{animation:bmRfGira 1s linear infinite}
+  header #rf-btn.ok .rf-ico::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/contain no-repeat;background:var(--ok-text);opacity:1}
+  header #rf-btn.err .rf-ico::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 7v6'/%3E%3Cpath d='M12 17.2v.1'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 7v6'/%3E%3Cpath d='M12 17.2v.1'/%3E%3C/svg%3E") center/contain no-repeat;background:var(--bad-text);opacity:1}
+  header #rf-btn .rf-lbl{font-size:12px!important;font-weight:500!important;color:var(--muted)!important}
+  header .sy-badge{order:10}
+  header .status{order:11;margin-left:2px!important;font-size:11px!important}
+  @keyframes bmRfGira{to{transform:rotate(360deg)}}
+  /* con menos ancho: el campo de búsqueda encoge y lo accesorio se queda en icono */
+  @media (max-width:1380px){
+    header [onclick="focusSearch()"]{width:170px}
+    header #rf-btn .rf-lbl{display:none!important}
+    header .status #src-txt{display:none}
+  }
+  @media (max-width:1120px){
+    header [onclick="focusSearch()"]{width:30px;padding:0!important;justify-content:center!important}
+    header [onclick="focusSearch()"] .t,header [onclick*="focusSearch"][data-kbd]::after{display:none!important}
+    header #btn-adddata .t{display:none!important}
+    header #btn-adddata{padding:0 9px!important}
+    header .datepick .dp-today{margin-left:4px}
+  }
+  @media (prefers-reduced-motion:reduce){header #rf-btn.spin .rf-ico::before{animation:none}}
+  /* la marca, una vez: arriba del menú */
+  #sidebar .sb-brand{padding:16px 14px 14px!important;border-bottom:.5px solid var(--sb-esc-borde,rgba(60,60,67,.16))!important}
+  #sidebar .sb-brand-t{display:none!important}
+  #sidebar .sb-marca{display:flex;align-items:center;gap:10px;min-width:0}
+  #sidebar .sbm-club{display:flex;align-items:center;background:#fff;border-radius:10px;padding:6px 10px;box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 1px 3px rgba(0,0,0,.06);flex:none;cursor:pointer}
+  #sidebar .sbm-club img{height:32px;width:auto;display:block}
+  #sidebar .sbm-hp{height:22px;width:auto;display:block;min-width:0;max-width:100%;object-fit:contain;object-position:left center}
+  #sidebar .sbm-hp.hp-light{display:none}
+  html[data-theme="dark"] #sidebar .sbm-hp.hp-dark{display:none}
+  html[data-theme="dark"] #sidebar .sbm-hp.hp-light{display:block}
+  body.sb-min #sidebar .sbm-hp{display:none!important}
+  body.sb-min #sidebar .sbm-club{padding:5px}
+  body.sb-min #sidebar .sbm-club img{width:28px;height:32px;object-fit:cover;object-position:left center}
 }
 </style>
 <script>
