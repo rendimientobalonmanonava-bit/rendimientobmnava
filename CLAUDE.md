@@ -1273,6 +1273,25 @@ Daniel, 15/11/2026, con una captura del Resumen del ordenador: *«no está mal, 
 
 **Lo que NO está probado**: el ordenador de Daniel con sus datos reales, el desenfoque de la cabecera y del menú en Safari de macOS con la ventana visible, y el iPad.
 
+
+#### 6.12.22 Siete más en el ordenador (v680–v686)
+
+Daniel, 15/11/2026, ante siete propuestas medidas a 1.280 px: *«Vamos con todas»*. Mismas reglas que §6.12.21: bloques `esc-vNNN`, funciones que corren desde el observador del ordenador (v663) y nada en el móvil.
+
+| Elemento | Regla |
+|---|---|
+| v680 · El Calendario como el de macOS | `#v-cal.on` en rejilla de dos columnas: el título y, a su lado, «Exportar a Google Calendar» (antes iba ENCIMA del título; su explicación pasa al `title` del botón y el emoji se oculta tras un icono dibujado). Las seis cifras de «Carga de la semana» en una columna de 290 px, cifra a la izquierda y lectura al lado (la comparación se partía en cuatro líneas; una negrita dentro de `.lbc-ctx` heredaba 21 px y hubo que devolverla a su tamaño). ‹ semana › agrupados, Mes/Semana segmentado. El mes es una rejilla continua con filetes de medio punto (`gap:0`, bordes derecho e inferior, sin el último de cada fila ni de la última fila); partido, descanso y riesgo conservan su color; hoy lleva un filo de acento arriba. La vista de semana (la lámina, v434) no se toca |
+| v681 · Jugadores | El desplegable «Ordenar» deja de ser tarjeta y comparte barra con un buscador nuevo (`.jug-q`, filtra por nombre y puesto; Escape lo vacía). Grupos por puesto con rótulo, **la regla de la lista del móvil (v625)**: por puesto salvo cuando se ordena por estado de forma. Se hacen con `order` y un rótulo por grupo; **los rótulos sólo se rehacen si cambia la firma de los grupos**, porque el observador que los mira los volvería a pedir sin fin. Las fotos van al final en su fila y su hoja (`bmFormasHoja` con `fot`) |
+| v682 · Disponibilidad | El tablero de la plantilla por estado del móvil (v535) abre la pantalla; su línea de cifras (`bd-res`) sustituye a los siete recuadros (`kpi-grid`), como en el móvil (v623). Su aviso de alertas no sale: el panel de alertas está a la vista. En «Atención hoy» el motivo se corta en dos líneas |
+| v683 · La ficha | Fuera el título «Ficha de jugador» y el enlace «volver»: el nombre es el título (40 px) y la foto sin fondo va grande a la derecha, fundida con la tarjeta (la cabecera del móvil, v595, en una rejilla `who · tiles · btns | ph`). El botón atrás pasa a la barra (`bmAtrasEsc`, `#bm-atras-esc`, sólo con ratón) con el nombre de la pantalla de la que se viene. Sin foto, las iniciales en un círculo |
+| v684 · Los ejes de los gráficos | Plugin `bmEjes`: el título de cada eje vertical se escribe en horizontal encima de su eje y el del horizontal al final, debajo; las etiquetas del eje horizontal no se inclinan (`maxRotation:0`, se saltan si no caben). Dentro del lienzo: ningún nodo nuevo. Los gráficos mixtos no tienen `type` arriba: se mira el de cada serie. *Medido: de 8 títulos girados y 2 ejes inclinados a 0 y 0 en los 11 gráficos visibles* |
+| v685 · Contadores en el menú | `bmMenuCuentas`: Disponibilidad (con molestia o fuera, el censo de la tira del Resumen con `effectiveStatus`), Médico (`medOpenEpisodeOf`), Fisioterapia (`ojoAbiertos`) y Nutrición (personas con cobros sin pagar), en gris. **El número de Alertas existía desde la v538 pero sólo se veía en el móvil**: ahora también aquí, en su rojo o ámbar |
+| v686 · Atajos de teclado | Las teclas 1–9 siguen el orden del menú (`bmMenuOrden`; antes `TABS`, el pendiente de §8). Nuevas: «,» ajustes, N añadir, H hoy, R actualizar y «?» la hoja de atajos (`bmAtajos`, dos columnas en el ordenador). **⌘1–⌘9 no se pueden usar**: Safari y Chrome los reservan para las pestañas. El menú dice la tecla de cada entrada en su `title` |
+
+**Cómo se comprobó**: las rutas a 1.745 y a 1.024 px en Chromium (una vista cada vez, sin desbordes ni errores), el móvil a 375 px (ninguna de las piezas nuevas existe ni se ve) y el ordenador en el motor de Safari a 1.440 px en los dos temas (buscador y grupos de Jugadores, tablero de Disponibilidad, cabecera de la ficha con su atrás, 0 títulos de eje girados, contadores visibles, tecla 3 → Cargas).
+
+**Lo que NO está probado**: con los datos reales de Daniel (la copia de prueba no tiene a nadie con molestia ni episodios abiertos, así que los contadores de Disponibilidad y Médico y las pastillas del tablero sólo se han visto vacíos) y el iPad.
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1307,6 +1326,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **Lo de la v680–v686**: que Daniel vea con sus datos el Calendario, Jugadores, el tablero de Disponibilidad, la ficha, los contadores del menú y los atajos (§6.12.22)
 - **Lo de la v674–v679**: que Daniel vea el ordenador como app de Mac (§6.12.21) con sus datos —la rejilla del Resumen, la cabecera, el botón (i), las pestañas— y diga si el orden de las secciones del Resumen le vale
 - **Lo de la v657–v673**: que Daniel vea el ordenador nuevo (§6.12.20) —es la primera vez que cambia— y en el móvil las filas plegadas, Ajustes de Médico y el número en el icono. Ver §6.12.19 y §6.12.20
 - **Lo de la v650–v656**: que Daniel vea en su iPhone el Resumen plegado, el cobro en filas y las fotos; y, si alguien usa VoiceOver, que lo pruebe. Ver §6.12.18
@@ -1336,7 +1356,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - ~~Revisión del modo oscuro~~ **Hecha el 10/11/2026** (v527 · v529): medidas las 29 pantallas en los dos temas. Lo que queda está en §3
 - **Coma decimal** (v530): quedan con punto la tabla de sesiones y la matriz de RPE de **Pulsómetros › Jugador** (unas 270 cifras) y cuatro sueltas en la ficha y en Perfil físico. El método es el de siempre: medir el DOM, no buscar `toFixed`
 - **Escala tipográfica** en las vistas que aún no la cumplen (la tienen la ficha, Perfil físico y Nutrición)
-- **Accesibilidad de teclado**: ~~los pulsables que no son botones~~ resuelto en la v668; las alertas y hojas de la app se cierran con Escape (v664). Quedan los atajos 1–9, que siguen el orden de `TABS` y no el del menú
+- ~~**Accesibilidad de teclado**~~: los pulsables en la v668, Escape en la v664 y los atajos 1–9 en el orden del menú en la v686
 - **Los `catch` vacíos**: 681 de 906 bloques `try`. Es el patrón que dejó el parte en blanco (v492) y Disponibilidad sin repintar (v531)
 - ~~Sin red no hay datos~~ **Resuelto**: las hojas tienen copia desde la v547 y la app abre sin cobertura en el móvil desde la v569
 
@@ -1512,6 +1532,7 @@ No los repitas.
 | Copiar estilos del móvil al ordenador con su `order` dentro | Los bloques del móvil traen `order` para colocar cada pieza en el Resumen apilado; en el ordenador, al hacer el Resumen flexible, la semana y Destacados cayeron al final de la página. **Lo que se reenvuelve en otra condición se revisa entero**: posición, orden y anchos son del sitio de origen |
 | Dar por bueno un `:where()` frente a una regla que ya existe | `:where()` pesa cero: la separación de 22 px de los paneles le ganaba y la de 20 no se aplicaba. Se vio midiendo, no leyendo |
 | Poner `display` sobre el id de una vista sin `.on` | La v673 escribió `#v-equipo{display:flex}` para colocar el Resumen del ordenador, y un id gana a `.view{display:none}`: **el Resumen salía encima de TODAS las pantallas** del ordenador, 3.000 px antes de la pantalla elegida. La comprobación de la v673 recorrió las 29 pantallas midiendo desbordes y errores, y no había ni lo uno ni lo otro: lo que fallaba era qué vistas se veían. Corregido en la v674 con `#v-equipo.on`, que es como ya lo hacía el móvil (v533). **Una regla que da `display` a una vista va siempre con `.on`**, y la prueba de cada pantalla mira cuántas `.view` están visibles |
+| Contar con `textContent` lo que el CSS oculta | Le dije a Daniel que en el menú «sólo Alertas lleva número»: lo medí con `textContent` y el número estaba en el DOM, pero oculto en el ordenador (v538 sólo lo enseña en el móvil). Se vio al hacer zoom sobre el menú. **Para decir que algo se ve, `checkVisibility()` o el estilo calculado; `textContent` sólo dice que existe** |
 
 ---
 
