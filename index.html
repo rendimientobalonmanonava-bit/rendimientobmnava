@@ -15414,6 +15414,56 @@ function bmMenuHoy(){
   w.setAttribute('role','button');w.tabIndex=0;w.setAttribute('aria-label','El día de un vistazo: abre el Resumen');
   if(!w.dataset.k){w.dataset.k='1';w.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===w){e.preventDefault();go('equipo');}});}
 }
+/* v714 · ORDENADOR · Teclado como en Mail y Calendario. Daniel, 16/11/2026.
+   ← → ya cambiaban de día (initKeyboard). Se añade: ↑ ↓ para moverse por la
+   plantilla de la columna de la ficha (v696), conservando la pestaña, como en
+   Mail; la barra espaciadora para la vista rápida del jugador que está bajo el
+   ratón (la misma del clic derecho, v670), como Vista Rápida en Finder, y otra
+   vez espacio o Esc la cierra; ← → dentro del bloque de Destacados lo pasan; y
+   ⌃⌘S, el atajo estándar de macOS, muestra u oculta la barra lateral, con su
+   botón en la barra de herramientas. Nada de esto actúa escribiendo en un
+   campo, ni en el móvil. */
+const BMQL={el:null};
+document.addEventListener('mouseover',e=>{if(esMovil()||!e.target||!e.target.closest)return;
+  BMQL.el=e.target.closest('#bm-jl .jl-f[data-n],[onclick*="openPlayer("]');},{passive:true});
+function bmTecladoEscribe(t){const tag=(t&&t.tagName||'').toLowerCase();return tag==='input'||tag==='textarea'||tag==='select'||(t&&t.isContentEditable);}
+document.addEventListener('keydown',e=>{
+  if(esMovil()||bmTecladoEscribe(e.target))return;
+  const k=e.key;
+  /* ⌃⌘S · mostrar u ocultar la barra lateral */
+  if(e.ctrlKey&&e.metaKey&&!e.altKey&&String(k).toLowerCase()==='s'){e.preventDefault();e.stopPropagation();try{sbToggle();}catch(err){}return;}
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  /* espacio · vista rápida del jugador bajo el ratón */
+  if(k===' '){
+    const pv=document.getElementById('bm-prev');
+    if(pv&&pv.classList.contains('on')){e.preventDefault();try{bmPreviaCierra();}catch(err){}return;}
+    const a=document.activeElement;if(a&&a!==document.body&&a.matches&&a.matches('button,a,[role="button"],summary'))return;
+    const el=BMQL.el;if(!el||!el.isConnected)return;
+    const x=el.dataset&&el.dataset.n?{t:'j',n:el.dataset.n}:bmlpDe(el);if(!x||x.t!=='j')return;
+    e.preventDefault();try{bmHovQuita();}catch(err){}try{bmlpMenu(x);}catch(err){console.error('bmnava · vista rápida',err);}return;
+  }
+  /* ← → dentro de Destacados · lo pasan, en vez de cambiar de día */
+  if((k==='ArrowLeft'||k==='ArrowRight')&&e.target.closest&&e.target.closest('#bm-dest .bmd-car')){
+    const m=document.querySelector('#bm-dest>.bmd-car');const n=m?m.querySelectorAll('.bmd-carril>.bmd-c').length:0;
+    if(n>1){e.preventDefault();e.stopPropagation();bmDestIr(m,(BMDC.i+(k==='ArrowRight'?1:-1)+n)%n);}return;
+  }
+  /* ↑ ↓ · el jugador anterior o el siguiente de la columna de la ficha */
+  if((k==='ArrowUp'||k==='ArrowDown')&&STATE.view==='jugador'&&document.body.classList.contains('bm-jl-on')){
+    const fs=[...document.querySelectorAll('#bm-jl .jl-f[data-n]:not([hidden])')];if(!fs.length)return;
+    const i=fs.findIndex(f=>f.dataset.n===STATE.curPlayer);const j=Math.max(0,Math.min(fs.length-1,(i<0?0:i)+(k==='ArrowDown'?1:-1)));
+    if(j===i)return;e.preventDefault();e.stopPropagation();
+    const c=document.getElementById('bm-jl'),y=c?c.scrollTop:0;openPlayerYa(fs[j].dataset.n);if(c)c.scrollTop=y;
+    setTimeout(()=>{try{bmJugLista();const f=document.querySelector('#bm-jl .jl-f.on');if(f)f.scrollIntoView({block:'nearest'});}catch(err){}},30);
+  }
+},true);
+/* el botón de la barra lateral, a la izquierda de la barra de herramientas */
+function bmBotonLateral(){
+  if(esMovil())return;
+  const hub=document.querySelector('header .hub');if(!hub||document.getElementById('bm-sbtg'))return;
+  const b=document.createElement('button');b.type='button';b.id='bm-sbtg';b.title='Mostrar u ocultar la barra lateral (⌃⌘S)';b.setAttribute('aria-label','Mostrar u ocultar la barra lateral');
+  b.addEventListener('click',()=>{try{sbToggle();}catch(e){}});hub.insertBefore(b,hub.firstChild);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmBotonLateral);else bmBotonLateral();
 /* v685 · ORDENADOR · Los contadores del menú. Cada cifra sale de lo que la
    app ya calcula: el estado efectivo del día (`effectiveStatus`, como la tira
    del Resumen), el episodio abierto (`medOpenEpisodeOf`), los avisos de
@@ -15447,7 +15497,10 @@ function bmAtajos(){
   const k=t=>'<kbd>'+t+'</kbd>';
   const ord=bmMenuOrden().slice(0,9).map((v,i)=>{const it=document.querySelector('#sidebar .sb-item[data-v="'+v+'"] span');return [k(String(i+1)),it?it.textContent.trim():v];});
   const filas=ord.concat([[k('/')+' '+k('⌘')+k('K'),'Buscar'],[k('N'),'Añadir datos'],[k('←')+' '+k('→'),'Día anterior · siguiente'],[k('H'),'Volver a hoy'],
-    [k('R'),'Actualizar los datos'],[k(','),'Ajustes'],[k('T'),'Tema claro u oscuro'],[k('?'),'Esta lista'],[k('Esc'),'Cerrar lo que esté abierto']]);
+    [k('R'),'Actualizar los datos'],[k(','),'Ajustes'],[k('T'),'Apariencia: automática, clara u oscura'],
+    [k('↑')+' '+k('↓'),'Jugador anterior · siguiente (en la ficha)'],[k('Espacio'),'Vista rápida del jugador bajo el ratón'],
+    [k('⌃')+k('⌘')+k('S'),'Mostrar u ocultar la barra lateral'],[k('⌘')+' clic','Abrir en otra ventana'],
+    [k('?'),'Esta lista'],[k('Esc'),'Cerrar lo que esté abierto']]);
   const html='<div class="bm-atj">'+filas.map(f=>'<div class="bm-atj-f"><span class="bm-atj-k">'+f[0]+'</span><span>'+bmEsc(f[1])+'</span></div>').join('')+'</div>';
   try{bmHoja({id:'atajos',titulo:'Atajos de teclado',html:html,clase:'bm-atjh'});}catch(e){console.error('bmnava · atajos',e);}
 }
@@ -46774,7 +46827,7 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   #bm-tbx button:hover{background:var(--tb-hover)}
   #bm-tbx .bm-tbx-exp::before{content:"";width:17px;height:17px;flex:none;background:currentColor;opacity:.78;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3'/%3E%3Cpath d='M7.5 7.5 12 3l4.5 4.5'/%3E%3Cpath d='M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3'/%3E%3Cpath d='M7.5 7.5 12 3l4.5 4.5'/%3E%3Cpath d='M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8'/%3E%3C/svg%3E") center/contain no-repeat}
   /* sin sitio en la barra, el control vuelve a su sitio dentro del contenido */
-  @media (max-width:1319px){
+  @media (max-width:1359px){   /* v714 · antes 1319: con el botón de la barra lateral no cabía a 1.320 */
     #bm-tbs{display:none!important}
     .bm-tbs-src{display:flex!important}
     #bm-tbx button{font-size:0;gap:0;padding:0 7px}
@@ -47233,6 +47286,16 @@ html[data-theme="dark"]{--sbh-bg:rgba(255,255,255,.05);--sbh-borde:rgba(255,255,
 /* v711 · ORDENADOR · Apariencia automática: el icono del botón, medio círculo, como en macOS. */
 @media (min-width:761px) and (pointer:fine){
   html.tema-auto header #btn-theme::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 3.5a8.5 8.5 0 0 1 0 17z' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 3.5a8.5 8.5 0 0 1 0 17z' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important}
+}
+</style>
+<style id="esc-v714">
+/* v714 · ORDENADOR · El botón de la barra lateral, a la izquierda de la barra de herramientas. */
+#bm-sbtg{display:none}
+@media (min-width:761px) and (pointer:fine){
+  header #bm-sbtg{display:inline-flex;order:-3;align-items:center;justify-content:center;flex:none;width:30px;height:30px;margin-right:2px;padding:0;border:none;border-radius:8px;background:transparent;color:var(--txt);cursor:pointer}
+  header #bm-sbtg:hover{background:var(--tb-hover,rgba(118,118,128,.16))}
+  header #bm-sbtg::before{content:"";width:19px;height:19px;background:currentColor;opacity:.78;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='15' rx='3'/%3E%3Cpath d='M9.5 4.5v15'/%3E%3Cpath d='M5.5 8.5h2M5.5 11.5h2'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='15' rx='3'/%3E%3Cpath d='M9.5 4.5v15'/%3E%3Cpath d='M5.5 8.5h2M5.5 11.5h2'/%3E%3C/svg%3E") center/contain no-repeat}
+  header #bm-sbtg:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 }
 </style>
 <script>
