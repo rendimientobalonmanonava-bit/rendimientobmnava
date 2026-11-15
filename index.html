@@ -14895,6 +14895,95 @@ function bmMarcaMenu(){
   b.appendChild(m);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmMarcaMenu);else bmMarcaMenu();
+/* v677 · ORDENADOR · Las explicaciones, en un botón (i) junto al título de su
+   bloque. Qué cuenta como explicación (`bmiEsNota`): una nota en gris de 60
+   caracteres o más que cierra la tarjeta —nada con texto detrás— en una
+   tarjeta con más contenido; o un subtítulo del título de 50 o más. Se quedan
+   donde están las leyendas (llevan «=» o una clase de leyenda), los datos (lo
+   que empieza por una cifra), los avisos, los estados vacíos («Sin…»,
+   «Ninguna…», «Todavía…») y las instrucciones de una acción («Crea…»,
+   «Aplicar…»). Se mira sin medir nada, así que vale también para lo que está
+   en una pestaña oculta. */
+const BMI_CARD='.panel,.cgr-card,.card-pro';
+const BMI_HEAD=':scope>h2,:scope>.cgr-card-h,:scope>.pro-title,:scope>.fband-h';
+const BMI_PIE='p.small.muted,div.small.muted,p.hint,.wz-foot,p.muted.small';
+const BMI_SUB=':scope>h2>span.r,:scope>.cgr-card-h>span,:scope>.pro-sub,:scope>.fband-h>.s';
+const BMI_FUERA='svg,button,a,label,table,summary,.legend,[class*="-leg"],.rh-warn,.wz-aviso,.tn-vacio,.bm-vacio,.bm-inf-pop,#parte-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page';
+let BMI_N=0;
+function bmiTexto(e){return (e.textContent||'').trim().replace(/\s+/g,' ');}
+function bmiEsNota(e,c,h,sub){
+  if(e.closest(BMI_FUERA))return false;
+  const t=bmiTexto(e);
+  if(t.length<(sub?50:60))return false;
+  if(/ = |›|^Sin |^Todav|^Ningun|^Nadie|^Aún|^No hay|^Escala|^Aplicar|^Crea |^Conectad|^\d/i.test(t))return false;
+  if(e.querySelector('input,select,button,svg,canvas'))return false;
+  if(!sub){
+    let n=e;while(n&&n!==c){let x=n.nextElementSibling;while(x){if(!x.classList.contains('bm-inf-oc')&&bmiTexto(x))return false;x=x.nextElementSibling;}n=n.parentElement;}
+    const resto=bmiTexto(c).length-bmiTexto(h).length-t.length;
+    if(resto<80&&!c.querySelector('canvas,svg,table,img'))return false;
+  }
+  return true;
+}
+/* El texto original se queda en su sitio, oculto (`bm-inf-oc`), y la ventanita
+   lleva una copia: si el bloque se repinta, la nota nueva se vuelve a mirar y la
+   copia se rehace; no hay nada que desmontar ni dos copias del mismo texto. */
+function bmiBoton(host,antes,textos,etq){
+  let b=host.querySelector(':scope>.bm-inf');
+  if(!b){
+    const id='bmi-'+(++BMI_N);
+    const pop=document.createElement('div');pop.className='bm-inf-pop';pop.id=id;pop.setAttribute('popover','auto');pop.setAttribute('role','note');
+    b=document.createElement('button');b.type='button';b.className='bm-inf';b.setAttribute('popovertarget',id);
+    b.setAttribute('aria-label',etq||'Cómo se lee este bloque');b.title=etq||'Cómo se lee este bloque';b.setAttribute('aria-expanded','false');
+    b.addEventListener('click',e=>e.stopPropagation());
+    b._pop=pop;pop._btn=b;
+    pop.addEventListener('toggle',e=>{
+      const ab=e.newState==='open';b.setAttribute('aria-expanded',ab?'true':'false');
+      if(!ab)return;
+      const r=b.getBoundingClientRect(),W=pop.offsetWidth,H=pop.offsetHeight;
+      let L=r.left-12;if(L+W>innerWidth-16)L=innerWidth-16-W;if(L<16)L=16;
+      let T=r.bottom+8;if(T+H>innerHeight-16)T=Math.max(16,r.top-8-H);
+      pop.style.left=Math.round(L)+'px';pop.style.top=Math.round(T)+'px';
+    });
+    host.insertBefore(b,antes&&antes.parentNode===host?antes:null);
+    document.body.appendChild(pop);
+  }
+  const pop=b._pop,k=textos.join(' ');
+  if(pop.dataset.t!==k){pop.textContent='';textos.forEach(t=>{const p=document.createElement('p');p.textContent=t;pop.appendChild(p);});pop.dataset.t=k;}
+}
+function bmInfoEsc(){
+  if(esMovil()||typeof HTMLElement==='undefined'||!('popover' in HTMLElement.prototype))return;
+  /* las ventanitas cuyo botón ya no existe (el bloque se repintó) se retiran */
+  document.querySelectorAll('body>.bm-inf-pop').forEach(p=>{if(!p._btn||!p._btn.isConnected)p.remove();});
+  const v=document.querySelector('main>.view.on');if(!v)return;
+  /* 1 · el aviso de la página, junto al título */
+  const ph=v.querySelector(':scope>.pagehead');
+  if(ph){
+    const b=ph.querySelector('.ph-banner'),h1=ph.querySelector('h1'),tx=b&&b.querySelector(':scope>div');
+    if(h1&&tx&&bmiTexto(tx)){bmiBoton(h1,null,[bmiTexto(tx)],'Qué hay en esta pantalla');ph.dataset.bmi='1';}
+  }
+  /* 2 · las notas y los subtítulos largos de cada tarjeta */
+  v.querySelectorAll(BMI_CARD).forEach(c=>{
+    if(c.closest(BMI_FUERA))return;
+    const h=c.querySelector(BMI_HEAD);if(!h)return;
+    const subs=[...c.querySelectorAll(BMI_SUB)].filter(e=>bmiEsNota(e,c,h,true));
+    const pies=[...c.querySelectorAll(BMI_PIE)].filter(e=>e.closest(BMI_CARD)===c&&bmiEsNota(e,c,h,false));
+    const nodos=subs.concat(pies);
+    if(!nodos.length){const vb=h.querySelector(':scope>.bm-inf');if(vb&&!c.querySelector('.bm-inf-oc')){if(vb._pop)vb._pop.remove();vb.remove();}return;}
+    nodos.forEach(n=>n.classList.add('bm-inf-oc'));
+    const todos=[...c.querySelectorAll('.bm-inf-oc')].filter(e=>e.closest(BMI_CARD)===c);
+    bmiBoton(h,h.matches('h2')?h.querySelector(':scope>.r,:scope>span:not(.bm-inf)'):null,todos.map(bmiTexto));
+  });
+}
+(function(){
+  if(typeof MutationObserver!=='function')return;
+  let t=null;
+  const pasa=()=>{clearTimeout(t);t=setTimeout(()=>{try{bmInfoEsc();}catch(e){console.error('bmnava · bmInfoEsc',e);}},160);};
+  const arma=()=>{const m=document.querySelector('main');if(!m)return;
+    new MutationObserver(pasa).observe(m,{childList:true,subtree:true});
+    m.querySelectorAll(':scope>.view').forEach(v=>new MutationObserver(pasa).observe(v,{attributes:true,attributeFilter:['class']}));
+    pasa();};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arma);else arma();
+})();
 /* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
 function bmTelefono(){
   const ops=[['sis','Como el teléfono'],['0.9','Pequeña'],['1','Normal'],['1.15','Grande'],['1.3','Muy grande']];
@@ -45901,6 +45990,37 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   body.sb-min #sidebar .sbm-hp{display:none!important}
   body.sb-min #sidebar .sbm-club{padding:5px}
   body.sb-min #sidebar .sbm-club img{width:28px;height:32px;object-fit:cover;object-position:left center}
+}
+</style>
+<style id="esc-v677">
+/* v677 · ORDENADOR · Las explicaciones, en un botón (i). Daniel, 15/11/2026.
+   Medido a 1.745 px: en el Resumen el 35 % del texto eran explicaciones en
+   gris a 11–12,5 px (el 52 % en Cargas y el 37 % en Calendario), y un aviso azul
+   bajo el título en 12 de las 13 pantallas. Lo que explica cómo se calcula o
+   cómo se lee un bloque pasa a una ventanita junto a su título: el aviso de la
+   página, la nota al pie de «cómo se calcula» y el subtítulo largo. NO se
+   mueven las leyendas que hacen falta para leer un gráfico, los datos, los
+   avisos ni los estados vacíos (la regla está en `bmiEsNota`). No se borra
+   nada: el texto se queda en su sitio, oculto, y la ventanita lleva una copia. HIG · Layout: lo
+   esencial con espacio y lo secundario en otra vista. En el móvil no corre. */
+.bm-inf,.bm-inf-pop{display:none}
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  .bm-inf{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:0 0 0 6px;padding:0;border:none;border-radius:50%;
+    background:transparent;color:var(--muted);cursor:pointer;vertical-align:middle;flex:none;position:relative;top:-1px}
+  .bm-inf::before{content:"";width:16px;height:16px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9.2'/%3E%3Cpath d='M12 11v5.4'/%3E%3Cpath d='M12 7.6v.1' stroke-width='2.4'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9.2'/%3E%3Cpath d='M12 11v5.4'/%3E%3Cpath d='M12 7.6v.1' stroke-width='2.4'/%3E%3C/svg%3E") center/contain no-repeat}
+  .bm-inf:hover,.bm-inf[aria-expanded="true"]{color:var(--accent);background:var(--tb-campo,rgba(118,118,128,.12))}
+  .bm-inf:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .pagehead h1 .bm-inf{width:26px;height:26px;margin-left:8px;top:-4px}
+  .pagehead h1 .bm-inf::before{width:20px;height:20px}
+  .pagehead[data-bmi="1"] .ph-banner{display:none!important}
+  .bm-inf-oc{display:none!important}
+  .bm-inf-pop:popover-open{display:block;position:fixed;inset:auto;margin:0;width:max-content;max-width:min(360px,calc(100vw - 32px));max-height:min(60vh,520px);overflow:auto;
+    padding:12px 14px;border:.5px solid var(--hair);border-radius:12px;background:var(--panel);color:var(--txt);
+    box-shadow:0 18px 50px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);font-size:13px;font-weight:400;line-height:1.45;letter-spacing:0;text-transform:none;text-align:left;white-space:normal}
+  html[data-theme="dark"] .bm-inf-pop:popover-open{background:var(--panel2,#23262e);box-shadow:0 18px 50px rgba(0,0,0,.55)}
+  .bm-inf-pop>*{display:block!important;margin:0!important;padding:0!important;font-size:13px!important;line-height:1.45!important;color:var(--txt)!important;
+    background:none!important;border:none!important;text-align:left!important;white-space:normal!important;float:none!important;max-width:none!important;opacity:1!important}
+  .bm-inf-pop>*+*{margin-top:8px!important;padding-top:8px!important;border-top:.5px solid var(--hair)!important}
 }
 </style>
 <script>
