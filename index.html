@@ -14860,8 +14860,9 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     /* v668 · el teclado: lo que se pulsa con el ratón también se alcanza con Tab e Intro */
     try{bmVoz();}catch(e){}
     try{bmResumenEsc();}catch(e){}
-    /* v678 · los dos formularios de Disponibilidad, en su hoja */
-    try{bmFormasHoja(['est','plan']);}catch(e){}
+    /* v678 · los dos formularios de Disponibilidad, en su hoja; v681 · y las fotos de Jugadores */
+    try{bmFormasHoja(['est','plan','fot']);}catch(e){}
+    try{bmJugEsc();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
     try{bmTarjetasT();}catch(e){}},120);};
   const arma=()=>{const m=document.querySelector('main');if(!m)return;
@@ -14996,6 +14997,49 @@ function bmToca(t){
   if(esMovil())return t;
   return String(t).replace(/Tócalo/g,'Haz clic').replace(/\b([Tt])oca para\b/g,(m,a)=>(a==='T'?'H':'h')+'az clic para')
     .replace(/\b([Tt])oca\b/g,(m,a)=>(a==='T'?'H':'h')+'az clic en');
+}
+/* v681 · ORDENADOR · Jugadores: el buscador en la barra, los grupos por
+   puesto y las fotos al final. Los rótulos sólo se rehacen si cambian los
+   grupos: si se rehicieran en cada pasada, el observador que los mira los
+   volvería a pedir sin fin. */
+const BMJ={q:''};
+function bmJugEsc(){
+  if(esMovil())return;
+  const v=document.getElementById('v-jugadores');if(!v||!v.classList.contains('on'))return;
+  const cr=v.querySelector(':scope>.ctrlrow');
+  if(cr&&!cr.querySelector('.jug-q')){
+    const l=document.createElement('label');l.className='jug-q';
+    l.innerHTML='<input type="search" placeholder="Buscar jugador" aria-label="Buscar jugador" autocomplete="off" spellcheck="false">';
+    cr.insertBefore(l,cr.firstChild);
+    const inp=l.querySelector('input');inp.value=BMJ.q;
+    inp.addEventListener('input',()=>{BMJ.q=inp.value;bmJugEsc();});
+    inp.addEventListener('keydown',e=>{if(e.key==='Escape'){inp.value='';BMJ.q='';bmJugEsc();inp.blur();}});
+  }
+  const g=document.getElementById('players-grid');if(!g)return;
+  const cards=[...g.querySelectorAll(':scope>.pcard')];if(!cards.length)return;
+  const porPuesto=typeof JUG_SORT==='undefined'||(JUG_SORT!=='forma_best'&&JUG_SORT!=='forma_worst');
+  const GR=(typeof JL_GR!=='undefined'?JL_GR:[]).concat([['_','Sin puesto']]);
+  const q=jlNorm(BMJ.q.trim());const cuenta={};
+  cards.forEach((c,i)=>{
+    const m=(c.getAttribute('onclick')||'').match(/openPlayer\('((?:[^'\\]|\\.)*)'\)/);const n=m?m[1].replace(/\\'/g,"'"):'';
+    const p=(STATE.players||{})[n]||{};
+    let gi=porPuesto?GR.findIndex(a=>a[0]===p.pos):0;if(gi<0)gi=GR.length-1;
+    c.style.order=String(gi*1000+i+1);
+    const fuera=!!q&&jlNorm(n+' '+(p.pos||'')).indexOf(q)<0;
+    c.classList.toggle('jug-fuera',fuera);
+    if(!fuera)cuenta[gi]=(cuenta[gi]||0)+1;
+  });
+  const firma=(porPuesto?'p':'f')+'|'+q+'|'+Object.keys(cuenta).map(k=>k+':'+cuenta[k]).join(',');
+  if(g.dataset.bmjf===firma&&g.querySelector(':scope>.pc-grupo,:scope>.pc-vacio'))return;
+  g.dataset.bmjf=firma;
+  g.querySelectorAll(':scope>.pc-grupo,:scope>.pc-vacio').forEach(e=>e.remove());
+  const ks=Object.keys(cuenta).map(Number).sort((a,b)=>a-b);
+  if(!ks.length){const d=document.createElement('div');d.className='pc-vacio';d.textContent='Ningún jugador coincide con «'+BMJ.q.trim()+'».';g.appendChild(d);return;}
+  ks.forEach((gi,k)=>{
+    const d=document.createElement('div');d.className='pc-grupo'+(k===0?' pc-g0':'');d.style.order=String(gi*1000);
+    d.textContent=porPuesto?GR[gi][1]:(JUG_SORT==='forma_best'?'Mejor readiness primero':'Peor readiness primero');
+    const em=document.createElement('em');em.textContent=String(cuenta[gi]);d.appendChild(em);g.appendChild(d);
+  });
 }
 /* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
 function bmTelefono(){
@@ -46195,6 +46239,36 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   #cal-body .cal-grid>.cal-out{background:var(--panel2)}
   #cal-body .cal-grid>.cal-today{box-shadow:inset 0 2px 0 var(--accent)!important}
   #cal-body .cal-grid>.cal-cell-risk{box-shadow:inset 0 0 0 1.5px var(--warn)!important}
+}
+</style>
+<style id="esc-v681">
+/* v681 · ORDENADOR · Jugadores, como Contactos. Daniel, 15/11/2026. Medido a
+   1.280 px: una tarjeta entera sólo para el desplegable «Ordenar» y la
+   herramienta de subir fotos en el primer sitio de la pantalla. Ahora: una
+   barra con el buscador y el orden, sin tarjeta; los jugadores agrupados por
+   puesto con su rótulo (la regla de la lista del móvil, v625: por puesto,
+   salvo cuando se ordena por estado de forma); y las fotos al final, en su
+   fila que abre su hoja (v623). Ningún nodo se mueve: los grupos se hacen con
+   `order` y un rótulo por grupo. */
+.jug-q{display:none}
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  #v-jugadores.on{display:flex;flex-direction:column}
+  #v-jugadores>.pagehead{order:0}
+  #v-jugadores>.ctrlrow{order:1;justify-content:space-between!important;align-items:center;margin:0 0 20px!important;padding:0!important;background:none!important;box-shadow:none!important;border:none!important}
+  #v-jugadores>#players-grid{order:2}
+  #v-jugadores>.bm-fhl,#v-jugadores>#ph-panel{order:10}
+  #v-jugadores>.bm-fhl{margin:24px 0 0}
+  .jug-q{display:flex;align-items:center;gap:7px;flex:0 1 320px;height:32px;padding:0 10px;box-sizing:border-box;border-radius:8px;background:var(--tb-campo,rgba(118,118,128,.12));color:var(--muted)}
+  .jug-q::before{content:"";width:15px;height:15px;flex:none;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E") center/contain no-repeat}
+  .jug-q input{flex:1;min-width:0;height:100%;border:none!important;background:none!important;box-shadow:none!important;padding:0!important;font:inherit;font-size:13px!important;color:var(--txt);outline:none}
+  .jug-q:focus-within{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+  #v-jugadores .jug-sort select{height:32px;min-height:0;border-radius:8px}
+  #players-grid>.pc-grupo{grid-column:1/-1;display:flex;align-items:center;gap:9px;margin:14px 0 -4px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+  #players-grid>.pc-grupo:first-child,#players-grid>.pc-grupo.pc-g0{margin-top:0}
+  #players-grid>.pc-grupo em{font-style:normal;font-weight:600;color:var(--muted2);letter-spacing:0}
+  #players-grid>.pc-grupo::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+  #players-grid>.pcard.jug-fuera{display:none!important}
+  #players-grid>.pc-vacio{grid-column:1/-1;padding:24px 0;text-align:center;color:var(--muted)}
 }
 </style>
 <script>
