@@ -6918,7 +6918,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
         <p class="hint" id="lbc-ses-note" style="margin-top:8px"></p>
       </div>
       <div class="kpis" id="load-kpis"></div>
-      <div class="panel"><h2>ACWR por jugador <span class="r muted">anillo por zona · toca para ver ficha</span></h2><div id="acwr-fichas"></div></div>
+      <div class="panel"><h2>ACWR por jugador <span class="r muted">anillo por zona · <span class="bm-mov">toca</span><span class="bm-esc">haz clic</span> para ver ficha</span></h2><div id="acwr-fichas"></div></div>
       <div class="panel"><h2>Ranking del equipo <span class="r muted">estado · carga aguda · ACWR</span></h2><div id="carga-ranking"></div></div>
       <div class="panel"><h2>Carga del equipo · día a día <span class="r muted">media por jugador · crónica 28 d · partidos en rojo</span></h2><div style="height:190px"><canvas id="ch-team-load"></canvas></div>
         <div class="legend"><span><i class="led" style="background:var(--accent)"></i>carga diaria</span><span><i class="led" style="background:var(--accent2)"></i>crónica <span id="lg-cron">21</span>d</span><span><i class="led bad"></i>día de partido</span></div></div>
@@ -13031,7 +13031,7 @@ function openMedInjury(name,editId){medDbLoad();const ov=ensureInfoOverlay();con
  +'<label>Nombre de la lesión *<input type="text" id="mi-title" placeholder="p. ej. Rotura LCA rodilla izquierda"></label>'
  +'<div class="mf3"><label>Tipo<select id="mi-tipo"><option>Muscular</option><option>Articular / ligamento</option><option>Tendinosa</option><option>Ósea</option><option>Contusión / golpe</option><option>Otra</option></select></label><label>Clasificación<select id="mi-clasif"><option>Leve</option><option>Moderada</option><option>Grave</option><option>Grado I</option><option>Grado II</option><option>Grado III</option></select></label><label>Tejido<input type="text" id="mi-tejido" placeholder="LCA, isquio, aductor…"></label></div>'
  +'<div class="mf3"><label>Actividad<select id="mi-act"><option>Entrenamiento pista</option><option>Gimnasio</option><option>Partido</option><option>Fuera del club</option><option>Otra</option></select></label><label>Acción<input type="text" id="mi-accion" placeholder="salto, cambio de dirección…"></label><label>Momento<select id="mi-mom"><option>0–15 min</option><option>15–30 min</option><option>30–60 min</option><option>60–90 min</option><option>90+ min</option><option>—</option></select></label></div>'
- +'<div class="mf2"><label>Zona *<input type="text" id="mi-zona" placeholder="toca la silueta o escribe"></label><label>Lado<select id="mi-lado"><option value="">—</option><option value="I">Izquierda</option><option value="D">Derecha</option><option value="B">Bilateral</option></select></label></div>'
+ +'<div class="mf2"><label>Zona *<input type="text" id="mi-zona" placeholder="'+bmToca('toca la silueta o escribe')+'"></label><label>Lado<select id="mi-lado"><option value="">—</option><option value="I">Izquierda</option><option value="D">Derecha</option><option value="B">Bilateral</option></select></label></div>'
  +'<label>Descripción<textarea id="mi-desc" rows="2" placeholder="Mecanismo, sensaciones, pruebas…"></textarea></label>'
  +'<div class="mf3"><label>Dolor inicial (0–10)<input type="number" id="mi-pain" min="0" max="10" step="1"></label><label>RTP estimado<input type="date" id="mi-rtp"></label><label>Estado en la app<select id="mi-status">'+stOpts+'</select></label></div>'
  +'<div class="mf2" id="mi-planrow"><label>Plan de readaptación<select id="mi-tpl">'+(window.medRehabTplOptions?medRehabTplOptions():'<option value="lca">Plantilla completa (4 fases · guía LCA)</option><option value="corta">Plantilla corta (2 fases · lesión menor)</option><option value="cero">Desde cero (fases en blanco)</option>')+'</select></label><div></div></div>'
@@ -14861,7 +14861,9 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmVoz();}catch(e){}
     try{bmResumenEsc();}catch(e){}
     /* v678 · los dos formularios de Disponibilidad, en su hoja */
-    try{bmFormasHoja(['est','plan']);}catch(e){}},120);};
+    try{bmFormasHoja(['est','plan']);}catch(e){}
+    /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
+    try{bmTarjetasT();}catch(e){}},120);};
   const arma=()=>{const m=document.querySelector('main');if(!m)return;
     new MutationObserver(pasa).observe(m,{childList:true,subtree:true});
     new MutationObserver(pasa).observe(document.head,{childList:true});
@@ -14986,6 +14988,15 @@ function bmInfoEsc(){
     pasa();};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arma);else arma();
 })();
+/* v679 · ORDENADOR · Cada aparato con su verbo. HIG · Writing: decir el gesto
+   que se hace en cada aparato; en el teléfono se toca y en el ordenador se hace
+   clic. `bmToca` traduce los textos que lo dicen al pintarse; en el marcado fijo
+   van las dos palabras y el CSS enseña la que toca (`bm-mov` / `bm-esc`). */
+function bmToca(t){
+  if(esMovil())return t;
+  return String(t).replace(/Tócalo/g,'Haz clic').replace(/\b([Tt])oca para\b/g,(m,a)=>(a==='T'?'H':'h')+'az clic para')
+    .replace(/\b([Tt])oca\b/g,(m,a)=>(a==='T'?'H':'h')+'az clic en');
+}
 /* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
 function bmTelefono(){
   const ops=[['sis','Como el teléfono'],['0.9','Pequeña'],['1','Normal'],['1.15','Grande'],['1.3','Muy grande']];
@@ -23413,7 +23424,7 @@ function renderPosBand(){
     const sev=isNaN(rdy)?'muted2':rdy>=75?'ok':rdy>=55?'warn':'bad';
     const chips=g.slice().sort((x,y)=>(y.readiness||0)-(x.readiness||0)).map(p=>`<span class="posband-chip" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')"><i class="posband-dot" style="background:var(--${p.sev||'muted2'})"></i>${p.name.split(' ')[0]} <b style="color:${colTexto('var(--'+(p.sev||'muted2')+')')}">${p.readiness==null?'—':p.readiness}</b></span>`).join('');
     return `<div class="posband-card"><div class="posband-head"><span class="posband-pos">${pos}</span><span class="posband-rdy" style="color:${colTexto('var(--'+(sev)+')')}">${isNaN(rdy)?'—':Math.round(rdy)}</span></div>${reds?`<div class="posband-reds">${reds} en rojo</div>`:'<div class="posband-reds" style="color:var(--muted);font-weight:500">'+g.length+' jug.</div>'}<div class="posband-chips">${chips}</div></div>`;}).join('');
-  box.innerHTML=`<div class="panel"><div class="ctrlrow" style="justify-content:space-between;align-items:baseline"><h2 style="margin:0">Estado por línea</h2><span class="small muted">readiness medio · jugadores en rojo · toca un jugador</span></div><div class="posband-grid">${cards}</div></div>`;
+  box.innerHTML=`<div class="panel"><div class="ctrlrow" style="justify-content:space-between;align-items:baseline"><h2 style="margin:0">Estado por línea</h2><span class="small muted">readiness medio · jugadores en rojo · ${bmToca('toca un jugador')}</span></div><div class="posband-grid">${cards}</div></div>`;
 }
 function renderPosMap(){
   const box=document.getElementById('config-posmap');if(!box)return;
@@ -36990,7 +37001,7 @@ function renderCalendar(){
    <!-- v397 · El microciclo vive aquí, debajo del resumen por semana, por
         decisión de Daniel el 15/10/2026. Se pinta después de este innerHTML. -->
    <div class="panel" id="cal-micro-panel" style="margin-top:14px"></div>
-   <p class="small muted" style="margin-top:8px">Toca un día para planificar o editar. La carga real, las bajas y la desviación se enlazan solas con tus datos. Se guarda en este dispositivo.</p>`;
+   <p class="small muted" style="margin-top:8px">${bmToca('Toca un día para planificar o editar.')} La carga real, las bajas y la desviación se enlazan solas con tus datos. Se guarda en este dispositivo.</p>`;
   /* después del innerHTML: antes el contenedor todavía no existía */
   try{renderCalMicro();}catch(e){console.error('bmnava · microciclo',e);}
   try{calDiaPinta();}catch(e){console.error('bmnava · día del calendario',e);}
@@ -37164,7 +37175,7 @@ function renderCalWeek(box){
    </div>
    <div id="cal-sem-a4" style="display:none"></div>`}
    <div class="panel" id="cal-micro-panel" style="margin-top:14px"></div>
-   <p class="small muted" style="margin-top:8px">Toca un día para planificar. La numeración MD se calcula desde el partido de la semana o el próximo. Exporta la semana para enviarla al cuerpo técnico.</p>`;
+   <p class="small muted" style="margin-top:8px">${bmToca('Toca un día para planificar.')} La numeración MD se calcula desde el partido de la semana o el próximo. Exporta la semana para enviarla al cuerpo técnico.</p>`;
   /* La hoja se pinta DESPUÉS del innerHTML, como el microciclo: antes su
      contenedor todavía no existe. Y se escala al acabar, porque hasta que no
      está en el DOM no se sabe cuánto mide. */
@@ -37370,7 +37381,7 @@ function calDayBody(dk){
             return '<td><button type="button" class="cal-asist-btn" title="No respondió el cuestionario. Márcalo si entrenó este bloque, para imputarle un RPE estimado." onclick="asistToggle(\''+dk+'\',\''+b+'\',\''+safe+'\',true)">Convocar</button></td>';
           return '<td class="muted">—</td>';
         }
-        const estTag=x.est?'<span class="est-mark" onclick="asistToggle(\''+dk+'\',\''+b+'\',\''+safe+'\',false)" title="Convocado sin respuesta: valor estimado. Toca para desconvocar">est</span>':'';
+        const estTag=x.est?'<span class="est-mark" onclick="asistToggle(\''+dk+'\',\''+b+'\',\''+safe+'\',false)" title="Convocado sin respuesta: valor estimado. '+bmToca('Toca para desconvocar')+'">est</span>':'';
         return '<td class="cal-du-rpe'+(x.est?' est':'')+'" title="'+(x.est?'Convocado, no respondió el cuestionario: valor estimado desde la media del equipo ajustada a su percepción habitual':'Declarado por el jugador')+'">'+x.rpe+estTag+'</td>';
       };
       /* v266 · Un jugador convocado al que le falta el minutaje de ese bloque
@@ -46089,7 +46100,7 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   .bm-fhl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .bm-fhl-ic{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--on-accent,#fff)}
   .bm-fhl-ic svg{width:18px;height:18px}
-  .bm-fhl-t{flex:1;min-width:0}
+  .bm-fhl-t{flex:1;min-width:0;contain:inline-size}   /* sin esto, el texto en una línea ensanchaba la columna */
   .bm-fhl-t b{display:block;font-size:14px;font-weight:600}
   .bm-fhl-t small{display:block;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bm-fhl-t small.bm-fhl-av{color:var(--warn-text)}
@@ -46102,6 +46113,27 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   .bm-fh-cont .estado-add>.btn.ghost{order:6}
   .bm-fh-cont .plan-form{grid-template-columns:minmax(0,1fr)!important;gap:12px;margin:0;padding:0;border:none}
   .bm-fh-cont .plan-form .wide{gap:8px!important}
+}
+</style>
+<style id="esc-v679">
+/* v679 · ORDENADOR · Lo que se pulsa responde al ratón. Daniel, 15/11/2026.
+   Medido: de las tarjetas que abren algo, sólo las de jugador y de alerta
+   reaccionaban al pasar el ratón; Destacados, «Hoy», el próximo partido y los
+   paneles que llevan a otra pantalla no daban ninguna señal. La misma marca que
+   el móvil usa para hundirlas al tocar (`bm-tq`, v621) aquí las eleva un punto
+   al pasar el ratón y las hunde al pulsar. HIG · Pointing devices. Y las dos
+   palabras del marcado fijo: «toca» en el teléfono, «haz clic» en el ordenador. */
+.bm-esc{display:none}
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  .bm-mov{display:none}
+  .bm-esc{display:inline}
+}
+@media (min-width:761px) and (pointer:fine){
+  .bm-tq,#v-equipo>.bm-hoy,#v-equipo>.bm-prox{cursor:pointer;transition:transform .22s cubic-bezier(.32,.72,0,1),box-shadow .22s ease}
+  .bm-tq:hover,#v-equipo>.bm-hoy:hover,#v-equipo>.bm-prox:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(20,29,46,.06),0 14px 30px -14px rgba(20,29,46,.26)!important}
+  html[data-theme="dark"] :is(.bm-tq,#v-equipo>.bm-hoy,#v-equipo>.bm-prox):hover{box-shadow:0 2px 6px rgba(0,0,0,.45),0 14px 30px -14px rgba(0,0,0,.7)!important}
+  .bm-tq:active:not(:has(:is([onclick],button,summary,a[href],input,select,textarea):active)){transform:scale(.985);transition-duration:.1s}
+  @media (prefers-reduced-motion:reduce){.bm-tq,.bm-tq:hover,.bm-tq:active{transform:none!important;transition:box-shadow .2s ease}}
 }
 </style>
 <script>
