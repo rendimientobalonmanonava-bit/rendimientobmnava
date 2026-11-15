@@ -14939,7 +14939,37 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
    sólo corre en el móvil. */
 function bmResumenEsc(){
   if(esMovil())return;
-  ['bmSemana','bmHoy','bmProx','bmDestacados','bmInterruptores'].forEach(f=>{try{if(typeof window[f]==='function')window[f]();}catch(e){console.error('bmnava · '+f,e);}});
+  /* v687 · Daniel, 15/11/2026: «no me modifiques la estructura anterior de
+     resumen … está bien que me añadas el botón de próximo partido en pequeño y
+     una etiqueta deslizable». En el ordenador ya no se pintan la semana ni
+     «Hoy»; quedan el próximo partido y Destacados, en una banda. */
+  ['bmProx','bmDestacados','bmInterruptores'].forEach(f=>{try{if(typeof window[f]==='function')window[f]();}catch(e){console.error('bmnava · '+f,e);}});
+  try{bmDestCarril();}catch(e){console.error('bmnava · bmDestCarril',e);}
+}
+/* v687 · Destacados como banda deslizable: las tarjetas van en un carril que se
+   desliza de lado (con el trackpad, o con las flechas del rótulo cuando no
+   caben). Las tarjetas son las de `bmDestacados`; aquí sólo se meten en el
+   carril, y si el bloque se repinta se vuelven a meter. */
+function bmDestCarril(){
+  const d=document.getElementById('bm-dest');if(!d||d.hidden)return;
+  const tit=d.querySelector(':scope>.bmd-tit');
+  let car=d.querySelector(':scope>.bmd-carril');
+  const sueltas=[...d.querySelectorAll(':scope>.bmd-c')];
+  if(!car){car=document.createElement('div');car.className='bmd-carril';d.appendChild(car);
+    car.addEventListener('scroll',()=>bmDestFlechas(d),{passive:true});}
+  if(sueltas.length)sueltas.forEach(c=>car.appendChild(c));
+  if(tit&&!tit.querySelector('.bmd-fl')){
+    const f=document.createElement('span');f.className='bmd-fl';
+    f.innerHTML='<button type="button" data-d="-1" aria-label="Anteriores">‹</button><button type="button" data-d="1" aria-label="Siguientes">›</button>';
+    f.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;e.stopPropagation();
+      const c=d.querySelector(':scope>.bmd-carril');if(c)c.scrollBy({left:(+b.dataset.d)*Math.max(280,c.clientWidth*.8),behavior:'smooth'});});
+    tit.appendChild(f);}
+  bmDestFlechas(d);
+}
+function bmDestFlechas(d){
+  const c=d.querySelector(':scope>.bmd-carril'),f=d.querySelector('.bmd-fl');if(!c||!f)return;
+  const sobra=c.scrollWidth>c.clientWidth+4;f.hidden=!sobra;
+  const [a,b]=f.querySelectorAll('button');if(a)a.disabled=c.scrollLeft<=2;if(b)b.disabled=c.scrollLeft+c.clientWidth>=c.scrollWidth-2;
 }
 /* v676 · ORDENADOR · Los logos, una sola vez: arriba del menú. Se copian las
    imágenes que ya están en la cabecera (no se duplica ningún archivo) y el CSS
@@ -45977,96 +46007,6 @@ html[data-theme="dark"]{--sb-esc:rgba(30,31,36,.78);--sb-esc-borde:rgba(255,255,
   #v-equipo>.bm-dest .bmd-c{height:100%;box-shadow:var(--lg-shadow);cursor:pointer}
 }
 </style>
-<style id="esc-v675">
-/* v675 · ORDENADOR · El Resumen en una rejilla. Daniel, 15/11/2026: «me parece
-   una web muy poco profesional». Medido a 1.745 px: las tarjetas de arriba con
-   anchos distintos y 30 px de diferencia de alto, «Hoy» con ~700 px vacíos,
-   Destacados usando 865 de 1.456 px (el título ocupaba todas las columnas y las
-   vacías no se cerraban) y tres columnas que apilaban cada una a su aire. Ahora
-   doce columnas y filas que empiezan y acaban a la misma altura. No se mueve
-   ningún nodo: los contenedores pasan a `display:contents` y cada bloque se
-   coloca con `order` y su ancho. El orden de las secciones es el que Daniel
-   eligió para el móvil (v533): cómo llega el equipo, a quién vigilar y la
-   carga. Por debajo de 1.100 px de ancho útil, la mitad de columnas. */
-@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
-  #v-equipo.on{display:grid!important;grid-template-columns:repeat(12,minmax(0,1fr));gap:20px;align-items:stretch;container-type:inline-size}
-  #v-equipo.on>*{grid-column:1/-1;min-width:0;margin:0!important;order:50}
-  #v-equipo.on :is(.eq-top,.eq-col,.eq-ancho)>*{grid-column:1/-1;min-width:0;margin:0!important;order:50}
-  #v-equipo.on .eq-top,#v-equipo.on .eq-r3,#v-equipo.on .eq-col,#v-equipo.on .eq-ancho{display:contents}
-  #v-equipo.view.on .panel:not(#parte-card):not(#parte-card *){margin:0!important}
-  #v-equipo.on>.pagehead{order:0}
-  /* hoy: la semana, el día y el próximo partido, del mismo ancho y alto */
-  #v-equipo.on>.bm-sem,#v-equipo.on>.bm-hoy,#v-equipo.on>.bm-prox{order:1;grid-column:span 4;max-width:none;flex:none;margin:0!important;height:auto;min-height:0;box-sizing:border-box}
-  #v-equipo.on:not(:has(>.bm-prox:not([hidden])))>.bm-sem,#v-equipo.on:not(:has(>.bm-prox:not([hidden])))>.bm-hoy{grid-column:span 6}
-  /* Destacados ocupa la fila entera, sea cual sea el número de tarjetas */
-  #v-equipo.on>.bm-dest{order:2;display:flex!important;flex-direction:row;flex-wrap:wrap;gap:20px;margin:0!important}
-  #v-equipo.on>.bm-dest[hidden]{display:none!important}
-  #v-equipo.on>.bm-dest>.bmd-tit{flex:0 0 100%}
-  #v-equipo.on>.bm-dest>.bmd-c{flex:1 1 260px;min-width:0;height:auto}
-  /* titulares: seis en una fila; con avisos de fisioterapia, 3 × 2 y los avisos al lado */
-  #v-equipo.on #team-strip{order:4}
-  #v-equipo.on #team-ojo{order:4;grid-column:span 4}
-  #v-equipo.on:has(#team-ojo .panel) #team-strip{grid-column:span 8}
-  #v-equipo .eq-strip,#v-equipo .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(6,minmax(0,1fr));gap:20px;margin:0;height:100%}
-  #v-equipo.on:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
-  #v-equipo .eq-top:has(#team-ojo .panel) .eq-v{font-size:var(--t24,25px);margin-top:5px}
-  #v-equipo .eq-top:has(#team-ojo .panel) .eq-s{margin-top:3px}
-  #v-equipo .eq-top:has(#team-ojo .panel) .eq-spark{margin-top:9px}
-  #v-equipo .eq-top:has(#team-ojo .panel) .eq-spark svg{height:26px}
-  #v-equipo #team-ojo>.panel{height:100%;box-sizing:border-box}
-  /* los avisos, en una fila cada uno (la tarjeta de la v550 del móvil) */
-  #v-equipo #team-ojo .ojo-grid{grid-template-columns:minmax(0,1fr);gap:8px}
-  #v-equipo #team-ojo .ojo-c{display:grid;grid-template-columns:44px minmax(0,1fr) auto;column-gap:12px;row-gap:1px;align-items:center;padding:10px 10px 10px 12px}
-  #v-equipo #team-ojo .ojo-c>.ojo-c-top{grid-column:1;grid-row:1 / span 3;align-self:center}
-  #v-equipo #team-ojo .ojo-c>.fh-n{grid-column:2;grid-row:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;margin:0}
-  #v-equipo #team-ojo .ojo-c>.fh-mot{grid-column:2;grid-row:2;margin:0;min-width:0}
-  #v-equipo #team-ojo .ojo-c>.fh-mot .fh-m{border:none;padding:0;background:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-  #v-equipo #team-ojo .ojo-c>.ojo-nota{grid-column:2;grid-row:3;margin:0;-webkit-line-clamp:1}
-  #v-equipo #team-ojo .ojo-c>.ojo-pie{grid-column:3;grid-row:1 / span 3;flex-direction:column;align-items:flex-end;justify-content:center;gap:4px;margin:0;padding:0;border:none}
-  #v-equipo #team-ojo .ojo-c .fh-silw{display:none}
-  /* rótulos de sección: los tres y Destacados, iguales */
-  #v-equipo.on .eq-col>.eq-cab{display:flex;margin:12px 0 -4px!important}
-  #v-equipo.on .eq-col:nth-child(1)>.eq-cab{order:10}
-  #v-equipo.on .eq-col:nth-child(3)>.eq-cab{order:20}
-  #v-equipo.on .eq-col:nth-child(2)>.eq-cab{order:30}
-  #v-equipo.on>.bm-dest>.bmd-tit{display:flex;align-items:center;gap:9px;margin:0 0 -4px;font-size:var(--t11,11px);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:2px 2px 0}
-  #v-equipo.on>.bm-dest>.bmd-tit::before{content:"";width:7px;height:7px;border-radius:50%;flex:none;background:var(--gi-violeta,#7a5af8)}
-  #v-equipo.on>.bm-dest>.bmd-tit::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
-  /* 1 · cómo llega el equipo: la semana alta a la izquierda; a la derecha, el readiness sobre los semáforos */
-  #v-equipo.on #eq-semana{order:11;grid-column:span 6;grid-row:span 2}
-  #v-equipo.on #team-hero{order:12;grid-column:span 6}
-  #v-equipo.on #team-welllights{order:13;grid-column:span 6}
-  #v-equipo.on #team-posband{order:14}
-  #v-equipo.on #team-hero>.panel,#v-equipo.on #team-posband>.panel{height:100%;box-sizing:border-box}
-  /* 2 · a vigilar: los jugadores a lo ancho; debajo, fisioterapia, carga, reuniones y médico */
-  #v-equipo.on #team-rings{order:21}
-  #v-equipo.on #team-rings .ath-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
-  #v-equipo.on #team-fisio{order:22;grid-column:span 4;grid-row:span 2}
-  #v-equipo.on #team-meters-panel{order:23;grid-column:span 4;grid-row:span 2}
-  #v-equipo.on #team-reuniones{order:24;grid-column:span 4}
-  #v-equipo.on #team-citas{order:25;grid-column:span 4}
-  /* 3 · carga: próximas, intensidad y pulso; debajo, últimas sesiones y su clasificación */
-  #v-equipo.on #team-next{order:31;grid-column:span 4}
-  #v-equipo.on #team-int-panel{order:32;grid-column:span 4}
-  #v-equipo.on #team-hr-panel{order:33;grid-column:span 4}
-  #v-equipo.on #team-ultimas{order:34;grid-column:span 6}
-  #v-equipo.on #team-class-panel{order:35;grid-column:span 6}
-  #v-equipo.on>.eq-plantilla{order:40}
-  /* menos de 1.100 px de ancho útil: la mitad de columnas */
-  @container (max-width:1100px){
-    #v-equipo.on>.bm-sem{grid-column:1/-1!important}
-    #v-equipo.on>.bm-hoy,#v-equipo.on>.bm-prox{grid-column:span 6!important}
-    #v-equipo.on:not(:has(>.bm-prox:not([hidden])))>.bm-hoy{grid-column:1/-1!important}
-    #v-equipo.on:has(#team-ojo .panel) #team-strip,#v-equipo.on #team-ojo{grid-column:1/-1}
-    #v-equipo .eq-strip,#v-equipo .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr))!important}
-    #v-equipo.on #eq-semana{grid-column:1/-1;grid-row:auto}
-    #v-equipo.on #team-fisio,#v-equipo.on #team-meters-panel{grid-row:auto}
-    #v-equipo.on #team-hero,#v-equipo.on #team-welllights,#v-equipo.on #team-fisio,#v-equipo.on #team-meters-panel,
-    #v-equipo.on #team-reuniones,#v-equipo.on #team-citas,#v-equipo.on #team-next,#v-equipo.on #team-int-panel{grid-column:span 6}
-    #v-equipo.on #team-hr-panel,#v-equipo.on #team-ultimas,#v-equipo.on #team-class-panel{grid-column:1/-1}
-  }
-}
-</style>
 <style id="esc-v676">
 /* v676 · ORDENADOR · La cabecera como la barra de herramientas de una app de
    Mac. Daniel, 15/11/2026. Medido: 90 px de alto, la marca tres veces (arriba
@@ -46508,6 +46448,53 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   .bm-atj{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px}
   .bm-atj-f:nth-last-child(2){border-bottom:none}
   .bm-atj-k{flex-basis:96px}
+}
+</style>
+<style id="esc-v687">
+/* v687 · ORDENADOR · El Resumen, con su distribución de siempre. Daniel,
+   15/11/2026, tras ver la rejilla de la v675: «no me toques la página de
+   resumen, ni los bloques que tenía antes, que me encantaba su distribución …
+   está bien que me añadas el botón de próximo partido en pequeño y una
+   etiqueta deslizable con información relevante … combínala». Se retira la
+   rejilla (v675) y la fila de arriba de la v673: los bloques vuelven a sus tres
+   columnas temáticas, con la tira de titulares y «Ojo hoy» como estaban, y la
+   línea del día seleccionado vuelve a verse. Encima sólo dos cosas: el próximo
+   partido como una píldora en esa misma línea, a la derecha, y Destacados como
+   una banda de tarjetas cortas que se desliza de lado. */
+.bmd-carril{display:contents}
+.bmd-fl{display:none}
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  #v-equipo>.bm-sem,#v-equipo>.bm-hoy{display:none!important}
+  #v-equipo.on>.ctrlrow{display:flex!important;order:1!important;flex:1 1 0!important;min-width:0;width:auto;align-self:center;margin:0 0 14px!important}
+  /* el próximo partido, una píldora a la derecha de la línea del día */
+  #v-equipo.on>.bm-prox{order:2!important;flex:0 0 auto!important;align-self:center;display:inline-flex!important;align-items:center;gap:8px;width:auto!important;
+    min-height:0!important;height:34px;margin:0 0 14px!important;padding:0 10px 0 5px!important;border-radius:17px!important;background:var(--panel)!important;
+    box-shadow:0 0 0 .5px var(--hair),0 1px 3px rgba(0,0,0,.06)!important;font:inherit;color:var(--txt);cursor:pointer}
+  #v-equipo>.bm-prox .bpx-ic{width:24px!important;height:24px!important}
+  #v-equipo>.bm-prox .bpx-ic svg{width:14px;height:14px}
+  #v-equipo>.bm-prox .bpx-t,#v-equipo>.bm-prox .bpx-d{display:flex;align-items:baseline;gap:6px;flex:none;text-align:left}
+  #v-equipo>.bm-prox small{display:inline!important;font-size:12.5px!important;font-weight:500;color:var(--muted)}
+  #v-equipo>.bm-prox .bpx-t b{display:inline!important;font-size:13px!important;font-weight:600}
+  #v-equipo>.bm-prox .bpx-d b{display:inline!important;font-size:13px!important;font-weight:600;color:var(--accent)}
+  #v-equipo>.bm-prox .bpx-d::before{content:"·";color:var(--muted2);margin-right:-2px}
+  #v-equipo>.bm-prox .bpx-ch{font-size:16px!important;margin-left:0}
+  @media (max-width:1500px){#v-equipo>.bm-prox .bpx-t small,#v-equipo>.bm-prox .bpx-d small{display:none!important}}
+  /* Destacados, una banda deslizable de tarjetas cortas */
+  #v-equipo.on>.bm-dest{order:3!important;display:block!important;margin:0 0 20px!important}
+  #v-equipo.on>.bm-dest[hidden]{display:none!important}
+  #v-equipo>.bm-dest>.bmd-tit{display:flex;align-items:center;gap:9px;margin:0 0 10px!important;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+  #v-equipo>.bm-dest>.bmd-tit::before{content:"";width:7px;height:7px;border-radius:50%;flex:none;background:var(--gi-violeta,#7a5af8)}
+  #v-equipo>.bm-dest>.bmd-tit::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent);order:1}
+  .bmd-fl{display:inline-flex;gap:4px;order:2}
+  .bmd-fl[hidden]{display:none}
+  .bmd-fl button{width:26px;height:26px;padding:0;border:none;border-radius:50%;background:var(--tb-campo,rgba(118,118,128,.12));color:var(--txt);font:inherit;font-size:16px;line-height:1;cursor:pointer;letter-spacing:0}
+  .bmd-fl button:hover:not(:disabled){background:var(--tb-hover,rgba(118,118,128,.16))}
+  .bmd-fl button:disabled{opacity:.35;cursor:default}
+  .bmd-carril{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:2px 2px 6px;margin:0 -2px;overscroll-behavior-x:contain}
+  .bmd-carril::-webkit-scrollbar{display:none}
+  .bmd-carril>.bmd-c{flex:1 0 300px;max-width:520px;height:auto!important;scroll-snap-align:start;gap:6px!important;padding:12px 14px!important}
+  .bmd-carril>.bmd-c .bmd-g{display:none}
+  .bmd-carril>.bmd-c .bmd-f{font-size:14px!important;font-weight:600;line-height:1.35}
 }
 </style>
 <script>
