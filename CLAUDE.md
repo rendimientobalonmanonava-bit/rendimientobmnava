@@ -1253,6 +1253,8 @@ Daniel, 13/11/2026, con la tabla de lo que se podía llevar del móvil al ordena
 
 **Lo que NO está probado**: el ordenador de Daniel con sus datos (todo se probó en la copia de prueba a 1.440 y 1.024 px), el desenfoque del menú en Safari de macOS y la mini-ficha con un ratón de verdad.
 
+**v674 · el fallo que dejó la v673**: la regla de colocación iba sobre `#v-equipo` sin `.on`, así que el Resumen se veía siempre en el ordenador, encima de la pantalla elegida. Corregido el 15/11/2026 (ver §9).
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1490,6 +1492,7 @@ No los repitas.
 | Leer `innerText` de un bloque plegado | Con el bloque en `display:none`, `innerText` devuelve cadena vacía y la cifra de la fila salía vacía. Para leer lo que no se pinta, `textContent` o la estructura del bloque |
 | Copiar estilos del móvil al ordenador con su `order` dentro | Los bloques del móvil traen `order` para colocar cada pieza en el Resumen apilado; en el ordenador, al hacer el Resumen flexible, la semana y Destacados cayeron al final de la página. **Lo que se reenvuelve en otra condición se revisa entero**: posición, orden y anchos son del sitio de origen |
 | Dar por bueno un `:where()` frente a una regla que ya existe | `:where()` pesa cero: la separación de 22 px de los paneles le ganaba y la de 20 no se aplicaba. Se vio midiendo, no leyendo |
+| Poner `display` sobre el id de una vista sin `.on` | La v673 escribió `#v-equipo{display:flex}` para colocar el Resumen del ordenador, y un id gana a `.view{display:none}`: **el Resumen salía encima de TODAS las pantallas** del ordenador, 3.000 px antes de la pantalla elegida. La comprobación de la v673 recorrió las 29 pantallas midiendo desbordes y errores, y no había ni lo uno ni lo otro: lo que fallaba era qué vistas se veían. Corregido en la v674 con `#v-equipo.on`, que es como ya lo hacía el móvil (v533). **Una regla que da `display` a una vista va siempre con `.on`**, y la prueba de cada pantalla mira cuántas `.view` están visibles |
 
 ---
 
