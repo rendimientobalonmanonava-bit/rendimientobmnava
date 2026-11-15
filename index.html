@@ -15464,6 +15464,69 @@ function bmBotonLateral(){
   b.addEventListener('click',()=>{try{sbToggle();}catch(e){}});hub.insertBefore(b,hub.firstChild);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmBotonLateral);else bmBotonLateral();
+/* v715 · ORDENADOR · Arrastrar y soltar. Daniel, 16/11/2026. Los siete sitios
+   donde se suben archivos iban con botón. Ahora se puede soltar el archivo
+   sobre la ventana: el JSON de BuilderPro se importa en Gimnasio; una copia de
+   seguridad de BM Nava abre su restauración (que, como siempre, dice qué va a
+   pasar antes de tocar nada); y una foto soltada encima de un jugador se le
+   pone. Cada cosa la hace SU función de siempre (`gymImportar`,
+   `bkpRestaurar`, `phOnFile`): aquí sólo se decide a cuál va. Lo que cambia
+   datos pregunta antes. HIG · Drag and drop: la gente lo prueba en todas partes. */
+const BMDROP={n:0,obj:null};
+function bmDropDestino(t){
+  if(!t||!t.closest)return null;
+  const jl=t.closest('#bm-jl .jl-f[data-n]');if(jl)return {el:jl,n:jl.dataset.n};
+  const h=t.closest('#v-jugador .phero');if(h&&STATE.curPlayer)return {el:h,n:STATE.curPlayer};
+  const p=t.closest('[onclick*="openPlayer("]');if(p){const x=bmlpDe(p);if(x&&x.t==='j')return {el:p,n:x.n};}
+  return null;
+}
+function bmDropVelo(on,txt){
+  let v=document.getElementById('bm-drop');
+  if(!v){v=document.createElement('div');v.id='bm-drop';v.innerHTML='<div class="bmdp-c"><b></b><span></span></div>';document.body.appendChild(v);}
+  if(txt)v.querySelector('b').textContent=txt;
+  v.querySelector('span').textContent='JSON de BuilderPro · copia de seguridad de BM Nava · o una foto encima de un jugador';
+  v.classList.toggle('on',!!on);
+}
+function bmDropMarca(d){
+  if(BMDROP.obj&&(!d||BMDROP.obj!==d.el))BMDROP.obj.classList.remove('bm-drop-obj');
+  BMDROP.obj=d?d.el:null;if(d)d.el.classList.add('bm-drop-obj');
+}
+const bmDropArchivos=e=>!!(e.dataTransfer&&[...(e.dataTransfer.types||[])].indexOf('Files')>=0);
+document.addEventListener('dragenter',e=>{if(esMovil()||!bmDropArchivos(e))return;BMDROP.n++;bmDropVelo(true,'Suelta para importar');});
+document.addEventListener('dragleave',e=>{if(esMovil()||!bmDropArchivos(e))return;BMDROP.n=Math.max(0,BMDROP.n-1);if(!BMDROP.n){bmDropVelo(false);bmDropMarca(null);}});
+document.addEventListener('dragover',e=>{if(esMovil()||!bmDropArchivos(e))return;
+  if(e.target&&e.target.closest&&e.target.closest('input[type=file]'))return;
+  e.preventDefault();e.dataTransfer.dropEffect='copy';
+  const d=bmDropDestino(e.target);bmDropMarca(d);bmDropVelo(true,d?'Suelta la foto para ponérsela a '+d.n:'Suelta para importar');});
+document.addEventListener('drop',e=>{
+  if(esMovil()||!bmDropArchivos(e))return;
+  if(e.target&&e.target.closest&&e.target.closest('input[type=file]'))return;
+  e.preventDefault();BMDROP.n=0;bmDropVelo(false);const d=bmDropDestino(e.target);bmDropMarca(null);
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(!f)return;
+  /* una foto: encima de un jugador */
+  if(/^image\//.test(f.type)){
+    if(!d){try{toast('Suelta la foto encima de un jugador para ponérsela');}catch(err){}return;}
+    if(!confirm('¿Poner esta foto a '+d.n+'?\n\nSustituye a la que tenga ahora en este aparato.'))return;
+    try{phOnFile({dataset:{player:d.n},files:[f],value:''});}catch(err){console.error('bmnava · foto soltada',err);}
+    return;
+  }
+  /* un JSON: copia de seguridad o volumen de BuilderPro */
+  if(/\.json$/i.test(f.name)||f.type==='application/json'){
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const tx=String(rd.result||'');let o=null;try{o=JSON.parse(tx);}catch(err){}
+      if(o&&o.app==='bmnava'&&o.datos){go('config');setTimeout(()=>{try{bkpRestaurar({files:[f],value:''});const m=document.getElementById('bkp-msg');if(m)m.scrollIntoView({block:'center'});}catch(err){console.error('bmnava · copia soltada',err);}},150);return;}
+      if(Array.isArray(o)){
+        if(!confirm('¿Importar el volumen de gimnasio de BuilderPro de «'+f.name+'»?\n\nSe fusiona por fecha y jugador: no se duplica nada.'))return;
+        go('carga');try{cargasTab('gym');}catch(err){}
+        setTimeout(()=>{try{gymPintaMsg(gymImportar(tx));}catch(err){console.error('bmnava · gimnasio soltado',err);}},150);return;
+      }
+      try{toast('Ese JSON no es ni una copia de BM Nava ni un archivo de BuilderPro');}catch(err){}
+    };
+    rd.readAsText(f);return;
+  }
+  try{toast('No sé qué hacer con «'+f.name+'»: suelta un JSON de BuilderPro, una copia de seguridad o una foto encima de un jugador');}catch(err){}
+});
 /* v685 · ORDENADOR · Los contadores del menú. Cada cifra sale de lo que la
    app ya calcula: el estado efectivo del día (`effectiveStatus`, como la tira
    del Resumen), el episodio abierto (`medOpenEpisodeOf`), los avisos de
@@ -47296,6 +47359,20 @@ html[data-theme="dark"]{--sbh-bg:rgba(255,255,255,.05);--sbh-borde:rgba(255,255,
   header #bm-sbtg:hover{background:var(--tb-hover,rgba(118,118,128,.16))}
   header #bm-sbtg::before{content:"";width:19px;height:19px;background:currentColor;opacity:.78;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='15' rx='3'/%3E%3Cpath d='M9.5 4.5v15'/%3E%3Cpath d='M5.5 8.5h2M5.5 11.5h2'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='15' rx='3'/%3E%3Cpath d='M9.5 4.5v15'/%3E%3Cpath d='M5.5 8.5h2M5.5 11.5h2'/%3E%3C/svg%3E") center/contain no-repeat}
   header #bm-sbtg:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+}
+</style>
+<style id="esc-v715">
+/* v715 · ORDENADOR · Arrastrar y soltar: el velo y el jugador de destino. */
+#bm-drop{display:none}
+@media (min-width:761px) and (pointer:fine){
+  #bm-drop{display:flex;position:fixed;inset:0;z-index:10080;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .15s ease;
+    background:rgba(48,86,196,.10)}
+  #bm-drop.on{opacity:1}
+  #bm-drop .bmdp-c{display:flex;flex-direction:column;align-items:center;gap:6px;max-width:520px;padding:22px 28px;border-radius:20px;background:var(--panel);
+    box-shadow:0 20px 50px rgba(0,0,0,.22);outline:2px dashed var(--accent);outline-offset:-10px;text-align:center}
+  #bm-drop .bmdp-c b{font-size:17px;font-weight:700;color:var(--txt)}
+  #bm-drop .bmdp-c span{font-size:13px;color:var(--muted)}
+  .bm-drop-obj{outline:3px solid var(--accent)!important;outline-offset:2px;border-radius:12px}
 }
 </style>
 <script>
