@@ -14936,6 +14936,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmBarraTit();}catch(e){}
     /* v694 · las rejillas de tarjetas, sin huecos */
     try{bmMasonry();}catch(e){}
+    /* v696 · la plantilla al lado de la ficha */
+    try{bmJugLista();}catch(e){}
     try{bmMenuCuentas();}catch(e){}
     try{bmAtajosMenu();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
@@ -15254,6 +15256,66 @@ function bmMasonry(){
     g.classList.add('bm-mz');
     its.forEach(it=>{bmmzSpan(it);if(BMMZ.ro&&!BMMZ.vistos.has(it)){BMMZ.vistos.add(it);BMMZ.ro.observe(it);}});
   });
+}
+/* v696 · ORDENADOR · Jugadores como Contactos de Mac: la lista de la plantilla
+   a la izquierda y la ficha al lado. Daniel, 15/11/2026. Medido: Jugadores
+   eran 18 tarjetas en una rejilla (1.856 px, con filas a medias: Porteros
+   ocupaba 2 de 5 huecos) y para pasar de un jugador a otro había que abrir la
+   ficha, volver y abrir otra. Ahora la ficha se abre con la lista al lado y se
+   cambia de jugador sin salir, conservando la pestaña (Hoy, Carga…). La lista
+   NO es una segunda lista: es la del móvil (`jlHTML`, v625), con sus mismos
+   grupos por puesto, su orden y su buscador, copiada en la columna. Con la
+   ventana por debajo de 1.360 px la columna se oculta (la pauta de Apple:
+   la columna terciaria es la primera que cede) y vuelven las tarjetas y el
+   botón atrás de siempre. */
+const BMJL={q:'',src:null};
+function bmJlAncho(){return !esMovil()&&!!window.matchMedia&&matchMedia('(min-width:1360px) and (pointer:fine)').matches;}
+function bmJlDesvio(v){
+  if(v!=='jugadores'||!bmJlAncho())return;
+  const ps=STATE.players||{};if(!Object.keys(ps).length)return;
+  let n=STATE.curPlayer&&ps[STATE.curPlayer]?STATE.curPlayer:null;
+  if(!n){const f=document.querySelector('#players-grid .jl .jl-f');const m=f&&(f.getAttribute('onclick')||'').match(/openPlayer\('(.+)'\)/);
+    n=m?m[1].replace(/\\'/g,"'"):Object.keys(ps).sort()[0];}
+  openPlayerYa(n);
+}
+(function(){let t=null;window.addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(()=>{try{bmJugLista();}catch(e){}},150);});})();
+function bmJlFiltra(c){
+  const n=jlNorm(BMJL.q).trim();let tot=0;
+  c.querySelectorAll('.jl-g').forEach(g=>{let k=0;g.querySelectorAll('.jl-f').forEach(f=>{const ok=!n||(f.dataset.q||'').indexOf(n)>=0;f.hidden=!ok;if(ok)k++;});g.hidden=!k;tot+=k;});
+  const z=c.querySelector('.jl-nada');if(z)z.hidden=!!tot;
+}
+function bmJugLista(){
+  const on=bmJlAncho()&&STATE.view==='jugador';
+  document.body.classList.toggle('bm-jl-on',on);
+  if(!on)return;
+  let src=document.querySelector('#players-grid .jl');
+  if(!src&&typeof renderPlayersGrid==='function'){try{renderPlayersGrid();}catch(e){}src=document.querySelector('#players-grid .jl');}
+  if(!src)return;
+  let c=document.getElementById('bm-jl');
+  if(!c){c=document.createElement('aside');c.id='bm-jl';c.setAttribute('aria-label','La plantilla');document.body.appendChild(c);
+    c.addEventListener('click',e=>{
+      const f=e.target.closest('.jl-f');
+      if(f){e.preventDefault();const n=f.dataset.n;if(n&&n!==STATE.curPlayer){const y=c.scrollTop;openPlayerYa(n);c.scrollTop=y;}return;}
+      if(e.target.closest('.bmjl-fot')){const r=document.querySelector('#v-jugadores [data-fhk="fot"]');if(r)r.click();}
+    });
+    c.addEventListener('input',e=>{if(e.target.matches('.jl-q')){BMJL.q=e.target.value;bmJlFiltra(c);}});
+  }
+  const hdr=document.querySelector('header'),sb=document.getElementById('sidebar');
+  if(hdr)c.style.top=Math.round(hdr.getBoundingClientRect().bottom)+'px';
+  if(sb)c.style.left=Math.round(sb.getBoundingClientRect().right)+'px';
+  if(BMJL.src!==src||!c.firstChild){
+    BMJL.src=src;
+    const foco=document.activeElement&&document.activeElement.classList.contains('jl-q');
+    c.innerHTML=src.outerHTML+'<button type="button" class="bmjl-fot">Fotos de la plantilla…</button>';
+    c.querySelectorAll('.jl-f').forEach(f=>{const m=(f.getAttribute('onclick')||'').match(/openPlayer\('(.+)'\)/);
+      if(m)f.dataset.n=m[1].replace(/\\'/g,"'");f.removeAttribute('onclick');});
+    const q=c.querySelector('.jl-q');if(q){q.removeAttribute('oninput');q.value=BMJL.q;if(foco)q.focus();}
+    bmJlFiltra(c);
+  }
+  let act=null;
+  c.querySelectorAll('.jl-f').forEach(f=>{const s=f.dataset.n===STATE.curPlayer;f.classList.toggle('on',s);if(s){act=f;f.setAttribute('aria-current','true');}else f.removeAttribute('aria-current');});
+  if(act&&c.dataset.cur!==STATE.curPlayer){c.dataset.cur=STATE.curPlayer;
+    const r=act.getBoundingClientRect(),cr=c.getBoundingClientRect();if(r.top<cr.top+60||r.bottom>cr.bottom-10)act.scrollIntoView({block:'center'});}
 }
 /* v685 · ORDENADOR · Los contadores del menú. Cada cifra sale de lo que la
    app ya calcula: el estado efectivo del día (`effectiveStatus`, como la tira
@@ -18608,6 +18670,8 @@ function bmNombreVista(v){
 function bmTitulo(v){
   /* v689 · en el ordenador, el título de la barra */
   try{if(!esMovil())setTimeout(()=>{try{bmBarraTit();}catch(e){}},0);}catch(e){}
+  /* v696 · en un Mac ancho, Jugadores abre la ficha con la plantilla al lado */
+  try{if(!esMovil())setTimeout(()=>{try{bmJlDesvio(v);bmJugLista();}catch(e){}},0);}catch(e){}
   const t=document.getElementById('dp-tit');if(!t)return;
   t.textContent=bmNombreVista(v);
   try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}
@@ -46806,6 +46870,51 @@ html[data-theme="dark"]{--mac-alt:rgba(255,255,255,.035);--mac-fila-h:rgba(255,2
   #tsa-tabla .tsat-row:not(.tsat-row--h):hover{background-color:var(--mac-fila-h)}
   #tsa-tabla .tsat-row--h{border-bottom:.5px solid var(--line)!important}
   #tsa-tabla .tsat-row--h,#tsa-tabla .tsat-th{font-size:11px!important;color:var(--muted)!important}
+}
+</style>
+<style id="esc-v696">
+/* v696 · ORDENADOR · Jugadores como Contactos de Mac: la plantilla en una
+   columna a la izquierda de la ficha. */
+#bm-jl{display:none}
+@media (min-width:1360px) and (pointer:fine){
+  body.bm-jl-on #bm-jl{display:block;position:fixed;top:53px;bottom:0;left:216px;width:288px;z-index:6;overflow-y:auto;overscroll-behavior:contain;box-sizing:border-box;
+    padding:0 10px 18px;background:var(--panel);border-right:.5px solid var(--line)}
+  body.bm-jl-on #v-jugador{margin-left:288px}
+  body.bm-jl-on #bm-atras-esc{display:none!important}
+  #bm-jl .jl{display:block!important}
+  #bm-jl .jl-g[hidden]{display:none}
+  #bm-jl .jl-bar{position:sticky;top:0;z-index:1;display:flex;gap:6px;padding:12px 0 8px;background:var(--panel)}
+  #bm-jl .jl-buscar{flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:7px;background:var(--tb-campo);color:var(--muted)}
+  #bm-jl .jl-buscar svg{width:14px;height:14px;flex:none}
+  #bm-jl .jl-q{flex:1;min-width:0;height:26px!important;min-height:0!important;padding:0!important;border:none!important;background:none!important;box-shadow:none!important;outline:none;
+    font:inherit;font-size:13px!important;color:var(--txt)}
+  #bm-jl .jl-ord{flex:none;width:auto;max-width:118px;height:28px!important;min-height:0!important;padding:0 22px 0 8px!important;font-size:12px!important;border-radius:7px!important;line-height:28px}
+  #bm-jl .jl-gh{display:flex;align-items:baseline;padding:12px 8px 4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  #bm-jl .jl-gh em{margin-left:auto;font-style:normal;font-variant-numeric:tabular-nums}
+  #bm-jl .jl-f{display:flex;align-items:center;gap:10px;width:100%;min-height:0;padding:5px 8px;box-sizing:border-box;border:none;border-radius:7px;background:none;
+    font:inherit;color:var(--txt);text-align:left;cursor:pointer}
+  #bm-jl .jl-f[hidden]{display:none}
+  #bm-jl .jl-f:hover{background:var(--mac-fila-h,rgba(0,0,0,.045))}
+  #bm-jl .jl-f:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  #bm-jl .jl-ph{position:relative;flex:none;width:36px;height:36px;padding:2px;box-sizing:border-box;border-radius:50%;background:conic-gradient(var(--sv) var(--arc,0deg),var(--hair) 0)}
+  #bm-jl .jl-ph img,#bm-jl .jl-ph i{display:block;width:100%;height:100%;box-sizing:border-box;border-radius:50%;border:1.5px solid var(--panel);object-fit:cover;background:var(--panel2)}
+  #bm-jl .jl-ph i{display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:600;color:var(--muted)}
+  #bm-jl .jl-ph em{display:none}
+  #bm-jl .jl-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  #bm-jl .jl-t b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bm-jl .jl-t small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bm-jl .jl-st{font-weight:600}
+  #bm-jl .jl-v{flex:none;display:flex;flex-direction:column;align-items:flex-end;text-align:right}
+  #bm-jl .jl-v b{font-size:13px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+  #bm-jl .jl-v small{font-size:11px;color:var(--muted);white-space:nowrap}
+  #bm-jl .jl-ch{display:none}
+  /* el elegido: el relleno del color de acción, como la fila elegida de una lista de macOS */
+  #bm-jl .jl-f.on{background:var(--accent)!important;color:var(--on-accent,#fff)}
+  #bm-jl .jl-f.on :is(small,.jl-st,.jl-v b){color:var(--on-accent,#fff)!important;opacity:.92}
+  #bm-jl .jl-f.on .jl-ph img,#bm-jl .jl-f.on .jl-ph i{border-color:var(--accent)}
+  #bm-jl .jl-nada{padding:14px 8px;margin:0;font-size:12px;color:var(--muted)}
+  #bm-jl .bmjl-fot{display:block;width:100%;margin:14px 0 0;padding:6px 8px;border:none;border-radius:7px;background:none;font:inherit;font-size:12px;color:var(--accent);text-align:left;cursor:pointer}
+  #bm-jl .bmjl-fot:hover{background:var(--mac-fila-h,rgba(0,0,0,.045))}
 }
 </style>
 <script>
