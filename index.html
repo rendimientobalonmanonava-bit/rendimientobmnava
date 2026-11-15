@@ -14811,7 +14811,7 @@ function bmeEstilo(){
     +BME_EXC+'{'+ori+';--sh1:initial;--sh2:initial;--sh-hijo:initial}'
     +'@media (min-width:761px) and (pointer:fine){'+BME_EXC+'{'+FSO+'}main .view :is(.acard-name,.well-h){font-size:15px}}'
     /* v705 · el Resumen del ordenador, con su letra, sus radios y sus sombras de antes del 13/11 */
-    +'@media '+BME_ESC+'{#v-equipo{'+ori+';'+FSO+';--sh1:initial;--sh2:initial;--sh-hijo:initial;--fmin:0px}#v-equipo .panel>*{--sh-hijo:initial}}';
+    +'@media '+BME_ESC+'{main{'+ori+';'+FSO+';--sh1:initial;--sh2:initial;--sh-hijo:initial;--fmin:0px}main .panel>*{--sh-hijo:initial}}';   /* v710 · en todas las pantallas */
   if(css===BME.css)return;BME.css=css;
   let el=document.getElementById('bm-sistema');
   if(!el){el=document.createElement('style');el.id='bm-sistema';document.head.appendChild(el);}
@@ -15117,8 +15117,12 @@ function bmInfoEsc(){
   /* las ventanitas cuyo botón ya no existe (el bloque se repintó) se retiran */
   document.querySelectorAll('body>.bm-inf-pop').forEach(p=>{if(!p._btn||!p._btn.isConnected)p.remove();});
   const v=document.querySelector('main>.view.on');if(!v)return;
-  /* v705 · el Resumen, como estaba antes del 13/11: sus notas y su aviso a la vista */
-  if(v.id==='v-equipo')return;
+  /* v705 · el Resumen, como estaba antes del 13/11: sus notas y su aviso a la vista.
+     v710 · y todas las pantallas: se deshace lo que hubiera hecho antes y no se hace nada más */
+  v.querySelectorAll('.bm-inf-oc').forEach(e=>e.classList.remove('bm-inf-oc'));
+  v.querySelectorAll('.bm-inf').forEach(b=>{if(b._pop)b._pop.remove();b.remove();});
+  v.querySelectorAll('.pagehead[data-bmi]').forEach(p=>p.removeAttribute('data-bmi'));
+  return;
   /* 1 · el aviso de la página, junto al título */
   const ph=v.querySelector(':scope>.pagehead');
   if(ph){
@@ -16767,8 +16771,9 @@ function bmProxAbre(dk){
 const BMTQ_SEL=':is([onclick],[data-bmz],[role="button"],a[href],summary,.bm-prox)';
 function bmTarjetasT(){
   const v=document.querySelector('main .view.on');if(!v)return;
-  /* v705 · en el ordenador, el Resumen como antes del 13/11: sus tarjetas no se elevan */
-  if(v.id==='v-equipo'&&!esMovil())return;
+  /* v705 · en el ordenador, el Resumen como antes del 13/11: sus tarjetas no se elevan.
+     v710 · y ninguna pantalla */
+  if(!esMovil())return;
   v.querySelectorAll(BMTQ_SEL+':not([data-bmtq])').forEach(e=>{
     if(!e.checkVisibility())return;
     const r=e.getBoundingClientRect();e.dataset.bmtq='0';
@@ -45943,26 +45948,26 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
   /* la letra de la app en los controles */
   button,input,select,textarea{font-family:inherit}
   /* 26 en las tarjetas grandes (la de la capa Apple, v421) y 16 en los recuadros de cifra */
-  main .view .card-pro:not(#parte-card .card-pro):not(#v-equipo *){padding:26px}
-  main .view :is(.kpi,.eq-tile,.asum,.fis-k,.lbc-kpi,.phy-kpi,.pln-c,.phe-t,.cmj-kpi):not(#parte-card *):not(#v-cal *):not(#v-equipo *){padding:16px!important}
-  main .view #tsa-team-sum .tsum-t:not(#v-equipo *){padding:16px!important}
+  main .view .card-pro:not(#parte-card .card-pro):not(.view *){padding:26px}
+  main .view :is(.kpi,.eq-tile,.asum,.fis-k,.lbc-kpi,.phy-kpi,.pln-c,.phe-t,.cmj-kpi):not(#parte-card *):not(#v-cal *):not(.view *){padding:16px!important}
+  main .view #tsa-team-sum .tsum-t:not(.view *){padding:16px!important}
   /* dentro de una tarjeta, las cajas sin borde ni sombra: un fondo y ya */
   main .view .panel :is(.expl-row,.vh-card,.cmj-kpi,.asum,.fh-it,.zc,.posband-card,.hq-c,.fm,.lbc-kpi,.tsum-t,.ult-card,.ult-nopulso,.fh-c,.tsum-cat,
-    .cap-card,.cap-cell,.sw-col,.nut-agg,.gv-sw,.hq-plan,.hrx-read,.hrp-sim,.estado-grp,.wm-miss-pill,.phe-t,.pln-c,.phy-kpi):not(#parte-card *):not(#v-cal *):not(#v-equipo *){
+    .cap-card,.cap-cell,.sw-col,.nut-agg,.gv-sw,.hq-plan,.hrx-read,.hrp-sim,.estado-grp,.wm-miss-pill,.phe-t,.pln-c,.phy-kpi):not(#parte-card *):not(#v-cal *):not(.view *){
     border-color:transparent!important;box-shadow:none!important}
   /* una lista de tarjetas no va dentro de otra tarjeta: el contenedor se aparta */
-  #v-nutri .cgr-card:has(.nuc-grid),#v-alertas .panel:has(.alert-grid){background:none!important;box-shadow:none!important;border:none!important;padding:0!important}
-  #v-nutri .nuc-c,#v-alertas .acard{background:var(--panel)!important;border:none!important;box-shadow:var(--lg-shadow)!important}
+  #v-nutri .cgr-card:has(.nuc-grid),#v-alertas:not(.view *) .panel:has(.alert-grid){background:none!important;box-shadow:none!important;border:none!important;padding:0!important}
+  #v-nutri .nuc-c,#v-alertas:not(.view *) .acard{background:var(--panel)!important;border:none!important;box-shadow:var(--lg-shadow)!important}
   /* el recuadro de cifra: rótulo, cifra y línea con los mismos tamaños en toda la app */
-  main .view :is(.asum-v,.fis-k>.v,.lbc-kpi>b,.phy-kpi-v,#tsa-team-sum .tsum-t>.v,.pln-c>b,.phe-t>b,.kpi-v):not(#v-equipo *){font-weight:700!important;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  main .view :is(.asum-s,.fis-k>.s,.lbc-ctx,#tsa-team-sum .tsum-t>.s,.pln-c>u,.phe-t>u):not(#v-equipo *){color:var(--muted)!important}
+  main .view :is(.asum-v,.fis-k>.v,.lbc-kpi>b,.phy-kpi-v,#tsa-team-sum .tsum-t>.v,.pln-c>b,.phe-t>b,.kpi-v):not(.view *){font-weight:700!important;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  main .view :is(.asum-s,.fis-k>.s,.lbc-ctx,#tsa-team-sum .tsum-t>.s,.pln-c>u,.phe-t>u):not(.view *){color:var(--muted)!important}
   /* un mismo ritmo: 20 px entre tarjetas */
-  main .view :is(.grid,.g2,.g3,.grid-2,.cgr-grid,.fis-gs,.pl-g2,.cgr-duo,.hr-col,.kpis,.pl-kpisem,.alert-grid,.nuc-grid):not(#v-equipo *){gap:20px!important}
-  main .view :is(.panel,.cgr-card,.card-pro):not(#parte-card *):not(#parte-card):not(#v-equipo *){margin-bottom:20px!important}
-  main .view :is(.grid,.g2,.g3,.grid-2,.cgr-grid,.fis-gs,.pl-g2,.cgr-duo,.hr-col,.kpis,.kpi-grid)>:is(.panel,.cgr-card,.card-pro,.kpi):not(#v-equipo *){margin-top:0!important;margin-bottom:0!important}
+  main .view :is(.grid,.g2,.g3,.grid-2,.cgr-grid,.fis-gs,.pl-g2,.cgr-duo,.hr-col,.kpis,.pl-kpisem,.alert-grid,.nuc-grid):not(.view *){gap:20px!important}
+  main .view :is(.panel,.cgr-card,.card-pro):not(#parte-card *):not(#parte-card):not(.view *){margin-bottom:20px!important}
+  main .view :is(.grid,.g2,.g3,.grid-2,.cgr-grid,.fis-gs,.pl-g2,.cgr-duo,.hr-col,.kpis,.kpi-grid)>:is(.panel,.cgr-card,.card-pro,.kpi):not(.view *){margin-top:0!important;margin-bottom:0!important}
   /* nada recortado */
-  main .view :is(.mc-p-nm,.ath-mt,.vh-po-n,.pl-pd-v):not(#v-equipo *),#v-nutri .nut-a span{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
-  main .view .pl-pd-v:not(#v-equipo *){overflow-wrap:anywhere}
+  main .view :is(.mc-p-nm,.ath-mt,.vh-po-n,.pl-pd-v),#v-nutri .nut-a span{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+  main .view .pl-pd-v{overflow-wrap:anywhere}
 }
 </style>
 <style id="esc-v663">
@@ -45970,7 +45975,7 @@ html[data-theme="dark"]{--acc-seg:#a3b6ff}
    ancho fijo (lo que el móvil hace desde la v640). Los documentos, fuera. */
 @media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
   :root{--mono:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif}
-  main :is(.mono,.hm td.cell,.mc-p-v,.cg-p-v,.he-v b,.he-z,[style*="monospace"]):not(#parte-card *):not(.ficha-card *):not(.sa-page *):not(.sa-page-wk *):not(#v-equipo *){
+  main :is(.mono,.hm td.cell,.mc-p-v,.cg-p-v,.he-v b,.he-z,[style*="monospace"]):not(#parte-card *):not(.ficha-card *):not(.sa-page *):not(.sa-page-wk *):not(.view *){
     font-family:var(--mono)!important;font-variant-numeric:tabular-nums}
 }
 </style>
@@ -46647,9 +46652,8 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
 /* v689 · ORDENADOR · El título y las secciones, en la barra de la ventana. */
 #bm-tbt,#bm-tbs,#bm-tbx{display:none}
 @media (min-width:761px) and (pointer:fine){
-  main>.view:not(#v-cal):not(#v-equipo)>.pagehead{display:none!important}
-  /* v705 · el Resumen conserva su título grande, como antes del 13/11 */
-  body:has(#v-equipo.on) #bm-tbt{display:none!important}
+  /* v710 · el título grande vuelve a todas las pantallas, como en el Resumen; el de la barra sobra */
+  #bm-tbt{display:none!important}
   /* v701 · el Calendario conserva su título dentro de la pantalla: en la barra sobraría */
   body:has(#v-cal.on) #bm-tbt{display:none!important}
   #bm-atras-esc{order:-2!important}
@@ -46725,12 +46729,12 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   html[data-theme="dark"]{--bg:#1e1e20;--panel:#28282b;--panel2:#333337;--lg-shadow:0 0 0 .5px rgba(255,255,255,.11);--e1:var(--lg-shadow);--sh1:var(--lg-shadow)}
   html body{background:var(--bg)!important}
   /* el recuadro: 10 px; lo que va dentro, 8 */
-  main .view :is(.panel,.cgr-card,.card-pro,.pcard,.dsp-bd,.nuc-c,.acard,.bmd-c,.ath-al,.fh-c):not(#parte-card *):not(#parte-card):not(#v-equipo *){border-radius:10px!important}
-  main .view :is(.kpi,.eq-tile,.asum,.fis-k,.lbc-kpi,.phy-kpi,.pln-c,.phe-t,.cmj-kpi,.tsum-t,.zc,.bd-pill,.fh-it,.ult-card,.posband-card,.hq-c,.cap-card,.vh-card):not(#parte-card *):not(#parte-card):not(#v-cal *):not(#v-equipo *){border-radius:8px!important}
+  main .view :is(.panel,.cgr-card,.card-pro,.pcard,.dsp-bd,.nuc-c,.acard,.bmd-c,.ath-al,.fh-c):not(#parte-card *):not(#parte-card):not(.view *){border-radius:10px!important}
+  main .view :is(.kpi,.eq-tile,.asum,.fis-k,.lbc-kpi,.phy-kpi,.pln-c,.phe-t,.cmj-kpi,.tsum-t,.zc,.bd-pill,.fh-it,.ult-card,.posband-card,.hq-c,.cap-card,.vh-card):not(#parte-card *):not(#parte-card):not(#v-cal *):not(.view *){border-radius:8px!important}
   /* el relleno de macOS: 20 px, no los 26 del iPhone */
-  main .view .panel:not([style*="padding"]):not(#parte-card *):not(#parte-card):not(#v-equipo *){padding:20px 22px!important}
-  main .view .card-pro:not(#parte-card *):not(#parte-card):not(#v-equipo *){padding:20px 22px!important}
-  main .view details.panel:not([style*="padding"]):not(#parte-card *):not(#parte-card):not(#v-equipo *){padding:14px 22px!important}
+  main .view .panel:not([style*="padding"]):not(#parte-card *):not(#parte-card):not(.view *){padding:20px 22px!important}
+  main .view .card-pro:not(#parte-card *):not(#parte-card):not(.view *){padding:20px 22px!important}
+  main .view details.panel:not([style*="padding"]):not(#parte-card *):not(#parte-card):not(.view *){padding:14px 22px!important}
 }
 </style>
 <style id="esc-v692">
@@ -46775,29 +46779,29 @@ html[data-theme="dark"]{--sb-sel:rgba(255,255,255,.11);--sb-sel-h:rgba(255,255,2
 html[data-theme="dark"]{--mac-bt:rgba(255,255,255,.13);--mac-bt-borde:rgba(255,255,255,.10);--mac-bt-sombra:none;--mac-tinte:rgba(255,255,255,.035)}
 @media (min-width:761px) and (pointer:fine){
   /* botones */
-  main .view .btn:not(#parte-card *):not(#v-equipo *),.bmh .btn,.med-modal .btn,.info-modal .btn{min-height:26px!important;height:auto;padding:4px 12px!important;border-radius:6px!important;
+  main .view .btn:not(#parte-card *):not(.view *),.bmh .btn,.med-modal .btn,.info-modal .btn{min-height:26px!important;height:auto;padding:4px 12px!important;border-radius:6px!important;
     font-size:13px!important;font-weight:500!important;line-height:1.3;box-shadow:none}
-  main .view .btn.ghost:not(#parte-card *):not(#v-equipo *),.bmh .btn.ghost,.med-modal .btn.ghost,.info-modal .btn.ghost{background:var(--mac-bt)!important;color:var(--txt)!important;
+  main .view .btn.ghost:not(#parte-card *):not(.view *),.bmh .btn.ghost,.med-modal .btn.ghost,.info-modal .btn.ghost{background:var(--mac-bt)!important;color:var(--txt)!important;
     border:.5px solid var(--mac-bt-borde)!important;box-shadow:var(--mac-bt-sombra)!important}
-  main .view .btn.ghost:not(#parte-card *):hover:not(#v-equipo *){background-image:linear-gradient(var(--mac-tinte),var(--mac-tinte))!important}
-  main .view .btn:not(.ghost):not(#parte-card *):hover:not(#v-equipo *){filter:brightness(1.06)}
+  main .view .btn.ghost:not(#parte-card *):hover:not(.view *){background-image:linear-gradient(var(--mac-tinte),var(--mac-tinte))!important}
+  main .view .btn:not(.ghost):not(#parte-card *):hover:not(.view *){filter:brightness(1.06)}
   /* campos y desplegables */
-  main .view :is(select,input[type=text],input[type=search],input[type=number],input[type=date],input:not([type])):not(#parte-card *):not(#v-equipo *){min-height:28px;height:28px;padding-top:0!important;padding-bottom:0!important;
+  main .view :is(select,input[type=text],input[type=search],input[type=number],input[type=date],input:not([type])):not(#parte-card *):not(.view *){min-height:28px;height:28px;padding-top:0!important;padding-bottom:0!important;
     border-radius:6px!important;font-size:13px!important}
-  main .view textarea:not(#parte-card *):not(#v-equipo *){border-radius:6px!important;font-size:13px!important}
+  main .view textarea:not(#parte-card *):not(.view *){border-radius:6px!important;font-size:13px!important}
   /* etiquetas de estado: rectángulo con esquina de 5, no cápsula */
-  main .view :is(.med-chipbtn,.posband-chip,.flag,.pillT,.ath-rd,.tag,.afilter,.hrn-b,.wm-chip-b,.wm-chip,.tf-chip,.tf-add,.wpill,.chip,.estado-cnt,.nut-cuo-p,.pill,.phero-tag,.ath-st,.lvl-pill,.lv-pill):not(#parte-card *):not(#v-equipo *){border-radius:5px!important}
-  main .view :is(.nuc-chip,.nuc-all,.vac-a,.dsp-exp,.bm-gx):not(#parte-card *):not(#v-equipo *){border-radius:6px!important}
+  main .view :is(.med-chipbtn,.posband-chip,.flag,.pillT,.ath-rd,.tag,.afilter,.hrn-b,.wm-chip-b,.wm-chip,.tf-chip,.tf-add,.wpill,.chip,.estado-cnt,.nut-cuo-p,.pill,.phero-tag,.ath-st,.lvl-pill,.lv-pill):not(#parte-card *):not(.view *){border-radius:5px!important}
+  main .view :is(.nuc-chip,.nuc-all,.vac-a,.dsp-exp,.bm-gx):not(#parte-card *):not(.view *){border-radius:6px!important}
   #v-equipo>.bm-prox{border-radius:8px!important}
   /* la ficha: las acciones como botones de macOS */
-  #v-jugador .phero-btns .phero-add{min-height:28px!important;height:28px;padding:0 12px!important;border-radius:6px!important;font-size:13px!important;
+  #v-jugador:not(main *) .phero-btns .phero-add{min-height:28px!important;height:28px;padding:0 12px!important;border-radius:6px!important;font-size:13px!important;
     background:var(--mac-bt)!important;border:.5px solid var(--mac-bt-borde)!important;box-shadow:var(--mac-bt-sombra)!important}
   /* en oscuro, el texto de acción sobre el botón gris va en su tono claro (el de la v650): con el acento normal quedaba a 3,6:1 */
-  html[data-theme="dark"] #v-jugador .phero-btns .phero-add{color:var(--acc-seg,#a3b6ff)!important}
+  html[data-theme="dark"] #v-jugador:not(main *) .phero-btns .phero-add{color:var(--acc-seg,#a3b6ff)!important}
   /* al pasar el ratón: se tiñe, no se levanta */
-  main .view .bm-tq:hover:not(#v-equipo *),#v-equipo>.bm-hoy:hover,#v-equipo>.bm-prox:hover{transform:none!important;box-shadow:var(--lg-shadow)!important;
+  main .view .bm-tq:hover:not(.view *),#v-equipo>.bm-hoy:hover,#v-equipo>.bm-prox:hover{transform:none!important;box-shadow:var(--lg-shadow)!important;
     background-image:linear-gradient(var(--mac-tinte),var(--mac-tinte))!important}
-  main .view .bm-tq:active:not(#v-equipo *){transform:none!important;filter:brightness(.97)}
+  main .view .bm-tq:active:not(.view *){transform:none!important;filter:brightness(.97)}
 }
 </style>
 <style id="esc-v694">
@@ -46827,19 +46831,19 @@ html[data-theme="dark"]{--mac-bt:rgba(255,255,255,.13);--mac-bt-borde:rgba(255,2
 :root{--mac-alt:rgba(0,0,0,.03);--mac-fila-h:rgba(0,0,0,.045)}
 html[data-theme="dark"]{--mac-alt:rgba(255,255,255,.035);--mac-fila-h:rgba(255,255,255,.06)}
 @media (min-width:761px) and (pointer:fine){
-  main .view :is(table.tbl,table.med-ttable):not(#parte-card *):not(.sa-page *):not(.sa-page-wk *):not(#v-equipo *){font-size:13px!important;border-collapse:collapse}
-  main .view :is(table.tbl,table.med-ttable):not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) th:not(#v-equipo *){padding:5px 10px!important;font-size:11px!important;font-weight:600!important;color:var(--muted)!important;
+  main .view :is(table.tbl,table.med-ttable):not(#parte-card *):not(.sa-page *):not(.sa-page-wk *):not(.view *){font-size:13px!important;border-collapse:collapse}
+  main .view :is(table.tbl,table.med-ttable):not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) th:not(.view *){padding:5px 10px!important;font-size:11px!important;font-weight:600!important;color:var(--muted)!important;
     border-bottom:.5px solid var(--line)!important;background:var(--panel)}
-  main .view :is(table.tbl,table.med-ttable):not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) td:not(#v-equipo *){padding:4px 10px!important;height:24px;border-bottom:none!important;font-size:13px}
-  main .view :is(table.tbl,table.med-ttable):not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) tbody tr:not(.match-row):not(.cat-row):nth-child(even)>td:not(#v-equipo *){background-color:var(--mac-alt)}
-  main .view table.tbl:not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) tbody tr:not(.match-row):not(.cat-row):hover>td:not(#v-equipo *){background-color:var(--mac-fila-h)}
-  main .view table.tbl:not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) tbody tr:hover:not(#v-equipo *){background:none}
+  main .view :is(table.tbl,table.med-ttable):not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) td:not(.view *){padding:4px 10px!important;height:24px;border-bottom:none!important;font-size:13px}
+  main .view :is(table.tbl,table.med-ttable):not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) tbody tr:not(.match-row):not(.cat-row):nth-child(even)>td:not(.view *){background-color:var(--mac-alt)}
+  main .view table.tbl:not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) tbody tr:not(.match-row):not(.cat-row):hover>td:not(.view *){background-color:var(--mac-fila-h)}
+  main .view table.tbl:not(#parte-card *):not(.sa-page *):not(.sa-page-wk *) tbody tr:hover:not(.view *){background:none}
   /* «Cómo está cada jugador» (Perfil físico): la misma tabla hecha con filas */
-  #tsa-tabla .tsat-row:not(.tsat-row--h){border-bottom:none!important;min-height:0}
-  #tsa-tabla .tsat-row:not(.tsat-row--h):nth-of-type(even){background-color:var(--mac-alt)}
-  #tsa-tabla .tsat-row:not(.tsat-row--h):hover{background-color:var(--mac-fila-h)}
-  #tsa-tabla .tsat-row--h{border-bottom:.5px solid var(--line)!important}
-  #tsa-tabla .tsat-row--h,#tsa-tabla .tsat-th{font-size:11px!important;color:var(--muted)!important}
+  #tsa-tabla:not(.view *) .tsat-row:not(.tsat-row--h){border-bottom:none!important;min-height:0}
+  #tsa-tabla:not(.view *) .tsat-row:not(.tsat-row--h):nth-of-type(even){background-color:var(--mac-alt)}
+  #tsa-tabla:not(.view *) .tsat-row:not(.tsat-row--h):hover{background-color:var(--mac-fila-h)}
+  #tsa-tabla:not(.view *) .tsat-row--h{border-bottom:.5px solid var(--line)!important}
+  #tsa-tabla:not(.view *) .tsat-row--h,#tsa-tabla:not(.view *) .tsat-th{font-size:11px!important;color:var(--muted)!important}
 }
 </style>
 <style id="esc-v696">
@@ -46899,7 +46903,7 @@ html[data-theme="dark"]{--mac-alt:rgba(255,255,255,.035);--mac-fila-h:rgba(255,2
    cambia cómo se colocan. El nombre sigue abriendo la ficha. En el móvil
    siguen las filas de la v654. */
 @media (min-width:761px) and (pointer:fine){
-  #v-nutri .cgr-card:has(.nuc-grid){background:var(--panel)!important;box-shadow:var(--lg-shadow)!important;border-radius:10px!important;padding:16px 10px 10px!important}
+  #v-nutri .cgr-card:has(.nuc-grid){background:var(--panel)!important;box-shadow:var(--lg-shadow)!important;border-radius:20px!important;padding:16px 10px 10px!important}
   #v-nutri .cgr-card:has(.nuc-grid)>.cgr-card-h{padding:0 12px 8px;border-bottom:.5px solid var(--line);margin-bottom:0}
   #v-nutri .nuc-grid{display:flex!important;flex-direction:column;gap:0!important}
   #v-nutri .nuc-grid>.nuc-c{display:grid!important;grid-template-columns:30px minmax(150px,230px) minmax(0,1fr) 96px 200px;align-items:center;column-gap:12px;row-gap:6px;
@@ -46935,10 +46939,11 @@ html[data-theme="dark"]{--mac-alt:rgba(255,255,255,.035);--mac-fila-h:rgba(255,2
    grande, el aviso y las notas de las tarjetas, a la vista. Se quedan el
    próximo partido (tal cual) y Destacados. */
 @media (min-width:761px) and (pointer:fine){
-  html:has(#v-equipo.on){--bg:#f2f2f7}
-  html[data-theme="dark"]:has(#v-equipo.on){--bg:#000000}
-  #v-equipo{--panel2:#f2f2f7;--lg-shadow:0 6px 18px -12px rgba(20,29,46,.18),0 1px 3px rgba(20,29,46,.05);--e1:0 .5px 1px rgba(16,21,31,.05),0 6px 16px -8px rgba(16,21,31,.10);--mono:initial}
-  html[data-theme="dark"] #v-equipo{--panel:#1c1c1e;--panel2:#2c2c2e;--lg-shadow:0 8px 22px -14px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.3);--e1:0 .5px 1px rgba(0,0,0,.5),0 6px 16px -8px rgba(0,0,0,.6)}
+  /* v710 · en todas las pantallas, no sólo en el Resumen (`:root`: la v690 lo declara ahí y `html` pesa menos) */
+  :root{--bg:#f2f2f7}
+  html[data-theme="dark"]{--bg:#000000}
+  main{--panel2:#f2f2f7;--lg-shadow:0 6px 18px -12px rgba(20,29,46,.18),0 1px 3px rgba(20,29,46,.05);--e1:0 .5px 1px rgba(16,21,31,.05),0 6px 16px -8px rgba(16,21,31,.10);--mono:initial}
+  html[data-theme="dark"] main{--panel:#1c1c1e;--panel2:#2c2c2e;--lg-shadow:0 8px 22px -14px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.3);--e1:0 .5px 1px rgba(0,0,0,.5),0 6px 16px -8px rgba(0,0,0,.6)}
 }
 </style>
 <style id="esc-v707">
@@ -47111,6 +47116,24 @@ html[data-theme="dark"]{--sbh-bg:rgba(255,255,255,.05);--sbh-borde:rgba(255,255,
   html body.sb-min #sidebar .sbm-txt{display:none}
   html body.sb-min #sidebar .sbm-id{justify-content:center}
   html body.sb-min #sidebar .sb-brand{padding:14px 6px 10px!important}
+}
+</style>
+<style id="esc-v710">
+/* v710 · ORDENADOR · El aspecto del Resumen en todas las pantallas. Daniel,
+   16/11/2026: «lleva el aspecto de resumen a todas las pantallas». Había tres
+   estilos: el Resumen (antes del 13/11: título grande, tarjetas con sombra y
+   esquina de 20 px), el Calendario (título grande y recuadros de Mac) y las
+   otras once (recuadros de Mac con filete y el título en la barra). Lo que la
+   v705 hacía sólo para el Resumen vale ahora para todas: las reglas de aspecto
+   de la v662, v663, v690, v693 y v695 llevan `:not(.view *)` (no se aplican
+   dentro de ninguna pantalla), los tokens de antes van en `html`/`main`, la
+   letra, los radios y las sombras de antes vuelven con `#bm-sistema` sobre
+   `main`, el título grande vuelve a todas y las notas a la vista. Se queda lo
+   que es colocación y no aspecto: la barra de herramientas con su control de
+   sección, Jugadores con la plantilla al lado, Nutrición en filas, sin
+   huecos, y que no se corte texto. */
+@media (min-width:761px) and (pointer:fine){
+  main .view .bm-inf{display:none!important}
 }
 </style>
 <script>
