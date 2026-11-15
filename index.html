@@ -14944,6 +14944,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmJugLista();}catch(e){}
     /* v708 · «Hoy, de un vistazo», en el menú */
     try{bmMenuHoy();}catch(e){}
+    /* v711 · el botón de apariencia dice en qué estado está */
+    try{temaBoton();}catch(e){}
     try{bmMenuCuentas();}catch(e){}
     try{bmAtajosMenu();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
@@ -38185,7 +38187,7 @@ window.perfEstado=function(){
       if(bf&&bf!=='none')n++;});return n;})()};
 };
 window.perfSet=perfSet;window.perfApply=perfApply;
-function applyTheme(t){const dark=t==='dark';document.documentElement.setAttribute('data-theme',dark?'dark':'light');try{const mt=document.getElementById('meta-theme');if(mt)mt.setAttribute('content',dark?'#000000':'#f2f2f7');}catch(e){}lsSet('bmnava-theme',dark?'dark':'light');buildChartTheme();const b=document.getElementById('btn-theme');if(b){b.innerHTML=(dark?'☀️':'🌙')+'<span class="t">'+(dark?'Claro':'Oscuro')+'</span>';}}
+function applyTheme(t){const dark=t==='dark';document.documentElement.setAttribute('data-theme',dark?'dark':'light');try{const mt=document.getElementById('meta-theme');if(mt)mt.setAttribute('content',dark?'#000000':'#f2f2f7');}catch(e){}lsSet('bmnava-theme',dark?'dark':'light');buildChartTheme();const b=document.getElementById('btn-theme');if(b){b.innerHTML=(dark?'☀️':'🌙')+'<span class="t">'+(dark?'Claro':'Oscuro')+'</span>';}try{temaBoton();}catch(e){}}
 /* v378 · Un gráfico ya dibujado conserva los colores con los que nació: los ejes
    y las rejillas se quedaban en el gris del tema anterior, que sobre el fondo
    contrario no se ve. Chart.js no repinta solo porque cambien unas variables
@@ -38196,7 +38198,29 @@ function themeRepaint(){
   try{rerenderCurrent();}catch(e){}
 }
 window.themeRepaint=themeRepaint;
-function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';try{lsSet('bmnava-theme-manual','1');}catch(e){}applyTheme(cur==='dark'?'light':'dark');themeRepaint();}
+/* v711 · En el ordenador el botón recorre tres estados, como Apariencia en
+   macOS: automática (la del Mac) → clara → oscura → automática. En el móvil,
+   como siempre: claro ↔ oscuro. */
+function temaSistema(){try{return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}catch(e){return 'light';}}
+function temaAuto(){try{return lsGet('bmnava-theme-manual')!=='1';}catch(e){return true;}}
+function temaBoton(){
+  const b=document.getElementById('btn-theme');if(!b||esMovil())return;
+  const auto=temaAuto(),dark=document.documentElement.getAttribute('data-theme')==='dark';
+  const t=auto?'Apariencia automática (la del Mac)':(dark?'Apariencia oscura':'Apariencia clara');
+  b.title=t+' · pulsa para cambiar';b.setAttribute('aria-label',t);document.documentElement.classList.toggle('tema-auto',auto);
+}
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';
+  if(!esMovil()){
+    if(temaAuto()){try{lsSet('bmnava-theme-manual','1');}catch(e){}applyTheme('light');}
+    else if(cur==='light'){applyTheme('dark');}
+    else{try{localStorage.removeItem('bmnava-theme-manual');}catch(e){}applyTheme(temaSistema());}
+    themeRepaint();temaBoton();
+    try{toast(temaAuto()?'Apariencia automática: la del Mac':(document.documentElement.getAttribute('data-theme')==='dark'?'Apariencia oscura':'Apariencia clara'));}catch(e){}
+    return;
+  }
+  try{lsSet('bmnava-theme-manual','1');}catch(e){}applyTheme(cur==='dark'?'light':'dark');themeRepaint();
+}
 function rerenderCurrent(){try{renderTeam();renderPos&&renderPos();renderAlerts&&renderAlerts();}catch(e){}const on=id=>document.getElementById(id)&&document.getElementById(id).classList.contains('on');if(on('v-carga'))renderLoad();if(on('v-hr'))renderHR();if(on('v-jugador')&&STATE.curPlayer)renderPlayer(STATE.curPlayer);
   /* v378 · faltaban la mitad de las vistas: al cambiar de tema desde Perfil
      físico, Disponibilidad o el Calendario no se repintaba nada de lo que se
@@ -38376,15 +38400,20 @@ setInterval(function(){
 /* v558 · En el móvil el tema sigue al del teléfono mientras no se haya elegido
    uno a mano con el botón: `bmnava-theme` se escribe en cada arranque, así que
    no sirve para saber si alguien lo eligió; lo dice `bmnava-theme-manual`, que
-   sólo pone `toggleTheme`. En el ordenador, el tema guardado, como siempre. */
+   sólo pone `toggleTheme`. En el ordenador, el tema guardado, como siempre.
+   v711 · Y en el ordenador también: mientras no se elija a mano, la app sigue
+   la apariencia del Mac (también «Automática», que cambia al anochecer con la
+   app abierta). La pauta de Apple: una app que no responde a la apariencia del
+   sistema parece rota. */
 function temaInicial(){
-  try{if(esMovil()&&lsGet('bmnava-theme-manual')!=='1'&&window.matchMedia)
+  try{if(lsGet('bmnava-theme-manual')!=='1'&&window.matchMedia)
     return window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}catch(e){}
   return lsGet('bmnava-theme')==='dark'?'dark':'light';
 }
 applyTheme(temaInicial());
 try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',e=>{
-  if(esMovil()&&lsGet('bmnava-theme-manual')!=='1'){applyTheme(e.matches?'dark':'light');themeRepaint();}});}catch(e){}
+  if(lsGet('bmnava-theme-manual')!=='1'){applyTheme(e.matches?'dark':'light');themeRepaint();try{temaBoton();}catch(err){}}});}catch(e){}
+try{temaBoton();}catch(e){}
 try{perfApply();perfProbe();perfVigilarScroll();}catch(e){}
 try{modalWatchAll();modalWatchBody();}catch(e){}
 
@@ -47134,6 +47163,12 @@ html[data-theme="dark"]{--sbh-bg:rgba(255,255,255,.05);--sbh-borde:rgba(255,255,
    huecos, y que no se corte texto. */
 @media (min-width:761px) and (pointer:fine){
   main .view .bm-inf{display:none!important}
+}
+</style>
+<style id="esc-v711">
+/* v711 · ORDENADOR · Apariencia automática: el icono del botón, medio círculo, como en macOS. */
+@media (min-width:761px) and (pointer:fine){
+  html.tema-auto header #btn-theme::before{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 3.5a8.5 8.5 0 0 1 0 17z' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 3.5a8.5 8.5 0 0 1 0 17z' fill='black'/%3E%3C/svg%3E") center/contain no-repeat!important}
 }
 </style>
 <script>
