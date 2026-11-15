@@ -14934,6 +14934,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmAtrasEsc();}catch(e){}
     /* v689 · el título y las secciones, en la barra */
     try{bmBarraTit();}catch(e){}
+    /* v694 · las rejillas de tarjetas, sin huecos */
+    try{bmMasonry();}catch(e){}
     try{bmMenuCuentas();}catch(e){}
     try{bmAtajosMenu();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
@@ -15221,6 +15223,37 @@ function bmBarraTit(){
   const acc=(BMTB_ACC[v]||[]).filter(a=>document.querySelector(a[0]));
   const ka=v+'|'+acc.map(a=>a[1]).join('|');
   if(x.dataset.k!==ka){x.dataset.k=ka;x.innerHTML=acc.map(a=>`<button type="button" class="${a[2]}" data-s="${a[0]}" title="${a[3]}">${a[1]}</button>`).join('');}
+}
+/* v694 · ORDENADOR · Sin huecos. Daniel, 15/11/2026: «hay espacios vacíos,
+   módulos mal colocados». Medido a 1.745 px: en Disponibilidad una tarjeta de
+   209 px al lado de una columna de 1.495 dejaba ~1.290 px de columna vacía;
+   en Médico › Configuración «Valoraciones y cuestionarios» medía 763 px para
+   105 de contenido, porque la rejilla estira cada tarjeta a la altura de la
+   de al lado. En las rejillas de tarjetas de dos columnas con TRES o más
+   tarjetas, cada una mide lo que su contenido y la siguiente se coloca debajo
+   de la que acaba antes (una rejilla de filas de 4 px en la que cada tarjeta
+   ocupa las filas de su altura): el orden de lectura sigue siendo de
+   izquierda a derecha y de arriba abajo. Con dos tarjetas no se toca: ahí la
+   misma altura queda mejor que un hueco debajo. El Resumen no entra: su
+   distribución la eligió Daniel. */
+const BMMZ={ro:null,vistos:new WeakSet()};
+const BMMZ_SEL='main .view :is(.grid.g2,.grid-2,.fis-gs,.cgr-duo),#avail-body>.av-2:not(.dsp-an)';
+const BMMZ_CARD='.panel,.card-pro,.cgr-card';
+function bmmzSpan(it){
+  const g=it.parentElement&&it.parentElement.closest('.bm-mz');if(!g)return;
+  const h=it.getBoundingClientRect().height;if(!h){it.style.gridRowEnd='';return;}
+  const n='span '+Math.ceil((h+20)/4);if(it.style.gridRowEnd!==n)it.style.gridRowEnd=n;
+}
+function bmMasonry(){
+  if(esMovil())return;
+  if(!BMMZ.ro&&typeof ResizeObserver==='function')BMMZ.ro=new ResizeObserver(es=>es.forEach(e=>{try{bmmzSpan(e.target);}catch(err){}}));
+  document.querySelectorAll(BMMZ_SEL).forEach(g=>{
+    if(g.closest('#v-equipo')||(g.parentElement&&g.parentElement.closest(BMMZ_CARD)))return;
+    const its=[...g.querySelectorAll(':scope>*,:scope>.av-col>*')].filter(c=>!c.classList.contains('av-col')&&c.matches(BMMZ_CARD));
+    if(its.length<3){g.classList.remove('bm-mz');return;}
+    g.classList.add('bm-mz');
+    its.forEach(it=>{bmmzSpan(it);if(BMMZ.ro&&!BMMZ.vistos.has(it)){BMMZ.vistos.add(it);BMMZ.ro.observe(it);}});
+  });
 }
 /* v685 · ORDENADOR · Los contadores del menú. Cada cifra sale de lo que la
    app ya calcula: el estado efectivo del día (`effectiveStatus`, como la tira
@@ -46729,6 +46762,21 @@ html[data-theme="dark"]{--mac-bt:rgba(255,255,255,.13);--mac-bt-borde:rgba(255,2
   main .view .bm-tq:hover,#v-equipo>.bm-hoy:hover,#v-equipo>.bm-prox:hover{transform:none!important;box-shadow:var(--lg-shadow)!important;
     background-image:linear-gradient(var(--mac-tinte),var(--mac-tinte))!important}
   main .view .bm-tq:active{transform:none!important;filter:brightness(.97)}
+}
+</style>
+<style id="esc-v694">
+/* v694 · ORDENADOR · Sin huecos. */
+@media (min-width:761px) and (pointer:fine){
+  /* las rejillas de tarjetas con tres o más: cada una a su altura, la siguiente debajo de la que acaba antes */
+  main .view .bm-mz{grid-auto-rows:4px!important;row-gap:0!important;align-items:start!important}
+  main .view .bm-mz>:is(.panel,.card-pro,.cgr-card),main .view .bm-mz>.av-col>:is(.panel,.card-pro,.cgr-card){margin:0!important}
+  #avail-body>.av-2.bm-mz{display:grid!important}
+  #avail-body>.av-2.bm-mz>.av-col{display:contents!important}
+  /* «Atención hoy» reparte a los jugadores a lo ancho en vez de amontonarlos a la izquierda */
+  #avail-body .ath-row{display:flex!important;flex-wrap:wrap}
+  #avail-body .ath-row>.ath{flex:1 1 84px;max-width:200px;min-width:0}
+  /* Resumen · «Estado de carga del equipo»: los medidores arriba, no pegados al pie (no se mueve ningún bloque) */
+  #team-meters-panel{justify-content:flex-start!important}
 }
 </style>
 <script>
