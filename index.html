@@ -13816,7 +13816,7 @@ const SB_ICONS={
  fisio:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14h18"/><path d="M3 14v-1.5A1.5 1.5 0 0 1 4.5 11H9"/><path d="M5 14v5"/><path d="M19 14v5"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>',
  _:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>'
 };
-function sbBtn(v,l){return `<button class="sb-item" data-v="${v}" onclick="go('${v}');sbToggleMobile(false)">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`;}
+function sbBtn(v,l){return `<button class="sb-item" data-v="${v}" title="${l} · ⌘-clic para abrirlo en otra ventana" onclick="go('${v}');sbToggleMobile(false)">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`;}
 function buildSidebar(){const sb=document.getElementById('sb-nav');if(!sb)return;
   let h='';NAV.forEach(g=>{if(g.v){h+=sbBtn(g.v,g.label);}else{h+=`<div class="sb-glab">${g.label}</div>`;g.items.forEach(([v,l])=>h+=sbBtn(v,l));}});
   sb.innerHTML=h;
@@ -14259,7 +14259,8 @@ function bmPrevia(x,acc){
       +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
       +(window.ojoMarcar?fila('ojo',BMLP_IC.ojo,'Ojo hoy'):'')
       +(window.openFisioReg?fila('trat',BMLP_IC.trat,'Registrar en fisioterapia'):'')
-      +(window.openHeroForm?fila('cita',BMLP_IC.cita,'Cita o documento médico'):'');
+      +(window.openHeroForm?fila('cita',BMLP_IC.cita,'Cita o documento médico'):'')
+      +(!esMovil()?fila('nueva',BMLP_IC.ficha,'Abrir en una ventana nueva'):'');
     lab=n;
   }else{
     const d=dkToDate(x.dk),i=(d.getDay()+6)%7,hoy=dkey(new Date()),pas=x.dk<=hoy;
@@ -14270,7 +14271,7 @@ function bmPrevia(x,acc){
     tarjeta='<div class="bmp-tarjeta bmp-d" data-a="edita"><div class="bmp-d-h">'+E(lab)+'</div><div class="bmp-d-c">'+col.replace(/\sonclick="[^"]*"/,'')+'</div></div>';
     menu=fila('edita',BMLP_IC.lapiz,'Planificar o editar el día')+(pas?fila('ver',BMLP_IC.ojo,'Ver ese día'):'');
   }
-  v._acc=acc;v.setAttribute('aria-label',lab);
+  v._acc=acc;if(x.t==='j'&&!esMovil())v._acc=Object.assign({},acc,{nueva:()=>bmAbreVentana(bmUrlDe('jugador',x.n))});v.setAttribute('aria-label',lab);
   v.innerHTML='<div class="bmp-caja">'+tarjeta+'<div class="bmp-menu" role="menu">'+menu+'</div></div>';
   v.classList.remove('sale');void v.offsetWidth;v.classList.add('on');
   try{if(navigator.vibrate)navigator.vibrate(8);}catch(e){}
@@ -38404,7 +38405,43 @@ document.addEventListener('keydown',e=>{
 /* v388 · La dirección guarda el día que estabas viendo, y al volver a entrar se
    restauraba: por eso el panel abría en un día de hace una semana. Se conserva
    la pantalla, no la fecha; se abre siempre en hoy. */
-function restoreFromHash(){if(!BM_HASH0&&bmUltAbre())return;const h=readHash();if(!h)return;go(h.view);}
+function restoreFromHash(){if(!BM_HASH0&&bmUltAbre())return;const h=readHash();
+  /* v713 · una ventana abierta con ⌘-clic sobre un jugador trae ?j=<nombre>: se abre su ficha y se limpia la dirección */
+  try{const j=new URLSearchParams(location.search).get('j');
+    if(j){history.replaceState(history.state,'',location.pathname+location.hash);if(STATE.players&&STATE.players[j]){openPlayerYa(j);return;}}}catch(e){}
+  if(!h)return;go(h.view);}
+/* v713 · ORDENADOR · Abrir en otra ventana. Daniel, 16/11/2026. El menú y los
+   jugadores eran botones: ⌘-clic o el clic con la rueda no abrían nada nuevo.
+   Ahora ⌘-clic (o Ctrl o Mayúsculas) y el clic con la rueda sobre una sección
+   del menú o sobre cualquier jugador abren una pestaña o ventana nueva en esa
+   pantalla, con el mismo día; y el clic derecho de un jugador lo ofrece. Sirve
+   para poner dos fichas lado a lado en Split View. */
+function bmUrlDe(v,jug){
+  /* el día elegido sale de la dirección (writeHash), no de REF(): mientras la serie de readiness recorre los días, REF() está prestado */
+  let d='';try{const h=readHash();d=(h&&h.date)||(window.__RD_CALC?'':(STATE.refDate?dkey(REF()):''));}catch(e){}
+  const base=location.href.split('#')[0].split('?')[0];
+  return base+(jug?'?j='+encodeURIComponent(jug):'')+'#'+v+(d?'/'+d:'');
+}
+function bmAbreVentana(url){try{window.open(url,'_blank','noopener');}catch(e){}}
+function bmDestinoNuevo(t){
+  if(!t||!t.closest)return null;
+  const sb=t.closest('#sidebar .sb-item[data-v]');if(sb)return bmUrlDe(sb.dataset.v);
+  const jl=t.closest('#bm-jl .jl-f[data-n]');if(jl)return bmUrlDe('jugador',jl.dataset.n);
+  const p=t.closest('[onclick*="openPlayer("]');
+  if(p){const m=(p.getAttribute('onclick')||'').match(/openPlayer\('((?:[^'\\]|\\.)*)'\)/);if(m)return bmUrlDe('jugador',m[1].replace(/\\'/g,"'"));}
+  return null;
+}
+document.addEventListener('click',e=>{
+  if(esMovil()||!(e.metaKey||e.ctrlKey||e.shiftKey))return;
+  const u=bmDestinoNuevo(e.target);if(!u)return;
+  e.preventDefault();e.stopImmediatePropagation();bmAbreVentana(u);
+},true);
+document.addEventListener('auxclick',e=>{
+  if(esMovil()||e.button!==1)return;
+  const u=bmDestinoNuevo(e.target);if(!u)return;
+  e.preventDefault();e.stopImmediatePropagation();bmAbreVentana(u);
+},true);
+document.addEventListener('mousedown',e=>{if(e.button===1&&!esMovil()&&bmDestinoNuevo(e.target))e.preventDefault();},true);
 
 /* v388 · La pestaña se queda abierta de un día para otro —la de Daniel llevaba
    31 horas—, y el panel se quedaba clavado en el día en que se abrió. Cada
