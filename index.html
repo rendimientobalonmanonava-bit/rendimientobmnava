@@ -14921,6 +14921,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmFormasHoja(['est','plan','fot']);}catch(e){}
     try{bmJugEsc();}catch(e){}
     try{bmAtrasEsc();}catch(e){}
+    /* v689 · el título y las secciones, en la barra */
+    try{bmBarraTit();}catch(e){}
     try{bmMenuCuentas();}catch(e){}
     try{bmAtajosMenu();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
@@ -15147,6 +15149,67 @@ function bmAtrasEsc(){
   const n=it?it.textContent.trim():'Jugadores';
   const sp=b.querySelector('span');if(sp.textContent!==n)sp.textContent=n;
   b.setAttribute('aria-label','Volver a '+n);
+}
+/* v689 · ORDENADOR · El título y las secciones de cada pantalla, en la barra
+   de la ventana, como en Calendario o Finder. Daniel, 15/11/2026: «me sigue
+   pareciendo una app de móvil adaptada a una de mac». Medido a 1.745 px: las
+   catorce pantallas gastaban 80 px en el título grande de iOS (34 px) y su
+   subtítulo antes del primer dato, y el cambio de sección (Disponibilidad ·
+   Médico · Parte · Fisio, las pestañas de Cargas, Perfil físico, Mes/Semana y
+   las de la ficha) era un control dentro del contenido; el de la ficha medía
+   1.456 px de ancho. Ahora el nombre de la pantalla va en la barra, el
+   subtítulo y el aviso de la página pasan a su botón (i), y el control de
+   sección se dibuja centrado en la barra. **No hay un segundo control**: cada
+   botón de la barra pulsa el de siempre, que se queda en el marcado oculto, así
+   que lo que pinta y lo que guarda cada pestaña no cambia. Con la ventana por
+   debajo de 1.320 px no cabe y vuelve a su sitio dentro del contenido. Las
+   acciones de una pantalla (exportar el calendario) también suben a la barra. */
+const BMTB_SEC={estado:'#v-estado>.estado-seg',carga:'#v-carga .cargas-seg',hr:'#v-hr .cargas-seg',tests:'#tsa-modo',cal:'#v-cal .cal-modetog',jugador:'#plt-bar'};
+const BMTB_ACC={cal:[['#v-cal .cal-ics-bar .btn','Exportar','bm-tbx-exp','Exportar a Google Calendar (.ics)']]};
+const BMTB_TIT={equipo:'Resumen',estado:'Estado del equipo',jugador:'Jugadores',nutri:'Nutrición'};
+function bmBarraTit(){
+  if(esMovil())return;
+  const hub=document.querySelector('header .hub');if(!hub)return;
+  const sec=document.querySelector('main>.view.on');if(!sec)return;
+  const v=sec.id.replace(/^v-/,'');
+  let t=document.getElementById('bm-tbt'),g=document.getElementById('bm-tbs'),x=document.getElementById('bm-tbx');
+  if(!t){t=document.createElement('div');t.id='bm-tbt';t.innerHTML='<h1 class="bm-tbt-t"></h1>';
+    const dp=hub.querySelector(':scope>.datepick');hub.insertBefore(t,dp||hub.firstChild);}
+  if(!g){
+    g=document.createElement('div');g.id='bm-tbs';g.setAttribute('role','tablist');g.hidden=true;
+    x=document.createElement('div');x.id='bm-tbx';
+    /* el buscador vive dentro de #hdr-actions (display:contents): se inserta en SU padre */
+    const sb=hub.querySelector('[onclick="focusSearch()"]'),par=sb?sb.parentNode:hub;
+    par.insertBefore(g,sb);par.insertBefore(x,sb);
+    g.addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;
+      const sv=document.querySelector('main>.view.on'),sel=sv&&BMTB_SEC[sv.id.slice(2)],src=sel&&document.querySelector(sel);
+      const o=src&&src.querySelectorAll(':scope>button')[+b.dataset.i];if(o)o.click();
+      [40,260].forEach(ms=>setTimeout(()=>{try{bmBarraTit();}catch(err){}},ms));});
+    x.addEventListener('click',e=>{const b=e.target.closest('button[data-s]');if(!b)return;const o=document.querySelector(b.dataset.s);if(o)o.click();});
+  }
+  /* el título */
+  const nom=BMTB_TIT[v]||bmNombreVista(v)||'';
+  const h=t.querySelector('.bm-tbt-t');if(h.textContent!==nom)h.textContent=nom;
+  /* el subtítulo y el aviso de la página, en su botón (i) */
+  const ph=sec.querySelector(':scope>.pagehead'),tx=[];
+  if(ph){const sub=ph.querySelector(':scope>.ph-sub,:scope>p'),ban=ph.querySelector('.ph-banner>div');
+    if(sub&&bmiTexto(sub))tx.push(bmiTexto(sub));if(ban&&bmiTexto(ban))tx.push(bmiTexto(ban));}
+  if(tx.length&&typeof HTMLElement!=='undefined'&&'popover' in HTMLElement.prototype)bmiBoton(t,null,tx,'Qué hay en esta pantalla');
+  else{const b=t.querySelector(':scope>.bm-inf');if(b){if(b._pop)b._pop.remove();b.remove();}}
+  /* el control de sección, centrado */
+  const sel=BMTB_SEC[v],src=sel&&sec.querySelector(sel.replace(/^#v-[a-z]+\s*>?\s*/,''))||(sel&&document.querySelector(sel));
+  const bs=src?[...src.querySelectorAll(':scope>button')].filter(b=>(b.textContent||'').trim()):[];
+  if(bs.length>1){
+    src.classList.add('bm-tbs-src');
+    const k=v+'|'+bs.map(b=>(b.classList.contains('on')?'*':'')+b.textContent.trim()).join('|');
+    if(g.dataset.k!==k){g.dataset.k=k;
+      g.innerHTML=bs.map((b,i)=>{const on=b.classList.contains('on');return `<button type="button" role="tab" data-i="${i}" aria-selected="${on}" class="${on?'on':''}">${bmEsc(b.textContent.trim())}</button>`;}).join('');}
+    g.hidden=false;document.body.classList.add('bm-tbs-on');
+  }else{g.hidden=true;g.dataset.k='';document.body.classList.remove('bm-tbs-on');}
+  /* las acciones de la pantalla */
+  const acc=(BMTB_ACC[v]||[]).filter(a=>document.querySelector(a[0]));
+  const ka=v+'|'+acc.map(a=>a[1]).join('|');
+  if(x.dataset.k!==ka){x.dataset.k=ka;x.innerHTML=acc.map(a=>`<button type="button" class="${a[2]}" data-s="${a[0]}" title="${a[3]}">${a[1]}</button>`).join('');}
 }
 /* v685 · ORDENADOR · Los contadores del menú. Cada cifra sale de lo que la
    app ya calcula: el estado efectivo del día (`effectiveStatus`, como la tira
@@ -18499,6 +18562,8 @@ function bmNombreVista(v){
   return n;
 }
 function bmTitulo(v){
+  /* v689 · en el ordenador, el título de la barra */
+  try{if(!esMovil())setTimeout(()=>{try{bmBarraTit();}catch(e){}},0);}catch(e){}
   const t=document.getElementById('dp-tit');if(!t)return;
   t.textContent=bmNombreVista(v);
   try{if(typeof bmtPinta==='function')bmtPinta();}catch(e){}
@@ -46499,6 +46564,68 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   .bmd-carril>.bmd-c{flex:1 0 300px;max-width:520px;height:auto!important;scroll-snap-align:start;gap:6px!important;padding:12px 14px!important}
   .bmd-carril>.bmd-c .bmd-g{display:none}
   .bmd-carril>.bmd-c .bmd-f{font-size:14px!important;font-weight:600;line-height:1.35}
+}
+</style>
+<style id="esc-v689">
+/* v689 · ORDENADOR · El título y las secciones, en la barra de la ventana. */
+#bm-tbt,#bm-tbs,#bm-tbx{display:none}
+@media (min-width:761px) and (pointer:fine){
+  main>.view>.pagehead{display:none!important}
+  #bm-atras-esc{order:-2!important}
+  #bm-tbt{display:flex;order:-1;align-items:center;gap:4px;flex:none;min-width:0;margin-right:10px}
+  #bm-tbt .bm-tbt-t{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em;line-height:1;color:var(--txt);white-space:nowrap}
+  #bm-tbt .bm-inf{width:22px;height:22px;margin:0;top:0}
+  #bm-tbt .bm-inf::before{width:16px;height:16px}
+  /* el control de sección, centrado: el segmentado de macOS */
+  #bm-tbs:not([hidden]){display:inline-flex;order:1;margin:0 auto;flex:none;padding:2px;gap:2px;border-radius:9px;background:var(--tb-campo)}
+  #bm-tbs button{height:26px;padding:0 13px;border:none;border-radius:7px;background:transparent;color:var(--txt);font:inherit;font-size:13px;font-weight:500;
+    white-space:nowrap;cursor:pointer;transition:background .12s ease}
+  #bm-tbs button:hover{background:var(--tb-hover)}
+  #bm-tbs button.on{background:var(--panel);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.06)}
+  html[data-theme="dark"] #bm-tbs button.on{background:rgba(255,255,255,.18);box-shadow:none}
+  #bm-tbs button:focus-visible,#bm-tbx button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  /* con el control en la barra, el de dentro no se pinta */
+  .bm-tbs-src{display:none!important}
+  /* las acciones de la pantalla */
+  #bm-tbx{display:flex;order:1;align-items:center;gap:6px;margin-left:auto;flex:none}
+  #bm-tbx:empty{display:none}
+  body.bm-tbs-on #bm-tbx{margin-left:0}
+  header .hub:has(#bm-tbx:not(:empty)) [onclick="focusSearch()"],body.bm-tbs-on header [onclick="focusSearch()"]{margin-left:8px!important}
+  #bm-tbx button{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 8px;border:none;border-radius:8px;background:transparent;color:var(--txt);
+    font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+  #bm-tbx button:hover{background:var(--tb-hover)}
+  #bm-tbx .bm-tbx-exp::before{content:"";width:17px;height:17px;flex:none;background:currentColor;opacity:.78;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3'/%3E%3Cpath d='M7.5 7.5 12 3l4.5 4.5'/%3E%3Cpath d='M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3'/%3E%3Cpath d='M7.5 7.5 12 3l4.5 4.5'/%3E%3Cpath d='M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8'/%3E%3C/svg%3E") center/contain no-repeat}
+  #v-cal .cal-ics-bar{display:none!important}
+  /* sin sitio en la barra, el control vuelve a su sitio dentro del contenido */
+  @media (max-width:1319px){
+    #bm-tbs{display:none!important}
+    .bm-tbs-src{display:flex!important}
+    #v-cal .cal-modetog.bm-tbs-src{display:inline-flex!important}
+    #bm-tbx button{font-size:0;gap:0;padding:0 7px}
+  }
+  /* con el control en la barra hay menos sitio: lo accesorio se queda en icono */
+  body.bm-tbs-on header #rf-btn .rf-lbl{display:none!important}
+  body.bm-tbs-on header .status #src-txt{display:none}
+  body.bm-tbs-on header [onclick="focusSearch()"]{width:180px}
+  @media (max-width:1700px){
+    /* el título cede su sitio al control de sección: el menú lateral ya dice dónde se está */
+    body.bm-tbs-on #bm-tbt{display:none}
+    body.bm-tbs-on header [onclick="focusSearch()"]{width:30px;padding:0!important;justify-content:center!important}
+    body.bm-tbs-on header [onclick="focusSearch()"] .t,body.bm-tbs-on header [onclick*="focusSearch"][data-kbd]::after{display:none!important}
+  }
+  @media (max-width:1260px){
+    /* con el título en la barra, el buscador pasa antes a icono */
+    header [onclick="focusSearch()"]{width:30px;padding:0!important;justify-content:center!important}
+    header [onclick="focusSearch()"] .t,header [onclick*="focusSearch"][data-kbd]::after{display:none!important}
+  }
+  @media (max-width:1440px){
+    body.bm-tbs-on header #btn-adddata .t{display:none!important}
+    body.bm-tbs-on header #btn-adddata{padding:0 9px!important}
+  }
+  @media (max-width:1300px){
+    /* con el botón atrás, el título sobra */
+    body:has(#v-jugador.on) #bm-tbt{display:none}
+  }
 }
 </style>
 <script>
