@@ -38346,10 +38346,37 @@ function buildDrawer(){if(document.getElementById('drawer'))return;const ov=docu
        <option value="full">Completos</option>
      </select>
      <p class="hint" style="margin-top:6px">Si el portátil se calienta o va a tirones, el modo ligero quita el desenfoque de las superficies y el fondo animado. Solo afecta a este ordenador.</p></div>
+   <div class="grp" id="cf-mac" hidden></div>
    <div class="row-btn"><button class="btn" style="flex:1" onclick="applyDrawer()">Aplicar</button><button class="btn ghost" onclick="resetDrawer()">Restaurar</button></div>`;
   document.body.appendChild(ov);document.body.appendChild(d);try{modalWatch(ov);}catch(e){}fillDrawer();}
 function fillDrawer(){const set=(id,v)=>{const el=document.getElementById('cf-'+id);if(el)el.value=v;};set('z_yellow',CONFIG.z.yellow);set('z_red',CONFIG.z.red);set('z_min',CONFIG.z.minRecords);set('acwr_lo',CONFIG.load.acwrYellowLo);set('acwr_hi',CONFIG.load.acwrYellowHi);set('acwr_red',CONFIG.load.acwrRedHi);const w=CONFIG.wellnessVars;set('w_fatiga',w.fatiga.w);set('w_sueno',w.sueno.w);set('w_doms',w.doms.w);set('w_stress',w.stress.w);set('w_mood',w.mood.w);set('w_horas',w.horas_sueno.w);try{perfApply();}catch(e){}}
-function openDrawer(){buildDrawer();fillDrawer();document.getElementById('drawer-ov').classList.add('on');document.getElementById('drawer').classList.add('on');}
+/* v712 · ORDENADOR · La app en el Dock. Safari › Archivo › Añadir al Dock la
+   instala como app del Mac: ventana propia, el escudo en el Dock y en el
+   selector de apps. Aquí se explica cómo, y se ofrece el número de alertas en
+   el icono del Dock —el mismo de la barra lateral—, que macOS sólo deja poner
+   con permiso de notificaciones (por eso es un interruptor y no automático).
+   Reutiliza la insignia del móvil (`bmInsignia`, v661): una sola forma. */
+function bmMacPinta(){
+  const c=document.getElementById('cf-mac');if(!c)return;
+  if(esMovil()){c.hidden=true;return;}
+  const inst=window.matchMedia&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: window-controls-overlay)').matches);
+  const puede=bmiPuede(),on=bmiOn()&&(!window.Notification||Notification.permission==='granted');
+  c.hidden=false;
+  c.innerHTML='<div class="gl">App del Mac</div>'
+    +(inst?'<p class="hint" style="margin:0 0 8px">Abierta como app del Mac.</p>'
+      :'<p class="hint" style="margin:0 0 8px">Para tenerla como app, con su ventana y el escudo en el Dock: en <b>Safari</b>, menú <b>Archivo › Añadir al Dock</b>.</p>')
+    +(puede?'<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="cf-insignia"'+(on?' checked':'')+'> Número de alertas en el icono del Dock</label>'
+      +'<p class="hint" style="margin-top:6px">El mismo número que la barra lateral. macOS pide permiso de notificaciones para ponerlo.</p>'
+      :'<p class="hint" style="margin:0">Este navegador no deja poner el número en el icono.</p>');
+  const i=c.querySelector('#cf-insignia');
+  if(i)i.addEventListener('change',()=>{
+    if(!i.checked){try{localStorage.setItem(BMI_K,'0');navigator.clearAppBadge().catch(()=>{});}catch(e){}return;}
+    const sigue=p=>{if(p==='granted'){try{localStorage.setItem(BMI_K,'1');}catch(e){}bmInsignia();try{toast('Número de alertas en el icono: activado');}catch(_){}}
+      else{i.checked=false;try{toast('Sin permiso de notificaciones macOS no deja poner el número en el icono');}catch(_){}}};
+    try{if(window.Notification&&Notification.permission!=='granted')Notification.requestPermission().then(sigue);else sigue('granted');}catch(e){sigue('denied');}
+  });
+}
+function openDrawer(){buildDrawer();fillDrawer();try{bmMacPinta();}catch(e){}document.getElementById('drawer-ov').classList.add('on');document.getElementById('drawer').classList.add('on');}
 function closeDrawer(){const o=document.getElementById('drawer-ov'),d=document.getElementById('drawer');if(o)o.classList.remove('on');if(d)d.classList.remove('on');}
 function applyDrawer(){const g=id=>{const el=document.getElementById('cf-'+id);return el?parseFloat(el.value):NaN;};const v=(x,f)=>isNaN(x)?f:x;
   CONFIG.z.yellow=v(g('z_yellow'),CONFIG.z.yellow);CONFIG.z.red=v(g('z_red'),CONFIG.z.red);CONFIG.z.minRecords=Math.round(v(g('z_min'),CONFIG.z.minRecords));
