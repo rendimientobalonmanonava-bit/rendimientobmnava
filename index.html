@@ -14764,7 +14764,12 @@ const BME={t:{},w:{},r:{},css:'',hojas:new WeakSet(),n:0};
 const BME_W={'550':600,'590':600,'650':600,'750':700,'800':700,'850':700,'900':700};
 const bmeK=n=>String(n).replace('.','_');
 function bmeT(n){if(n<11.75)return 11;if(n<13.25)return 12.5;if(n<15.5)return 14;if(n<20.5)return 17;if(n<29)return 24;if(n<36)return 34;return n;}
-function bmeTam(v){v=String(v).trim();const n=parseFloat(v),t=bmeT(n);if(t===n)return v;const k=bmeK(n);BME.t[k]=[n,t];return 'var(--t'+k+','+v+')';}
+/* v691 · ORDENADOR · La escala de macOS: Large Title 26 · Title 1 22 · Title 2 17 ·
+   Title 3 15 · Body 13 · Callout 12 · Subheadline 11. Se envuelve también el
+   tamaño que ya es un escalón del móvil (14, 17, 24…) cuando en el Mac no lo
+   es; en el móvil esa variable vale lo mismo que el original. */
+function bmeTM(n){if(n<11.75)return 11;if(n<12.75)return 12;if(n<14.5)return 13;if(n<16)return 15;if(n<19.5)return 17;if(n<24.5)return 22;if(n<36)return 26;return n;}
+function bmeTam(v){v=String(v).trim();const n=parseFloat(v),t=bmeT(n),tm=bmeTM(n);if(t===n&&tm===n)return v;const k=bmeK(n);BME.t[k]=[n,t,tm];return 'var(--t'+k+','+v+')';}
 function bmeRadio(v){return String(v).replace(/(^|[\s/])(\d+(?:\.\d+)?)px/g,(m,pre,num)=>{const n=+num,t=(n>=9&&n<12)?12:((n>=15&&n<20)?20:n);
   if(t===n)return m;const k=bmeK(n);BME.r[k]=[n,t];return pre+'var(--r'+k+','+num+'px)';});}
 function bmeSombra(v){
@@ -14795,8 +14800,14 @@ function bmeEstilo(){
     +'html[data-theme="dark"]{--sh2:0 10px 30px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.35)}'
     +'.panel>*{--sh-hijo:none}';
   /* v663 · el mismo sistema en el ordenador (la condición contraria a la del móvil) */
+  /* v691 · con ratón o trackpad, la escala de macOS (el iPad se queda con la del sistema de la v663) */
+  const mac=lista(BME.t,'t',2).join(';');
+  const FSM='--fs-hero:26px;--fs-h1:22px;--fs-h2:15px;--fs-body:13px;--fs-sm:12px;--fs-xs:11px';
+  const FSO='--fs-hero:34px;--fs-h1:24px;--fs-h2:17px;--fs-body:14px;--fs-sm:12.5px;--fs-xs:11px';
   const css='@media '+BME_MOV+'{'+sis+'}@media '+BME_ESC+'{'+sis+'html{--fmin:11px}}'
-    +BME_EXC+'{'+ori+';--sh1:initial;--sh2:initial;--sh-hijo:initial}';
+    +'@media (min-width:761px) and (pointer:fine){:root{'+mac+';'+FSM+'}}'
+    +BME_EXC+'{'+ori+';--sh1:initial;--sh2:initial;--sh-hijo:initial}'
+    +'@media (min-width:761px) and (pointer:fine){'+BME_EXC+'{'+FSO+'}main .view :is(.acard-name,.well-h){font-size:15px}}';
   if(css===BME.css)return;BME.css=css;
   let el=document.getElementById('bm-sistema');
   if(!el){el=document.createElement('style');el.id='bm-sistema';document.head.appendChild(el);}
