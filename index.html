@@ -14921,6 +14921,7 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmFormasHoja(['est','plan','fot']);}catch(e){}
     try{bmJugEsc();}catch(e){}
     try{bmAtrasEsc();}catch(e){}
+    try{bmMenuCuentas();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
     try{bmTarjetasT();}catch(e){}},120);};
   const arma=()=>{const m=document.querySelector('main');if(!m)return;
@@ -15115,6 +15116,28 @@ function bmAtrasEsc(){
   const n=it?it.textContent.trim():'Jugadores';
   const sp=b.querySelector('span');if(sp.textContent!==n)sp.textContent=n;
   b.setAttribute('aria-label','Volver a '+n);
+}
+/* v685 · ORDENADOR · Los contadores del menú. Cada cifra sale de lo que la
+   app ya calcula: el estado efectivo del día (`effectiveStatus`, como la tira
+   del Resumen), el episodio abierto (`medOpenEpisodeOf`), los avisos de
+   fisioterapia (`ojoAbiertos`) y los cobros sin pagar de Nutrición. */
+function bmMenuCuentas(){
+  if(esMovil())return;
+  const ps=Object.values(STATE.players||{});if(!ps.length)return;
+  const c={};
+  try{const dk=dkEstado();let n=0;ps.forEach(p=>{let st=null;try{const ev=effectiveStatus(p.name,dk);st=ev&&ev.status;}catch(e){}if(st&&st!=='disp'&&st!=='partido')n++;});
+    c.dispo=[n,n+(n===1?' jugador con molestia o fuera':' jugadores con molestia o fuera')];}catch(e){}
+  try{const n=ps.filter(p=>medOpenEpisodeOf(p.name)).length;c.medico=[n,n+(n===1?' episodio abierto':' episodios abiertos')];}catch(e){}
+  try{const n=ojoAbiertos().length;c.fisio=[n,n+(n===1?' aviso de fisioterapia':' avisos de fisioterapia')];}catch(e){}
+  try{const N=nutLoad();const n=new Set((N.cobros||[]).filter(x=>!x.pagado&&(+x.importe||0)>0).map(x=>x.jugador)).size;c.nutri=[n,n+(n===1?' persona con algo pendiente':' personas con algo pendiente')];}catch(e){}
+  Object.keys(c).forEach(v=>{
+    const it=document.querySelector('#sidebar .sb-item[data-v="'+v+'"]');if(!it)return;
+    let b=it.querySelector('.sb-cnt');const [n,lab]=c[v];
+    if(!n){if(b)b.remove();return;}
+    if(!b){b=document.createElement('em');b.className='sb-cnt';it.appendChild(b);}
+    if(b.textContent!==String(n))b.textContent=String(n);
+    if(b.getAttribute('aria-label')!==lab){b.setAttribute('aria-label',lab);b.title=lab;}
+  });
 }
 /* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
 function bmTelefono(){
@@ -46429,6 +46452,26 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
     background:transparent;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;flex:none}
   #bm-atras-esc:hover{background:var(--tb-hover,rgba(118,118,128,.16))}
   #bm-atras-esc svg{width:20px;height:20px}
+}
+</style>
+<style id="esc-v685">
+/* v685 · ORDENADOR · Contadores en el menú lateral, como en Mail. Daniel,
+   15/11/2026. Ninguna entrada enseñaba número: el de «Alertas» existía (v538)
+   pero sólo se veía en el móvil. Ahora sí, y también Disponibilidad
+   (con molestia o fuera, el mismo censo que la tira del Resumen), Médico
+   (episodios abiertos), Fisioterapia (avisos de «Ojo hoy») y Nutrición
+   (personas con algo pendiente). En gris: no son alertas; el rojo y el ámbar
+   siguen siendo sólo de Alertas. Sin nada que contar, no sale número. */
+.sb-cnt{display:none}
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  #sidebar .sb-item .sb-cnt{display:inline-block;margin-left:auto;padding-left:8px;font-size:12px;font-weight:500;font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums}
+  #sidebar .sb-item.on .sb-cnt{color:var(--on-accent,#fff);opacity:.85}
+  body.sb-min #sidebar .sb-item .sb-cnt{display:none}
+  /* el de Alertas ya existía (v538) pero sólo se enseñaba en el móvil: aquí también, en su rojo o ámbar */
+  #sidebar .sb-item[data-v="alertas"] .tb-bdg{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;
+    border-radius:10px;background:var(--bad);color:var(--on-bad,#fff);font-size:11.5px;font-weight:700;font-style:normal;font-variant-numeric:tabular-nums;position:static}
+  #sidebar .sb-item[data-v="alertas"] .tb-bdg[data-s="warn"]{background:var(--warn);color:var(--on-warn,#1d1d1f)}
+  body.sb-min #sidebar .sb-item[data-v="alertas"] .tb-bdg{position:absolute;top:2px;right:4px;min-width:16px;height:16px;font-size:10px;padding:0 4px}
 }
 </style>
 <script>
