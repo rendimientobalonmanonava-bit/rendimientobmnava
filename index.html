@@ -14863,6 +14863,7 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     /* v678 · los dos formularios de Disponibilidad, en su hoja; v681 · y las fotos de Jugadores */
     try{bmFormasHoja(['est','plan','fot']);}catch(e){}
     try{bmJugEsc();}catch(e){}
+    try{bmAtrasEsc();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
     try{bmTarjetasT();}catch(e){}},120);};
   const arma=()=>{const m=document.querySelector('main');if(!m)return;
@@ -15040,6 +15041,23 @@ function bmJugEsc(){
     d.textContent=porPuesto?GR[gi][1]:(JUG_SORT==='forma_best'?'Mejor readiness primero':'Peor readiness primero');
     const em=document.createElement('em');em.textContent=String(cuenta[gi]);d.appendChild(em);g.appendChild(d);
   });
+}
+/* v683 · ORDENADOR · El botón atrás de la ficha, en la barra de arriba, con el
+   nombre de la pantalla de la que se viene (la que se veía antes de abrir la
+   ficha; si no se sabe, Jugadores). */
+const BMATR={prev:''};
+function bmAtrasEsc(){
+  if(esMovil())return;
+  if(STATE.view&&STATE.view!=='jugador')BMATR.prev=STATE.view;
+  let b=document.getElementById('bm-atras-esc');
+  if(!b){const hub=document.querySelector('header .hub');if(!hub)return;
+    b=document.createElement('button');b.type='button';b.id='bm-atras-esc';
+    b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg><span></span>';
+    b.addEventListener('click',()=>go(BMATR.prev||'jugadores'));hub.insertBefore(b,hub.firstChild);}
+  const it=document.querySelector('#sidebar .sb-item[data-v="'+(BMATR.prev||'jugadores')+'"] span');
+  const n=it?it.textContent.trim():'Jugadores';
+  const sp=b.querySelector('span');if(sp.textContent!==n)sp.textContent=n;
+  b.setAttribute('aria-label','Volver a '+n);
 }
 /* «Más › Teléfono»: lo que es de ESTE aparato y no del equipo. */
 function bmTelefono(){
@@ -46315,6 +46333,44 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   .bd-pill:focus-visible,.bd-cara:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   /* «Atención hoy»: el motivo, en dos líneas como mucho */
   #avail-body .ath-mt{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+}
+</style>
+<style id="esc-v683">
+/* v683 · ORDENADOR · La ficha del jugador. Daniel, 15/11/2026. El título de la
+   pantalla decía «Ficha de jugador» —igual para los dieciocho— y la vuelta era
+   un enlace pequeño. Ahora el nombre es el título, la foto sin fondo va grande
+   a la derecha fundida con la tarjeta (la cabecera del móvil, v595, a la
+   escala del ordenador), las cuatro cifras debajo del nombre y el botón atrás
+   en la barra de arriba, con el nombre de la pantalla de la que se viene. Sin
+   foto, las iniciales en un círculo en el mismo sitio. */
+#bm-atras-esc{display:none}
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  #v-jugador>.pagehead,#v-jugador>.back{display:none!important}
+  #v-jugador .phero{position:relative;display:grid!important;grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"who ph" "tiles ph" "btns ph";
+    column-gap:32px;row-gap:16px;align-items:end;min-height:296px;padding:30px 30px 24px!important;overflow:hidden;
+    background:radial-gradient(240px 240px at calc(100% - 150px) 62%,var(--hero-luz),transparent 72%),linear-gradient(160deg,var(--panel) 30%,var(--hero-a) 100%)!important}
+  #v-jugador .phero-id{display:contents!important}
+  #v-jugador .phe-ph{grid-area:ph;align-self:end;justify-self:center;width:300px!important;height:300px!important;margin:0 0 -24px;padding:0!important;border-radius:0!important;background:none!important;z-index:0}
+  #v-jugador .phero-photo{position:relative;z-index:1;width:100%;height:100%;border-radius:0!important;border:0!important;background:none!important;object-fit:contain;object-position:50% 100%;
+    -webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent 99%);mask-image:linear-gradient(to bottom,#000 70%,transparent 99%)}
+  #v-jugador .phero-photo.phe-ini{width:170px!important;height:170px!important;margin:60px auto 0;border-radius:50%!important;background:var(--panel)!important;font-size:58px;-webkit-mask-image:none;mask-image:none}
+  #v-jugador .phe-dorsal{z-index:0;left:-36px;top:16px;bottom:auto;transform:none;min-width:0;height:auto;padding:0;background:none!important;box-shadow:none!important;border-radius:0;
+    font-size:120px;font-weight:700;letter-spacing:-.05em;line-height:1;color:var(--muted2);opacity:.55}
+  #v-jugador .phe-who{grid-area:who;align-self:end;min-width:0}
+  #v-jugador .phero-name{font-size:40px!important;font-weight:700!important;letter-spacing:-.03em;line-height:1.04}
+  #v-jugador .phero-sub{font-size:15px;margin-top:6px}
+  #v-jugador .phero-tag{background:var(--panel)}
+  #v-jugador .phe-tiles{grid-area:tiles;max-width:620px;gap:10px}
+  #v-jugador .phe-t{background:var(--panel)!important;box-shadow:0 0 0 .5px var(--hair),0 1px 3px rgba(0,0,0,.05)}
+  #v-jugador .phero-btns{grid-area:btns;width:auto;border-top:0!important;padding-top:4px!important;margin:0}
+  #v-jugador .phero-btns .phero-add{background:var(--panel)}
+  @media (max-width:1180px){#v-jugador .phero{grid-template-columns:minmax(0,1fr) 210px}#v-jugador .phe-ph{width:210px!important;height:210px!important}#v-jugador .phero-name{font-size:32px!important}}
+}
+@media (min-width:761px) and (pointer:fine){
+  body:has(#v-jugador.on) #bm-atras-esc{display:inline-flex;order:-1;align-items:center;gap:2px;height:30px;padding:0 10px 0 4px;margin-right:4px;border:none;border-radius:8px;
+    background:transparent;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;flex:none}
+  #bm-atras-esc:hover{background:var(--tb-hover,rgba(118,118,128,.16))}
+  #bm-atras-esc svg{width:20px;height:20px}
 }
 </style>
 <script>
