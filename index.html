@@ -14276,7 +14276,7 @@ function bmlpMenu(x){
         +(window.openFisioReg?fila(BMLP_IC.trat,'Registrar en fisioterapia','Tratamiento, vendaje o parte','trat'):'')
         +(window.openHeroForm?fila(BMLP_IC.cita,'Cita o documento médico','','cita'):'')
       +'</div>';
-    acc={ficha:()=>openPlayer(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
   }else{
     const p=x.dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]),pas=x.dk<=dkey(new Date());
     tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
@@ -14343,6 +14343,7 @@ function bmPrevia(x,acc){
   if(x.t==='j'){
     const n=x.n;tarjeta=bmPreviaJ(n);
     menu=fila('ficha',BMLP_IC.ficha,'Ver la ficha')
+      +(window.bmComparar?fila('cmp',BMLP_IC.ficha,'Comparar con…'):'')
       +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
       +(window.ojoMarcar?fila('ojo',BMLP_IC.ojo,'Ojo hoy'):'')
       +(window.openFisioReg?fila('trat',BMLP_IC.trat,'Registrar en fisioterapia'):'')
@@ -17217,6 +17218,111 @@ function cvDatos(dk){
 const CV={dk:null,sel:new Set()};
 /* el nombre de pila, y la inicial del apellido si hay dos con el mismo (David F. · David R.) */
 function cvCorto(n){const t=String(n).split(' ');const rep=Object.keys(STATE.players||{}).filter(x=>x!==n&&String(x).split(' ')[0]===t[0]).length;return rep&&t[1]?t[0]+' '+t[1].charAt(0)+'.':t[0];}
+/* v741 · COMPARAR DOS JUGADORES. Daniel, 16/11/2026, eligió la propuesta 3.
+   No existía en ninguna pantalla. Dos jugadores uno al lado del otro con lo
+   que ya calcula la app: estado, readiness, ACWR, carga de 7 y 28 días, nota
+   TSA, la carga diaria y la recuperación declarada de las últimas cuatro
+   semanas superpuestas, el radar de capacidades y cada prueba de esta
+   temporada que tengan los dos. **Ni un cálculo nuevo**: la carga es
+   `contDailyTo` (la del ACWR), la recuperación `playerRecSeries`, el radar
+   `capPerfil` con el baremo del puesto de CADA uno —si son de puestos
+   distintos se dice: cada forma se mide contra su puesto— y las pruebas, las
+   vigentes de esta temporada con su `lowerBetter`. Peso y talla no tienen
+   lado bueno (`VHF_NEUTRAL`) y no se marcan. Los dos colores son de
+   identidad (acción y verde azulado), no de semáforo. */
+const CMP={a:null,b:null};
+const CMP_COL=['var(--accent)','var(--te-aer)'];
+function bmComparar(a,b){
+  const ns=Object.keys(STATE.players||{}).sort((x,y)=>x.localeCompare(y,'es'));if(!ns.length)return;
+  a=a&&STATE.players[a]?a:(STATE.curPlayer&&STATE.players[STATE.curPlayer]?STATE.curPlayer:ns[0]);
+  if(!b||!STATE.players[b]||b===a){const pa=(STATE.players[a]||{}).pos;b=ns.find(n=>n!==a&&(STATE.players[n]||{}).pos===pa)||ns.find(n=>n!==a);}
+  CMP.a=a;CMP.b=b;
+  bmHoja({id:'cmp',titulo:'Comparar jugadores',html:'<div class="cmp" id="cmp-cuerpo"></div>',clase:'bm-cmph'});
+  cmpPinta();
+}
+function cmpSerie(vals,dks,max,opt){
+  opt=opt||{};const W=560,H=150,pl=34,pr=8,pt=10,pb=22,iw=W-pl-pr,ih=H-pt-pb,n=dks.length;
+  const X=i=>pl+(n<=1?iw/2:i*iw/(n-1)),Y=v=>pt+ih-(Math.max(0,v)/max)*ih;
+  let g='';for(let k=0;k<=2;k++){const v=max*k/2,y=Y(v);g+='<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+y.toFixed(1)+'" stroke="var(--hair)" stroke-width="1"/>'
+    +'<text x="'+(pl-6)+'" y="'+(y+3.5).toFixed(1)+'" text-anchor="end" font-size="10" fill="var(--muted)">'+Math.round(v).toLocaleString('es-ES')+(opt.u||'')+'</text>';}
+  [0,Math.floor((n-1)/2),n-1].forEach((i,j)=>{if(i<0||!dks[i])return;const p=dks[i].split('-');g+='<text x="'+X(i).toFixed(1)+'" y="'+(H-6)+'" text-anchor="'+(j===0?'start':j===2?'end':'middle')+'" font-size="10" fill="var(--muted)">'+(+p[2])+'/'+(+p[1])+'</text>';});
+  vals.forEach((serie,si)=>{let d='',ab=false;serie.forEach((v,i)=>{if(v==null||isNaN(v)){ab=false;return;}d+=(ab?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1);ab=true;});
+    if(d)g+='<path d="'+d+'" fill="none" stroke="'+CMP_COL[si]+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';
+    serie.forEach((v,i)=>{if(v==null||isNaN(v))return;if(opt.puntos)g+='<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="2.4" fill="'+CMP_COL[si]+'"/>';});});
+  return '<svg class="cmp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+bmEsc(opt.lab||'')+'">'+g+'</svg>';
+}
+function cmpPinta(){
+  const box=document.getElementById('cmp-cuerpo');if(!box)return;
+  const esc=bmEsc,A=CMP.a,B=CMP.b,P=[STATE.players[A]||{},STATE.players[B]||{}];
+  const ns=Object.keys(STATE.players||{}).sort((x,y)=>x.localeCompare(y,'es'));
+  const foto=n=>{const r=(window.photoFor&&photoFor(n))||(STATE.players[n]&&STATE.players[n].avatar)||window.__AVATAR__||'';return r?'<img src="'+r+'" alt="">':'<i>'+esc(String(n).charAt(0))+'</i>';};
+  const sel=(k,v)=>'<select class="cmp-sel" data-cmp="'+k+'">'+ns.map(n=>'<option'+(n===v?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>';
+  const dk=dkey(REF());
+  const est=n=>{let e=null;try{e=effectiveStatus(n,dk);}catch(_){}const st=(e&&e.status)||'disp',S=PHYSTAT[st];return {lab:S?S.lab:'Disponible',col:S?S.c:'var(--ok)'};};
+  const rows=[];
+  let ref=REF();try{ref=refCarga();}catch(e){}
+  const serie=n=>{let c=[];try{c=contDailyTo(n,ref).slice(-28);}catch(e){}return c;};
+  const SA=serie(A),SB=serie(B);
+  const sum=(c,k)=>c.slice(-k).reduce((x,d)=>x+(d.ua||0),0);
+  let tsa={};try{buildTests();tsaRows().forEach(r=>{tsa[r.name]=r;});}catch(e){}
+  const cel=(v,col)=>'<td><b'+(col?' style="color:'+col+'"':'')+'>'+v+'</b></td>';
+  const fila=(lab,va,vb,ca,cb)=>'<tr><th>'+lab+'</th>'+cel(va,ca)+cel(vb,cb)+'</tr>';
+  const rd=p=>p.readiness!=null&&!isNaN(p.readiness)?Math.round(p.readiness):null;
+  const ac=p=>p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null;
+  const acCol=v=>v==null?'':(acwrClass(v)==='ok'?'var(--ok-text)':'var(--warn-text)');
+  const eA=est(A),eB=est(B);
+  const tabla='<table class="cmp-t"><tbody>'
+    +fila('Estado hoy',esc(eA.lab),esc(eB.lab),colTinta(eA.col),colTinta(eB.col))
+    +fila('Readiness',rd(P[0])!=null?rd(P[0]):'—',rd(P[1])!=null?rd(P[1]):'—',rd(P[0])!=null?colTexto('var(--'+recSev(rd(P[0]))+')'):'',rd(P[1])!=null?colTexto('var(--'+recSev(rd(P[1]))+')'):'')
+    +fila('ACWR',ac(P[0])!=null?fmt(ac(P[0]),2):'—',ac(P[1])!=null?fmt(ac(P[1]),2):'—',acCol(ac(P[0])),acCol(ac(P[1])))
+    +fila('Carga 7 días',Math.round(sum(SA,7)).toLocaleString('es-ES')+' UA',Math.round(sum(SB,7)).toLocaleString('es-ES')+' UA')
+    +fila('Carga 28 días',Math.round(sum(SA,28)).toLocaleString('es-ES')+' UA',Math.round(sum(SB,28)).toLocaleString('es-ES')+' UA')
+    +fila('Nota TSA',tsa[A]&&tsa[A].t100!=null?tsa[A].t100:'—',tsa[B]&&tsa[B].t100!=null?tsa[B].t100:'—')
+    +'</tbody></table>';
+  /* carga diaria, alineada por día */
+  const dks=[...new Set(SA.map(d=>dkey(d.date)).concat(SB.map(d=>dkey(d.date))))].sort().slice(-28);
+  const porDia=(c)=>{const m={};c.forEach(d=>{m[dkey(d.date)]=d.ua||0;});return dks.map(k=>m[k]!=null?m[k]:null);};
+  const cA=porDia(SA),cB=porDia(SB);const maxC=Math.max(100,...cA.concat(cB).filter(v=>v!=null));
+  const paso=maxC>2000?500:maxC>1000?250:100;const topC=Math.ceil(maxC/paso)*paso;
+  /* recuperación declarada */
+  const rA=playerRecSeries(P[0],40),rB=playerRecSeries(P[1],40);
+  const dr=[...new Set(rA.map(x=>x.dk).concat(rB.map(x=>x.dk)))].sort().slice(-28);
+  const rm=s=>{const m={};s.forEach(x=>{m[x.dk]=x.pct;});return dr.map(k=>m[k]!=null?m[k]:null);};
+  /* radar de capacidades */
+  let radar='';
+  try{const pa=window.refPuesto?refPuesto(A):null,pb=window.refPuesto?refPuesto(B):null;
+    const ca=pa?capPerfil(A,pa):null,cb=pb?capPerfil(B,pb):null;
+    if(ca&&cb&&ca.length>=3&&cb.length>=3){
+      const labs=CAP_GRUPOS.map(g=>g.g).filter(l=>ca.some(o=>o.g===l)||cb.some(o=>o.g===l));
+      const v=c=>labs.map(l=>{const o=c.find(x=>x.g===l);return o?+o.v.toFixed(2):null;});
+      radar='<div class="cmp-radar">'+plRadarSVG(labs,[{col:CMP_COL[0],vals:v(ca),gro:2.4,puntos:true},{col:CMP_COL[1],vals:v(cb),gro:2.4,puntos:true,guion:true}])+'</div>'
+        +'<p class="cmp-pie">Cada forma, contra el baremo de su puesto'+(pa!==pb?' — <b>son de puestos distintos</b>, así que el mismo nivel no es la misma marca':'')+'. El borde dorado es el listón Champions.</p>';}
+    else radar='<p class="cmp-pie">Sin valoraciones suficientes de los dos para el radar.</p>';}catch(e){radar='';}
+  /* pruebas que tienen los dos */
+  const tA=(STATE.tests||{})[A]||{},tB=(STATE.tests||{})[B]||{};
+  const NEU=(typeof VHF_NEUTRAL!=='undefined'&&VHF_NEUTRAL)||new Set(['peso','talla']);
+  const esNeu=k=>NEU.has?NEU.has(k):(Array.isArray(NEU)?NEU.indexOf(k)>=0:false);
+  const pr=TESTS.filter(t=>tA[t.k]!=null&&tB[t.k]!=null&&!isNaN(tA[t.k])&&!isNaN(tB[t.k])&&(typeof tempVigente!=='function'||tempVigente(t.k)));
+  const dec=v=>Math.abs(v)<10?2:Math.abs(v)<100?1:0;
+  const pruebas=pr.length?'<table class="cmp-t cmp-pr"><thead><tr><th>Prueba</th><th>'+esc(A.split(' ')[0])+'</th><th>'+esc(B.split(' ')[0])+'</th><th>Diferencia</th></tr></thead><tbody>'
+    +pr.map(t=>{const a=+tA[t.k],b=+tB[t.k],d=a-b;const neu=esNeu(t.k);const gana=neu||d===0?null:((t.lowerBetter?d<0:d>0)?0:1);
+      const u=t.unit?' '+t.unit:'';
+      return '<tr><th>'+esc(t.name)+'</th><td'+(gana===0?' class="cmp-gana"':'')+'>'+fmt(a,dec(a))+u+'</td><td'+(gana===1?' class="cmp-gana"':'')+'>'+fmt(b,dec(b))+u+'</td><td class="cmp-dif">'+(d>0?'+':d<0?'−':'')+fmt(Math.abs(d),dec(d))+u+'</td></tr>';}).join('')
+    +'</tbody></table><p class="cmp-pie">Sólo las pruebas de esta temporada que tienen los dos. En verde, la mejor marca de cada prueba (peso y talla no tienen lado bueno).</p>'
+    :'<p class="cmp-pie">No hay pruebas de esta temporada que tengan los dos.</p>';
+  const cab=i=>{const n=i?B:A;return '<div class="cmp-j" style="--cmp-c:'+CMP_COL[i]+'"><span class="cmp-av">'+foto(n)+'</span><div>'+sel(i?'b':'a',n)+'<small>'+esc((P[i].pos||'—')+(typeof posDetailOf==='function'&&posDetailOf(n)?' · '+posDetailOf(n):''))+'</small></div></div>';};
+  box.innerHTML='<div class="cmp-cab">'+cab(0)+'<button type="button" class="cmp-swap" data-cmp="swap" title="Cambiar el orden" aria-label="Cambiar el orden">⇄</button>'+cab(1)+'</div>'
+    +'<section class="cmp-sec">'+tabla+'</section>'
+    +'<section class="cmp-sec"><h3>Carga diaria · últimas 4 semanas <span>UA</span></h3>'+cmpSerie([cA,cB],dks,topC,{lab:'Carga diaria de los dos'})+'</section>'
+    +'<section class="cmp-sec"><h3>Recuperación declarada <span>% · wellness</span></h3>'+(dr.length?cmpSerie([rm(rA),rm(rB)],dr,100,{u:'',puntos:true,lab:'Recuperación de los dos'}):'<p class="cmp-pie">Sin partes de wellness.</p>')+'</section>'
+    +'<section class="cmp-sec"><h3>Capacidades</h3>'+radar+'</section>'
+    +'<section class="cmp-sec"><h3>Pruebas físicas</h3>'+pruebas+'</section>';
+}
+document.addEventListener('change',e=>{const s=e.target&&e.target.closest&&e.target.closest('#bmh-cmp [data-cmp]');if(!s)return;
+  if(s.dataset.cmp==='a')CMP.a=s.value;else if(s.dataset.cmp==='b')CMP.b=s.value;cmpPinta();});
+document.addEventListener('click',e=>{const s=e.target&&e.target.closest&&e.target.closest('#bmh-cmp [data-cmp="swap"]');if(!s)return;
+  const t=CMP.a;CMP.a=CMP.b;CMP.b=t;cmpPinta();});
+window.bmComparar=bmComparar;
 function bmConvoc(dk){
   if(!dk)return;CV.dk=dk;
   const d=cvDatos(dk),g=cvDe(dk);
@@ -40636,6 +40742,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
        +'<button class="btn phero-add" onclick="openHeroForm(\'incidencia\',\''+q2(name)+'\')">+ Parte del día</button>'
        +'<button class="btn phero-add" onclick="openQuickTest(\''+q2(name)+'\')">+ Valoración</button>'
        +'<button class="btn phero-add" onclick="openReunion(\''+q2(name)+'\')">+ Reunión</button>'
+       +'<button class="btn ghost phero-cmp" onclick="bmComparar(\''+q2(name)+'\')">Comparar con…</button>'
      +'</div>'
    +'</div>';
  };
@@ -48432,6 +48539,43 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .cvd-l h3{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6e6e73}
 .cvd-j{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px solid #f0f0f3;font-size:16px}
 .cvd-j b{width:28px;text-align:right;font-weight:800;color:#3056c4;font-variant-numeric:tabular-nums}
+</style>
+<style id="bm-v741">
+/* v741 · Comparar dos jugadores (hoja; ordenador y móvil). */
+.phero-cmp{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  .phero-btns .phero-cmp{display:inline-flex}
+  .bm-cmph .bmh-caja{width:min(860px,96vw)}
+}
+.cmp-cab{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center;margin-bottom:12px}
+.cmp-j{display:flex;align-items:center;gap:10px;min-width:0;padding:8px 10px;border-radius:12px;background:var(--panel2);box-shadow:inset 3px 0 0 var(--cmp-c)}
+.cmp-j>div{display:flex;flex-direction:column;min-width:0;flex:1}
+.cmp-j small{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmp-av{width:44px;height:44px;flex:none;border-radius:50%;overflow:hidden;border:2.5px solid var(--cmp-c);background:var(--panel)}
+.cmp-av img{width:100%;height:100%;object-fit:cover}
+.cmp-av i{display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-style:normal;font-weight:700;color:var(--muted)}
+.cmp-sel{font:inherit;font-size:15px;font-weight:700;border:none;background:transparent;color:var(--txt);padding:0;min-width:0;max-width:100%;cursor:pointer}
+.cmp-swap{border:none;background:var(--panel2);color:var(--txt);width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer}
+.cmp-sec{margin:0 0 16px}
+.cmp-sec h3{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.55px;text-transform:uppercase;color:var(--muted)}
+.cmp-sec h3 span{font-weight:500;letter-spacing:0;text-transform:none;margin-left:4px}
+.cmp-t{width:100%;border-collapse:collapse;font-size:13.5px}
+.cmp-t th{text-align:left;font-weight:500;color:var(--muted);padding:6px 4px}
+.cmp-t td{text-align:right;padding:6px 4px;font-variant-numeric:tabular-nums}
+.cmp-t tr+tr th,.cmp-t tr+tr td{border-top:.5px solid var(--hair)}
+.cmp-t thead th{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;text-align:right}
+.cmp-t thead th:first-child{text-align:left}
+.cmp-t:not(.cmp-pr) td:nth-child(2) b{color:var(--txt)}
+.cmp-pr td.cmp-gana{color:var(--ok-text);font-weight:700}
+.cmp-dif{color:var(--muted)}
+.cmp-svg{width:100%;height:auto;display:block}
+.cmp-radar{display:flex;justify-content:center}
+.cmp-radar .plr-svg{width:100%;max-width:400px;height:auto}
+.cmp-pie{font-size:11.5px;color:var(--muted);margin:6px 2px 0;max-width:70ch}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .cmp-cab{grid-template-columns:minmax(0,1fr)}
+  .cmp-swap{justify-self:center}
+}
 </style>
 <script>
 /* ============================================================
