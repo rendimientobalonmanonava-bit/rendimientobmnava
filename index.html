@@ -14418,11 +14418,115 @@ function bmPrevia(x,acc){
 document.addEventListener('contextmenu',e=>{
   if(esMovil()||!e.target||!e.target.closest)return;
   if(e.target.closest('input,textarea,select,'+BMG_DOC))return;
-  const c=e.target.closest(BMLP_SEL);if(!c)return;
-  const x=bmlpDe(c);if(!x)return;
+  /* v752 · también las filas de la plantilla de al lado de la ficha (v696) */
+  const c=e.target.closest(BMLP_SEL+',#bm-jl [data-n]');if(!c)return;
+  const x=c.matches('#bm-jl [data-n]')?((STATE.players||{})[c.dataset.n]?{t:'j',n:c.dataset.n}:null):bmlpDe(c);if(!x)return;
   e.preventDefault();bmHovQuita();
+  /* v752 · En el Mac el clic derecho es un menú de contexto donde está el
+     ratón, no la vista previa del iPhone en mitad de la pantalla. La vista
+     previa se queda en el propio menú y en la barra espaciadora (v714). */
+  if(bmEscFino()){try{bmCtxMac(x,e.clientX,e.clientY);return;}catch(err){console.error('bmnava · menú de contexto',err);}}
   try{bmlpMenu(x);}catch(err){console.error('bmnava · clic derecho',err);}
 });
+/* ═══ v752 · ORDENADOR · Menús de Mac ═══
+   Una sola pieza para los menús que salen de un botón o del clic derecho, con
+   el aspecto del menú «⋯» de la v728: filas compactas, icono de línea, el
+   atajo a la derecha, separadores y teclado (↑ ↓, Intro, Esc). Cada fila
+   llama a la MISMA función de siempre: no hay ninguna acción nueva. */
+const BMMM={de:null,abre:null};
+const BMMM_CRONO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.500M10 2.500h4M18.500 6l1.500-1.500"/></svg>';
+function bmMenuMacCierra(){const m=document.getElementById('bm-mm');if(m)m.remove();
+  if(BMMM.abre){try{BMMM.abre.setAttribute('aria-expanded','false');BMMM.abre.classList.remove('on');}catch(e){}}
+  BMMM.de=null;BMMM.abre=null;}
+function bmMenuMac(it,pos,o){
+  o=o||{};bmMenuMacCierra();
+  const m=document.createElement('div');m.id='bm-mm';m.className='bm-mm';m.setAttribute('role','menu');m.tabIndex=-1;
+  if(o.etiqueta)m.setAttribute('aria-label',o.etiqueta);
+  m.innerHTML=it.map((x,i)=>x.sep?'<div class="bm-mm-sep" role="separator"></div>'
+    :x.h?'<div class="bm-mm-h">'+bmEsc(x.h)+'</div>'
+    :'<button type="button" role="menuitem" data-i="'+i+'"'+(x.tit?' title="'+bmEsc(x.tit)+'"':'')+(x.dis?' disabled':'')+'>'
+      +'<i aria-hidden="true">'+(x.ic||'')+'</i><span>'+bmEsc(x.t)+'</span>'+(x.k?'<kbd>'+bmEsc(x.k)+'</kbd>':'')+'</button>').join('');
+  document.body.appendChild(m);
+  const W=m.offsetWidth,H=m.offsetHeight;let L,T;
+  if(pos.el){const r=pos.el.getBoundingClientRect();T=r.bottom+6;L=pos.alinea==='izq'?r.left:r.right-W;
+    BMMM.abre=pos.el;pos.el.setAttribute('aria-expanded','true');pos.el.classList.add('on');}
+  else{L=pos.x+2;T=pos.y+2;if(L+W>innerWidth-8)L=pos.x-W-2;if(T+H>innerHeight-8)T=Math.max(8,pos.y-H-2);}
+  m.style.left=Math.round(Math.max(8,Math.min(innerWidth-W-8,L)))+'px';m.style.top=Math.round(Math.max(8,T))+'px';
+  BMMM.de=o.de||'menu';
+  m.addEventListener('click',ev=>{const k=ev.target.closest('button[data-i]');if(!k||k.disabled)return;const x=it[+k.dataset.i];const ab=BMMM.abre;bmMenuMacCierra();
+    if(ab)try{ab.focus({preventScroll:true});}catch(_){}
+    setTimeout(()=>{try{x.f&&x.f();}catch(err){console.error('bmnava · menú',err);}},0);});
+  m.addEventListener('contextmenu',ev=>ev.preventDefault());
+  const bs=[...m.querySelectorAll('button:not([disabled])')];
+  m.addEventListener('keydown',ev=>{const i=bs.indexOf(document.activeElement);
+    if(ev.key==='ArrowDown'){ev.preventDefault();bs[(i+1)%bs.length].focus();}
+    else if(ev.key==='ArrowUp'){ev.preventDefault();bs[(i<0?bs.length-1:(i-1+bs.length)%bs.length)].focus();}
+    else if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();const ab=BMMM.abre;bmMenuMacCierra();if(ab)try{ab.focus();}catch(_){}}
+    else if(ev.key==='Tab'){bmMenuMacCierra();}});
+  setTimeout(()=>{try{(o.teclado?bs[0]:m).focus({preventScroll:true});}catch(_){}},0);
+  return m;
+}
+document.addEventListener('mousedown',e=>{const m=document.getElementById('bm-mm');if(m&&!m.contains(e.target)&&!(BMMM.abre&&BMMM.abre.contains(e.target)))bmMenuMacCierra();},true);
+window.addEventListener('resize',()=>bmMenuMacCierra());
+window.addEventListener('scroll',()=>bmMenuMacCierra(),{passive:true,capture:true});
+window.addEventListener('blur',()=>bmMenuMacCierra());
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('bm-mm')){e.stopPropagation();e.preventDefault();const ab=BMMM.abre;bmMenuMacCierra();if(ab)try{ab.focus();}catch(_){}}},true);
+/* El clic derecho sobre un jugador o un día. Las acciones son las de la vista
+   previa (v599/v670), con la vista previa como una más. */
+function bmCtxMac(x,cx,cy){
+  const I=BMLP_IC;let it=[];
+  if(x.t==='j'){
+    const n=x.n;
+    const acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    it.push({h:n});
+    it.push({t:'Ver la ficha',ic:I.ficha,f:acc.ficha});
+    it.push({t:'Abrir en una ventana nueva',ic:'',k:'⌘ clic',f:()=>bmAbreVentana(bmUrlDe('jugador',n))});
+    it.push({t:'Vista rápida',ic:'',k:'Espacio',f:()=>bmPrevia(x,acc)});
+    if(window.bmComparar)it.push({t:'Comparar con…',ic:'',f:acc.cmp});
+    it.push({sep:1});
+    if(window.openHeroForm)it.push({t:'Parte del día',ic:I.parte,tit:'Dolor, tratamiento o incidencia',f:acc.parte});
+    if(window.ojoMarcar)it.push({t:'Ojo hoy',ic:I.ojo,tit:'Avisar de que hay que valorarlo',f:acc.ojo});
+    if(window.openFisioReg)it.push({t:'Registrar en fisioterapia',ic:I.trat,tit:'Tratamiento, vendaje o parte',f:acc.trat});
+    if(window.openHeroForm)it.push({t:'Cita o documento médico',ic:I.cita,f:acc.cita});
+    if(window.bmSegExtra)it=it.concat(bmSegExtra(n));
+  }else{
+    const dk=x.dk,hoy=dkey(new Date()),pas=dk<=hoy;
+    const acc={edita:()=>calOpenDay(dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=dk;setRefDate(dk);go('equipo');}};
+    const d=dkToDate(dk);let tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
+    it.push({h:tit});
+    it.push({t:'Planificar o editar el día',ic:I.lapiz,f:acc.edita});
+    if(pas)it.push({t:'Ver ese día',ic:I.ojo,tit:'Cambia el día que se está viendo y abre el Resumen',f:acc.ver});
+    let plan=false;try{plan=pas&&calBloquesPlan(dk).size>0;}catch(e){}
+    if(plan&&window.bmCierre)it.push({t:'Cerrar la sesión…',ic:I.cita,tit:'Minutos de cada bloque y quién entrenó',f:()=>bmCierre(dk)});
+    it.push({sep:1});
+    it.push({t:'Vista rápida',ic:'',f:()=>bmPrevia(x,acc)});
+  }
+  bmMenuMac(it,{x:cx,y:cy},{de:'ctx',etiqueta:x.t==='j'?x.n:'Día'});
+}
+/* «Añadir datos», en el ordenador, con el mismo menú. Las filas pulsan las del
+   desplegable de siempre (`#add-menu`), que sigue siendo el del móvil. La
+   explicación de cada una va en su globo, como en un menú del Mac. */
+(function(){
+  const _t=window.toggleAddData;if(typeof _t!=='function')return;
+  window.toggleAddData=function(e){
+    if(esMovil()||!bmEscFino())return _t(e);
+    if(e)e.stopPropagation();
+    if(BMMM.de==='add'){bmMenuMacCierra();return;}
+    const b=document.getElementById('btn-adddata');const am=document.getElementById('add-menu');if(!b||!am)return _t(e);
+    const it=[{h:'Registrar datos'}];
+    [...am.children].forEach(c=>{
+      if(c.classList.contains('add-sep')){it.push({sep:1});return;}
+      if(!c.classList.contains('add-item'))return;
+      const tt=c.querySelector('b'),sm=c.querySelector('small'),sv=c.querySelector('.ic svg');
+      /* En la barra lateral Médico y Perfil físico comparten dibujo; aquí van juntos y se distinguen */
+      const oc=c.getAttribute('onclick')||'';
+      const ic=/addDataFisio/.test(oc)?BMLP_IC.trat:/addDataGoTests/.test(oc)?BMMM_CRONO:(sv?sv.outerHTML:'');
+      it.push({t:tt?tt.textContent.trim():c.textContent.trim(),tit:sm?sm.textContent.trim():'',ic:ic,f:()=>c.click()});
+    });
+    bmMenuMac(it,{el:b,alinea:'der'},{de:'add',etiqueta:'Añadir datos',teclado:!!(e&&e.detail===0)});
+  };
+})();
+window.bmMenuMac=bmMenuMac;window.bmMenuMacCierra=bmMenuMacCierra;window.bmCtxMac=bmCtxMac;
 const BMHOV={t:null,el:null,n:''};
 function bmHovQuita(){clearTimeout(BMHOV.t);BMHOV.t=null;BMHOV.el=null;const h=document.getElementById('bm-hov');if(h)h.classList.remove('on');}
 document.addEventListener('mouseover',e=>{
@@ -49558,6 +49662,28 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .brec-t{width:100%;font:inherit;font-size:14px;line-height:1.4;padding:10px 12px;border-radius:10px;resize:vertical}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
   .wm-rec{min-height:44px}
+}
+</style>
+<style id="esc-v752">
+/* v752 · ORDENADOR · Menús de Mac (bmMenuMac): clic derecho y «Añadir datos» */
+@media screen and (min-width:761px) and (pointer:fine){
+  .bm-mm{position:fixed;z-index:10080;min-width:220px;max-width:340px;padding:5px;border-radius:10px;background:var(--tbm-bg);
+    -webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);
+    box-shadow:0 0 0 .5px var(--tbm-borde),0 10px 32px rgba(0,0,0,.22);font-size:13px;color:var(--txt);animation:bmTbmIn .12s ease-out;outline:none;
+    -webkit-user-select:none;user-select:none}
+  .bm-mm button{display:flex;align-items:center;gap:6px;width:100%;min-height:24px;padding:3px 10px 3px 4px;border:none;border-radius:5px;background:none;
+    color:inherit;font:inherit;text-align:left;cursor:default}
+  .bm-mm button i{width:18px;height:16px;flex:none;display:inline-flex;align-items:center;justify-content:center;font-style:normal;color:var(--muted)}
+  .bm-mm button i svg{width:15px;height:15px}
+  .bm-mm button span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bm-mm kbd{font:inherit;color:var(--muted);margin-left:18px;white-space:nowrap}
+  .bm-mm button:hover,.bm-mm button:focus-visible{background:var(--accent);color:var(--on-accent,#fff);outline:none}
+  .bm-mm button:hover i,.bm-mm button:focus-visible i,.bm-mm button:hover kbd,.bm-mm button:focus-visible kbd{color:inherit;opacity:.85}
+  .bm-mm button[disabled]{opacity:.45}
+  .bm-mm .bm-mm-sep{height:.5px;margin:5px 10px;background:var(--tbm-borde)}
+  .bm-mm .bm-mm-h{padding:4px 10px 3px 28px;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header #btn-adddata.on{filter:brightness(.95)}
+  @media (prefers-reduced-motion:reduce){.bm-mm{animation:none}}
 }
 </style>
 <style id="bm-v745">
