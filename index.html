@@ -14176,6 +14176,7 @@ function bmbIndice(){
   A('Ausencia de varios jugadores','Selección, viaje, permiso…',()=>{if(window.openAusenciaGrupo)openAusenciaGrupo(dkey(REF()));},'seleccion paron');
   A('Planificar el día de hoy','Añadir una sesión al calendario',()=>{go('cal');calOpenDay(dkey(new Date()));},'entreno partido');
   A('Informe de la semana','La semana cerrada en una hoja que se exporta',()=>{if(window.bmInformeSemana)bmInformeSemana();},'resumen semanal informe');
+  A('Desde tu última visita','Lo que ha entrado desde la última vez en este equipo',()=>{if(window.bmDesdeVisita)bmDesdeVisita();},'novedades cambios nuevo');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
   document.querySelectorAll('#add-menu .add-item').forEach(b=>{const t=b.querySelector('b'),sm=b.querySelector('small');if(!t)return;
     A(t.textContent.trim(),sm?sm.textContent.trim():'',()=>b.click(),'añadir');});
@@ -17439,6 +17440,81 @@ function infPNG(){
 document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-informe [data-inf]');if(!b||b.disabled)return;
   const v=b.dataset.inf;if(v==='png'){infPNG();return;}const m=new Date(INF.mon);m.setDate(m.getDate()+7*(+v));INF.mon=m;infPinta();});
 window.bmInformeSemana=bmInformeSemana;
+/* v743 · DESDE TU ÚLTIMA VISITA. Daniel, 16/11/2026, eligió la propuesta 5.
+   Virginia, Carlos y Daniel trabajan sobre los mismos datos en equipos
+   distintos y no hay forma de saber qué ha cambiado sin recorrer las
+   pantallas. Al abrir la app, una tarjeta que no tapa nada dice lo que ha
+   entrado desde la última vez que se cerró EN ESTE EQUIPO: partes de
+   fisioterapia, lesiones abiertas y altas, «Ojo hoy», cobros, valoraciones,
+   convocatorias y las alertas sin ver. **Sólo lo que lleva su hora**: un
+   registro sin sello de tiempo no se puede fechar y no se inventa. La hora de
+   la última visita es de este equipo (`bmnava-ultvisita`, con guion: no se
+   sincroniza) y se apunta al dejar la app. La primera vez no enseña nada. */
+const UV_LS='bmnava-ultvisita';
+const UV={T:null,hecho:false};
+function uvTs(x){if(!x)return 0;
+  const n=v=>{if(v==null||v==='')return 0;if(typeof v==='number')return v>1e12?v:0;const d=Date.parse(v);return isFinite(d)?d:0;};
+  let t=n(x.upd)||n(x.t)||n(x.ts);if(t)return t;
+  const m=String(x.id||x._id||'').match(/(\d{13})/);return m?+m[1]:0;}
+function uvCambios(T){
+  const out=[];const dT=dkey(new Date(T));const corto=n=>{const t=String(n).split(' ');return t[0]+(t[1]?' '+t[1].charAt(0)+'.':'');};
+  try{const PU=STATE.physioUser||{};Object.keys(PU).forEach(n=>{(PU[n]||[]).forEach(e=>{if(!e||String(e._id||'').indexOf('med_')===0)return;
+    if(uvTs(e)>T){const S=PHYSTAT[e.status];out.push({g:'fis',t:uvTs(e),n,txt:(S?S.lab:'Parte')+(e.zone?' · '+e.zone+(e.side?' '+e.side:''):''),col:S?S.c:'var(--muted)'});}});});}catch(e){}
+  try{((STATE.med&&STATE.med.inj)||[]).forEach(i=>{if(!i)return;const ts=uvTs(i);
+    if((ts&&ts>T)||(!ts&&String(i.dk||'')>=dT))out.push({g:'med',t:ts||Date.parse(i.dk),n:i.name,txt:(i.kind==='lesion'?'Lesión nueva':'Molestia nueva')+(i.title?' · '+i.title:''),col:'var(--bad)'});
+    if(i.closeDk&&String(i.closeDk)>=dT)out.push({g:'med',t:Date.parse(i.closeDk),n:i.name,txt:'Alta'+(i.title?' · '+i.title:''),col:'var(--ok)'});});}catch(e){}
+  try{const ML=ojoLoad();Object.keys(ML).forEach(n=>{(ML[n]||[]).forEach(e=>{if(e&&e.type==='ojo'&&uvTs(e)>T){let l='Ojo hoy';try{l='Ojo hoy · '+ojoLab(e);}catch(_){}out.push({g:'ojo',t:uvTs(e),n,txt:l,col:'var(--warn)'});}});});}catch(e){}
+  try{const C=((STATE.nutri||{}).cobros)||[];const pag=C.filter(c=>c&&c.pagado&&uvTs(c)>T);
+    if(pag.length){const tot=pag.reduce((a,c)=>a+(+c.importe||0),0);const js=[...new Set(pag.map(c=>c.jugador))];
+      out.push({g:'nut',t:Math.max(...pag.map(uvTs)),n:'',txt:pag.length+(pag.length===1?' cobro marcado':' cobros marcados')+' · '+(typeof nutEur==='function'?nutEur(tot):tot.toFixed(2)+' €')+' · '+js.slice(0,3).map(corto).join(', ')+(js.length>3?'…':''),col:'var(--accent)'});}}catch(e){}
+  try{let nT=0;const jT=new Set();Object.keys(STATE.testHist||{}).forEach(n=>{(STATE.testHist[n]||[]).forEach(h=>{if(h&&h.real&&String(h.date||'').slice(0,10)>=dT){const k=Object.keys(h.vals||{}).length;if(k){nT+=k;jT.add(n);}}});});
+    if(nT)out.push({g:'val',t:T+1,n:'',txt:nT+' pruebas físicas nuevas de '+jT.size+(jT.size===1?' jugador':' jugadores'),col:'var(--accent)'});}catch(e){}
+  try{cvGet().forEach(c=>{if(c&&uvTs({upd:c.upd})>T){const ev=((STATE.calendar||{})[c.dk]||[]).find(evEsPartido)||{};
+    out.push({g:'cv',t:uvTs({upd:c.upd}),n:'',txt:'Convocatoria '+(evRival(ev)?'para '+evRival(ev):'del '+(+c.dk.slice(8))+'/'+(+c.dk.slice(5,7)))+' · '+(c.jug||[]).length+' jugadores'+(c.quien?' · '+c.quien:''),col:'var(--accent)',dk:c.dk});}});}catch(e){}
+  return out.sort((a,b)=>b.t-a.t);
+}
+function uvHace(T){const m=Math.round((Date.now()-T)/60000);return m<60?'hace '+Math.max(1,m)+' min':m<1440?'hace '+Math.round(m/60)+' h':m<2880?'ayer':'hace '+Math.round(m/1440)+' días';}
+function uvLinea(x){const esc=bmEsc;return '<li><i style="background:'+x.col+'"></i><span>'+(x.n?'<b>'+esc(x.n.split(' ').slice(0,2).join(' '))+'</b> · ':'')+esc(x.txt)+'</span></li>';}
+function uvAlertas(){try{const a=alvNuevas();if(!a.length)return null;const r=a.filter(x=>x.sev==='bad').length;
+  return {g:'al',t:0,n:'',txt:a.length+(a.length===1?' alerta sin ver':' alertas sin ver')+(r?' · '+r+(r===1?' roja':' rojas'):''),col:r?'var(--bad)':'var(--warn)'};}catch(e){return null;}}
+function bmDesdeVisita(){
+  const T=UV.T;
+  if(!T){bmHoja({id:'uv',titulo:'Desde tu última visita',html:'<p class="uv-p">Es la primera vez que se abre la app en este equipo: a partir de ahora se apunta cuándo la dejas.</p>'});return;}
+  const xs=uvCambios(T),al=uvAlertas();
+  const g={fis:'Fisioterapia',med:'Médico',ojo:'Ojo hoy',nut:'Nutrición',val:'Valoraciones',cv:'Convocatorias'};
+  const grupos=Object.keys(g).map(k=>{const ys=xs.filter(x=>x.g===k);return ys.length?'<section class="uv-s"><h3>'+g[k]+'<em>'+ys.length+'</em></h3><ul class="uv-l">'+ys.map(uvLinea).join('')+'</ul></section>':'';}).join('');
+  bmHoja({id:'uv',titulo:'Desde tu última visita',clase:'bm-uvh',html:'<p class="uv-p">Tu última visita en este equipo fue <b>'+uvHace(T)+'</b>.</p>'
+    +(al?'<ul class="uv-l uv-al">'+uvLinea(al)+'</ul>':'')+(grupos||'<p class="uv-p">No ha entrado nada con fecha desde entonces.</p>')
+    +'<p class="uv-nota">Sólo lo que lleva su hora de creación. Se apunta en cada equipo por separado.</p>'});
+}
+function uvTarjeta(){
+  if(UV.hecho)return;UV.hecho=true;
+  const T=UV.T;if(!T)return;
+  const xs=uvCambios(T),al=uvAlertas();if(!xs.length)return;
+  const lin=(al?[al]:[]).concat(xs).slice(0,4);
+  let c=document.getElementById('bm-uv');if(c)c.remove();
+  c=document.createElement('div');c.id='bm-uv';c.setAttribute('role','status');
+  c.innerHTML='<div class="uv-cab"><b>Desde tu última visita</b><small>'+uvHace(T)+' · '+xs.length+(xs.length===1?' cambio':' cambios')+'</small>'
+    +'<button type="button" class="uv-x" aria-label="Cerrar">×</button></div><ul class="uv-l">'+lin.map(uvLinea).join('')+'</ul>'
+    +'<button type="button" class="uv-ver">Ver todo</button>';
+  document.body.appendChild(c);requestAnimationFrame(()=>c.classList.add('on'));
+  c.querySelector('.uv-x').addEventListener('click',()=>{c.classList.remove('on');setTimeout(()=>c.remove(),250);});
+  c.querySelector('.uv-ver').addEventListener('click',()=>{c.remove();bmDesdeVisita();});
+}
+(function(){
+  try{const v=+localStorage.getItem(UV_LS);UV.T=v>0?v:null;}catch(e){}
+  const apunta=()=>{try{if(window.__BM_LISTO)localStorage.setItem(UV_LS,String(Date.now()));}catch(e){}};
+  window.addEventListener('pagehide',apunta);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')apunta();});
+  /* se enseña cuando ya hay datos de verdad y la serie de readiness no está
+     recorriendo días; si no llega a haberlos, no sale */
+  let n=0;const mira=()=>{n++;
+    if(window.__BM_LISTO&&STATE.mode==='live'&&!window.__RD_CALC&&Object.keys(STATE.players||{}).length){try{uvTarjeta();}catch(e){console.error('bmnava · última visita',e);}
+      try{if(!UV.T)localStorage.setItem(UV_LS,String(Date.now()));}catch(e){}return;}
+    if(n<90)setTimeout(mira,1000);};
+  setTimeout(mira,2500);
+})();
+window.bmDesdeVisita=bmDesdeVisita;
 function bmConvoc(dk){
   if(!dk)return;CV.dk=dk;
   const d=cvDatos(dk),g=cvDe(dk);
@@ -39291,6 +39367,7 @@ function bmTbMenu(e){
   const it=[
     {t:'Agenda médica',f:pulsa('#btn-agenda')},
     {t:'Informe de la semana',f:()=>{try{bmInformeSemana();}catch(err){}}},
+    {t:'Desde tu última visita',f:()=>{try{bmDesdeVisita();}catch(err){}}},
     {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
     {t:'Ajustes de cálculo…',k:',',f:pulsa('#btn-settings')},
     {sep:1},{h:'Apariencia'},
@@ -48725,6 +48802,34 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   width:860px;padding:32px 36px;background:#fff;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;box-sizing:border-box}
 .inf-doc .inf-ks{grid-template-columns:repeat(4,minmax(0,1fr))}
 .inf-doc .inf-g{grid-template-columns:repeat(2,minmax(0,1fr))}
+</style>
+<style id="bm-v743">
+/* v743 · «Desde tu última visita»: tarjeta flotante y hoja. */
+#bm-uv{position:fixed;z-index:9000;right:20px;bottom:20px;width:340px;max-width:calc(100vw - 32px);padding:12px 14px 12px;border-radius:14px;
+  background:var(--panel);color:var(--txt);box-shadow:0 0 0 .5px var(--hair),0 14px 40px rgba(0,0,0,.18);opacity:0;transform:translateY(8px);
+  transition:opacity .2s ease,transform .3s cubic-bezier(.32,.72,0,1)}
+#bm-uv.on{opacity:1;transform:none}
+.uv-cab{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.uv-cab b{font-size:14px;font-weight:700}
+.uv-cab small{font-size:11.5px;color:var(--muted);flex:1}
+.uv-x{border:none;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 2px}
+.uv-l{list-style:none;margin:0;padding:0}
+.uv-l li{display:flex;align-items:baseline;gap:8px;padding:4px 0;font-size:13px;line-height:1.35}
+.uv-l li+li{border-top:.5px solid var(--hair)}
+.uv-l li i{flex:none;width:7px;height:7px;border-radius:50%;transform:translateY(-1px)}
+.uv-l li b{font-weight:600}
+.uv-ver{margin-top:8px;border:none;background:var(--panel2);color:var(--acc-seg,var(--accent));font:inherit;font-size:12.5px;font-weight:600;border-radius:8px;padding:5px 10px;cursor:pointer}
+.uv-p{font-size:13.5px;margin:0 0 10px}
+.uv-al{margin-bottom:12px}
+.uv-s{margin-bottom:12px}
+.uv-s h3{margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.55px;text-transform:uppercase;color:var(--muted)}
+.uv-s h3 em{font-style:normal;margin-left:6px;color:var(--txt)}
+.uv-nota{font-size:11.5px;color:var(--muted);margin:8px 0 0}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #bm-uv{left:16px;right:16px;width:auto;top:calc(env(safe-area-inset-top,0px) + 64px);bottom:auto}
+  .uv-ver{min-height:36px}
+}
+@media (prefers-reduced-motion:reduce){#bm-uv{transition:opacity .2s ease}}
 </style>
 <script>
 /* ============================================================
