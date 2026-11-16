@@ -14892,6 +14892,21 @@ function bmeEstilo(){
 const BME_MOV='(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse)';
 const BME_ESC='(min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait)';
 const BME_EXC='header,#tabbar,.sb-tools,svg,#parte-card,.pt-card,.ficha-card,.ficha-overlay,.sa-page,.sa-page-wk,.a4-page,#sescal-a4-page,.iso-hoja,#iso-overlay,#fis-cap-png,#sy-gate,#splash';
+/* v729 · ORDENADOR · El cursor de Mac. Daniel, 16/11/2026. HIG · Pointing
+   devices: la mano quiere decir «esto es un enlace»; los botones, las
+   pestañas, la barra lateral y lo que se pulsa llevan la FLECHA. En la app no
+   hay enlaces y 335 controles medidos en seis pantallas sacaban la mano. Cada
+   `cursor:pointer` de la hoja (salvo los que apuntan a un `<a>`) y de un estilo
+   en línea pasa a `var(--cur-mano,pointer)`, y sólo con ratón o trackpad esa
+   variable vale `default`: en el móvil y en el iPad todo sigue igual. */
+function bmCurUna(r){
+  try{const st=r.style;if(String(st.getPropertyValue('cursor')).trim()!=='pointer')return;
+    if(/(^|[\s,>+~(])a(?=$|[\s,>+~.:#\[)])/.test(r.selectorText))return;
+    st.setProperty('cursor','var(--cur-mano,pointer)',st.getPropertyPriority('cursor'));}catch(e){}
+}
+function bmCurEnLinea(){
+  document.querySelectorAll('[style*="cursor"]').forEach(e=>{if(e.style.cursor==='pointer'&&!e.closest('a[href]'))e.style.cursor='var(--cur-mano,pointer)';});
+}
 function bmlReescribe(){
   const una=st=>{
     /* v579 · Además del factor, un SUELO: `--fmin` vale 11 px en el móvil y 0 en
@@ -14904,7 +14919,7 @@ function bmlReescribe(){
       if(/^\s*[0-9.]+px\s*$/.test(v))st.setProperty(n,'calc('+v.trim()+' * var(--ft,1))');}}}catch(e){}
   };
   const baja=rs=>{for(let i=0;i<rs.length;i++){const r=rs[i];
-    if(r.style&&r.selectorText!=null)una(r.style);
+    if(r.style&&r.selectorText!=null){una(r.style);bmCurUna(r);}
     /* sólo se baja a las reglas de agrupación (@media, @supports): una regla de
        estilo también expone `cssRules` y no hay que recorrerla dos veces */
     else if(r.cssRules&&(r.media||r.conditionText!=null))baja(r.cssRules);}};
@@ -15001,6 +15016,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
   let t=null;
   const pasa=()=>{clearTimeout(t);t=setTimeout(()=>{if(esMovil()||!BML.hecho)return;
     try{if(document.styleSheets.length!==BME.n)bmlReescribe();bmlEnLinea();}catch(e){}
+    /* v729 · el cursor de Mac también en los estilos escritos en línea */
+    try{bmCurEnLinea();}catch(e){}
     /* v668 · el teclado: lo que se pulsa con el ratón también se alcanza con Tab e Intro */
     try{bmVoz();}catch(e){}
     try{bmResumenEsc();}catch(e){}
@@ -47936,6 +47953,12 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   #bm-tbm .bm-tbm-sep{height:.5px;margin:5px 10px;background:var(--tbm-borde)}
   #bm-tbm .bm-tbm-h{padding:4px 10px 2px 26px;font-size:11px;font-weight:600;color:var(--muted)}
   @media (prefers-reduced-motion:reduce){#bm-tbm{animation:none}}
+}
+</style>
+<style id="esc-v729">
+/* v729 · ORDENADOR · El cursor de Mac (ver bmCurUna). */
+@media screen and (min-width:761px) and (pointer:fine){
+  :root{--cur-mano:default}
 }
 </style>
 <script>
