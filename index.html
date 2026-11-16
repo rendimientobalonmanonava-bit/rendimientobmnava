@@ -3291,6 +3291,7 @@ main{padding:20px 18px 80px}
   font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .cal-cmp-bl em{font-style:normal;color:var(--muted2);font-weight:500}
 .cal-cmp-bl b{font-weight:700;color:var(--muted)}
+.cal-cmp-bl .cal-cmp-fuera i{font-style:normal;color:var(--muted)}
 
 .cg-ref{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;padding-top:11px;
   border-top:.5px solid var(--hair);font-size:11.5px;font-weight:500;color:var(--muted)}
@@ -36302,13 +36303,43 @@ function calContactBar(c,cls){let s='';for(let i=1;i<=5;i++)s+=`<i class="${i<=c
    Por eso aquí se devuelve `uaSes`, cada bloque sobre quien lo hizo. **La
    carga media del equipo sigue entera en `lbTeamDay().ua`** y es la que
    alimenta el ACWR, la monotonía, el readiness y el dashboard de cargas. */
+/* v737 · **Sólo cuenta lo programado.** Daniel, 16/11/2026, con el panel de un
+   día delante: «Programado 480 UA · Real (RPE) 635 UA · +32 %», y la línea de
+   debajo decía por qué: «Pista 355 UA · 15 de 16 · Gimnasio 280 UA · 1 de 16».
+   La v514 sumaba la media de CADA bloque sobre quien lo hizo, y un gimnasio
+   que hizo un solo jugador —readaptación, prevención— entraba entero, como si
+   el equipo hubiera hecho pista Y gimnasio. *Medido en la copia de prueba: en
+   21 de los últimos 40 días con cuestionarios hay un «gimnasio» de 1 a 3
+   jugadores, y cada uno sumaba de 360 a 540 UA al real del equipo (el 3/10:
+   755 de pista + 420 de uno solo = 1.175).* Y la suma metía también la
+   tecnificación, que no entra en ningún agregado del equipo ni se planifica
+   (§2.1). Preguntado, Daniel eligió **«solo lo programado»**: un bloque entra
+   si ese día había en el calendario una sesión de su tipo —la MISMA
+   correspondencia que ya usa «Cerrar sesión»: fuerza → gimnasio; entreno y
+   partido → pista— y la tecnificación nunca. Lo hecho sin programar se dice
+   aparte (`calBloquesN`) y no entra en el %, la regla de la v241 para un día
+   entero. **Un día sin nada programado** no tiene con qué compararse: se queda
+   con pista y gimnasio, sin la tecnificación. `uaSes` sigue igual en
+   `lbTeamDay`; lo que cambia es qué bloques se suman aquí. */
+function evBloque(e){if(!e||evSP(e))return null;return e.type==='fuerza'?'gym':((e.type==='entreno'||e.type==='partido')?'pista':null);}
+function calBloquesPlan(dk){const s=new Set();((STATE.calendar||{})[dk]||[]).forEach(e=>{const b=evBloque(e);if(b)s.add(b);});return s;}
+function calRealDia(dk,t){
+  if(t===undefined){try{t=lbTeamDay(dk);}catch(e){t=null;}}
+  if(!t)return null;
+  const pl=calBloquesPlan(dk);
+  const bs=pl.size?[...pl]:['pista','gym'];
+  let ua=0,hay=false;bs.forEach(b=>{if(t[b]){ua+=t[b].uaSes;hay=true;}});
+  return hay?ua:null;
+}
+window.calRealDia=calRealDia;window.calBloquesPlan=calBloquesPlan;
 function calRealMap(){
   const m={};
   try{
     const dks=[...new Set((STATE.rpe||[]).map(x=>x&&x.dk).filter(Boolean))];
     dks.forEach(dk=>{
       let t=null;try{t=lbTeamDay(dk);}catch(e){}
-      if(t&&t.uaSes>0)m[dk]=Math.round(t.uaSes);
+      const v=calRealDia(dk,t);
+      if(v>0)m[dk]=Math.round(v);
     });
   }catch(e){}
   const meta=STATE.calMeta||{};
@@ -36511,7 +36542,7 @@ function calCerrarSesion(dk){
   const evs=((STATE.calendar||{})[dk]||[]).filter(e=>!evSP(e));
   const minDe={};
   evs.forEach(e=>{
-    const b=(e.type==='fuerza')?'gym':((e.type==='entreno'||e.type==='partido')?'pista':null);
+    const b=evBloque(e);   /* v737 · la misma correspondencia que la carga real */
     if(!b)return;
     minDe[b]=(minDe[b]||0)+evDur(e);
   });
@@ -36643,10 +36674,15 @@ function calBloquesN(dk){
   let t=null;try{t=lbTeamDay(dk);}catch(e){}
   if(!t||!t.n)return '';
   const LB=[['pista','Pista'],['gym','Gimnasio'],['tec','Tecnificación']];
-  const bs=LB.map(([k,lab])=>{const b=t[k];return (b&&b.nb>0)?{lab,nb:b.nb,ua:Math.round(b.uaSes)}:null;}).filter(Boolean);
-  if(!bs.length||!bs.some(b=>b.nb<t.n))return '';
+  /* v737 · lo que no entra en la comparación con el plan se dice: un bloque sin
+     sesión de su tipo en el calendario y la tecnificación */
+  const pl=calBloquesPlan(dk);
+  const fuera=k=>k==='tec'||(pl.size>0&&!pl.has(k));
+  const bs=LB.map(([k,lab])=>{const b=t[k];return (b&&b.nb>0)?{k,lab,nb:b.nb,ua:Math.round(b.uaSes),fuera:fuera(k)}:null;}).filter(Boolean);
+  if(!bs.length||!bs.some(b=>b.nb<t.n||b.fuera))return '';
   return '<div class="cal-cmp-bl">'+bs.map(b=>
-    '<span><em>'+b.lab+'</em> '+b.ua+' UA · <b>'+b.nb+' de '+t.n+'</b></span>').join('')+'</div>';
+    '<span'+(b.fuera?' class="cal-cmp-fuera"':'')+'><em>'+b.lab+'</em> '+b.ua+' UA · <b>'+b.nb+' de '+t.n+'</b>'
+    +(b.fuera?' · <i>'+(b.k==='tec'?'no es sesión del equipo':'sin programar')+', fuera del %</i>':'')+'</span>').join('')+'</div>';
 }
 function calPlanPanel(dk,pl,real,dev){if(!pl.n)return '';const grado=pl.lab.toUpperCase();let vcol='#8a93a3',vtx='Sin carga real todavía',vsub='Se completará al cargar el RPE de este día';if(dev){vcol=dev.col;vtx=dev.tier==='ok'?'Bien programado':dev.tier==='warn'?'Ligero desajuste':'Desajuste — revisar';vsub=`${dev.arrow} ${dev.pct>0?'+':''}${dev.pct}% real vs plan · ${dev.lab}`;}const realStr=real!=null?`${real} UA`:'—';return `<div class="cal-panel" style="--pc:${pl.col}"><div class="cal-panel-tl">${calTraffic(pl.peak,82)}</div><div class="cal-panel-main"><div class="cal-panel-lab">Intensidad programada</div><div class="cal-panel-grade" style="color:${colTexto(pl.col)}">${grado}</div><div class="cal-panel-dur"><span class="cal-clock">◷</span> <b>${pl.totMin}′</b> <span class="muted">duración total${pl.n>1?` · ${pl.n} sesiones`:''}</span></div></div><div class="cal-panel-cmp"><div class="cal-cmp-row"><span>Programado</span><b>${pl.planUA} UA</b></div><div class="cal-cmp-row"><span>Real (RPE)</span><b style="color:var(--c-data,#3f5572)">${realStr}</b></div>${calBloquesN(dk)}<div class="cal-cmp-verdict" style="--vc:${vcol}"><span class="cal-cmp-dot"></span><div class="cal-cmp-vtx"><b>${vtx}</b><span>${vsub}</span></div></div></div></div>`;}
 function calBajas(dk){const out=[];try{buildPhysio();}catch(e){}for(const name in (STATE.players||{})){let cs=null;try{cs=effectiveStatus(name,dk);}catch(e){}if(cs&&(cs.status==='baja'||cs.status==='noentto'))out.push({name,status:cs.status,zone:cs.zone||'',side:cs.side||''});}return out.sort((a,b)=>physioSev(b.status)-physioSev(a.status));}
@@ -37488,13 +37524,15 @@ function calRefMD(){
       const m=calMd(dk,ps);
       if(!m)continue;
       let td=null;try{td=lbTeamDay(dk);}catch(e){}
-      if(!td||!(td.uaSes>0))continue;       // sin carga registrada: no sabemos, no inventamos
+      /* v737 · la misma carga que se compara con el plan: sólo lo programado */
+      const ru=calRealDia(dk,td);
+      if(!(ru>0))continue;       // sin carga registrada: no sabemos, no inventamos
       if(!porMD[m.txt]){fuera++;continue;}   // ciclos de más de una semana
       porMD[m.txt].dias.push(dk);
       /* v514 · En la misma unidad que el plan, porque esta referencia se dibuja
          al lado de la barra de plan en el microciclo: con una media de equipo
          enfrente de un plan por jugador, la comparación sería falsa. */
-      porMD[m.txt].ua.push(td.uaSes);
+      porMD[m.txt].ua.push(ru);
     }
   }
   const out=MD_ORDEN.map(k=>{
@@ -51692,8 +51730,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-16.5*/
-const VER_ACTUAL='2026-11-16.5';
+/*BUILD:2026-11-16.6*/
+const VER_ACTUAL='2026-11-16.6';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
