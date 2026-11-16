@@ -15068,9 +15068,9 @@ function bmMarcaMenu(){
      Performance baja al pie del menú, donde cabe entero (arriba salía cortado) */
   const y=+(String(typeof TEMP_INICIO!=='undefined'?TEMP_INICIO:'').slice(2,4))||0;
   const sub=document.createElement('span');sub.className='sbm-sub';sub.textContent='Control de cargas'+(y?' · '+y+'/'+(y+1):'');m.appendChild(sub);
-  /* v709 · el escudo del 50 aniversario (transparente, azul marino con su marco
-     dorado) y el nombre en letra, para la barra oscura del ordenador; el logo
-     de la cabecera lleva fondo blanco y sobre el azul quedaba como un parche */
+  /* v709 · el escudo del 50 aniversario (transparente) y el nombre en letra; el
+     logo de la cabecera lleva fondo blanco y sobre la barra quedaba como un
+     parche. v722 · los usa la barra flotante. */
   const es=document.createElement('img');es.className='sbm-escudo';es.src='escudo.png';es.alt='';es.setAttribute('aria-hidden','true');
   es.onerror=()=>{es.remove();m.classList.add('sbm-sin-escudo');};
   const tx=document.createElement('span');tx.className='sbm-txt';
@@ -15423,7 +15423,9 @@ function bmMenuHoy(){
   const rd=lee('readiness'),di=lee('disponibles'),mo=lee('con molestia');
   let par=null;try{const hoy=dkey(new Date());const sig=calPartidosDks().find(x=>x>=hoy);
     if(sig){const ev=((STATE.calendar||{})[sig]||[]).find(evEsPartido)||{};const f=Math.round((dkToDate(sig)-dkToDate(hoy))/86400000);
-      par={dk:sig,riv:evRival(ev)||'Partido',cuando:f===0?'hoy':f===1?'mañana':'en '+f+' días'};}}catch(e){}
+      const dd=dkToDate(sig),WD3=['dom','lun','mar','mié','jue','vie','sáb'],hora=(ev.time||'').trim();
+      par={dk:sig,riv:evRival(ev)||'Partido',cuando:f===0?'hoy':f===1?'mañana':'en '+f+' días',
+        fecha:WD3[dd.getDay()]+' '+dd.getDate()+'/'+(dd.getMonth()+1)+(hora?' · '+hora:'')};}}catch(e){}
   let dia='';try{const d=REF();const WD=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];dia=WD[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);}catch(e){}
   let w=document.getElementById('sb-hoy');
   if(!rd&&!di&&!par){if(w)w.remove();return;}
@@ -15432,8 +15434,8 @@ function bmMenuHoy(){
   const E=bmEsc;
   const cifra=(x,l)=>x?'<span class="sbh-c"><b style="color:'+E(x.c?colTexto(x.c):'var(--txt)')+'">'+E(x.t)+'</b><small>'+l+'</small></span>':'';
   const h='<div class="sbh-tit"><span>'+E(dia)+'</span></div>'
-    +'<div class="sbh-cs">'+cifra(rd,'readiness')+cifra(di,'disponibles')+cifra(mo,'molestia')+'</div>'
-    +(par?'<button type="button" class="sbh-par" data-dk="'+E(par.dk)+'" title="Abre la previa del partido"><i></i><span>'+E(par.riv)+'</span><b>'+E(par.cuando)+'</b></button>':'');
+    +'<div class="sbh-cs">'+cifra(rd,'Readiness')+cifra(di,'Disponibles')+cifra(mo,'Con molestia')+'</div>'
+    +(par?'<button type="button" class="sbh-par" data-dk="'+E(par.dk)+'" title="Abre la previa del partido"><i></i><span>'+E(par.riv)+'</span><b>'+E(par.cuando)+'</b><em>'+E(par.fecha)+'</em></button>':'');
   if(w.dataset.h!==h){w.dataset.h=h;w.innerHTML=h;}
   w.setAttribute('role','button');w.tabIndex=0;w.setAttribute('aria-label','El día de un vistazo: abre el Resumen');
   if(!w.dataset.k){w.dataset.k='1';w.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===w){e.preventDefault();go('equipo');}});}
@@ -47475,85 +47477,6 @@ html[data-theme="dark"]{--sbh-bg:rgba(255,255,255,.05);--sbh-borde:rgba(255,255,
   body.sb-min #sidebar .sb-item.on::before{display:none}
 }
 </style>
-<style id="esc-v709">
-/* v709 · ORDENADOR · La barra lateral del 50 aniversario. Daniel, 15/11/2026:
-   «lo que no me gusta es la barra lateral. Rehazla por completo … el logo
-   aparece con un fondo blanco, es del mismo color que el resto de la página …
-   me gustaría que destacase, que llamase la atención, que fuese mucho más
-   atractiva». La barra toma los colores del escudo del 50 aniversario: el azul
-   marino de su campo y el dorado de su marco. El dorado es, por §2.3, el color
-   reservado a la barra lateral, así que aquí sí: marca la sección elegida, la
-   temporada y los acentos. Arriba, el escudo (transparente: sin parche blanco)
-   con el nombre en letra; debajo, el día de un vistazo como una tarjeta de
-   cristal; las secciones en blanco sobre el azul, la elegida con un brillo
-   dorado y su filo; al pie, Handball Performance en su versión clara. Igual en
-   los dos temas: la barra es la marca, no el lienzo. El rojo sigue siendo sólo
-   el de Alertas. */
-.sbm-escudo,.sbm-txt,.sbm-id{display:none}
-@media (min-width:761px) and (pointer:fine){
-  html body #sidebar,html body.sb-min #sidebar{
-    --sbz-tx:#f4f6fb;--sbz-mu:rgba(226,232,244,.62);--sbz-mu2:rgba(226,232,244,.60);--sbz-oro:#e8b04b;--sbz-oro2:#f3d48a;--sbz-linea:rgba(255,255,255,.08);
-    --ok-text:#7ceaad;--warn-text:#ffd18a;--bad-text:#ffa79e;--txt:var(--sbz-tx);--muted:var(--sbz-mu);
-    background:radial-gradient(280px 220px at 50% -40px,rgba(232,176,75,.20),transparent 70%),
-      radial-gradient(260px 300px at 120% 105%,rgba(48,86,196,.28),transparent 70%),
-      linear-gradient(180deg,#1c2a47 0%,#15203a 42%,#0e1628 100%)!important;
-    -webkit-backdrop-filter:none!important;backdrop-filter:none!important;color:var(--sbz-tx)!important;
-    border-right:none!important;box-shadow:1px 0 0 rgba(232,176,75,.28),6px 0 24px -12px rgba(9,14,26,.45)!important}
-  html[data-theme="dark"] body #sidebar{box-shadow:1px 0 0 rgba(232,176,75,.30),6px 0 24px -10px rgba(0,0,0,.7)!important}
-  /* la marca: el escudo y el nombre */
-  html body #sidebar .sb-brand{padding:14px 16px 10px!important;border-bottom:none!important}
-  html body #sidebar .sb-marca{display:block!important}
-  html body #sidebar .sb-marca>.sbm-club,html body #sidebar .sb-marca>.sbm-sub,html body #sidebar .sb-marca>.sbm-hp{display:none!important}
-  html body #sidebar .sbm-id{display:flex;align-items:center;gap:12px;cursor:pointer;border-radius:12px;outline:none}
-  html body #sidebar .sbm-id:focus-visible{box-shadow:0 0 0 2px var(--sbz-oro)}
-  html body #sidebar .sbm-escudo{display:block;flex:none;height:56px;width:auto;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45)) drop-shadow(0 0 18px rgba(232,176,75,.18))}
-  html body #sidebar .sbm-txt{display:flex;flex-direction:column;min-width:0;line-height:1.15}
-  html body #sidebar .sbm-nom{font-size:19px;font-weight:800;letter-spacing:.02em;color:#fff;text-transform:uppercase}
-  html body #sidebar .sbm-que{margin-top:3px;font-size:12px;font-weight:500;color:var(--sbz-mu)}
-  html body #sidebar .sbm-temp{margin-top:6px;align-self:flex-start;padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-    color:#1b1405;background:linear-gradient(135deg,var(--sbz-oro2),var(--sbz-oro))}
-  html body #sidebar .sbm-sin-escudo .sbm-club{display:flex!important}
-  /* el día de un vistazo: una tarjeta de cristal con su filo dorado */
-  html body #sb-hoy{margin:0 12px 8px;padding:10px 12px;border-radius:14px;background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.04));
-    box-shadow:inset 0 0 0 1px rgba(232,176,75,.22),0 8px 20px -12px rgba(0,0,0,.5)}
-  html body #sb-hoy:hover{background:linear-gradient(160deg,rgba(255,255,255,.14),rgba(255,255,255,.06))}
-  html body #sb-hoy .sbh-tit{color:var(--sbz-oro2);letter-spacing:.02em}
-  html body #sb-hoy .sbh-c small{color:var(--sbz-mu)}
-  html body #sb-hoy .sbh-c b{font-size:19px}
-  html body #sb-hoy .sbh-par{border-top-color:rgba(255,255,255,.10);color:var(--sbz-tx)}
-  html body #sb-hoy .sbh-par i{background:var(--sbz-oro)}
-  html body #sb-hoy .sbh-par b{color:var(--sbz-oro2)}
-  html body #sb-hoy .sbh-par:hover span{color:#fff;text-decoration:underline}
-  html body #sb-hoy:focus-visible{outline:2px solid var(--sbz-oro)}
-  /* las secciones */
-  html body #sidebar .sb-glab{color:var(--sbz-mu2)!important;margin:12px 20px 4px!important}
-  html body #sidebar .sb-item{min-height:29px!important;padding:4px 10px!important;margin:0 10px 1px!important;color:rgba(240,244,252,.80)!important;background:none!important;box-shadow:none!important}
-  html body #sidebar .sb-item>svg{color:rgba(240,244,252,.62)!important;stroke:currentColor!important}
-  html body #sidebar .sb-item:hover{background:rgba(255,255,255,.07)!important;color:#fff!important}
-  html body #sidebar .sb-item:hover>svg{color:#fff!important}
-  html body #sidebar .sb-item.on{background:linear-gradient(90deg,rgba(232,176,75,.26),rgba(232,176,75,.07))!important;color:#fff!important;font-weight:600!important;
-    box-shadow:inset 0 0 0 1px rgba(232,176,75,.20)!important}
-  html body #sidebar .sb-item.on>svg{color:var(--sbz-oro2)!important}
-  html body #sidebar .sb-item.on::before{background:var(--sbz-oro)!important;box-shadow:0 0 10px rgba(232,176,75,.7)}
-  html body #sidebar .sb-item[data-sg="5"]>svg{color:#ff8a80!important}
-  html body #sidebar .sb-item[data-sg="5"].on::before{background:var(--sbz-oro)!important}
-  html body #sidebar .sb-item .sb-cnt{color:var(--sbz-mu)!important}
-  html body #sidebar .sb-item:focus-visible{outline:2px solid var(--sbz-oro)!important;outline-offset:-2px}
-  html body #sidebar .sb-nav{scrollbar-color:rgba(255,255,255,.18) transparent}
-  /* el pie: Handball Performance en claro, plegar y la versión */
-  html body #sidebar .sb-foot{border-top:1px solid var(--sbz-linea)!important;padding-top:10px}
-  html body #sidebar .sbm-pie .sbm-hp.hp-dark{display:none!important}
-  html body #sidebar .sbm-pie .sbm-hp.hp-light{display:block!important;opacity:.85}
-  html body #sidebar .sb-foot,html body #sidebar .sb-foot *{color:var(--sbz-mu)!important}
-  html body #sidebar .sb-collapse:hover{color:#fff!important}
-  html body #sidebar .sb-ver{color:var(--sbz-mu2)!important}
-  /* plegado: el escudo pequeño */
-  html body.sb-min #sidebar .sbm-escudo{height:40px;margin:0 auto}
-  html body.sb-min #sidebar .sbm-txt{display:none}
-  html body.sb-min #sidebar .sbm-id{justify-content:center}
-  html body.sb-min #sidebar .sb-brand{padding:14px 6px 10px!important}
-}
-</style>
 <style id="esc-v710">
 /* v710 · ORDENADOR · El aspecto del Resumen en todas las pantallas. Daniel,
    16/11/2026: «lleva el aspecto de resumen a todas las pantallas». Había tres
@@ -47614,6 +47537,110 @@ html[data-theme="dark"]{--sbh-bg:rgba(255,255,255,.05);--sbh-borde:rgba(255,255,
   .tbl th.sortable::after{content:"↕"!important}
   .tbl th.sort-asc::after{content:"↑"!important}
   .tbl th.sort-desc::after{content:"↓"!important}
+}
+</style>
+<style id="esc-v722">
+/* v722 · ORDENADOR · La barra lateral flotante, como en macOS 26. Daniel,
+   16/11/2026: «la barra lateral sigue sin convencerme, cámbiala 100 %». Es la
+   quinta vuelta y esta vez se eligió con imágenes: tres direcciones sobre la
+   app real (flotante, marco del club, panel de mando) y eligió la flotante.
+   La barra deja de ser una franja pegada al borde y pasa a ser una tarjeta que
+   flota separada de la ventana, con las esquinas redondeadas y su sombra
+   (HIG · Sidebars, macOS 26: la barra lateral flota por encima del contenido).
+   Clara en el tema claro y oscura en el oscuro, que es lo que hace el sistema;
+   la sección elegida va rellena del color de acción, como la fila elegida de
+   una lista de macOS. Arriba, el escudo transparente con el nombre; debajo, el
+   día de un vistazo como una lista (las mismas cifras de la v708, leídas de la
+   tira del Resumen) y el próximo partido con su fecha; al pie, Handball
+   Performance, plegar y la versión. Sustituye a la barra del 50 aniversario
+   (v709), que se borra. El rojo sigue siendo sólo el de Alertas. */
+.sbm-escudo,.sbm-txt,.sbm-id{display:none}
+:root{--sbw:220px;--sbf-bg:rgba(255,255,255,.84);--sbf-borde:rgba(0,0,0,.07);--sbf-sombra:0 1px 2px rgba(0,0,0,.04),0 14px 36px -10px rgba(15,23,42,.22);
+  --sbf-pozo:rgba(118,118,128,.09);--sbf-hover:rgba(118,118,128,.12);--sbf-linea:rgba(60,60,67,.12)}
+html[data-theme="dark"]{--sbf-bg:rgba(44,44,50,.84);--sbf-borde:rgba(255,255,255,.09);--sbf-sombra:0 14px 36px -10px rgba(0,0,0,.65);
+  --sbf-pozo:rgba(255,255,255,.06);--sbf-hover:rgba(255,255,255,.08);--sbf-linea:rgba(255,255,255,.08)}
+@media screen and (min-width:761px) and (pointer:fine){
+  html:root body #sidebar,html:root body.sb-min #sidebar{top:12px!important;left:12px!important;bottom:12px!important;height:auto!important;border-radius:20px!important;
+    background:var(--sbf-bg)!important;background-image:none!important;-webkit-backdrop-filter:saturate(180%) blur(30px)!important;backdrop-filter:saturate(180%) blur(30px)!important;
+    border:none!important;box-shadow:0 0 0 .5px var(--sbf-borde),var(--sbf-sombra)!important;overflow:hidden;color:var(--txt)!important}
+  html:root body #sidebar{width:var(--sbw)!important}
+  html:root body.sb-min #sidebar{width:64px!important}
+  /* la marca: el escudo y el nombre */
+  html:root body #sidebar .sb-brand{padding:18px 16px 12px!important;border:none!important}
+  html:root body #sidebar .sb-marca{display:block!important}
+  html:root body #sidebar .sb-marca>:not(.sbm-id){display:none!important}
+  html:root body #sidebar .sbm-id{display:flex!important;align-items:center;gap:11px;cursor:pointer;border-radius:12px;outline:none;min-width:0}
+  html:root body #sidebar .sbm-id:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+  html:root body #sidebar .sbm-escudo{display:block!important;height:48px;width:auto;flex:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.18))}
+  html:root body #sidebar .sbm-txt{display:flex!important;flex-direction:column;line-height:1.22;min-width:0}
+  html:root body #sidebar .sbm-txt>*{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html:root body #sidebar .sbm-nom{font-size:16px;font-weight:700;color:var(--txt)!important;letter-spacing:-.01em;text-transform:none}
+  html:root body #sidebar .sbm-que,html:root body #sidebar .sbm-temp{font-size:12px;font-weight:500;color:var(--muted)!important;background:none!important;padding:0;margin:0;letter-spacing:0;text-transform:none}
+  html:root body #sidebar .sbm-sin-escudo .sbm-club{display:flex!important}
+  /* el día de un vistazo: una lista en un pozo */
+  html:root body #sb-hoy{display:block!important;margin:2px 12px 6px;padding:10px 12px;border-radius:12px;background:var(--sbf-pozo);box-shadow:none;cursor:pointer;transition:background .15s ease}
+  html:root body #sb-hoy:hover{background:var(--sbf-hover)}
+  html:root body #sb-hoy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  html:root body #sb-hoy .sbh-tit{display:flex;justify-content:space-between;margin-bottom:5px;font-size:11px;font-weight:600;color:var(--muted)}
+  html:root body #sb-hoy .sbh-cs{display:flex;flex-direction:column;gap:3px}
+  html:root body #sb-hoy .sbh-c{display:flex;flex-direction:row-reverse;justify-content:space-between;align-items:baseline;gap:8px;min-width:0}
+  html:root body #sb-hoy .sbh-c b{font-size:14px;font-weight:700;letter-spacing:-.01em;line-height:1.25;font-variant-numeric:tabular-nums;white-space:nowrap}
+  html:root body #sb-hoy .sbh-c small{font-size:12.5px;font-weight:500;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html:root body #sb-hoy .sbh-par{display:grid;grid-template-columns:7px minmax(0,1fr) auto;column-gap:7px;row-gap:1px;align-items:center;width:100%;margin:8px 0 0;padding:7px 0 0;
+    border:none;border-top:.5px solid var(--sbf-linea);background:none;font:inherit;font-size:12.5px;color:var(--txt);text-align:left;cursor:pointer}
+  html:root body #sb-hoy .sbh-par i{width:7px;height:7px;border-radius:50%;background:var(--accent);-webkit-mask:none;mask:none}
+  html:root body #sb-hoy .sbh-par span{min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html:root body #sb-hoy .sbh-par b{font-weight:600;color:var(--acc-seg,var(--accent));white-space:nowrap}
+  html:root body #sb-hoy .sbh-par em{grid-column:2/4;font-style:normal;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html:root body #sb-hoy .sbh-par:hover span{color:var(--acc-seg,var(--accent))}
+  /* las secciones */
+  html:root body #sidebar .sb-glab{font-size:11px!important;font-weight:600!important;color:var(--muted)!important;margin:14px 22px 4px!important;padding:0!important;letter-spacing:.06em}
+  html:root body #sidebar .sb-item{width:auto!important;min-height:30px!important;padding:5px 9px!important;margin:0 10px 1px!important;gap:9px!important;border-radius:8px!important;
+    color:var(--txt)!important;background:none!important;box-shadow:none!important;font-size:13px!important;font-weight:500!important}
+  html:root body #sidebar .sb-item::before,html:root body #sidebar .sb-item::after{display:none!important}
+  html:root body #sidebar .sb-item>svg{width:18px!important;height:18px!important;padding:0!important;background:none!important;color:var(--accent)!important;stroke:currentColor!important}
+  html:root body #sidebar .sb-item:hover{background:var(--sbf-hover)!important}
+  html:root body #sidebar .sb-item.on{background:var(--accent)!important;color:var(--on-accent,#fff)!important;font-weight:600!important}
+  html:root body #sidebar .sb-item.on>svg{color:var(--on-accent,#fff)!important}
+  html:root body #sidebar .sb-item .sb-cnt{color:var(--muted)!important}
+  html:root body #sidebar .sb-item.on .sb-cnt{color:var(--on-accent,#fff)!important;opacity:.85}
+  html:root body #sidebar .sb-item[data-sg="5"]>svg{color:var(--bad)!important}
+  html:root body #sidebar .sb-item[data-sg="5"].on>svg{color:var(--on-accent,#fff)!important}
+  html:root body #sidebar .sb-item:focus-visible{outline:2px solid var(--accent)!important;outline-offset:1px}
+  html:root body #sidebar .sb-nav{padding:2px 0 8px!important;gap:0!important}
+  /* el pie: Handball Performance, plegar y la versión */
+  html:root body #sidebar .sb-foot{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"pie pie" "act col" "ver ver";align-items:center;
+    border-top:.5px solid var(--sbf-linea)!important;padding:8px 10px 10px!important;margin:0 4px}
+  html:root body #sidebar .sb-foot,html:root body #sidebar .sb-foot *{color:var(--muted)!important}
+  html:root body #sidebar .sbm-pie{grid-area:pie;display:flex!important;padding:4px 8px 6px!important}
+  html:root body #sidebar .sbm-pie .sbm-hp{height:20px;width:auto;display:block;opacity:.9}
+  html:root body #sidebar .sbm-pie .sbm-hp.hp-light{display:none!important}
+  html:root[data-theme="dark"] body #sidebar .sbm-pie .sbm-hp.hp-dark{display:none!important}
+  html:root[data-theme="dark"] body #sidebar .sbm-pie .sbm-hp.hp-light{display:block!important}
+  html:root body #sidebar .sb-collapse{grid-area:col;width:28px!important;height:28px;min-height:0!important;padding:0!important;justify-content:center;gap:0!important;border-radius:7px!important}
+  html:root body #sidebar .sb-collapse span{display:none!important}
+  html:root body #sidebar .sb-collapse:hover{background:var(--sbf-hover)!important;color:var(--txt)!important}
+  html:root body #sidebar .sb-ver{grid-area:ver;padding:2px 8px 0!important;font-size:10.5px!important;letter-spacing:.02em}
+  /* plegada: el escudo, los iconos y desplegar */
+  html:root body.sb-min #sidebar .sb-brand{padding:14px 6px 10px!important}
+  html:root body.sb-min #sidebar .sbm-id{justify-content:center}
+  html:root body.sb-min #sidebar .sbm-escudo{height:38px}
+  html:root body.sb-min #sidebar .sbm-txt{display:none!important}
+  html:root body.sb-min #sb-hoy{display:none!important}
+  html:root body.sb-min #sidebar .sb-item{justify-content:center;margin:0 8px 2px!important;padding:7px 0!important}
+  html:root body.sb-min #sidebar .sb-foot{grid-template-columns:1fr;grid-template-areas:"col";justify-items:center;margin:0}
+  html:root body.sb-min #sidebar .sb-foot>:not(.sb-collapse){display:none!important}
+  html:root body.sb-min #sidebar .sb-collapse{transform:scaleX(-1)}
+}
+@media screen and (min-width:901px) and (pointer:fine){
+  html:root body{padding-left:calc(var(--sbw) + 24px)!important}
+  html:root body.sb-min{padding-left:88px!important}
+}
+@media screen and (min-width:1360px) and (pointer:fine){
+  body.bm-jl-on #bm-jl{left:calc(var(--sbw) + 24px)!important}
+  body.sb-min.bm-jl-on #bm-jl{left:88px!important}
+  /* con la plantilla al lado, la ficha va pegada a ella y no centrada en lo que sobra */
+  body.bm-jl-on main{margin-left:0!important}
 }
 </style>
 <script>
