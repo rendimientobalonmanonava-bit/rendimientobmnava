@@ -14181,6 +14181,7 @@ function bmbIndice(){
   A('Planificar el día de hoy','Añadir una sesión al calendario',()=>{go('cal');calOpenDay(dkey(new Date()));},'entreno partido');
   A('Informe de la semana','La semana cerrada en una hoja que se exporta',()=>{if(window.bmInformeSemana)bmInformeSemana();},'resumen semanal informe');
   A('Cerrar la sesión','Minutos de cada bloque y quién entrenó',()=>{if(window.bmCierre)bmCierre();},'cerrar sesion minutos duracion convocar asistencia');
+  if(!esMovil())A('Qué hay de nuevo','Las funciones nuevas del ordenador, con su «Probar»',()=>{if(window.bmNovedadesMac)bmNovedadesMac();},'novedades nuevo cambios version');
   if(!esMovil())A('Presentar','Pantalla completa para la reunión o la tele del vestuario',()=>{if(window.bmPresentar)bmPresentar();},'presentacion pantalla completa reunion tele vestuario');
   A('Recordatorio del parte','Copia «Falta el cuestionario de wellness de hoy: …» para el grupo',()=>{if(window.bmRecordatorio)bmRecordatorio('well');},'recordatorio wellness parte whatsapp grupo faltan');
   A('Datos que faltan','Días sin minutos, partidos sin minutos jugados y cuestionarios pendientes',()=>{if(window.bmFaltan)bmFaltan();},'faltan pendientes huecos completar');
@@ -19669,6 +19670,57 @@ function bmNovedades(){
     alCerrar:()=>{try{localStorage.setItem(BMN.k,BMN.id);}catch(e){}}});
   h.querySelector('[data-nov="ok"]').onclick=()=>bmHojaCierra('bmh-nov');
 }
+/* ═══ v758 · ORDENADOR · Qué hay de nuevo ═══
+   Desde el 16/11/2026 hay en el ordenador muchas funciones nuevas que sólo
+   encuentra quien sabe dónde están (lo escrito en la v459: de doce funciones
+   suyas, Virginia no conocía cinco). Una hoja que sale UNA vez por versión de
+   la lista (`BMNM.id`, que hay que cambiar a mano cuando cambie la lista) y se
+   vuelve a abrir desde «⋯» y la búsqueda. Cada novedad lleva su «Probar», que
+   abre esa función. Lo visto es de este ordenador (`bmnava-novedades-mac`). */
+const BMNM={k:'bmnava-novedades-mac',id:'2026-11-16b'};
+function bmNovedadesMac(){
+  const I=k=>(SB_ICONS[k]||SB_ICONS._||'');
+  const hoyK=dkey(new Date());
+  const L=[
+    ['Para el día a día'],
+    ['cal','Cerrar la sesión','Los minutos de cada bloque y quién entrenó, en una hoja, con lo respondido fijo.',()=>bmCierre()],
+    ['config','Datos que faltan','Días con RPE y sin minutos, partidos sin minutos jugados, RPE y partes pendientes, cada uno con su arreglo.',()=>bmFaltan()],
+    ['parte','Recordatorio del parte','«Falta el cuestionario de wellness de hoy: …», listo para pegar en el grupo.',()=>bmRecordatorio('well')],
+    ['cal','Plan individual','En el día del calendario, qué parte de lo programado le toca a cada uno. Cambia su proyección del ACWR.',()=>{go('cal');setTimeout(()=>calOpenDay(hoyK),80);}],
+    ['medico','Vuelta a la competición','En cada lesión abierta: días, qué parte de la carga del equipo hace ya, su ACWR y los criterios que faltan.',()=>go('medico')],
+    ['alertas','Alertas que se marcan «Visto»','Una alerta vista sale de la lista y del número del menú hasta que empeore o se resuelva.',()=>go('alertas')],
+    ['jugadores','Comparar dos jugadores','Lado a lado: carga, recuperación, capacidades y pruebas.',()=>bmComparar()],
+    ['equipo','Informe de la semana','La semana cerrada en una hoja que se exporta.',()=>bmInformeSemana()],
+    ['equipo','Desde tu última visita','Lo que ha entrado desde la última vez en este ordenador.',()=>bmDesdeVisita()],
+    ['jugadores','Su temporada, en la ficha','La carga por semanas, el ACWR, la recuperación y lo que vino antes de cada molestia.',()=>go('jugadores')],
+    ['hr','Pulsómetros como Mail','Con la ventana ancha, las sesiones en una lista a la izquierda y el detalle a la derecha.',()=>{go('hr');try{hrModo('equipo');}catch(e){}}],
+    ['Como una app de Mac'],
+    ['_','Buscar como Spotlight · ⌘K','Jugadores, pantallas, acciones o un día, con la vista previa de lo elegido.',()=>bmSpot()],
+    ['jugadores','Clic derecho','Sobre un jugador o un día, su menú donde está el ratón. La barra espaciadora, la vista rápida.',null],
+    ['equipo','Exportar y copiar','Cada imagen sale antes en una vista previa para copiarla o compartirla; y clic derecho sobre un gráfico lo copia.',null],
+    ['equipo','Presentar · P','Pantalla completa para la reunión o la tele del vestuario, en cinco láminas.',()=>bmPresentar()],
+    ['jugadores','Jugadores en seguimiento','Al final de la barra lateral, quien tiene una lesión abierta o está en readaptación, y los que sigas a mano.',null]
+  ];
+  let k=0;const acc={};
+  const html='<div class="bnm">'+L.map(x=>{
+    if(x.length===1)return '<div class="bnm-h">'+bmEsc(x[0])+'</div>';
+    const i=k++;if(x[3])acc[i]=x[3];
+    return '<div class="bnm-f"><span class="bnm-ic">'+I(x[0])+'</span><span class="bnm-t"><b>'+bmEsc(x[1])+'</b><small>'+bmEsc(x[2])+'</small></span>'
+      +(x[3]?'<button type="button" class="btn ghost" data-bnm="'+i+'">Probar</button>':'')+'</div>';}).join('')
+    +'</div><div class="bnm-pie"><button type="button" class="btn" data-bnm="ok">Entendido</button></div>';
+  const h=bmHoja({id:'novmac',titulo:'Qué hay de nuevo',clase:'bnm-h-hoja',html,alCerrar:()=>{try{localStorage.setItem(BMNM.k,BMNM.id);}catch(e){}}});
+  h.querySelector('.bmh-cuerpo').onclick=e=>{const b=e.target.closest('[data-bnm]');if(!b)return;
+    if(b.dataset.bnm==='ok'){bmHojaCierra('bmh-novmac');return;}
+    const f=acc[+b.dataset.bnm];bmHojaCierra('bmh-novmac');setTimeout(()=>{try{f&&f();}catch(err){console.error('bmnava · novedades',err);}},120);};
+}
+function bmNovedadesMacSiToca(){
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino()))return;
+  let v=null;try{v=localStorage.getItem(BMNM.k);}catch(e){return;}
+  if(v===BMNM.id)return;
+  if(!window.__BM_LISTO||window.__RD_CALC||BMH.pila.length||document.getElementById('bm-pres')&&document.getElementById('bm-pres').classList.contains('on')){setTimeout(bmNovedadesMacSiToca,15000);return;}
+  bmNovedadesMac();
+}
+window.bmNovedadesMac=bmNovedadesMac;
 function bmNovedadesSiToca(){
   if(!esMovil())return;
   let v=null;try{v=localStorage.getItem(BMN.k);}catch(e){return;}
@@ -40449,6 +40501,7 @@ function bmTbMenu(e){
     {t:'Cerrar la sesión…',f:()=>{try{bmCierre();}catch(err){}}},
     {t:'Datos que faltan…',f:()=>{try{bmFaltan();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
+    {t:'Qué hay de nuevo…',f:()=>{try{bmNovedadesMac();}catch(err){}}},
     {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
     {t:'Ajustes de cálculo…',k:',',f:pulsa('#btn-settings')},
     {sep:1},{h:'Apariencia'},
@@ -41301,6 +41354,8 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   /* v627 · primero, quién usa el teléfono; las novedades esperan a que se cierre */
   try{setTimeout(()=>{if(typeof bmRolSiToca==='function')bmRolSiToca();},1200);}catch(e){}
   try{setTimeout(()=>{if(typeof bmNovedadesSiToca==='function')bmNovedadesSiToca();},1800);}catch(e){}
+  /* v758 · en el ordenador, «Qué hay de nuevo» */
+  try{setTimeout(()=>{if(typeof bmNovedadesMacSiToca==='function')bmNovedadesMacSiToca();},3500);}catch(e){}
   /* v388 · La barra del día se pinta varias veces durante el arranque, y la
      última que quedaba podía ser de antes de fijar la fecha: salía el aviso de
      «No es hoy» nada más abrir, estando en hoy. Se repinta al final, ya con la
@@ -50285,6 +50340,23 @@ html.bpr-on body{overflow:hidden}
   .sbseg-av i{font-style:normal;font-size:9px;font-weight:700;color:var(--muted)}
   .sbseg-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top}
   .sbseg-n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+}
+</style>
+<style id="esc-v758">
+/* v758 · ORDENADOR · Qué hay de nuevo */
+@media screen and (min-width:761px) and (pointer:fine){
+  .bnm-h-hoja .bmh-caja{width:min(640px,calc(100vw - 80px))!important;max-width:none!important}
+  .bnm-h{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:14px 2px 4px}
+  .bnm-h:first-child{margin-top:2px}
+  .bnm-f{display:flex;align-items:center;gap:12px;padding:9px 2px;border-top:.5px solid var(--line)}
+  .bnm-h+.bnm-f{border-top:0}
+  .bnm-ic{width:30px;height:30px;flex:none;border-radius:8px;background:var(--panel2);color:var(--accent);display:grid;place-items:center}
+  .bnm-ic svg{width:17px;height:17px}
+  .bnm-t{flex:1;min-width:0}
+  .bnm-t b{display:block;font-size:13.5px;color:var(--txt)}
+  .bnm-t small{display:block;font-size:12px;color:var(--muted);line-height:1.35}
+  .bnm-f .btn{flex:none}
+  .bnm-pie{display:flex;justify-content:flex-end;margin-top:12px;position:sticky;bottom:0;padding:8px 0 2px;background:var(--bmh-bg,var(--panel));box-shadow:0 24px 0 0 var(--bmh-bg,var(--panel))}
 }
 </style>
 <style id="bm-v745">
