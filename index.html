@@ -30933,7 +30933,7 @@ try{
     else vhMsg=' · Valoraciones no leídas';
   }
 }catch(ve){vhMsg=' · Valoraciones no leídas ('+ve.message+')';}
-go('equipo');msg.textContent=`Conectado a tu hoja. Wellness: ${STATE.wellness.length} · RPE: ${STATE.rpe.length} registros. Jugadores: ${Object.keys(STATE.players).length}.${rosterMsg}${vhMsg} · ${frescuraTxt()}`;}catch(e){loadRealTeam();msg.innerHTML=`No se pudo leer la hoja en vivo en este entorno (${e.message}). Suele ser CORS de la vista previa: <b>descarga este archivo y ábrelo en tu navegador</b> (doble clic) para el dato actual de toda la plantilla. Mientras tanto te muestro los datos reales del equipo de pretemporada.`;}}
+/* v723 · la lectura de las hojas, para el pie de la barra */try{if(!window.__BM_COPIA)window.__BM_LEIDO=Date.now();bmActPinta();}catch(e){}go('equipo');msg.textContent=`Conectado a tu hoja. Wellness: ${STATE.wellness.length} · RPE: ${STATE.rpe.length} registros. Jugadores: ${Object.keys(STATE.players).length}.${rosterMsg}${vhMsg} · ${frescuraTxt()}`;}catch(e){loadRealTeam();msg.innerHTML=`No se pudo leer la hoja en vivo en este entorno (${e.message}). Suele ser CORS de la vista previa: <b>descarga este archivo y ábrelo en tu navegador</b> (doble clic) para el dato actual de toda la plantilla. Mientras tanto te muestro los datos reales del equipo de pretemporada.`;}}
 
 /* ============================================================
    RF · Botón de actualización (v204)
@@ -30942,6 +30942,7 @@ go('equipo');msg.textContent=`Conectado a tu hoja. Wellness: ${STATE.wellness.le
    ============================================================ */
 const RF_LS='bmnava_lastrefresh';
 function rfSet(state,txt){
+  try{bmActPinta(state==='load'?'load':null);}catch(e){}
   const b=document.getElementById('rf-btn');
   if(!b)return;
   b.classList.remove('spin','ok','err');
@@ -30955,6 +30956,7 @@ function rfSet(state,txt){
   if(state==='ok'||state==='err')setTimeout(()=>{if(document.getElementById('rf-btn'))rfIdle();},4000);
 }
 function rfIdle(){
+  try{bmActPinta();}catch(e){}
   const b=document.getElementById('rf-btn');if(!b)return;
   b.classList.remove('spin','ok','err');b.disabled=false;
   const ico=b.querySelector('.rf-ico'),lbl=b.querySelector('.rf-lbl');
@@ -30969,6 +30971,41 @@ function rfIdle(){
   b.title='Actualizar wellness, RPE, plantilla y valoraciones desde las hojas de Google'
     +(last?(' \u00b7 \u00faltima: '+new Date(+last).toLocaleTimeString()):'');
 }
+/* v723 · ORDENADOR · Cuándo se actualizaron los datos, al pie de la barra
+   lateral, como «Actualizado justo ahora» en Mail. Daniel, 16/11/2026
+   (propuesta 5). El «Hace N min» del botón Actualizar estaba oculto en el
+   ordenador desde que las secciones subieron a la barra (v689), así que no
+   había forma de saber si lo que se veía era de hace un minuto o de ayer
+   (HIG · Feedback: el estado del sistema se enseña, no se adivina).
+   Dos detalles medidos antes de escribirlo: `bmnava_lastrefresh` sólo cambia
+   al PULSAR Actualizar, no al abrir la app —usado tal cual, el pie diría «hace
+   tres días» justo después de leer las hojas—, así que también se apunta la
+   lectura que hace `connect()` al arrancar (`__BM_LEIDO`, en memoria); y si
+   alguna hoja ha salido de la copia guardada (v547), se dice «Sin conexión»
+   con la hora de esa copia, en ámbar. Pulsarlo actualiza, igual que la tecla R. */
+function bmActPinta(estado){
+  if(esMovil())return;
+  const ft=document.querySelector('#sidebar .sb-foot');if(!ft)return;
+  let b=ft.querySelector('.sb-act');
+  if(!b){b=document.createElement('button');b.type='button';b.className='sb-act';
+    b.addEventListener('click',()=>{try{refreshAll();}catch(e){}});
+    ft.insertBefore(b,ft.querySelector('.sb-collapse'));}
+  let last=0;try{last=+localStorage.getItem(RF_LS)||0;}catch(e){}
+  const t=Math.max(last,window.__BM_LEIDO||0);
+  const hhmm=x=>new Date(x).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+  let txt,c='ok';
+  if(estado==='load'){txt='Actualizando…';c='load';}
+  else if(window.__BM_COPIA){const k=window.__BM_COPIA.t;txt='Sin conexión'+(k?' · copia de las '+hhmm(k):'');c='warn';}
+  else if(!t){txt='Sin actualizar';c='';}
+  else{const m=Math.round((Date.now()-t)/60000);
+    txt='Actualizado '+(m<1?'ahora mismo':m<60?'hace '+m+' min':m<1440?'hace '+Math.round(m/60)+' h':'el '+new Date(t).toLocaleDateString('es',{day:'numeric',month:'numeric'}));}
+  const h='<i aria-hidden="true"></i><span>'+txt+'</span>';
+  if(b.dataset.h!==h){b.dataset.h=h;b.innerHTML=h;}
+  b.dataset.c=c;
+  b.title='Actualizar ahora · tecla R'+(t?' · última lectura de las hojas: '+hhmm(t):'');
+  b.setAttribute('aria-label',txt+'. Actualizar ahora');
+}
+setInterval(()=>{try{bmActPinta();}catch(e){}},30000);
 window.rfIdle=rfIdle;
 /* v214 · Médico, Calendario, Cuadrantes, fotos, tests, disponibilidad y demás
    cachean su lectura de localStorage en STATE (o en una variable de módulo,
@@ -47641,6 +47678,24 @@ html[data-theme="dark"]{--sbf-bg:rgba(44,44,50,.84);--sbf-borde:rgba(255,255,255
   body.sb-min.bm-jl-on #bm-jl{left:88px!important}
   /* con la plantilla al lado, la ficha va pegada a ella y no centrada en lo que sobra */
   body.bm-jl-on main{margin-left:0!important}
+}
+</style>
+<style id="esc-v723">
+/* v723 · ORDENADOR · «Actualizado hace N min», al pie de la barra lateral. */
+.sb-act{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  html:root body #sidebar .sb-act{grid-area:act;display:flex;align-items:center;gap:7px;min-width:0;height:28px;padding:0 8px;margin:0;border:none;border-radius:7px;
+    background:none;font:inherit;font-size:11.5px;font-weight:500;text-align:left;cursor:pointer}
+  html:root body #sidebar .sb-act span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html:root body #sidebar .sb-act i{flex:none;width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  html:root body #sidebar .sb-act[data-c="ok"] i{background:var(--ok)}
+  html:root body #sidebar .sb-act[data-c="warn"] i{background:var(--warn)}
+  html:root body #sidebar .sb-act[data-c="load"] i{background:var(--accent);animation:bmActLate 1s ease-in-out infinite}
+  html:root body #sidebar .sb-act:hover{background:var(--sbf-hover)}
+  html:root body #sidebar .sb-foot .sb-act:hover span{color:var(--txt)!important}
+  html:root body #sidebar .sb-act:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  @keyframes bmActLate{50%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){html:root body #sidebar .sb-act[data-c="load"] i{animation:none}}
 }
 </style>
 <script>
