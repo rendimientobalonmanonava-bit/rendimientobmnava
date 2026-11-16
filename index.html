@@ -42099,6 +42099,57 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
     desplegable dentro del detalle. Aquí salen como lo primero que se ve. */
  var PERM_ORDER=['gimnasio','individual','grupo_parcial','grupo_completo','competicion'];
  function fechaCorta(dk){try{return dkToDate(dk).toLocaleDateString('es',{day:'numeric',month:'short'});}catch(err){return dk;}}
+ /* ═══ v749 · Vuelta a la competición ═══
+    La tarjeta ya decía la fase, lo que puede hacer hoy y la vuelta prevista.
+    Le faltaba cómo va de vuelta: cuántos días lleva, qué parte de la carga del
+    equipo hace ya, su ACWR y qué criterios le quedan para pasar de fase. Se
+    añade a ESTA tarjeta y no en un panel aparte, que sería la misma lista de
+    jugadores dos veces. Nada se calcula de nuevo:
+      · la carga es la de siempre (`contDailyTo`) contra la media del equipo de
+        esos mismos días (`lbTeamDay`), sumadas las dos en 7 días; el % va en
+        neutro, porque la app no tiene listón de cuánto es «suficiente»;
+      · el ACWR es el de la ficha (`acwrToDate`), con el color de `acwrClass`;
+      · los criterios son los de la fase en curso, con `medCritOk`. */
+ function medVueltaDatos(e){
+  var o={dias:null,suyo:null,eq:null,pct:null,acwr:null,crit:null};
+  try{o.dias=Math.max(0,dB(e.dk,today()));}catch(x){}
+  try{
+   var ref=refCarga();var map={};
+   contDailyTo(e.name,ref).forEach(function(d){map[d.dk]=d.ua||0;});
+   var suyo=0,eq=0,hay=0;
+   for(var i=0;i<7;i++){var dk=dkey(new Date(ref.getTime()-i*86400000));
+    suyo+=map[dk]||0;
+    var t=null;try{t=window.lbTeamDay?lbTeamDay(dk):null;}catch(x){}
+    if(t&&t.ua>0){eq+=t.ua;hay++;}}
+   o.suyo=Math.round(suyo);o.eq=Math.round(eq);
+   o.pct=eq>0?Math.round(suyo/eq*100):null;
+   var aw=acwrToDate(e.name,ref);o.acwr=(aw&&aw.rel&&isFinite(aw.ratio))?aw.ratio:null;
+  }catch(x){}
+  try{
+   var phs=e.phases||[],f=phs[Math.max(0,Math.min(e.phaseIdx||0,phs.length-1))];
+   var cr=(f&&f.crit)||[];
+   if(cr.length){var falta=cr.filter(function(c){return !medCritOk(c);});
+    o.crit={n:cr.length,ok:cr.length-falta.length,falta:falta.map(function(c){return c.txt||'';}).filter(Boolean)};}
+  }catch(x){}
+  return o;
+ }
+ function medVueltaHTML(e){
+  var v=medVueltaDatos(e);
+  var ac=v.acwr!=null?v.acwr:null,acC=ac!=null?({bad:'var(--bad)',warn:'var(--warn)',ok:'var(--ok)'}[acwrClass(ac)]||'var(--txt)'):'';
+  var k=function(val,lab,tit,col){return '<div class="mcx-k" title="'+esc(tit)+'"><b'+(col?' style="color:'+colTexto(col)+'"':'')+'>'+val+'</b><span>'+lab+'</span></div>';};
+  var h='<div class="mcx-rtp"><div class="mcx-rtl">Vuelta a la competición</div><div class="mcx-ks">'
+   +k(v.dias!=null?v.dias:'—',v.dias===1?'día':'días','Días desde el inicio del episodio')
+   +k(v.pct!=null?v.pct+' %':'—','carga del equipo · 7 d',v.pct!=null?('Ha hecho '+v.suyo+' UA en los últimos 7 días; el equipo, '+v.eq+' UA de media por jugador'):'Sin carga del equipo registrada en los últimos 7 días')
+   +k(ac!=null?fmt(ac,2):'—','ACWR',ac!=null?'El mismo ACWR de su ficha · banda 0,8–1,3':'Sin bloque de carga suficiente para calcularlo',acC)
+   +'</div>'
+   +(v.pct!=null?'<div class="mcx-cb" aria-hidden="true"><i style="width:'+Math.min(100,v.pct)+'%"></i></div>':'');
+  if(v.crit){
+   h+='<div class="mcx-crit"><b>'+v.crit.ok+' de '+v.crit.n+'</b> criterios de esta fase'
+    +(v.crit.falta.length?' · faltan: '+v.crit.falta.slice(0,3).map(esc).join(', ')+(v.crit.falta.length>3?' y '+(v.crit.falta.length-3)+' más':''):' · <span style="color:'+colTexto('var(--ok)')+'">listo para pasar</span>')
+    +'</div>';
+  }
+  return h+'</div>';
+ }
  function medCoachCard(e){
   var sem=semaforo(e);
   var phs=e.phases||[],n=phs.length;
@@ -42129,6 +42180,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    +'</div>'
    +(n?'<div class="mcx-phase"><b>'+esc(f?f.nom:'—')+'</b><span class="muted"> · fase '+(idx+1)+' de '+n+'</span></div>'
      +'<div class="mcx-bar"><i style="width:'+pct+'%;background:'+sem.c+'"></i></div>':'')
+   +medVueltaHTML(e)
    +'<div class="mcx-perms"><div class="mcx-plab">Puede hacer hoy</div>'
     +'<div class="mcx-prow">'+(can.length?can.map(function(k){return chip(k,true);}).join(''):'<span class="mcx-none">Solo tratamiento</span>')+'</div>'
     +(no.length?'<div class="mcx-prow mcx-no">'+no.map(function(k){return chip(k,false);}).join('')+'</div>':'')
@@ -49163,6 +49215,19 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .cal-aj-ua{grid-column:2;grid-row:1}
   .cal-aj-s{grid-column:1/-1;grid-row:2;min-height:44px}
 }
+</style>
+<style id="bm-v749">
+/* v749 · Vuelta a la competición, dentro de la tarjeta de cada episodio abierto */
+.mcx-rtp{margin-top:11px;padding-top:10px;border-top:.5px solid var(--line)}
+.mcx-rtl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.mcx-ks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mcx-k{min-width:0}
+.mcx-k b{display:block;font-size:17px;font-weight:700;color:var(--txt);font-variant-numeric:tabular-nums;line-height:1.15}
+.mcx-k span{display:block;font-size:11px;color:var(--muted);line-height:1.25}
+.mcx-cb{height:4px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-top:8px}
+.mcx-cb i{display:block;height:100%;border-radius:99px;background:var(--c-data,var(--muted))}
+.mcx-crit{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.35}
+.mcx-crit b{color:var(--txt);font-weight:700}
 </style>
 <style id="bm-v745">
 /* v745 · Ficha: su temporada de un vistazo · v747 rehecha */
