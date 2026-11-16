@@ -18090,13 +18090,12 @@ document.addEventListener('click',e=>{
   const b=t.closest('#bmh-convoc [data-cvb]');
   if(b){if(b.dataset.cvb==='limpiar'){CV.sel.clear();cvGuarda(CV.dk,[]);cvPinta();}else if(b.dataset.cvb==='png')cvPNG();}
 });
-function bmPreviaPartido(dk){
-  if(!dk)return;
-  const esc=bmEsc;
+/* v756 · El cálculo de la previa, en una función: lo usan la hoja de la
+   previa y el modo presentación, que no pueden decir cosas distintas. */
+function bmPreviaDatos(dk){
   const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};
   const riv=evRival(ev),hora=(ev.time||'').trim(),comp=(PARTIDO_COMP[evComp(ev)]||'');
   const hoyK=dkey(new Date()),d=dkToDate(dk),falta=Math.round((d-dkToDate(hoyK))/86400000);
-  const WD=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   const cuando=falta===0?'Hoy':falta===1?'Mañana':falta>1?'En '+falta+' días':'';
   const fc=k=>{const x=dkToDate(k);return x.getDate()+'/'+(x.getMonth()+1);};
   const roster=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
@@ -18115,6 +18114,23 @@ function bmPreviaPartido(dk){
     if(p.sev==='bad'&&p.readiness!=null)mot.push('readiness '+Math.round(p.readiness)+' hoy');
     if(mot.length)duda.push({n,p,lab:mot.join(' · '),col:'var(--warn)'});else dispo.push({n,p});
   });
+  const enJuego=dispo.concat(duda),dudaSet=new Set(duda.map(x=>x.n));
+  let mc=null;
+  try{const m=calMicrociclo(dk);let P=0,R=0,nd=0,Q=0,nq=0;
+    m.dias.forEach(x=>{if(x.partido&&x.dk===dk)return;
+      if(x.dk<=hoyK&&x.plan>0&&x.real!=null){P+=x.plan;R+=x.real;nd++;}
+      else if(x.dk>hoyK&&x.plan>0){Q+=x.plan;nq++;}});
+    mc={P,R,nd,Q,nq,dv:nd?calDev(P,R):null};}catch(e){console.error('bmnava · previa · carga',e);}
+  const acw=enJuego.map(x=>({n:x.n,v:x.p.acwr&&x.p.acwr.ratio})).filter(x=>x.v!=null&&!isNaN(x.v)&&acwrClass(x.v)!=='ok').sort((a,b)=>b.v-a.v);
+  return {ev,riv,hora,comp,hoyK,d,falta,cuando,fc,fuera,duda,dispo,enJuego,dudaSet,mc,acw};
+}
+window.bmPreviaDatos=bmPreviaDatos;
+function bmPreviaPartido(dk){
+  if(!dk)return;
+  const esc=bmEsc;
+  const D=bmPreviaDatos(dk);
+  const {riv,hora,comp,hoyK,d,cuando,fc,fuera,duda,dispo,enJuego,dudaSet}=D;
+  const WD=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   const foto=n=>{const r=(window.photoFor&&photoFor(n))||(STATE.players[n]&&STATE.players[n].avatar)||window.__AVATAR__||'';
     return r?'<img src="'+r+'" alt="" loading="lazy">':'<i>'+esc(String(n).charAt(0))+'</i>';};
   const q=n=>n.replace(/'/g,"\\'");
@@ -18124,7 +18140,6 @@ function bmPreviaPartido(dk){
     +'<span class="pv-pt"><b>'+esc(corto(x.n))+'</b><small style="color:'+colTinta(x.col)+'">'+esc(x.lab)+'</small>'
     +(x.extra?'<small>'+esc(x.extra)+'</small>':'')+'</span></button>';
   /* Por línea: cada uno con su cara y su readiness; los de fuera no salen y se cuentan. */
-  const enJuego=dispo.concat(duda),dudaSet=new Set(duda.map(x=>x.n));
   const lineas=JL_GR.map(([k,tit])=>{
     const xs=enJuego.filter(x=>x.p.pos===k).sort((a,b)=>(b.p.readiness||0)-(a.p.readiness||0));
     const nf=fuera.filter(x=>x.p.pos===k).length,tot=xs.length+nf;if(!tot)return '';
@@ -18137,18 +18152,14 @@ function bmPreviaPartido(dk){
       +'</div></div>';}).join('');
   /* La carga del microciclo que acaba en este partido. */
   let carga='';
-  try{const mc=calMicrociclo(dk);let P=0,R=0,nd=0,Q=0,nq=0;
-    mc.dias.forEach(x=>{if(x.partido&&x.dk===dk)return;
-      if(x.dk<=hoyK&&x.plan>0&&x.real!=null){P+=x.plan;R+=x.real;nd++;}
-      else if(x.dk>hoyK&&x.plan>0){Q+=x.plan;nq++;}});
-    const dv=nd?calDev(P,R):null;
+  if(D.mc){const {P,R,nd,Q,nq,dv}=D.mc;
     const nf=v=>Math.round(v).toLocaleString('es');
     carga='<div class="pv-cg">'
       +(dv?'<div class="pv-cg-c"><small>Hasta hoy · '+nd+(nd===1?' día':' días')+'</small><b style="color:'+colTexto(dv.col)+'">'+(dv.pct>0?'+':'')+dv.pct+' %</b><span>'+nf(R)+' de '+nf(P)+' UA planificadas · '+esc(dv.lab.toLowerCase())+'</span></div>'
           :'<div class="pv-cg-c"><small>Hasta hoy</small><b>—</b><span>Sin días con plan y carga registrada</span></div>')
       +'<div class="pv-cg-c"><small>Lo que queda hasta el partido</small><b>'+(nq?nf(Q)+' UA':'—')+'</b><span>'+(nq?nq+(nq===1?' sesión planificada':' días con sesión planificada'):'Nada planificado')+'</span></div>'
-      +'</div>';}catch(e){console.error('bmnava · previa · carga',e);}
-  const acw=enJuego.map(x=>({n:x.n,v:x.p.acwr&&x.p.acwr.ratio})).filter(x=>x.v!=null&&!isNaN(x.v)&&acwrClass(x.v)!=='ok').sort((a,b)=>b.v-a.v);
+      +'</div>';}
+  const acw=D.acw;
   /* los ocho más lejos de la banda; el resto se cuenta (regla del microciclo, v394) */
   const acwHtml=acw.length?'<div class="pv-acw">'+acw.slice(0,8).map(x=>'<button type="button" class="pv-ac" onclick="bmHojaCierra(\'bmh-previa\');openPlayer(\''+q(x.n)+'\')"><span>'+esc(corto(x.n))+'</span><b style="color:'+colTexto('var(--'+acwrClass(x.v)+')')+'">'+fmt(x.v,2)+'</b></button>').join('')+'</div>'+(acw.length>8?'<p class="pv-pie">y '+(acw.length-8)+' más. Están todos en Cargas.</p>':'')
     :'<p class="pv-nada">Todos los que pueden jugar tienen el ACWR entre 0,8 y 1,3.</p>';
