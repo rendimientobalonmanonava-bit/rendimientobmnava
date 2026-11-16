@@ -14181,6 +14181,7 @@ function bmbIndice(){
   A('Planificar el día de hoy','Añadir una sesión al calendario',()=>{go('cal');calOpenDay(dkey(new Date()));},'entreno partido');
   A('Informe de la semana','La semana cerrada en una hoja que se exporta',()=>{if(window.bmInformeSemana)bmInformeSemana();},'resumen semanal informe');
   A('Cerrar la sesión','Minutos de cada bloque y quién entrenó',()=>{if(window.bmCierre)bmCierre();},'cerrar sesion minutos duracion convocar asistencia');
+  A('Recordatorio del parte','Copia «Falta el cuestionario de wellness de hoy: …» para el grupo',()=>{if(window.bmRecordatorio)bmRecordatorio('well');},'recordatorio wellness parte whatsapp grupo faltan');
   A('Datos que faltan','Días sin minutos, partidos sin minutos jugados y cuestionarios pendientes',()=>{if(window.bmFaltan)bmFaltan();},'faltan pendientes huecos completar');
   A('Desde tu última visita','Lo que ha entrado desde la última vez en este equipo',()=>{if(window.bmDesdeVisita)bmDesdeVisita();},'novedades cambios nuevo');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
@@ -17634,12 +17635,12 @@ function bmFaltanPinta(){
   const btn=(lab,data,prim)=>'<button type="button" class="btn'+(prim?'':' ghost')+'" '+data+'>'+lab+'</button>';
   const sec=(tit,html)=>html?'<section class="bfa-s"><h3>'+tit+'</h3>'+html+'</section>':'';
   let h='';
-  h+=sec('Partes de hoy sin responder',D.well.length?fila(D.well.length+(D.well.length===1?' jugador':' jugadores')+' sin parte de wellness',bmfaNombres(D.well),btn('Ver el parte','data-bfa="parte"')):'');
+  h+=sec('Partes de hoy sin responder',D.well.length?fila(D.well.length+(D.well.length===1?' jugador':' jugadores')+' sin parte de wellness',bmfaNombres(D.well),btn(bmRecLab(),'data-brec="well"',true)+btn('Ver el parte','data-bfa="parte"')):'');
   h+=sec('Días con RPE y sin minutos',D.min.map(d=>{let pl=false;try{pl=calBloquesPlan(d.dk).size>0;}catch(e){}
     return fila(bmciTit(d.dk),d.n+' de '+d.total+' cuestionarios valen 0 UA porque falta la duración'+(pl?'':' · el día no tiene sesión planificada'),
       pl?btn('Cerrar la sesión','data-bfa="cierre" data-dk="'+d.dk+'"',true):btn('Poner minutos','data-bfa="dia" data-dk="'+d.dk+'"'));}).join(''));
   h+=sec('Partidos sin minutos jugados',D.par.map(p=>fila(bmciTit(p.dk)+(p.rival?' · '+bmEsc(p.rival):''),'Sin los minutos de cada jugador la carga del partido es la del calentamiento',btn('Poner minutos','data-bfa="dia" data-dk="'+p.dk+'"'))).join(''));
-  h+=sec('RPE que faltan en sesiones planificadas',D.rpe.map(r=>fila(bmciTit(r.dk)+' · faltan '+r.falta.length,bmfaNombres(r.falta),btn('Cerrar la sesión','data-bfa="cierre" data-dk="'+r.dk+'"'))).join(''));
+  h+=sec('RPE que faltan en sesiones planificadas',D.rpe.map(r=>fila(bmciTit(r.dk)+' · faltan '+r.falta.length,bmfaNombres(r.falta),btn(bmRecLab(),'data-brec="rpe" data-dk="'+r.dk+'"',true)+btn('Cerrar la sesión','data-bfa="cierre" data-dk="'+r.dk+'"'))).join(''));
   box.innerHTML=h||'<div class="bci-vacio"><b>Todo al día</b><span>Ni días sin minutos, ni partidos sin minutos jugados, ni cuestionarios pendientes en las dos últimas semanas.</span></div>';
   box.insertAdjacentHTML('beforeend','<p class="small muted bfa-pie">Mira las dos últimas semanas. Un dato que falta no es un cero: un día sin minutos o un partido sin minutos jugados no entra en la carga y baja el ACWR de todos a la vez.</p>');
 }
@@ -17664,6 +17665,50 @@ function bmFaltaLinea(){
     +[D.min.length?D.min.length+(D.min.length===1?' día sin minutos':' días sin minutos'):'',D.par.length?D.par.length+(D.par.length===1?' partido sin minutos jugados':' partidos sin minutos jugados'):'',D.rpe.length?'RPE pendientes':'',D.well.length?'partes de hoy':''].filter(Boolean).join(' · ')+'</span><em aria-hidden="true">›</em>';
 }
 window.bmCierre=bmCierre;window.bmFaltan=bmFaltan;window.bmFaltanDatos=bmFaltanDatos;window.bmFaltaLinea=bmFaltaLinea;
+/* ═══ v751 · Recordatorio con el mensaje hecho ═══
+   Quién falta ya lo sabe la app (`bmFaltaWell`, `bmFaltaRPE`: los mismos que
+   «Datos que faltan»); lo que faltaba era no tener que escribirlo a mano en el
+   grupo. En el teléfono abre la hoja de compartir del sistema (WhatsApp
+   incluido); en el ordenador lo copia y dice qué ha copiado. El mensaje lleva
+   nombres y nada más: ni estado, ni dolor, ni por qué falta nadie. */
+function bmRecTexto(tipo,dk){
+  const hoy=dkey(new Date());dk=dk||hoy;
+  const l=tipo==='rpe'?bmFaltaRPE(dk):bmFaltaWell(dk);
+  if(!l.length)return {txt:'',n:0};
+  const d=dkToDate(dk);
+  const cuando=dk===hoy?'de hoy':'del '+BMCI_DIA[d.getDay()].toLowerCase()+' '+d.getDate()+'/'+(d.getMonth()+1);
+  const nom=l.map(n=>cvCorto(n)).join(', ');
+  const txt=tipo==='rpe'
+    ?'Falta el RPE de la sesión '+cuando+': '+nom+'.'
+    :'Falta el cuestionario de wellness '+cuando+': '+nom+'.';
+  return {txt,n:l.length};
+}
+function bmCompartirTexto(txt){
+  if(esMovil()&&navigator.share){
+    navigator.share({text:txt}).catch(err=>{if(err&&err.name==='AbortError')return;bmCopiaTexto(txt);});
+    return;
+  }
+  bmCopiaTexto(txt);
+}
+function bmCopiaTexto(txt){
+  const ok=()=>toast('Copiado: «'+(txt.length>70?txt.slice(0,67)+'…':txt)+'»');
+  const hoja=()=>{bmHoja({id:'recordatorio',titulo:'Recordatorio',html:'<textarea class="brec-t" readonly rows="4">'+bmEsc(txt)+'</textarea><p class="small muted">Selecciónalo y cópialo.</p>'});
+    setTimeout(()=>{const t=document.querySelector('#bmh-recordatorio .brec-t');if(t){t.focus();t.select();}},80);};
+  try{if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt).then(ok,hoja);return;}}catch(e){}
+  hoja();
+}
+function bmRecordatorio(tipo,dk){
+  const r=bmRecTexto(tipo,dk);
+  if(!r.n){toast(tipo==='rpe'?'No falta ningún RPE de esa sesión':'Han respondido todos el parte de hoy');return;}
+  bmCompartirTexto(r.txt);
+}
+document.addEventListener('click',e=>{
+  const t=e.target&&e.target.closest&&e.target.closest('[data-brec]');if(!t)return;
+  e.preventDefault();e.stopPropagation();
+  bmRecordatorio(t.dataset.brec,t.dataset.dk||null);
+});
+function bmRecLab(){return esMovil()?'Enviar recordatorio':'Copiar recordatorio';}
+window.bmRecordatorio=bmRecordatorio;window.bmRecTexto=bmRecTexto;
 
 /* v743 · DESDE TU ÚLTIMA VISITA. Daniel, 16/11/2026, eligió la propuesta 5.
    Virginia, Carlos y Daniel trabajan sobre los mismos datos en equipos
@@ -43558,7 +43603,10 @@ html[data-theme="dark"] .wm-miss-pill i{background:#2a303c;color:#c7ccd4;border-
   var mc=missing.length?('<div class="wm-miss-pills">'+missing.map(pill).join('')+'</div>'):'<div class="small muted">Todos los elegibles han respondido.</div>';
   var ec=excluded.length?('<div class="wm-miss-exc"><b>Fuera de grupo (no cuentan en el parte):</b> '+excluded.map(function(n){return esc(n)+' ('+esc(playerGroupEligibility(n,dk).statusLabel)+')';}).join(' · ')+'</div>'):'';
   var el=document.createElement('div');el.className='panel wm-missblock';el.id='wm-missblock';
-  el.innerHTML='<h2>Sin responder wellness hoy <span class="r muted">'+missing.length+' pendientes · '+rr.responded+'/'+rr.eligible+' respondidos</span></h2>'+mc+ec;
+  /* v751 · el recordatorio, con el mismo criterio que «Datos que faltan»; este
+     bloque va fuera de #parte-card, así que no sale en la imagen del parte */
+  var recB=(missing.length&&window.bmRecordatorio&&dk===dkey(new Date()))?'<button type="button" class="btn ghost wm-rec" data-brec="well">'+(window.bmRecLab?bmRecLab():'Copiar recordatorio')+'</button>':'';
+  el.innerHTML='<h2>Sin responder wellness hoy <span class="r muted">'+missing.length+' pendientes · '+rr.responded+'/'+rr.eligible+' respondidos</span></h2>'+mc+ec+(recB?'<div class="wm-rec-row">'+recB+'</div>':'');
   wrap.appendChild(el);
  }
  // ---------- override: readiness individual ----------
@@ -49502,6 +49550,14 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .bfa-r{flex-wrap:wrap}
   .bfa-acc .btn{min-height:44px}
   .cal-dia-ci{margin-left:auto;white-space:nowrap}
+}
+</style>
+<style id="bm-v751">
+/* v751 · Recordatorio del parte */
+.wm-rec-row{display:flex;justify-content:flex-end;margin-top:10px}
+.brec-t{width:100%;font:inherit;font-size:14px;line-height:1.4;padding:10px 12px;border-radius:10px;resize:vertical}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .wm-rec{min-height:44px}
 }
 </style>
 <style id="bm-v745">
