@@ -19488,7 +19488,7 @@ function animarAnillos(root){
     pinta(desde);
     requestAnimationFrame(function step(t){
       if(fin)return;
-      const k=Math.min(1,(t-t0)/ARC_DUR), e=1-Math.pow(1-k,3);
+      const k=Math.max(0,Math.min(1,(t-t0)/ARC_DUR)), e=1-Math.pow(1-k,3);
       pinta(desde+(deg-desde)*e);
       if(k<1)requestAnimationFrame(step);else fin=true;
     });
@@ -19507,8 +19507,15 @@ function animateKPIs(root){try{animarAnillos(root);}catch(e){}
     let quieto=false;try{quieto=matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(_){}
     if(p!==dc&&!quieto)bmrRueda(el,parseFloat(p).toFixed(dec),target.toFixed(dec));
     return;}}}
-  function step(t){const k=Math.min(1,(t-t0)/dur);const e=1-Math.pow(1-k,3);el.textContent=(target*e).toFixed(dec);if(k<1)requestAnimationFrame(step);else el.textContent=target.toFixed(dec);}
-  requestAnimationFrame(step);});}
+  /* v725 · El tiempo de un fotograma puede ser ANTERIOR a t0 (lo da el
+     navegador al empezar el fotograma, no al llamar): sin acotar por abajo, la
+     curva salía negativa y el primer fotograma enseñaba «−4» en vez de 0. Si los
+     fotogramas no llegan (ventana en segundo plano), a los 700 ms + 300 la cifra
+     queda en su valor final, igual que ya hacían los anillos. */
+  let fin=false;
+  function step(t){if(fin)return;const k=Math.max(0,Math.min(1,(t-t0)/dur));const e=1-Math.pow(1-k,3);el.textContent=(target*e).toFixed(dec);if(k<1)requestAnimationFrame(step);else{fin=true;el.textContent=target.toFixed(dec);}}
+  requestAnimationFrame(step);
+  setTimeout(()=>{if(!fin){fin=true;el.textContent=target.toFixed(dec);}},dur+300);});}
 
 /* ===== WHOOP: anillo recovery, estado, consejo, tira ===== */
 function recoveryRing(val,sev,size){size=size||104;const deg=(val||0)*3.6;const col=`var(--${sev||'muted'})`;
