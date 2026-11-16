@@ -19213,7 +19213,12 @@ function bmExpFallo(msg){
 }
 function bmEntregaPNG(cv,filename){
   const baja=href=>{const a=document.createElement('a');a.download=filename;a.href=href||cv.toDataURL('image/png');a.click();};
-  if(!esMovil()||window.__EXP_LOTE||!cv.toBlob){baja();return;}
+  /* v754 · En el Mac también se ve antes de guardarla, y se puede copiar para
+     pegarla en WhatsApp Web, Mail o Keynote, o mandar con la hoja de compartir
+     del Mac. El lote de las 18 fichas se sigue descargando sin preguntar. */
+  const mac=!esMovil()&&typeof bmEscFino==='function'&&bmEscFino();
+  if(window.__EXP_LOTE||!cv.toBlob||(!esMovil()&&!mac)){baja();return;}
+  if(mac){bmEntregaMac(cv,filename,baja);return;}
   if(window.__EXP_CANC){window.__EXP_CANC=false;return;}   /* cerró la hoja mientras se preparaba */
   cv.toBlob(blob=>{
     if(!blob){bmHojaCierra('bmh-comp');baja();return;}
@@ -19238,6 +19243,80 @@ function bmEntregaPNG(cv,filename){
     if(bg)bg.onclick=()=>{baja(url);toast('Imagen guardada');bmHojaCierra('bmh-comp');};
   },'image/png');
 }
+function bmEntregaMac(cv,filename,baja){
+  cv.toBlob(blob=>{
+    if(!blob){baja();return;}
+    let file=null,puede=false;
+    try{file=new File([blob],filename,{type:'image/png'});puede=!!(navigator.canShare&&navigator.canShare({files:[file]}));}catch(e){puede=false;}
+    const copia=!!(navigator.clipboard&&navigator.clipboard.write&&window.ClipboardItem&&window.isSecureContext);
+    const url=URL.createObjectURL(blob);
+    const kb=Math.max(1,Math.round(blob.size/1024)),peso=kb>=1024?fmt(kb/1024,1)+' MB':kb+' KB';
+    const h=bmHoja({id:'comp',titulo:'Imagen lista',clase:'bmc bmc-mac',
+      html:'<div class="bmc-prev"><img alt="Vista previa de la imagen" src="'+url+'"></div>'
+        +'<p class="bmc-n">'+bmEsc(filename)+' · '+cv.width+' × '+cv.height+' px · '+peso+'</p>'
+        +'<div class="bmc-acc">'
+          +(puede?'<button type="button" class="btn ghost" data-bmc="comp">'+BMC_IC+'Compartir…</button>':'')
+          +'<span class="bmc-hueco"></span>'
+          +'<button type="button" class="btn ghost" data-bmc="guarda">Guardar</button>'
+          +(copia?'<button type="button" class="btn" data-bmc="copia">Copiar</button>':'')
+        +'</div>',
+      alCerrar:()=>{setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}},1500);}});
+    h._espera=false;
+    const q=k=>h.querySelector('[data-bmc="'+k+'"]');
+    if(q('copia'))q('copia').onclick=async()=>{
+      try{await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);bmHojaCierra('bmh-comp');toast('Imagen copiada · pégala con ⌘V');}
+      catch(e){console.error('bmnava · copiar imagen',e);toast('No se pudo copiar la imagen'+(e&&e.name?' ('+e.name+')':'')+'. Guárdala.');}};
+    if(q('comp'))q('comp').onclick=async()=>{
+      try{await navigator.share({files:[file]});bmHojaCierra('bmh-comp');}
+      catch(e){if(e&&e.name==='AbortError')return;console.error('bmnava · compartir',e);toast('No se pudo abrir «Compartir»'+(e&&e.name?' ('+e.name+')':'')+'.');}};
+    q('guarda').onclick=()=>{baja(url);bmHojaCierra('bmh-comp');toast('Imagen guardada en Descargas');};
+    setTimeout(()=>{try{(q('copia')||q('guarda')).focus({preventScroll:true});}catch(e){}},80);
+  },'image/png');
+}
+/* v754 · ORDENADOR · Clic derecho sobre un gráfico: copiarlo o guardarlo. La
+   imagen lleva el título de su tarjeta arriba y la fecha al pie, dibujados en
+   una copia del lienzo: en la página no se añade nada (la lección de la v699).
+   Sale con el fondo de su tarjeta, para que los colores del tema se lean. */
+function bmGrafImagen(c){
+  const card=c.closest('.panel,.cgr-card,section,.pcard')||c.parentElement;
+  let tit='';
+  if(card){const h=card.querySelector('h2')||card.querySelector('h3')||card.querySelector('.cgr-card-h');
+    if(h){const b=h.querySelector(':scope>b,:scope>strong');
+      /* sólo el título: el subtítulo va dentro como otro elemento y no entra */
+      tit=b?b.textContent.trim():[...h.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join(' ').replace(/\s+/g,' ').trim();
+      if(!tit)tit=h.textContent.replace(/\s+/g,' ').trim();}}
+  let fondo=getComputedStyle(card||document.body).backgroundColor;
+  if(!fondo||/rgba\(0, 0, 0, 0\)|transparent/.test(fondo))fondo=getComputedStyle(document.body).backgroundColor||'#fff';
+  const css=getComputedStyle(document.documentElement);
+  const tinta=getComputedStyle(card||document.body).color||'#111',gris=(css.getPropertyValue('--muted')||'#6b7280').trim();
+  const k=c.width/c.getBoundingClientRect().width||2,P=Math.round(22*k),TH=tit?Math.round(30*k):0,FH=Math.round(26*k);
+  const o=document.createElement('canvas');o.width=c.width+P*2;o.height=c.height+P*2+TH+FH;
+  const g=o.getContext('2d');g.fillStyle=fondo;g.fillRect(0,0,o.width,o.height);
+  const fam='-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",sans-serif';
+  if(tit){g.fillStyle=tinta;g.font='600 '+Math.round(16*k)+'px '+fam;g.textBaseline='top';g.fillText(tit,P,P);}
+  g.drawImage(c,P,P+TH);
+  /* la fecha en que se saca la imagen: REF() puede estar prestada (§2.1) */
+  const d=new Date();const pie='BM Nava · '+d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();
+  g.fillStyle=gris;g.font='500 '+Math.round(11.5*k)+'px '+fam;g.textBaseline='bottom';g.fillText(pie,P,o.height-Math.round(P*.6));
+  const nom=(tit||'grafico').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40)||'grafico';
+  return {cv:o,nombre:nom+'_'+dkey(d)+'.png'};
+}
+document.addEventListener('contextmenu',e=>{
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino()))return;
+  const c=e.target&&e.target.closest&&e.target.closest('canvas');if(!c||!window.Chart||!Chart.getChart(c))return;
+  if(c.closest(BMG_DOC))return;
+  e.preventDefault();
+  const hazlo=modo=>{let r;try{r=bmGrafImagen(c);}catch(err){console.error('bmnava · imagen del gráfico',err);toast('No se pudo preparar la imagen');return;}
+    if(modo==='ver'){bmEntregaMac(r.cv,r.nombre,href=>{const a=document.createElement('a');a.download=r.nombre;a.href=href||r.cv.toDataURL('image/png');a.click();});return;}
+    if(modo==='copia'){r.cv.toBlob(async b=>{try{await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);toast('Gráfico copiado · pégalo con ⌘V');}catch(err){console.error('bmnava · copiar gráfico',err);bmEntregaMac(r.cv,r.nombre,()=>{});}},'image/png');return;}
+    const a=document.createElement('a');a.download=r.nombre;a.href=r.cv.toDataURL('image/png');a.click();toast('Gráfico guardado en Descargas');};
+  const copia=!!(navigator.clipboard&&navigator.clipboard.write&&window.ClipboardItem&&window.isSecureContext);
+  const it=[{h:'Gráfico'}];
+  if(copia)it.push({t:'Copiar el gráfico',ic:'',k:'',f:()=>hazlo('copia')});
+  it.push({t:'Guardar como imagen',ic:'',f:()=>hazlo('guarda')});
+  it.push({t:'Ver y compartir…',ic:'',f:()=>hazlo('ver')});
+  bmMenuMac(it,{x:e.clientX,y:e.clientY},{de:'graf',etiqueta:'Gráfico'});
+});
 /* v590 · Enseñar lo que no se ve. Mantener pulsado, deslizar una fila, tirar
    para actualizar, girar un gráfico: los gestos no tienen botón, y ya está
    escrito lo que pasa con lo que no se ve (v459: de doce funciones suyas,
@@ -49804,6 +49883,19 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .bms-pv-a b{font-size:15px}
   .bms-pv-a p{margin:0;color:var(--muted);line-height:1.4}
   @media (prefers-reduced-motion:reduce){#bm-spot,.bms-caja{animation:none}}
+}
+</style>
+<style id="esc-v754">
+/* v754 · ORDENADOR · La imagen lista, antes de guardarla */
+@media screen and (min-width:761px) and (pointer:fine){
+  .bmc-mac .bmh-caja{width:min(640px,calc(100vw - 80px))!important;max-width:none!important}
+  .bmc-mac .bmc-prev{max-height:58vh;overflow:auto;border-radius:10px;background:var(--panel2);display:flex;justify-content:center;padding:10px}
+  .bmc-mac .bmc-prev img{max-width:100%;max-height:calc(58vh - 20px);object-fit:contain;border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.12)}
+  .bmc-mac .bmc-n{font-size:12px;color:var(--muted);margin:10px 0 0;word-break:break-all}
+  .bmc-mac .bmc-acc{display:flex;align-items:center;gap:8px;margin-top:14px}
+  .bmc-mac .bmc-hueco{flex:1}
+  .bmc-mac .bmc-acc .btn{display:inline-flex;align-items:center;gap:6px}
+  .bmc-mac .bmc-acc .btn svg{width:15px;height:15px}
 }
 </style>
 <style id="bm-v745">
