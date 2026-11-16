@@ -27850,6 +27850,114 @@ function testLogApply(){testLogLoad();const log=STATE.testLog||{};STATE.tests=ST
 function openQuickTest(name){testLogLoad();try{buildTests();}catch(e){}const ov=ensureInfoOverlay();const t=document.getElementById('info-mtitle');if(t)t.textContent='Añadir valoración física';QT_SEL={name:name||STATE.curPlayer||(Object.keys(STATE.players||{})[0]||''),k:(TESTS[0]||{}).k,dk:dkey(new Date()),uni:false};quickTestBody();const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';ov.style.display='flex';}
 function quickTestBody(){const b=document.getElementById('info-mbody');if(!b)return;const names=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b));const playerOpts=names.map(n=>`<option value="${String(n).replace(/"/g,'&quot;')}"${n===QT_SEL.name?' selected':''}>${n}</option>`).join('');const catGroups=CATS.map(c=>`<optgroup label="${c}">${TESTS.filter(t=>t.cat===c).map(t=>`<option value="${t.k}"${t.k===QT_SEL.k?' selected':''}>${t.name}${t.unit?' ('+t.unit+')':''}</option>`).join('')}</optgroup>`).join('');const def=testDefByK(QT_SEL.k)||TESTS[0];const unit=def.unit||'';const valField=QT_SEL.uni?`<div class="qt-uni"><label>Izquierda<input id="qt-valL" type="number" step="any" placeholder="${unit}"></label><label>Derecha<input id="qt-valR" type="number" step="any" placeholder="${unit}"></label></div>`:`<label>Valor <span class="muted" style="font-weight:400">${unit?'· '+unit:''}</span><input id="qt-val" type="number" step="any" placeholder="${unit}"></label>`;b.innerHTML=`<div class="qt-form"><label>Jugador<select id="qt-name" onchange="QT_SEL.name=this.value">${playerOpts}</select></label><label>Fecha<input id="qt-date" type="date" value="${QT_SEL.dk}" onchange="QT_SEL.dk=this.value"></label><label>Tipo de valoración<select id="qt-k" onchange="QT_SEL.k=this.value;quickTestBody()">${catGroups}</select></label><label class="qt-check"><input type="checkbox" id="qt-uni" ${QT_SEL.uni?'checked':''} onchange="QT_SEL.uni=this.checked;quickTestBody()"> Medición unilateral (izquierda / derecha)</label>${valField}<label>Comentario <span class="muted" style="font-weight:400">(opcional)</span><textarea id="qt-note" rows="2" placeholder="Condiciones, material, observaciones…"></textarea></label></div><button class="btn" style="margin-top:14px" onclick="quickTestSave()">Guardar valoración</button><div class="small muted" style="margin-top:10px">Se guarda en este dispositivo y alimenta el perfil físico (z-scores, percentiles y evolución). En unilateral se usa la media de los dos lados para el z-score; ambos valores quedan en el histórico.</div>`;}
 function quickTestSave(){const g=id=>{const el=document.getElementById(id);return el?el.value:'';};const name=g('qt-name')||QT_SEL.name;const dk=g('qt-date')||dkey(new Date());const k=g('qt-k')||QT_SEL.k;const uni=!!(document.getElementById('qt-uni')&&document.getElementById('qt-uni').checked);const note=(g('qt-note')||'').trim();const def=testDefByK(k);if(!name){toast('Selecciona un jugador');return;}if(!def){toast('Tipo no válido');return;}const rec={id:'tl_'+Date.now(),dk,k,note};if(uni){const L=parseFloat(g('qt-valL')),R=parseFloat(g('qt-valR'));if(isNaN(L)&&isNaN(R)){toast('Introduce al menos un lado');return;}rec.side='uni';rec.valL=isNaN(L)?null:L;rec.valR=isNaN(R)?null:R;}else{const v=parseFloat(g('qt-val'));if(isNaN(v)){toast('Introduce un valor');return;}rec.side='bi';rec.val=v;}testLogLoad();STATE.testLog[name]=STATE.testLog[name]||[];STATE.testLog[name].push(rec);testLogPersist();testLogApply();toast('Valoración guardada · '+def.name+' · '+name);closeInfoEdit();try{const tv=document.getElementById('v-tests');if(tv&&tv.classList.contains('on'))renderTests();}catch(e){}}
+/* ═══ v760 · Sesión de valoración física ═══
+   Un día de tests eran decenas de formularios: `openQuickTest` guarda una
+   marca de un jugador en una prueba cada vez. Aquí se elige la prueba, la
+   fecha y cuántos intentos, sale la plantilla por puestos y se teclean los
+   valores seguidos (Intro pasa a la siguiente casilla). De cada jugador se
+   queda la MEJOR marca de sus intentos, según `lowerBetter`; al lado, en vivo,
+   su última marca real (no las que fabrica `buildTestHist`, v469), la
+   diferencia en la unidad de la prueba —nada de %— y su nivel con el baremo
+   de su puesto (`refNivel`), con el listón Champions en el globo.
+   Se guarda por el MISMO camino que el formulario de siempre: una entrada por
+   jugador en `bmnava_testlog`, que ya entra en la copia, las tumbas y la
+   sincronización. Lo tecleado se guarda como borrador en este aparato
+   (`bmnava-sesion-test`) hasta que se pulsa Guardar. */
+const BST={k:null,dk:null,ints:1,uni:false,vals:{}};
+const BST_K='bmnava-sesion-test';
+/* sin lado bueno: los mismos de `VHF_NEUTRAL` (v451), que vive dentro de otra función */
+const BST_NEUTRAL=['peso','talla'];
+function bstBorrador(){try{localStorage.setItem(BST_K,JSON.stringify({k:BST.k,dk:BST.dk,ints:BST.ints,uni:BST.uni,vals:BST.vals}));}catch(e){}}
+function bstLeeBorrador(){try{const o=JSON.parse(localStorage.getItem(BST_K)||'null');if(o&&o.k&&testDefByK(o.k)){Object.assign(BST,o);return true;}}catch(e){}return false;}
+function bstMejor(def,xs){const v=xs.map(x=>parseFloat(String(x).replace(',','.'))).filter(x=>!isNaN(x));if(!v.length)return null;return def&&def.lowerBetter?Math.min(...v):Math.max(...v);}
+function bstValor(def,o){if(!o)return null;if(BST.uni){const L=bstMejor(def,[o.L]),R=bstMejor(def,[o.R]);const a=[L,R].filter(x=>x!=null);return a.length?a.reduce((s,x)=>s+x,0)/a.length:null;}return bstMejor(def,o.a||[]);}
+function bstPrevia(n,k,dk){const h=(STATE.testHist||{})[n]||[];let u=null;h.forEach(sn=>{if(sn&&sn.real===true&&sn.date<dk&&sn.vals&&sn.vals[k]!=null)u={v:sn.vals[k],d:sn.date};});return u;}
+function bmSesionTests(){
+  try{testLogLoad();buildTests();}catch(e){}
+  if(!bstLeeBorrador()){BST.k=BST.k||'cmj';BST.dk=dkey(new Date());BST.ints=1;BST.uni=false;BST.vals={};}
+  bmHoja({id:'stest',titulo:'Sesión de valoración',clase:'bst-hoja',html:'<div class="bst" id="bst"></div>'});
+  bstPinta();
+}
+function bstPinta(){
+  const box=document.getElementById('bst');if(!box)return;
+  const def=testDefByK(BST.k)||TESTS[0];BST.k=def.k;
+  const opts=CATS.map(c=>'<optgroup label="'+bmEsc(c)+'">'+TESTS.filter(t=>t.cat===c).map(t=>'<option value="'+t.k+'"'+(t.k===BST.k?' selected':'')+'>'+bmEsc(t.name)+(t.unit?' ('+bmEsc(t.unit)+')':'')+'</option>').join('')+'</optgroup>').join('');
+  const P=STATE.players||{};
+  const grupos=JL_GR.map(([k,tit])=>[tit,Object.keys(P).filter(n=>(P[n]||{}).pos===k).sort((a,b)=>a.localeCompare(b,'es'))]).filter(g=>g[1].length);
+  const sueltos=Object.keys(P).filter(n=>!JL_GR.some(g=>g[0]===(P[n]||{}).pos)).sort((a,b)=>a.localeCompare(b,'es'));
+  if(sueltos.length)grupos.push(['Sin puesto',sueltos]);
+  const u=def.unit?bmEsc(def.unit):'';
+  const casillas=n=>{const o=BST.vals[n]||{};
+    if(BST.uni)return '<input type="number" step="any" inputmode="decimal" data-bst-n="'+bmEsc(n)+'" data-bst-c="L" placeholder="Izq." value="'+bmEsc(o.L!=null?o.L:'')+'" aria-label="'+bmEsc(n)+', izquierda">'
+      +'<input type="number" step="any" inputmode="decimal" data-bst-n="'+bmEsc(n)+'" data-bst-c="R" placeholder="Der." value="'+bmEsc(o.R!=null?o.R:'')+'" aria-label="'+bmEsc(n)+', derecha">';
+    let h='';for(let i=0;i<BST.ints;i++){const v=(o.a||[])[i];h+='<input type="number" step="any" inputmode="decimal" data-bst-n="'+bmEsc(n)+'" data-bst-c="'+i+'" placeholder="'+(BST.ints>1?(i+1)+'º':u||'valor')+'" value="'+bmEsc(v!=null?v:'')+'" aria-label="'+bmEsc(n)+(BST.ints>1?', intento '+(i+1):'')+'">';}
+    return h;};
+  box.innerHTML='<div class="bst-cab">'
+      +'<label class="bst-p"><span>Prueba</span><select id="bst-k">'+opts+'</select></label>'
+      +'<label><span>Fecha</span><input type="date" id="bst-dk" value="'+BST.dk+'" max="'+dkey(new Date())+'"></label>'
+      +'<div class="bst-ints'+(BST.uni?' off':'')+'"><span>Intentos</span><div role="group" aria-label="Intentos">'+[1,2,3].map(i=>'<button type="button" data-bst-i="'+i+'" class="'+(BST.ints===i?'on':'')+'" aria-pressed="'+(BST.ints===i)+'">'+i+'</button>').join('')+'</div></div>'
+      +'<label class="bst-uni"><input type="checkbox" id="bst-uni"'+(BST.uni?' checked':'')+'> Por lado (izq. y der.)</label>'
+    +'</div>'
+    +'<p class="bst-nota">'+(BST.uni?'Se guarda la media de los dos lados, como en el formulario de siempre.':'Se queda la mejor de los intentos: '+(def.lowerBetter?'la más baja, que en esta prueba es la mejor.':'la más alta.'))+' Las filas vacías no se guardan. Intro pasa a la casilla siguiente.</p>'
+    +'<div class="bst-l">'+grupos.map(([tit,ns])=>'<div class="bst-g">'+bmEsc(tit)+'</div>'+ns.map(n=>{let st=null;try{const e=effectiveStatus(n,BST.dk);st=e&&e.status;}catch(x){}
+      const fuera=st&&NOAV_ST.indexOf(st)>=0;
+      return '<div class="bst-r'+(fuera?' fuera':'')+'" data-bst-r="'+bmEsc(n)+'">'+bprFoto(n,'s')
+        +'<span class="bst-nm"><b>'+bmEsc(n)+'</b>'+(fuera?'<small>'+bmEsc((PHYSTAT[st]||{}).lab||st)+'</small>':'')+'</span>'
+        +'<span class="bst-in">'+casillas(n)+'</span><span class="bst-res" data-bst-res="'+bmEsc(n)+'"></span></div>';}).join('')).join('')+'</div>'
+    +'<div class="bst-pie"><button type="button" class="btn ghost" data-bst="borra">Vaciar</button><span class="bst-cuenta"></span><button type="button" class="btn" data-bst="ok">Guardar</button></div>';
+  Object.keys(P).forEach(n=>bstFila(n));bstCuenta();
+}
+function bstFila(n){
+  const el=document.querySelector('#bst [data-bst-res="'+(window.CSS&&CSS.escape?CSS.escape(n):n)+'"]');if(!el)return;
+  const def=testDefByK(BST.k);const v=bstValor(def,BST.vals[n]);const pr=bstPrevia(n,BST.k,BST.dk);
+  const pos=refPuesto(n);const niv=v!=null&&pos?refNivel(BST.k,v,pos):null;const ch=pos?refUmbralChampions(BST.k,pos):null;
+  const u=def.unit?' '+def.unit:'';
+  let h='';
+  if(v!=null){h+='<b class="bst-v">'+fmt(v,2)+'<small>'+bmEsc(u)+'</small></b>';
+    if(pr){const d=v-pr.v;const neutro=BST_NEUTRAL.indexOf(BST.k)>=0;const mejor=def.lowerBetter?d<0:d>0;
+      const col=Math.abs(d)<1e-9||neutro?'var(--muted)':(mejor?'var(--ok-text)':'var(--warn-text)');
+      h+='<span class="bst-d" style="color:'+col+'">'+(d>0?'▲ +':d<0?'▼ ':'= ')+fmt(Math.abs(d)<1e-9?0:d,2).replace('-','−')+'</span>';}
+    if(niv)h+='<span class="bst-niv" style="--c:'+niv.col+';color:'+colTinta(niv.col)+'" title="'+bmEsc(ch?'Champions en '+pos+': '+fmt(ch.valor,2)+u:'')+'">'+bmEsc(niv.lab)+'</span>';}
+  h+='<span class="bst-pr">'+(pr?'Última '+fmt(pr.v,2)+u+' · '+pr.d.slice(8,10)+'/'+pr.d.slice(5,7):'Sin marca anterior')+'</span>';
+  el.innerHTML=h;
+}
+function bstCuenta(){const def=testDefByK(BST.k);const n=Object.keys(BST.vals).filter(k=>bstValor(def,BST.vals[k])!=null).length;
+  const c=document.querySelector('#bst .bst-cuenta');if(c)c.textContent=n?(n===1?'1 marca':n+' marcas')+' para guardar':'Nada que guardar todavía';
+  const b=document.querySelector('#bst [data-bst="ok"]');if(b){b.disabled=!n;b.textContent=n?'Guardar '+(n===1?'1 marca':n+' marcas'):'Guardar';}}
+function bstGuarda(){
+  const def=testDefByK(BST.k);if(!def)return;
+  testLogLoad();let n=0;const t=Date.now();
+  Object.keys(BST.vals).forEach(name=>{const o=BST.vals[name];const v=bstValor(def,o);if(v==null||!(STATE.players||{})[name])return;
+    const rec={id:'tl_'+t+'_'+(n+1),dk:BST.dk,k:BST.k};
+    if(BST.uni){const L=bstMejor(def,[o.L]),R=bstMejor(def,[o.R]);rec.side='uni';rec.valL=L;rec.valR=R;rec.note='Sesión de valoración';}
+    else{rec.side='bi';rec.val=v;const xs=(o.a||[]).map(x=>parseFloat(String(x).replace(',','.'))).filter(x=>!isNaN(x));
+      rec.note='Sesión de valoración'+(xs.length>1?' · intentos '+xs.map(x=>fmt(x,2)).join(' / '):'');}
+    STATE.testLog[name]=STATE.testLog[name]||[];STATE.testLog[name].push(rec);n++;});
+  if(!n)return;
+  try{testLogPersist();testLogApply();}catch(e){console.error('bmnava · sesión de valoración',e);toast('No se pudo guardar');return;}
+  BST.vals={};try{localStorage.removeItem(BST_K);}catch(e){}
+  bmHojaCierra('bmh-stest');
+  toast('Guardadas '+n+(n===1?' marca':' marcas')+' · '+def.name);
+  try{const tv=document.getElementById('v-tests');if(tv&&tv.classList.contains('on'))renderTests();}catch(e){}
+}
+document.addEventListener('input',e=>{const i=e.target&&e.target.closest&&e.target.closest('#bst [data-bst-n]');if(!i)return;
+  const n=i.dataset.bstN,c=i.dataset.bstC;const o=BST.vals[n]=BST.vals[n]||{};
+  if(c==='L'||c==='R')o[c]=i.value;else{o.a=o.a||[];o.a[+c]=i.value;}
+  bstFila(n);bstCuenta();clearTimeout(bstGuarda._t);bstGuarda._t=setTimeout(bstBorrador,400);});
+document.addEventListener('change',e=>{const t=e.target;if(!t||!t.closest||!t.closest('#bst'))return;
+  if(t.id==='bst-k'){BST.k=t.value;bstPinta();bstBorrador();}
+  else if(t.id==='bst-dk'){BST.dk=t.value||dkey(new Date());bstPinta();bstBorrador();}
+  else if(t.id==='bst-uni'){BST.uni=t.checked;BST.vals={};bstPinta();bstBorrador();}});
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bst [data-bst-i],#bst [data-bst]');if(!b)return;
+  if(b.dataset.bstI){BST.ints=+b.dataset.bstI;bstPinta();bstBorrador();return;}
+  if(b.dataset.bst==='ok'){bstGuarda();return;}
+  if(b.dataset.bst==='borra'){const nf=Object.keys(BST.vals).length;if(!nf)return;
+    const t='¿Vaciar las '+nf+' filas escritas? No se guarda nada.';
+    (esMovil()?bmAccion({titulo:'Vaciar la sesión',texto:t,si:'Vaciar',no:'Seguir'}):Promise.resolve(confirm(t))).then(ok=>{if(!ok)return;
+      BST.vals={};try{localStorage.removeItem(BST_K);}catch(_){}bstPinta();});}});
+document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const i=e.target&&e.target.closest&&e.target.closest('#bst [data-bst-n]');if(!i)return;
+  e.preventDefault();const all=[...document.querySelectorAll('#bst [data-bst-n]')];const j=all.indexOf(i);if(all[j+1]){all[j+1].focus();all[j+1].select&&all[j+1].select();}});
+window.bmSesionTests=bmSesionTests;
 function renderTestHist(name){
   const sel=document.getElementById('hist-metric');if(sel&&!sel.options.length){sel.innerHTML=TESTS.map(t=>`<option value="${t.k}">${t.name}</option>`).join('');sel.value='cmj';}
   const k=(sel&&sel.value)||'cmj';const t=TESTS.find(x=>x.k===k)||TESTS[0];
@@ -40464,6 +40572,7 @@ function buildHeaderActions(){const host=document.getElementById('hdr-actions');
       <button class="add-item" role="menuitem" onclick="addDataFisio()"><span class="ic"><span class="ic-e">🩺</span>${SB_ICONS.medico}</span><span class="tx"><b>Fisioterapia y parte médico</b><small>Tratamiento, cómo está hoy, cita o documento, lesión nueva.</small></span></button>
       <button class="add-item" role="menuitem" onclick="addDataGoHR()"><span class="ic"><span class="ic-e">❤️</span>${SB_ICONS.hr}</span><span class="tx"><b>Datos de pulsómetros</b><small>Importar sesión Polar (FC, kcal, tiempo en zonas).</small></span></button>
       <button class="add-item" role="menuitem" onclick="addDataGoTests()"><span class="ic"><span class="ic-e">📏</span>${SB_ICONS.tests}</span><span class="tx"><b>Valoración física</b><small>Cargar tests para el perfil físico (CMJ, 1RM, velocidad…).</small></span></button>
+      <button class="add-item" role="menuitem" onclick="closeAddData();bmSesionTests()"><span class="ic"><span class="ic-e">⏱</span>${SB_ICONS.jugadores}</span><span class="tx"><b>Sesión de valoración</b><small>Una prueba para toda la plantilla, con varios intentos.</small></span></button>
       <button class="add-item" role="menuitem" onclick="addDataGoReunion()"><span class="ic"><span class="ic-e">🗣️</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span><span class="tx"><b>Reunión con jugador</b><small>Lo que se habla con él: motivo, acuerdos y si hay que retomarlo.</small></span></button>
       <div class="add-sep"></div>
       <button class="add-item" role="menuitem" onclick="addDataGoAvailPlan()"><span class="ic"><span class="ic-e">📅</span>${SB_ICONS.cal}</span><span class="tx"><b>Previsión de mañana</b><small>Quién no entrenará o estará de baja en próximas sesiones.</small></span></button>
@@ -50361,6 +50470,46 @@ html.bpr-on body{overflow:hidden}
   .bnm-t small{display:block;font-size:12px;color:var(--muted);line-height:1.35}
   .bnm-f .btn{flex:none}
   .bnm-pie{display:flex;justify-content:flex-end;margin-top:12px;position:sticky;bottom:0;padding:8px 0 2px;background:var(--bmh-bg,var(--panel));box-shadow:0 24px 0 0 var(--bmh-bg,var(--panel))}
+}
+</style>
+<style id="bm-v760">
+/* v760 · Sesión de valoración física */
+.bst-cab{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 14px;margin:0 0 6px}
+.bst-cab label,.bst-ints{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
+.bst-cab .bst-p{flex:1;min-width:220px}
+.bst-cab select,.bst-cab input[type=date]{font:inherit;font-size:13.5px}
+.bst-ints div{display:flex;gap:4px}
+.bst-ints button{font:inherit;font-size:13px;font-weight:600;min-width:34px;height:30px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--txt);cursor:pointer}
+.bst-ints button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#fff)}
+.bst-ints.off{opacity:.4;pointer-events:none}
+.bst-cab .bst-uni{flex-direction:row;align-items:center;gap:6px;color:var(--txt);font-weight:500;font-size:13px;padding-bottom:6px;white-space:nowrap}
+.bst-cab .bst-uni input{margin:0;width:auto}
+.bst-nota{font-size:12px;color:var(--muted);margin:6px 0 8px;line-height:1.4}
+.bst-g{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 2px}
+.bst-r{display:grid;grid-template-columns:auto minmax(130px,1fr) auto minmax(190px,1.1fr);align-items:center;gap:10px;padding:6px 0;border-top:.5px solid var(--line)}
+.bst-g+.bst-r{border-top:0}
+.bst-r .bpr-av{font-size:11px}
+.bst-r.fuera .bst-nm b{color:var(--muted)}
+.bst-nm{min-width:0}.bst-nm b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bst-nm small{display:block;font-size:11.5px;color:var(--muted)}
+.bst-in{display:flex;gap:6px}
+.bst-in input{width:76px;font:inherit;font-size:14px;text-align:right;font-variant-numeric:tabular-nums;padding:5px 8px}
+.bst-res{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-size:12.5px;min-width:0}
+.bst-v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}.bst-v small{font-size:11px;font-weight:500;color:var(--muted)}
+.bst-d{font-weight:700;font-variant-numeric:tabular-nums}
+.bst-niv{font-size:11.5px;font-weight:700;border-radius:99px;padding:1px 8px;background:color-mix(in srgb,var(--c) 15%,transparent)}
+.bst-pr{color:var(--muted);font-size:11.5px;flex-basis:100%}
+.bst-pie{display:flex;align-items:center;gap:12px;margin-top:12px;position:sticky;bottom:0;padding:10px 0 2px;background:var(--bmh-bg,var(--panel));box-shadow:0 24px 0 0 var(--bmh-bg,var(--panel))}
+.bst-cuenta{flex:1;text-align:right;font-size:12.5px;color:var(--muted)}
+@media screen and (min-width:761px) and (pointer:fine){
+  .bst-hoja .bmh-caja{width:min(920px,calc(100vw - 80px))!important;max-width:none!important}
+}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bst-r{grid-template-columns:auto minmax(0,1fr);row-gap:6px}
+  .bst-in{grid-column:1/-1;flex-wrap:wrap}
+  .bst-in input{flex:1;min-width:70px;min-height:44px;font-size:16px}
+  .bst-res{grid-column:1/-1}
+  .bst-ints button{min-width:44px;height:44px}
+  .bst-pie .btn{min-height:44px}
 }
 </style>
 <style id="bm-v745">
