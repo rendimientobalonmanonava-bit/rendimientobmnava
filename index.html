@@ -15021,6 +15021,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     /* v716 · las tablas se ordenan y su cabecera se pega */
     try{bmTablasMac();}catch(e){}
     try{bmMenuCuentas();}catch(e){}
+    /* v727 · los formularios, como hojas de macOS */
+    try{bmHojaMac();}catch(e){}
     try{bmAtajosMenu();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
     try{bmTarjetasT();}catch(e){}},120);};
@@ -18730,9 +18732,65 @@ function bmEscCierraEst(id,el){
   if(a&&a!==document.body&&!(el&&el.contains(a)))return;
   try{if(document.contains(st.de)&&st.de.getClientRects().length)st.de.focus({preventScroll:true});}catch(e){}
 }
+/* v727 · ORDENADOR · Los formularios como hojas de macOS. Daniel, 16/11/2026.
+   Parte del día, Cita, Reunión, Ausencia, Tratamiento y Lesión llevaban
+   «Cerrar ✕» junto al título y «Guardar» abajo a la IZQUIERDA, a veces por
+   debajo del borde de la ventana. HIG · Sheets y Buttons: el botón por defecto
+   va al final de la fila, a la derecha, con «Cancelar» a su izquierda; Intro
+   pulsa el botón por defecto y Esc cancela (v718). Aquí no se toca ningún
+   formulario: se busca su ÚNICO botón relleno fuera de la cabecera —si hay dos
+   o ninguno, la hoja se queda como estaba, con su aspa— y su fila pasa a ser
+   el pie: lo demás a la izquierda, «Cancelar» y el botón por defecto a la
+   derecha, y el pie se queda pegado abajo mientras se desplaza. «Cancelar»
+   pulsa el «Cerrar ✕» de siempre, que se oculta. Sólo con ratón o trackpad. */
+const BMHM_CAPAS=['ph-overlay','info-overlay'];
+function bmHojaMacUna(ov){
+  const m=ov.querySelector(':scope>.med-modal,:scope>.info-modal');if(!m)return;
+  const info=m.classList.contains('info-modal');
+  const head=info?m.querySelector(':scope>.info-mhead'):m.querySelector(':scope>h2');
+  const x=head&&[...head.querySelectorAll('.btn')].find(b=>b.classList.contains('ghost')&&/close|Cerrar/.test((b.getAttribute('onclick')||'')+b.textContent));
+  const prims=[...m.querySelectorAll('.btn:not(.ghost)')].filter(b=>!(head&&head.contains(b))&&!b.classList.contains('bmhm-can')&&(b.getClientRects().length>0));
+  const prim=prims.length===1?prims[0]:null;
+  if(!x||!prim){if(x)x.classList.remove('bmhm-oc');m.classList.remove('bmhm');m._bmhmPrim=null;return;}
+  m._bmhmPrim=prim;m.classList.add('bmhm');
+  let pie=prim.parentElement;
+  if(!pie.classList.contains('bmhm-pie')){
+    const solo=[...pie.children].every(k=>k.matches('button,.btn,span.small,span.muted'))&&![...pie.childNodes].some(n=>n.nodeType===3&&n.textContent.trim());
+    if(!solo){const f=document.createElement('div');pie.insertBefore(f,prim);f.appendChild(prim);pie=f;}
+    pie.classList.add('bmhm-pie');
+  }
+  prim.classList.add('bmhm-prim');
+  /* un «Cancelar» que ya traía el formulario se usa; si es una pastilla y no
+     un botón, se oculta y el nuevo lo pulsa, para que los dos botones del pie
+     tengan la misma forma */
+  let orig=[...pie.children].find(k=>k!==prim&&k.matches('button,.btn')&&!k.classList.contains('bmhm-nuevo')&&/^\s*cancelar\s*$/i.test(k.textContent));
+  let can=orig&&orig.classList.contains('btn')?orig:pie.querySelector(':scope>.bmhm-nuevo');
+  if(!can){can=document.createElement('button');can.type='button';can.className='btn ghost bmhm-can bmhm-nuevo';can.textContent='Cancelar';
+    can.addEventListener('click',()=>{const d=can._de;if(d)d.click();});pie.appendChild(can);}
+  if(orig&&orig!==can)orig.classList.add('bmhm-oc');
+  can.classList.add('bmhm-can');can._de=(orig&&orig!==can)?orig:x;
+  if(!pie.querySelector(':scope>.bmhm-esp')){const e=document.createElement('span');e.className='bmhm-esp';e.setAttribute('aria-hidden','true');pie.appendChild(e);}
+  x.classList.add('bmhm-oc');
+}
+function bmHojaMac(){
+  if(!bmEscFino())return;
+  BMHM_CAPAS.forEach(id=>{const ov=document.getElementById(id);if(ov&&bmEscAbierta(id)){try{bmHojaMacUna(ov);}catch(e){console.error('bmnava · hoja de macOS',e);}}});
+}
+/* Intro en un campo de una línea pulsa el botón por defecto. No en un área de
+   texto, ni en un desplegable, ni en un campo con sugerencias (ahí Intro elige
+   la sugerencia), ni con una tecla de modificación. */
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.isComposing||e.shiftKey||e.metaKey||e.ctrlKey||e.altKey||!bmEscFino())return;
+  const t=e.target;if(!t||t.tagName!=='INPUT')return;
+  if(!/^(text|number|date|time|datetime-local|search|email|tel|url)$/.test(t.type||'text')||t.list||t.closest('[role=combobox]')||t.getAttribute('aria-autocomplete'))return;
+  const m=t.closest('.med-modal.bmhm,.info-modal.bmhm');const p=m&&m._bmhmPrim;
+  if(!p||!p.isConnected||p.disabled||!m.contains(p))return;
+  e.preventDefault();p.click();
+});
 function bmEscSync(){
   BMESC.capas.forEach(id=>{const el=document.getElementById(id);const ab=!!bmEscAbierta(id);const ya=!!BMESC.est[id];
     if(ab&&!ya)bmEscAbre(id,el);else if(!ab&&ya)bmEscCierraEst(id,el);});
+  try{bmHojaMac();}catch(e){}
 }
 /* lo que se escribe después de abrir (los primeros 400 ms son del propio formulario al pintarse) */
 ['input','change'].forEach(t=>document.addEventListener(t,e=>{
@@ -47772,6 +47830,27 @@ html[data-theme="dark"]{--sbf-bg:rgba(44,44,50,.84);--sbf-borde:rgba(255,255,255
   #bm-sbres:focus-visible::after{opacity:1;background:var(--accent)}
   body.bm-sbres-on,body.bm-sbres-on #sidebar,body.bm-sbres-on #bm-jl{transition:none!important}
   body.bm-sbres-on,body.bm-sbres-on *{cursor:col-resize!important;user-select:none!important}
+}
+</style>
+<style id="esc-v727">
+/* v727 · ORDENADOR · Los formularios como hojas de macOS (ver bmHojaMac). */
+.bmhm-esp,.bmhm-can.bmhm-nuevo{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  .med-overlay,.info-overlay{background:rgba(0,0,0,.22)}
+  html[data-theme="dark"] .med-overlay,html[data-theme="dark"] .info-overlay{background:rgba(0,0,0,.45)}
+  .med-overlay>.med-modal{margin:auto}
+  .med-modal.bmhm,.info-modal.bmhm{box-shadow:0 22px 70px rgba(0,0,0,.28),0 0 0 .5px rgba(0,0,0,.12)}
+  .bmhm .bmhm-oc{display:none!important}
+  /* sin el aspa la cabecera baja de alto y el subtítulo (margen −6 px en línea) se montaba en el título */
+  .med-modal.bmhm>h2+p{margin-top:4px!important}
+  .bmhm .bmhm-pie{display:flex!important;flex-wrap:wrap;align-items:center;gap:8px;position:sticky;bottom:0;z-index:2;
+    background:var(--panel);margin-top:18px;padding:12px 0 2px;border-top:.5px solid var(--hair);grid-column:1/-1}
+  .info-modal.bmhm .bmhm-pie{padding-bottom:0}
+  .bmhm .bmhm-pie>*{order:0;margin:0!important}
+  .bmhm .bmhm-pie>.bmhm-esp{display:block;order:1;flex:1 1 0;min-width:0}
+  .bmhm .bmhm-pie>.bmhm-can{display:inline-flex;order:2}
+  .bmhm .bmhm-pie>.bmhm-prim{order:3;min-width:96px;justify-content:center}
+  .bmhm .bmhm-pie>.btn,.bmhm .bmhm-pie>button{min-height:30px!important;box-sizing:border-box}
 }
 </style>
 <script>
