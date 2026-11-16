@@ -14180,6 +14180,8 @@ function bmbIndice(){
   A('Ausencia de varios jugadores','Selección, viaje, permiso…',()=>{if(window.openAusenciaGrupo)openAusenciaGrupo(dkey(REF()));},'seleccion paron');
   A('Planificar el día de hoy','Añadir una sesión al calendario',()=>{go('cal');calOpenDay(dkey(new Date()));},'entreno partido');
   A('Informe de la semana','La semana cerrada en una hoja que se exporta',()=>{if(window.bmInformeSemana)bmInformeSemana();},'resumen semanal informe');
+  A('Cerrar la sesión','Minutos de cada bloque y quién entrenó',()=>{if(window.bmCierre)bmCierre();},'cerrar sesion minutos duracion convocar asistencia');
+  A('Datos que faltan','Días sin minutos, partidos sin minutos jugados y cuestionarios pendientes',()=>{if(window.bmFaltan)bmFaltan();},'faltan pendientes huecos completar');
   A('Desde tu última visita','Lo que ha entrado desde la última vez en este equipo',()=>{if(window.bmDesdeVisita)bmDesdeVisita();},'novedades cambios nuevo');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
   document.querySelectorAll('#add-menu .add-item').forEach(b=>{const t=b.querySelector('b'),sm=b.querySelector('small');if(!t)return;
@@ -17445,6 +17447,224 @@ function infPNG(){
 document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-informe [data-inf]');if(!b||b.disabled)return;
   const v=b.dataset.inf;if(v==='png'){infPNG();return;}const m=new Date(INF.mon);m.setDate(m.getDate()+7*(+v));INF.mon=m;infPinta();});
 window.bmInformeSemana=bmInformeSemana;
+/* ═══ v750 · Cerrar la sesión y ver qué datos faltan ═══
+   La carga es RPE × minutos, y desde agosto los minutos no vienen en la hoja:
+   un día al que nadie le pone los minutos, o un partido sin minutos jugados,
+   vale cero y nadie se entera. Dos hojas:
+   · «Cerrar la sesión»: los minutos de cada bloque planificado (con el plan
+     puesto) y quién entrenó, en una pantalla y con un botón. Hace lo mismo que
+     «✓ Cerrar sesión del día» y la tabla del día —escribe `bmnava_sessdur` y la
+     convocatoria de `bmnava_asist`—, pero deja ver y corregir antes de guardar.
+   · «Datos que faltan»: días con RPE y sin minutos (`durFaltantes`), partidos
+     sin minutos jugados, sesiones planificadas a las que les faltan RPE y los
+     partes de hoy sin responder. Cada fila con su arreglo al lado. */
+const BMCI={dk:null};
+const BMCI_DIA=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function bmciTit(dk){const d=dkToDate(dk);return BMCI_DIA[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);}
+function bmCierreDia(){
+  try{calLoad();}catch(e){}
+  const hoy=dkey(new Date());
+  if(calBloquesPlan(hoy).size)return hoy;
+  for(let i=1;i<=14;i++){const d=new Date();d.setDate(d.getDate()-i);const k=dkey(d);if(calBloquesPlan(k).size)return k;}
+  return hoy;
+}
+function bmCierre(dk){
+  try{calLoad();}catch(e){}
+  BMCI.dk=dk||bmCierreDia();
+  bmHoja({id:'cierre',titulo:'Cerrar la sesión',html:'<div class="bci" id="bci-cuerpo"></div>',clase:'bm-cih'});
+  bmCierrePinta();
+}
+/* Lo que cada jugador tiene ya en ese bloque. Quien respondió el cuestionario
+   no se toca: lo declaró él. Quien no, sale marcado si ya estaba convocado o,
+   en un día que todavía no se ha cerrado, si está disponible —lo mismo que
+   hace «Cerrar sesión del día»—; el plan individual (v748) y el estado del día
+   deciden quién no. */
+function bmciEstado(dk,b,n,cerrado,fuera){
+  /* Un registro de verdad es el que no fabricó la app (`bloqueConvocado`,
+     `sinRegistro`). `estimado` no sirve: `sessDurApply` lo pone también en el
+     registro real de quien tiene OTRO bloque estimado ese día. */
+  const resp=(STATE.rpe||[]).some(r=>r&&r.dk===dk&&r.name===n&&!r.bloqueConvocado&&!r.sinRegistro&&r.rpe>0&&lbEsDe(r.tipo,b));
+  if(resp)return {resp:true,on:true};
+  const A=(asistGet()[dk])||{},k=asistKey(n,b);
+  if(A[k]!==undefined)return {on:!!A[k]};
+  if(cerrado)return {on:asistHas(dk,b,n)};
+  const aj=calAjDe(dk,n);
+  const quita=fuera||aj==='no'||(aj==='gym'&&b==='pista')||(aj==='pista'&&b==='gym');
+  return {on:!quita||asistHas(dk,b,n)};
+}
+function bmCierrePinta(){
+  const box=document.getElementById('bci-cuerpo');if(!box||!BMCI.dk)return;
+  const dk=BMCI.dk,hoy=dkey(new Date());
+  const nav='<div class="bci-nav"><button type="button" class="inf-fl" data-bci="-1" aria-label="Día anterior">‹</button><b>'+bmciTit(dk)+(dk===hoy?' · hoy':'')+'</b>'
+    +'<button type="button" class="inf-fl" data-bci="1" aria-label="Día siguiente"'+(dk>=hoy?' disabled':'')+'>›</button></div>';
+  const pl=calBloquesPlan(dk);
+  if(!pl.size){
+    box.innerHTML=nav+'<div class="bci-vacio"><b>Este día no tiene sesión de pista ni de gimnasio planificada</b><span>Sin plan no hay nada que cerrar: si se entrenó, planifícala primero.</span>'
+      +'<button type="button" class="btn ghost" data-bci="plan">Planificar este día</button></div>';
+    return;
+  }
+  const minDe={};((STATE.calendar||{})[dk]||[]).filter(e=>!evSP(e)).forEach(e=>{const b=evBloque(e);if(b)minDe[b]=(minDe[b]||0)+evDur(e);});
+  const SD=(sessDurGet()[dk])||{};
+  const bl=['pista','gym'].filter(b=>pl.has(b));
+  const cerrado=!!Object.keys((asistGet()[dk])||{}).length||bl.some(b=>SD['__'+b]!=null&&SD['__'+b]!=='');
+  const mins=bl.map(b=>{const v=(SD['__'+b]!=null&&SD['__'+b]!=='')?SD['__'+b]:(minDe[b]||'');
+    return '<label class="bci-min"><span>'+LB_BLOQ_LAB[b]+'</span><input type="number" inputmode="numeric" min="0" step="5" data-bci-min="'+b+'" value="'+v+'" aria-label="Minutos de '+LB_BLOQ_LAB[b].toLowerCase()+'"><small>min · plan '+(minDe[b]||0)+'′</small></label>';}).join('');
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const cu={};bl.forEach(b=>cu[b]={r:0});
+  const filas=noms.map(n=>{
+    let st=null;try{const ev=effectiveStatus(n,dk);st=ev&&ev.status;}catch(e){}
+    const fuera=!!(st&&NOAV_ST.indexOf(st)>=0);
+    const ps=(st&&st!=='disp'&&PHYSTAT[st])?PHYSTAT[st]:null;
+    const aj=calAjDe(dk,n);
+    const chips=bl.map(b=>{const e=bmciEstado(dk,b,n,cerrado,fuera);
+      if(e.resp){cu[b].r++;return '<span class="bci-ch bci-ch--r" title="Respondió el cuestionario de '+LB_BLOQ_LAB[b].toLowerCase()+'">'+LB_BLOQ_LAB[b]+' · RPE</span>';}
+      return '<button type="button" class="bci-ch'+(e.on?' on':'')+'" data-bci-n="'+bmEsc(n)+'" data-bci-b="'+b+'" aria-pressed="'+(e.on?'true':'false')+'">'+LB_BLOQ_LAB[b]+'</button>';}).join('');
+    return '<div class="bci-r"><span class="bci-nm">'+bmEsc(n)
+      +(ps?'<em style="color:'+colTinta(ps.c)+'">'+bmEsc(ps.lab)+'</em>':(aj!=='n'?'<em>'+bmEsc(CAL_AJ[aj].lab)+'</em>':''))+'</span>'
+      +'<span class="bci-chs">'+chips+'</span></div>';
+  }).join('');
+  box.innerHTML=nav
+    +'<div class="bci-mins">'+mins+'</div>'
+    +'<div class="bci-lee">'+bl.map(b=>'<p data-bci-lee="'+b+'" data-r="'+cu[b].r+'"></p>').join('')+'</div>'
+    +'<div class="bci-l">'+filas+'</div>'
+    +'<p class="small muted bci-pie">Quien respondió el cuestionario está fijo. A quien no respondió y entrenó, la app le pone el RPE medio del equipo en ese bloque (su sesgo incluido); a quien no entrenó, nada. '
+    +(cerrado?'Este día ya se había cerrado: lo marcado es lo guardado.':'Están marcados los disponibles: quita a quien no entrenó.')+'</p>'
+    +'<div class="bci-pie2"><button type="button" class="btn" data-bci="ok">Cerrar la sesión</button></div>';
+  bmciLee();
+}
+function bmciLee(){
+  const box=document.getElementById('bci-cuerpo');if(!box)return;
+  box.querySelectorAll('[data-bci-lee]').forEach(p=>{const b=p.dataset.bciLee,r=+p.dataset.r||0;let c=0,nn=0;
+    box.querySelectorAll('.bci-ch[data-bci-b="'+b+'"]').forEach(x=>{if(x.classList.contains('on'))c++;else nn++;});
+    p.innerHTML='<span><b>'+LB_BLOQ_LAB[b]+'</b> · '+(c+r)+' entrenan: '+r+' con cuestionario y '+c+' sin él'+(nn?' · '+nn+' no':'')+'</span>'
+      +((c+nn)?'<button type="button" class="bci-todos" data-bci-todos="'+b+'" data-v="'+(nn?1:0)+'">'+(nn?'Marcar todos':'Ninguno')+'</button>':'');});
+}
+function bmCierreGuarda(){
+  const box=document.getElementById('bci-cuerpo');if(!box||!BMCI.dk)return;
+  const dk=BMCI.dk;
+  const SD=sessDurGet();SD[dk]=SD[dk]||{};
+  const puestos=[];
+  box.querySelectorAll('[data-bci-min]').forEach(i=>{const b=i.dataset.bciMin;const v=(i.value||'').trim();
+    if(v===''||isNaN(+v))return;
+    if(String(SD[dk]['__'+b])!==String(+v)){SD[dk]['__'+b]=+v;puestos.push(LB_BLOQ_LAB[b].toLowerCase()+' '+(+v)+'′');}});
+  delete SD[dk].__group;
+  const A=asistGet();A[dk]=A[dk]||{};
+  let conv=0,quit=0;
+  box.querySelectorAll('.bci-ch[data-bci-b]').forEach(el=>{
+    const n=el.dataset.bciN,b=el.dataset.bciB,k=asistKey(n,b),on=el.classList.contains('on');
+    const antes=asistHas(dk,b,n);
+    if(on)A[dk][k]=true;
+    else if(b==='gym'&&window.gymConvocado&&gymConvocado(dk,n))A[dk][k]=false;
+    else delete A[dk][k];
+    if(on&&!antes)conv++;if(!on&&antes)quit++;
+  });
+  if(!Object.keys(A[dk]).length)delete A[dk];
+  try{sessDurPersist();asistPersist();}catch(e){console.error('bmnava · cerrar la sesión',e);toast('No se pudo guardar');return;}
+  try{sessDurRecalc(dk);}catch(e){}
+  const hechos=[];if(puestos.length)hechos.push(puestos.join(' y '));
+  if(conv)hechos.push(conv+(conv===1?' convocado':' convocados'));
+  if(quit)hechos.push(quit+(quit===1?' desconvocado':' desconvocados'));
+  bmHojaCierra('bmh-cierre');
+  toast(hechos.length?'Sesión cerrada · '+hechos.join(' · '):'Sesión cerrada · sin cambios');
+  if(document.getElementById('bmh-faltan')&&document.getElementById('bmh-faltan').classList.contains('on'))bmFaltanPinta();
+  try{bmFaltaLinea();}catch(e){}
+}
+document.addEventListener('click',e=>{
+  const t=e.target&&e.target.closest&&e.target.closest('#bmh-cierre [data-bci],#bmh-cierre .bci-ch[data-bci-b],#bmh-cierre [data-bci-todos]');if(!t||t.disabled)return;
+  if(t.dataset.bciB){const on=!t.classList.contains('on');t.classList.toggle('on',on);t.setAttribute('aria-pressed',on?'true':'false');bmciLee();return;}
+  if(t.dataset.bciTodos){const on=t.dataset.v==='1';document.querySelectorAll('#bci-cuerpo .bci-ch[data-bci-b="'+t.dataset.bciTodos+'"]').forEach(x=>{x.classList.toggle('on',on);x.setAttribute('aria-pressed',on?'true':'false');});bmciLee();return;}
+  const v=t.dataset.bci;
+  if(v==='ok'){bmCierreGuarda();return;}
+  if(v==='plan'){const dk=BMCI.dk;bmHojaCierra('bmh-cierre');go('cal');setTimeout(()=>calOpenDay(dk),60);return;}
+  const d=dkToDate(BMCI.dk);d.setDate(d.getDate()+(+v));const k=dkey(d);if(k>dkey(new Date()))return;BMCI.dk=k;bmCierrePinta();
+});
+
+/* ── Datos que faltan ── */
+function bmFaltaRPE(dk){
+  const resp=new Set((STATE.rpe||[]).filter(r=>r&&r.dk===dk&&!r.bloqueConvocado&&!r.sinRegistro&&r.rpe>0).map(r=>r.name));
+  return Object.keys(STATE.players||{}).filter(n=>{
+    if(resp.has(n))return false;
+    let st=null;try{const ev=effectiveStatus(n,dk);st=ev&&ev.status;}catch(e){}
+    if(st&&NOAV_ST.indexOf(st)>=0)return false;
+    if(calAjDe(dk,n)==='no')return false;
+    return true;
+  }).sort((a,b)=>a.localeCompare(b,'es'));
+}
+function bmFaltaWell(dk){
+  return Object.keys(STATE.players||{}).filter(n=>{
+    let st=null;try{st=playerDailyWellnessStatus(n,dk);}catch(e){return false;}
+    if(!st||st.state!=='missing')return false;
+    try{if(conLaSeleccion(n,dk))return false;}catch(e){}
+    return true;
+  }).sort((a,b)=>a.localeCompare(b,'es'));
+}
+function bmFaltanDatos(){
+  try{calLoad();}catch(e){}
+  const hoy=dkey(new Date());
+  const desde=dkey(new Date(Date.now()-14*86400000));
+  const out={min:[],par:[],rpe:[],well:[],hoy};
+  try{(durFaltantes(14).dias||[]).forEach(d=>{if(d.dk<=hoy)out.min.push({dk:d.dk,n:d.sin,total:d.total});});}catch(e){}
+  try{calMatchDksAll().filter(dk=>dk>=desde&&dk<=hoy).forEach(dk=>{
+    const m=(sessDurGet()[dk])||{};
+    const con=Object.keys(m).filter(k=>/::pista$/.test(k)&&m[k]!==''&&m[k]!=null).length;
+    if(con)return;
+    const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido);
+    out.par.push({dk,rival:ev?evRival(ev):''});
+  });}catch(e){}
+  /* RPE: las sesiones planificadas de la última semana. Hoy sólo cuenta si ya
+     ha llegado algún cuestionario de hoy: por la mañana la sesión no se ha
+     hecho y «faltan 18» sería falso. */
+  for(let i=0;i<=7;i++){const d=new Date();d.setDate(d.getDate()-i);const dk=dkey(d);
+    try{if(!calBloquesPlan(dk).size)continue;}catch(e){continue;}
+    if(dk===hoy&&!(STATE.rpe||[]).some(r=>r&&r.dk===dk&&!r.bloqueConvocado&&!r.sinRegistro&&r.rpe>0))continue;
+    const f=bmFaltaRPE(dk);if(f.length)out.rpe.push({dk,falta:f});}
+  try{out.well=bmFaltaWell(hoy);}catch(e){}
+  out.n=out.min.length+out.par.length+out.rpe.length+(out.well.length?1:0);
+  return out;
+}
+function bmFaltan(){
+  bmHoja({id:'faltan',titulo:'Datos que faltan',html:'<div class="bfa" id="bfa-cuerpo"></div>',clase:'bm-fah'});
+  bmFaltanPinta();
+}
+function bmfaNombres(l){return l.slice(0,6).map(n=>bmEsc(cvCorto(n))).join(', ')+(l.length>6?' y '+(l.length-6)+' más':'');}
+function bmFaltanPinta(){
+  const box=document.getElementById('bfa-cuerpo');if(!box)return;
+  const D=bmFaltanDatos();
+  const fila=(t,sub,acc)=>'<div class="bfa-r"><div class="bfa-tx"><b>'+t+'</b><span>'+sub+'</span></div><div class="bfa-acc">'+acc+'</div></div>';
+  const btn=(lab,data,prim)=>'<button type="button" class="btn'+(prim?'':' ghost')+'" '+data+'>'+lab+'</button>';
+  const sec=(tit,html)=>html?'<section class="bfa-s"><h3>'+tit+'</h3>'+html+'</section>':'';
+  let h='';
+  h+=sec('Partes de hoy sin responder',D.well.length?fila(D.well.length+(D.well.length===1?' jugador':' jugadores')+' sin parte de wellness',bmfaNombres(D.well),btn('Ver el parte','data-bfa="parte"')):'');
+  h+=sec('Días con RPE y sin minutos',D.min.map(d=>{let pl=false;try{pl=calBloquesPlan(d.dk).size>0;}catch(e){}
+    return fila(bmciTit(d.dk),d.n+' de '+d.total+' cuestionarios valen 0 UA porque falta la duración'+(pl?'':' · el día no tiene sesión planificada'),
+      pl?btn('Cerrar la sesión','data-bfa="cierre" data-dk="'+d.dk+'"',true):btn('Poner minutos','data-bfa="dia" data-dk="'+d.dk+'"'));}).join(''));
+  h+=sec('Partidos sin minutos jugados',D.par.map(p=>fila(bmciTit(p.dk)+(p.rival?' · '+bmEsc(p.rival):''),'Sin los minutos de cada jugador la carga del partido es la del calentamiento',btn('Poner minutos','data-bfa="dia" data-dk="'+p.dk+'"'))).join(''));
+  h+=sec('RPE que faltan en sesiones planificadas',D.rpe.map(r=>fila(bmciTit(r.dk)+' · faltan '+r.falta.length,bmfaNombres(r.falta),btn('Cerrar la sesión','data-bfa="cierre" data-dk="'+r.dk+'"'))).join(''));
+  box.innerHTML=h||'<div class="bci-vacio"><b>Todo al día</b><span>Ni días sin minutos, ni partidos sin minutos jugados, ni cuestionarios pendientes en las dos últimas semanas.</span></div>';
+  box.insertAdjacentHTML('beforeend','<p class="small muted bfa-pie">Mira las dos últimas semanas. Un dato que falta no es un cero: un día sin minutos o un partido sin minutos jugados no entra en la carga y baja el ACWR de todos a la vez.</p>');
+}
+document.addEventListener('click',e=>{
+  const t=e.target&&e.target.closest&&e.target.closest('#bmh-faltan [data-bfa]');if(!t)return;
+  const v=t.dataset.bfa,dk=t.dataset.dk;
+  if(v==='cierre'){bmCierre(dk);return;}
+  if(v==='dia'){bmHojaCierra('bmh-faltan');go('cal');setTimeout(()=>calOpenDay(dk),60);return;}
+  if(v==='parte'){bmHojaCierra('bmh-faltan');go('parte');return;}
+});
+/* En el móvil, una línea bajo el título del Calendario cuando hay algo que
+   completar. Sólo ahí: en el ordenador está en el menú «⋯» y en la búsqueda. */
+function bmFaltaLinea(){
+  const v=document.getElementById('v-cal');if(!v)return;
+  let el=document.getElementById('bm-falta-cal');
+  if(!esMovil()){if(el)el.remove();return;}
+  let D=null;try{D=bmFaltanDatos();}catch(e){return;}
+  if(!D.n){if(el)el.remove();return;}
+  if(!el){el=document.createElement('button');el.type='button';el.id='bm-falta-cal';el.className='bm-falta';el.addEventListener('click',()=>bmFaltan());
+    const ph=v.querySelector(':scope>.pagehead');if(ph&&ph.nextSibling)v.insertBefore(el,ph.nextSibling);else v.insertBefore(el,v.firstChild);}
+  el.innerHTML='<i aria-hidden="true">!</i><span><b>'+D.n+(D.n===1?' dato por completar':' datos por completar')+'</b>'
+    +[D.min.length?D.min.length+(D.min.length===1?' día sin minutos':' días sin minutos'):'',D.par.length?D.par.length+(D.par.length===1?' partido sin minutos jugados':' partidos sin minutos jugados'):'',D.rpe.length?'RPE pendientes':'',D.well.length?'partes de hoy':''].filter(Boolean).join(' · ')+'</span><em aria-hidden="true">›</em>';
+}
+window.bmCierre=bmCierre;window.bmFaltan=bmFaltan;window.bmFaltanDatos=bmFaltanDatos;window.bmFaltaLinea=bmFaltaLinea;
+
 /* v743 · DESDE TU ÚLTIMA VISITA. Daniel, 16/11/2026, eligió la propuesta 5.
    Virginia, Carlos y Daniel trabajan sobre los mismos datos en equipos
    distintos y no hay forma de saber qué ha cambiado sin recorrer las
@@ -38876,9 +39096,11 @@ function calDiaPinta(){
   const hay=((STATE.calendar||{})[dk]||[]).length;
   host.innerHTML='<div class="cal-dia-h"><b>'+wdL[i]+' '+d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase()+'</b>'
       +(dk===hoy?'<span class="cal-dia-hoy">Hoy</span>':'')
+      +(dk<=hoy&&calBloquesPlan(dk).size?'<button type="button" class="cal-dia-ed cal-dia-ci" onclick="bmCierre(\''+dk+'\')">Cerrar sesión</button>':'')
       +'<button type="button" class="cal-dia-ed" onclick="calOpenDay(\''+dk+'\')">'+(hay?'Editar':'Planificar')+'</button></div>'
     +(()=>{let r=null;try{r=calRisk(dk);}catch(e){}return r&&r.msg?'<p class="cal-dia-aviso">⚠ '+bmEsc(r.msg)+'</p>':'';})()
     +calDiaCol(dk,i,window.__CAL_REAL||calRealMap(),mdMap,hoy,wdL);
+  try{bmFaltaLinea();}catch(e){}
 }
 function calPrev(){CALVIEW.m--;if(CALVIEW.m<0){CALVIEW.m=11;CALVIEW.y--;}renderCalendar();}
 function calNext(){CALVIEW.m++;if(CALVIEW.m>11){CALVIEW.m=0;CALVIEW.y++;}renderCalendar();}
@@ -39646,6 +39868,8 @@ function bmTbMenu(e){
     {t:'Agenda médica',f:pulsa('#btn-agenda')},
     {t:'Informe de la semana',f:()=>{try{bmInformeSemana();}catch(err){}}},
     {t:'Desde tu última visita',f:()=>{try{bmDesdeVisita();}catch(err){}}},
+    {t:'Cerrar la sesión…',f:()=>{try{bmCierre();}catch(err){}}},
+    {t:'Datos que faltan…',f:()=>{try{bmFaltan();}catch(err){}}},
     {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
     {t:'Ajustes de cálculo…',k:',',f:pulsa('#btn-settings')},
     {sep:1},{h:'Apariencia'},
@@ -49228,6 +49452,57 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .mcx-cb i{display:block;height:100%;border-radius:99px;background:var(--c-data,var(--muted))}
 .mcx-crit{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.35}
 .mcx-crit b{color:var(--txt);font-weight:700}
+</style>
+<style id="bm-v750">
+/* v750 · Cerrar la sesión y datos que faltan */
+.bci-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 0 12px}
+.bci-nav b{font-size:15px;font-weight:700;color:var(--txt);min-width:150px;text-align:center}
+.bci-mins{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:0 0 10px}
+.bci-min{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:4px 10px;background:var(--panel2);border-radius:12px;padding:10px 12px}
+.bci-min span{font-size:13px;font-weight:700;color:var(--txt)}
+.bci-min input{width:100%;min-width:0;font:inherit;font-size:17px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.bci-min small{grid-column:1/-1;font-size:11.5px;color:var(--muted)}
+.bci-lee{font-size:12.5px;color:var(--muted);margin:2px 0 8px}
+.bci-lee p{margin:0 0 2px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bci-lee p span{flex:1;min-width:0}
+.bci-todos{font:inherit;font-size:12.5px;font-weight:600;color:var(--acc-seg,var(--accent));background:none;border:0;padding:2px 0;cursor:pointer}
+.bci-lee b{color:var(--txt)}
+.bci-l{border-top:.5px solid var(--line)}
+.bci-r{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:.5px solid var(--line)}
+.bci-nm{flex:1;min-width:0;font-size:13.5px;color:var(--txt);line-height:1.25}
+.bci-nm em{display:block;font-style:normal;font-size:11.5px;font-weight:600;color:var(--muted)}
+.bci-chs{display:flex;gap:6px;flex:none}
+.bci-ch{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:12.5px;font-weight:600;border-radius:99px;padding:5px 12px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.bci-ch.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#fff)}
+.bci-ch--r{cursor:default;background:var(--panel2);border-color:transparent;color:var(--ok-text)}
+.bci-pie{margin:10px 0 0}
+.bci-pie2{display:flex;justify-content:flex-end;margin-top:12px;position:sticky;bottom:0;padding:8px 0 2px;background:var(--bmh-bg,var(--panel));box-shadow:0 24px 0 0 var(--bmh-bg,var(--panel))}
+.bci-vacio{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:14px 2px}
+.bci-vacio b{font-size:15px;color:var(--txt)}
+.bci-vacio span{font-size:13px;color:var(--muted);line-height:1.4}
+.bfa-s{margin:0 0 14px}
+.bfa-s h3{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 4px}
+.bfa-r{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line)}
+.bfa-tx{flex:1;min-width:0}
+.bfa-tx b{display:block;font-size:13.5px;color:var(--txt)}
+.bfa-tx span{display:block;font-size:12px;color:var(--muted);line-height:1.35}
+.bfa-acc{display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.bfa-pie{margin:6px 0 0}
+#bm-falta-cal{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-cal>#bm-falta-cal{order:0;display:flex;align-items:center;gap:10px;width:100%;text-align:left;font:inherit;background:var(--panel);border:0;border-radius:14px;padding:10px 14px;margin:0 0 10px;min-height:44px;color:var(--txt);box-shadow:var(--lg-shadow)}
+  #bm-falta-cal i{flex:none;width:24px;height:24px;border-radius:50%;background:var(--warn);color:var(--on-warn,#000);font-style:normal;font-weight:800;display:grid;place-items:center;font-size:13px}
+  #bm-falta-cal span{flex:1;min-width:0;font-size:12px;color:var(--muted);line-height:1.3}
+  #bm-falta-cal span b{display:block;font-size:14px;color:var(--txt)}
+  #bm-falta-cal em{font-style:normal;color:var(--muted);font-size:18px}
+  .bci-ch{min-height:44px;padding:0 14px}
+  .bci-todos{min-height:44px}
+  .bci-nav .inf-fl{min-width:44px;min-height:44px}
+  .bci-r{flex-wrap:wrap}
+  .bfa-r{flex-wrap:wrap}
+  .bfa-acc .btn{min-height:44px}
+  .cal-dia-ci{margin-left:auto;white-space:nowrap}
+}
 </style>
 <style id="bm-v745">
 /* v745 · Ficha: su temporada de un vistazo · v747 rehecha */
