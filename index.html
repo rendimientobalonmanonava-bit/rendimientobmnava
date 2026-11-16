@@ -10533,7 +10533,7 @@ const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava
   bmnava_partidos:'Zonas por partido',bmnava_vhfases:'Fase de cada valoración',
   bmnava_quadrants:'Cuadrantes',bmnava_sespec:'Umbrales de sesión calibrados',
   bmnava_vhurl:'Hoja de valoraciones',bmnava_wmset:'Ajuste de wellness ausente',
-  bmnava_gymvol:'Volumen de gimnasio (BuilderPro)',bmnava_alertas:'Alertas marcadas como vistas'};
+  bmnava_gymvol:'Volumen de gimnasio (BuilderPro)',bmnava_alertas:'Alertas marcadas como vistas',bmnava_convoc:'Convocatorias'};
 /* v321 · Estas no son datos del equipo: son las copias y apuntes que lleva la
    propia app. Salen en el desglose de Conexión, así que necesitan un nombre que
    se entienda. */
@@ -10555,6 +10555,8 @@ const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur'
   'bmnava_gymvol',
   /* v739 · quién ha visto qué alerta */
   'bmnava_alertas',
+  /* v740 · las convocatorias */
+  'bmnava_convoc',
   /* v481 · `bmnava_sesniv` son las correcciones MANUALES de nivel de sesión, que
      mandan por encima del cálculo (§2.1.1) y no se pueden recalcular: se escriben
      a mano. Llevaban fuera de la copia de seguridad desde siempre — el mismo
@@ -10719,6 +10721,7 @@ function invRender(){
     {k:'bmnava_physio',   lab:'Fisioterapia · partes del día',     porMes:true},
     {k:'bmnava_vendajes', lab:'Vendajes funcionales',                porMes:true},
     {k:'bmnava_alertas',  lab:'Alertas marcadas como vistas',        porMes:false},
+    {k:'bmnava_convoc',   lab:'Convocatorias',                       porMes:false},
     {k:'bmnava_nutri',    lab:'Nutrición · pedidos y cobros',       porMes:false},
     {k:'bmnava_medlog',   lab:'Agenda médica · citas y pruebas',   porMes:true},
     {k:'bmnava_reuniones',lab:'Reuniones',                         porMes:true},
@@ -17175,6 +17178,113 @@ function bmFsAbre(f,lan){
      días con plan Y real (un día sin dato no cuenta como cero).
    La hoja lleva un botón al día en el calendario, que es lo que hacía antes la
    pastilla. */
+/* v740 · PREPARAR LA CONVOCATORIA. Daniel, 16/11/2026, eligió la propuesta 2.
+   Sobre la previa del partido (v626): la plantilla por línea, y en cada uno lo
+   que hace falta para decidir —su estado ESE día, el readiness de hoy, el ACWR
+   y los minutos jugados en los tres últimos partidos—. Se marcan los que van y
+   la cuenta se compara con **16, el máximo del acta** (no es un umbral de la
+   app: es el reglamento). Avisa si se convoca a alguien que ese día está fuera
+   y dice quién va en duda. **Ni un cálculo nuevo**: el estado es
+   `effectiveStatus`, la duda la misma de la previa (`CARE_ST`, «Ojo hoy»,
+   readiness en rojo), el color del ACWR `acwrClass` y los minutos `ptMinutos`,
+   lo que el staff apunta en «Min jugados».
+   La lista se guarda por partido en `bmnava_convoc` y se comparte entre
+   equipos. La imagen que se exporta lleva SÓLO nombres y dorsales por línea:
+   va a un grupo, y el estado médico no sale de la app. */
+const CV_LS='bmnava_convoc',CV_MAX=16;
+function cvGet(){if(!Array.isArray(STATE.convoc))STATE.convoc=lsLeer(CV_LS,[])||[];if(!Array.isArray(STATE.convoc))STATE.convoc=[];return STATE.convoc;}
+function cvDe(dk){return cvGet().find(x=>x&&x.dk===dk)||null;}
+function cvGuarda(dk,jug){const L=cvGet();let r=L.find(x=>x&&x.dk===dk);
+  if(!r){r={id:'cv|'+dk,dk};L.push(r);}
+  r.jug=jug.slice();r.upd=new Date().toISOString();try{r.quien=alvQuien();}catch(e){}
+  lsGuardar(CV_LS,L);}
+function cvDatos(dk){
+  const roster=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const ojo={};try{ojoAbiertos().forEach(o=>{if(!ojo[o.name])ojo[o.name]=o.e;});}catch(e){}
+  const prev=calPartidosDks().filter(x=>x<dk).slice(-3);
+  return roster.map(n=>{const p=STATE.players[n]||{};let e=null;try{e=effectiveStatus(n,dk);}catch(_){}
+    const st=(e&&e.status)||'disp',S=PHYSTAT[st]||null,zona=e&&e.zone?e.zone+(e.side?' '+e.side:''):'';
+    const fuera=NOAV_ST.includes(st);const mot=[];
+    if(fuera||CARE_ST.includes(st))mot.push((S?S.lab:st)+(zona?' · '+zona:''));
+    if(ojo[n]){try{mot.push('Ojo: '+ojoLab(ojo[n]));}catch(_){mot.push('Ojo hoy');}}
+    if(!fuera&&p.sev==='bad'&&p.readiness!=null)mot.push('readiness bajo');
+    let vuelve='';if(fuera){try{const r=medRTPinfo(n);if(r&&r.e.rtp&&r.e.rtp>dk){const x=dkToDate(r.e.rtp);vuelve='alta prevista '+x.getDate()+'/'+(x.getMonth()+1);}}catch(_){}}
+    const ac=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null;
+    return {n,p,pos:p.pos,fuera,duda:!fuera&&mot.length>0,mot:mot.join(' · '),col:fuera?(S?S.c:'var(--bad)'):(mot.length?'var(--warn)':''),vuelve,
+      rd:p.readiness!=null&&!isNaN(p.readiness)?Math.round(p.readiness):null,ac,
+      min:prev.map(m=>ptMinutos(m,n)),dor:(typeof dorsal==='function'?dorsal(n):'')||(((STATE.info||{})[n]||{}).dorsal||'')};});
+}
+const CV={dk:null,sel:new Set()};
+/* el nombre de pila, y la inicial del apellido si hay dos con el mismo (David F. · David R.) */
+function cvCorto(n){const t=String(n).split(' ');const rep=Object.keys(STATE.players||{}).filter(x=>x!==n&&String(x).split(' ')[0]===t[0]).length;return rep&&t[1]?t[0]+' '+t[1].charAt(0)+'.':t[0];}
+function bmConvoc(dk){
+  if(!dk)return;CV.dk=dk;
+  const d=cvDatos(dk),g=cvDe(dk);
+  CV.sel=new Set(g&&Array.isArray(g.jug)?g.jug.filter(n=>d.some(x=>x.n===n)):d.filter(x=>!x.fuera).map(x=>x.n));
+  const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};
+  const x=dkToDate(dk),WD=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const tit=(evRival(ev)||'Partido')+' · '+WD[x.getDay()]+' '+x.getDate()+'/'+(x.getMonth()+1);
+  bmHoja({id:'convoc',titulo:'Convocatoria',html:'<div class="cv" data-dk="'+dk+'"><div class="cv-tit">'+bmEsc(tit)+'</div><div id="cv-cuerpo"></div></div>',clase:'bm-cvh'});
+  cvPinta();
+}
+function cvPinta(){
+  const box=document.getElementById('cv-cuerpo');if(!box||!CV.dk)return;
+  const dk=CV.dk,d=cvDatos(dk),esc=bmEsc;
+  const n=CV.sel.size,sobra=n-CV_MAX;
+  const fueraSel=d.filter(x=>x.fuera&&CV.sel.has(x.n)),dudaSel=d.filter(x=>x.duda&&CV.sel.has(x.n));
+  const nPrev=calPartidosDks().filter(x=>x<dk).slice(-3).length;
+  const foto=nm=>{const r=(window.photoFor&&photoFor(nm))||(STATE.players[nm]&&STATE.players[nm].avatar)||window.__AVATAR__||'';return r?'<img src="'+r+'" alt="" loading="lazy">':'<i>'+esc(String(nm).charAt(0))+'</i>';};
+  const fila=x=>{const on=CV.sel.has(x.n);const acC=x.ac!=null?acwrClass(x.ac):'';
+    const acCol=acC==='ok'?'var(--ok-text)':acC?'var(--warn-text)':'var(--muted)';
+    return '<button type="button" class="cv-f'+(on?' on':'')+(x.fuera?' cv-fuera':'')+'" data-cv="'+encodeURIComponent(x.n)+'" role="checkbox" aria-checked="'+on+'">'
+      +'<span class="cv-chk" aria-hidden="true"></span>'
+      +'<span class="cv-av"'+(x.col?' style="border-color:'+x.col+'"':'')+'>'+foto(x.n)+'</span>'
+      +'<span class="cv-q"><b>'+(x.dor!==''?'<em>'+esc(x.dor)+'</em>':'')+esc(x.n)+'</b>'
+        +(x.mot?'<small style="color:'+colTinta(x.col||'var(--warn)')+'">'+esc(x.mot)+(x.vuelve?' · '+esc(x.vuelve):'')+'</small>':'<small>Disponible</small>')+'</span>'
+      +'<span class="cv-d"><b style="color:'+(x.rd!=null?colTexto('var(--'+recSev(x.rd)+')'):'var(--muted)')+'">'+(x.rd!=null?x.rd:'—')+'</b><small>readiness</small></span>'
+      +'<span class="cv-d"><b style="color:'+acCol+'">'+(x.ac!=null?fmt(x.ac,2):'—')+'</b><small>ACWR</small></span>'
+      +(nPrev?'<span class="cv-d cv-min"><b>'+x.min.map(m=>m!=null?Math.round(m)+'′':'—').join(' ')+'</b><small>min · últ. '+nPrev+'</small></span>':'')
+      +'</button>';};
+  const lineas=JL_GR.map(([k,t])=>{const xs=d.filter(x=>x.pos===k);if(!xs.length)return '';
+    const c=xs.filter(x=>CV.sel.has(x.n)).length;
+    return '<div class="cv-lin"><div class="cv-lin-h"><b>'+t+'</b><span>'+c+' de '+xs.length+'</span></div>'+xs.map(fila).join('')+'</div>';}).join('')
+    +(()=>{const otros=d.filter(x=>!JL_GR.some(([k])=>k===x.pos));return otros.length?'<div class="cv-lin"><div class="cv-lin-h"><b>Sin puesto</b></div>'+otros.map(fila).join('')+'</div>':'';})();
+  const avisos=[];
+  if(sobra>0)avisos.push('<span class="cv-av-x bad">Sobran '+sobra+': el acta admite '+CV_MAX+'</span>');
+  if(fueraSel.length)avisos.push('<span class="cv-av-x bad">Convocas a '+fueraSel.map(x=>esc(cvCorto(x.n))+' ('+esc(x.mot.split(' · ')[0].toLowerCase())+')').join(', ')+'</span>');
+  if(dudaSel.length)avisos.push('<span class="cv-av-x warn">En duda: '+dudaSel.map(x=>esc(cvCorto(x.n))).join(', ')+'</span>');
+  const g=cvDe(dk);
+  box.innerHTML='<div class="cv-cab"><div class="cv-n'+(sobra>0?' bad':n===CV_MAX?' ok':'')+'"><b>'+n+'</b><span>de '+CV_MAX+'</span></div>'
+    +'<div class="cv-avisos">'+(avisos.length?avisos.join(''):'<span class="cv-av-x ok">'+(n===CV_MAX?'Lista completa':'Faltan '+(CV_MAX-n))+'</span>')
+    +(g&&g.upd?'<small class="cv-guardada">Guardada'+(g.quien?' por '+esc(g.quien):'')+' · '+alvHace(g.upd)+'</small>':'')+'</div></div>'
+    +lineas
+    +'<div class="cv-pie"><button type="button" class="btn ghost" data-cvb="limpiar">Desmarcar todos</button><button type="button" class="btn" data-cvb="png">Exportar imagen</button></div>'
+    +'<p class="cv-nota">Se guarda sola en cada cambio y la ven los demás. La imagen lleva sólo nombres y dorsales por línea: el estado médico no sale de la app.</p>';
+}
+function cvPNG(){
+  const dk=CV.dk;if(!dk)return;const d=cvDatos(dk).filter(x=>CV.sel.has(x.n)),esc=bmEsc;
+  if(!d.length){alert('No hay nadie convocado.');return;}
+  const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};
+  const x=dkToDate(dk),WD=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'],MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const lin=JL_GR.map(([k,t])=>{const xs=d.filter(y=>y.pos===k);if(!xs.length)return '';
+    return '<div class="cvd-l"><h3>'+t+'</h3>'+xs.map(y=>'<div class="cvd-j"><b>'+esc(y.dor!==''?y.dor:'')+'</b><span>'+esc(y.n)+'</span></div>').join('')+'</div>';}).join('');
+  const otros=d.filter(y=>!JL_GR.some(([k])=>k===y.pos));
+  const host=document.createElement('div');host.className='cvd-host';
+  host.innerHTML='<div class="cv-doc" id="cv-doc"><div class="cvd-h">'+(window.__LOGO_CLUB__?'<img src="'+window.__LOGO_CLUB__+'" alt="">':'')
+    +'<div><small>Convocatoria</small><b>'+esc(evRival(ev)||'Partido')+'</b><span>'+WD[x.getDay()]+' '+x.getDate()+' de '+MES[x.getMonth()]+((ev.time||'').trim()?' · '+esc(ev.time.trim()):'')+'</span></div>'
+    +'<em>'+d.length+'</em></div><div class="cvd-g">'+lin+(otros.length?'<div class="cvd-l"><h3>Otros</h3>'+otros.map(y=>'<div class="cvd-j"><b>'+esc(y.dor)+'</b><span>'+esc(y.n)+'</span></div>').join('')+'</div>':'')+'</div></div>';
+  document.body.appendChild(host);
+  const fin=()=>{try{host.remove();}catch(e){}};
+  try{Promise.resolve(exportNodePNG('cv-doc','convocatoria_'+dk+'.png')).then(fin,fin);}catch(e){fin();}
+}
+document.addEventListener('click',e=>{
+  const t=e.target&&e.target.closest?e.target:null;if(!t)return;
+  const f=t.closest('#bmh-convoc [data-cv]');
+  if(f){const n=decodeURIComponent(f.dataset.cv);if(CV.sel.has(n))CV.sel.delete(n);else CV.sel.add(n);cvGuarda(CV.dk,[...CV.sel]);
+    const sc=f.closest('.bmh-cuerpo');const y=sc?sc.scrollTop:0;cvPinta();if(sc)sc.scrollTop=y;return;}
+  const b=t.closest('#bmh-convoc [data-cvb]');
+  if(b){if(b.dataset.cvb==='limpiar'){CV.sel.clear();cvGuarda(CV.dk,[]);cvPinta();}else if(b.dataset.cvb==='png')cvPNG();}
+});
 function bmPreviaPartido(dk){
   if(!dk)return;
   const esc=bmEsc;
@@ -17249,6 +17359,7 @@ function bmPreviaPartido(dk){
     +sec('Por línea',null,lineas+'<p class="pv-pie">El aro y la cifra son el readiness de hoy; el punto ámbar, que está en duda.</p>')
     +sec('Carga del microciclo',null,carga)
     +sec('ACWR fuera de banda',acw.length||null,acwHtml)
+    +'<button type="button" class="pv-cal pv-cv" onclick="bmHojaCierra(\'bmh-previa\');bmConvoc(\''+dk+'\')">'+(cvDe(dk)&&(cvDe(dk).jug||[]).length?'Ver la convocatoria · '+cvDe(dk).jug.length:'Preparar la convocatoria')+'</button>'
     +'<button type="button" class="pv-cal" onclick="bmHojaCierra(\'bmh-previa\');bmProxAbre(\''+dk+'\')">Ver el día en el calendario</button>'
     +'</div>';
   bmHoja({id:'previa',titulo:'Previa del partido',html,clase:'bm-pvh'});
@@ -48263,6 +48374,64 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .alv-todo,.alv-b{min-height:32px;padding:5px 11px}
   .arow .alv-b{min-height:30px}
 }
+</style>
+<style id="bm-v740">
+/* v740 · Preparar la convocatoria (hoja; ordenador y móvil). */
+@media screen and (min-width:761px) and (pointer:fine){.bm-cvh .bmh-caja{width:min(640px,96vw)}}
+.cv-tit{font-size:14px;color:var(--muted);margin:-4px 0 10px}
+.cv-cab{display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:12px;background:var(--panel2);margin-bottom:12px;position:sticky;top:0;z-index:2}
+.cv-n{display:flex;align-items:baseline;gap:4px;flex:none}
+.cv-n b{font-size:30px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.cv-n span{color:var(--muted);font-size:13px}
+.cv-n.ok b{color:var(--ok-text)} .cv-n.bad b{color:var(--bad-text)}
+.cv-avisos{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cv-av-x{font-size:12.5px;font-weight:600}
+.cv-av-x.bad{color:var(--bad-text)} .cv-av-x.warn{color:var(--warn-text)} .cv-av-x.ok{color:var(--muted)}
+.cv-guardada{font-size:11px;color:var(--muted)}
+.cv-lin{margin:0 0 12px}
+.cv-lin-h{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 4px;font-size:12.5px;color:var(--muted)}
+.cv-lin-h b{font-size:11px;font-weight:700;letter-spacing:.55px;text-transform:uppercase;color:var(--muted)}
+.cv-f{display:grid;grid-template-columns:22px 38px minmax(0,1fr) 58px 52px auto;align-items:center;gap:10px;width:100%;padding:7px 8px;border:none;
+  border-radius:10px;background:transparent;color:var(--txt);font:inherit;text-align:left;cursor:pointer}
+.cv-f+.cv-f{box-shadow:0 -.5px 0 var(--hair)}
+.cv-f:hover{background:var(--panel2)}
+.cv-chk{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--muted2);box-sizing:border-box;position:relative}
+.cv-f.on .cv-chk{background:var(--accent);border-color:var(--accent)}
+.cv-f.on .cv-chk::after{content:"";position:absolute;left:6px;top:2px;width:5px;height:10px;border:solid var(--on-accent,#fff);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.cv-f:not(.on) .cv-q b{color:var(--muted)}
+.cv-av{width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px solid transparent;background:var(--panel2);display:flex;align-items:center;justify-content:center}
+.cv-av img{width:100%;height:100%;object-fit:cover}
+.cv-av i{font-style:normal;font-weight:700;color:var(--muted)}
+.cv-q{display:flex;flex-direction:column;min-width:0}
+.cv-q b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv-q b em{font-style:normal;color:var(--muted);font-weight:700;margin-right:6px;font-variant-numeric:tabular-nums}
+.cv-q small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv-d{display:flex;flex-direction:column;align-items:flex-end}
+.cv-d b{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.cv-d small{font-size:10.5px;color:var(--muted)}
+.cv-min b{font-weight:600;font-size:12.5px;white-space:nowrap}
+.cv-fuera .cv-q b{text-decoration:none}
+.cv-pie{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.cv-nota{font-size:11.5px;color:var(--muted);margin:10px 2px 0;max-width:62ch}
+.pv-cv{background:var(--accent)!important;color:var(--on-accent,#fff)!important}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .cv-f{grid-template-columns:22px 34px minmax(0,1fr) 46px 44px;min-height:48px}
+  .cv-min{display:none}
+}
+/* la imagen que se exporta: un documento, fijado a claro */
+.cvd-host{position:fixed;left:-10000px;top:0;pointer-events:none}
+.cv-doc{--ft:1;--fmin:0px;width:720px;padding:34px 38px 30px;background:#fff;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;box-sizing:border-box}
+.cvd-h{display:flex;align-items:center;gap:16px;padding-bottom:18px;border-bottom:1px solid #e5e5ea;margin-bottom:18px}
+.cvd-h img{height:62px;width:auto}
+.cvd-h div{display:flex;flex-direction:column;flex:1}
+.cvd-h small{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6e6e73}
+.cvd-h b{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.cvd-h span{font-size:14px;color:#6e6e73}
+.cvd-h em{font-style:normal;font-size:40px;font-weight:800;color:#1d1d1f}
+.cvd-g{display:grid;grid-template-columns:1fr 1fr;gap:16px 28px}
+.cvd-l h3{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6e6e73}
+.cvd-j{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px solid #f0f0f3;font-size:16px}
+.cvd-j b{width:28px;text-align:right;font-weight:800;color:#3056c4;font-variant-numeric:tabular-nums}
 </style>
 <script>
 /* ============================================================
