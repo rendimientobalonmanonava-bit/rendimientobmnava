@@ -14789,6 +14789,64 @@ const bmdPlugin={id:'bmDir',
    del eje horizontal al final, debajo, y las etiquetas del eje horizontal no
    se inclinan nunca (si no caben, se saltan). Todo dentro del propio gráfico:
    no se añade ni se mueve ningún nodo. No toca los documentos ni el móvil. */
+/* ═══ v755 · ORDENADOR · Los gráficos, con un solo acabado ═══
+   Medido el 16/11/2026 en diez gráficos del ordenador: cuatro posiciones de
+   leyenda (arriba, abajo, derecha, ninguna), tres formas de responder al ratón
+   (índice, el más cercano, el punto), cinco radios de barra (9, 5, 4, 3 y 0),
+   ejes con línea en unos y sin ella en otros, y dos con la rejilla en negro,
+   que en oscuro no se ve. Esto los iguala al crearlos con el acabado de Bolsa
+   y Salud: rejilla fina sólo horizontal y que cambia con el tema, sin línea de
+   eje, leyenda arriba en el centro con puntos (a los lados van los títulos de
+   los ejes, v684), barras igual de redondeadas
+   —salvo las apiladas— y, al pasar el ratón, una línea vertical en ese día
+   con el valor de todas las series.
+   Sólo opciones del gráfico: no añade nada fuera del lienzo, que es lo que
+   rompió el Calendario en la v666. Fuera: el Resumen y el Calendario (Daniel
+   los quiere como estaban), los documentos, los gráficos de sectores, radar o
+   dispersión, y el móvil. */
+const bmMacGrafPlugin={id:'bmMacGraf',
+  beforeInit(chart){
+    if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino()))return;
+    const cv=chart.canvas;if(!cv||!cv.closest||cv.closest(BMG_DOC)||cv.closest('#v-cal,#v-equipo'))return;
+    try{
+      const cf=chart.config,co=cf.options||(cf.options={});
+      const tipos=[cf.type].concat(((cf.data&&cf.data.datasets)||[]).map(d=>d.type)).filter(Boolean);
+      if(!tipos.length||!tipos.every(t=>t==='line'||t==='bar'))return;
+      const osc=document.documentElement.getAttribute('data-theme')==='dark';
+      const rej=osc?'rgba(255,255,255,.08)':'rgba(0,0,0,.07)';
+      const horiz=k=>co.indexAxis==='y'?/^y/.test(k):/^x/.test(k);
+      co.scales=Object.assign({},co.scales);
+      let apil=false;
+      Object.keys(co.scales).forEach(k=>{
+        const sc=co.scales[k];if(!sc||typeof sc!=='object')return;
+        if(sc.stacked)apil=true;
+        const g=Object.assign({},sc.grid);
+        if(horiz(k))g.display=false;
+        else if(g.display!==false&&typeof g.color!=='function'){g.color=rej;g.lineWidth=1;g.drawTicks=false;}
+        co.scales[k]=Object.assign({},sc,{grid:g,border:Object.assign({},sc.border,{display:false})});
+      });
+      co.plugins=Object.assign({},co.plugins);
+      const lg=co.plugins.legend;
+      if(!(lg&&lg.display===false))co.plugins.legend=Object.assign({},lg,{position:'top',align:'center',
+        labels:Object.assign({},lg&&lg.labels,{usePointStyle:true,pointStyle:'circle',boxWidth:7,boxHeight:7,padding:14})});
+      co.interaction=Object.assign({},co.interaction,{mode:'index',intersect:false,axis:co.indexAxis==='y'?'y':'x'});
+      co.plugins.tooltip=Object.assign({},co.plugins.tooltip,{mode:'index',intersect:false});
+      if(!apil)((cf.data&&cf.data.datasets)||[]).forEach(ds=>{if((ds.type||cf.type)==='bar')ds.borderRadius=4;});
+      chart.$bmMac={osc,vert:co.indexAxis!=='y'};
+    }catch(e){}
+  },
+  afterDatasetsDraw(chart){
+    const m=chart.$bmMac;if(!m)return;
+    try{
+      const a=chart.tooltip&&chart.tooltip.getActiveElements?chart.tooltip.getActiveElements():[];if(!a||!a.length)return;
+      const ca=chart.chartArea,el=a[0].element;if(!ca||!el)return;
+      const ctx=chart.ctx;ctx.save();ctx.strokeStyle=m.osc?'rgba(255,255,255,.32)':'rgba(0,0,0,.22)';ctx.lineWidth=1;ctx.beginPath();
+      if(m.vert){const x=Math.round(el.x)+.5;if(x<ca.left||x>ca.right){ctx.restore();return;}ctx.moveTo(x,ca.top);ctx.lineTo(x,ca.bottom);}
+      else{const y=Math.round(el.y)+.5;if(y<ca.top||y>ca.bottom){ctx.restore();return;}ctx.moveTo(ca.left,y);ctx.lineTo(ca.right,y);}
+      ctx.stroke();ctx.restore();
+    }catch(e){}
+  }
+};
 const bmEjesPlugin={id:'bmEjes',
   beforeInit(chart){
     if(esMovil())return;
@@ -20883,6 +20941,7 @@ function buildChartTheme(){
     if(!Chart.registry.plugins.get('bmGraf'))Chart.register(bmgPlugin);
     if(!Chart.registry.plugins.get('bmDir'))Chart.register(bmdPlugin);
     if(!Chart.registry.plugins.get('bmEjes'))Chart.register(bmEjesPlugin);
+    if(!Chart.registry.plugins.get('bmMacGraf'))Chart.register(bmMacGrafPlugin);
   }
 }
 buildChartTheme();
