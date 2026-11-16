@@ -14175,6 +14175,8 @@ function bmbIndice(){
   A('Cita o documento médico','Cita, reconocimiento o prueba',()=>{if(window.openHeroForm)openHeroForm('med','');});
   A('Ausencia de varios jugadores','Selección, viaje, permiso…',()=>{if(window.openAusenciaGrupo)openAusenciaGrupo(dkey(REF()));},'seleccion paron');
   A('Planificar el día de hoy','Añadir una sesión al calendario',()=>{go('cal');calOpenDay(dkey(new Date()));},'entreno partido');
+  A('Informe de la semana','La semana cerrada en una hoja que se exporta',()=>{if(window.bmInformeSemana)bmInformeSemana();},'resumen semanal informe');
+  A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
   document.querySelectorAll('#add-menu .add-item').forEach(b=>{const t=b.querySelector('b'),sm=b.querySelector('small');if(!t)return;
     A(t.textContent.trim(),sm?sm.textContent.trim():'',()=>b.click(),'añadir');});
   document.querySelectorAll('#sb-tools button').forEach(b=>{const tx=[...b.querySelectorAll('span')].map(x=>x.textContent.trim()).filter(Boolean);let l=(tx.length?tx[tx.length-1]:b.textContent.trim());
@@ -17323,6 +17325,120 @@ document.addEventListener('change',e=>{const s=e.target&&e.target.closest&&e.tar
 document.addEventListener('click',e=>{const s=e.target&&e.target.closest&&e.target.closest('#bmh-cmp [data-cmp="swap"]');if(!s)return;
   const t=CMP.a;CMP.a=CMP.b;CMP.b=t;cmpPinta();});
 window.bmComparar=bmComparar;
+/* v742 · INFORME DE LA SEMANA. Daniel, 16/11/2026, eligió la propuesta 4. Lo
+   que pasó en una semana estaba repartido en seis pantallas. Aquí, la semana
+   cerrada (se puede ir a las anteriores) en una hoja que se exporta en imagen:
+   sesiones y partido, carga contra plan, monotonía, recuperación declarada y
+   quién bajó, días fuera y con molestia, lo médico nuevo, los «Ojo hoy», las
+   valoraciones y las sesiones con pulsómetro. **Ni un cálculo nuevo**: la
+   carga contra plan es `calSemA4Efectos` (sólo días con plan Y carga, con la
+   regla de la v737), la monotonía la del Dashboard (`cgSemanasEquipo`, sólo
+   semanas cerradas), la recuperación `playerRecSeries`, los días fuera y con
+   molestia `effectiveStatus` con `NOAV_ST` y `CARE_ST`. «Quién bajó» enseña la
+   diferencia en puntos y no marca a nadie: no hay un listón de cuánto es
+   mucho, así que no se inventa. */
+const INF={mon:null};
+function infSemana(mon){
+  const dks=calWeekDks(mon),hoy=dkey(new Date()),cerrada=dks[6]<hoy;
+  const enSem=dk=>dk>=dks[0]&&dk<=dks[6];
+  const prevMon=new Date(mon);prevMon.setDate(prevMon.getDate()-7);const pdks=calWeekDks(prevMon);
+  const R={dks,cerrada,enCurso:!cerrada&&dks[0]<=hoy};
+  /* sesiones y partido */
+  let nS=0,min=0;const part=[];
+  dks.forEach(dk=>{((STATE.calendar||{})[dk]||[]).forEach(e=>{if(!e||evSP(e))return;
+    if(evEsPartido(e)){part.push({dk,riv:evRival(e)||'Partido'});return;}
+    if(e.type==='entreno'||e.type==='fuerza'){nS++;min+=evDur(e)||0;}});});
+  R.ses={n:nS,min};R.part=part;
+  /* carga contra plan */
+  try{R.ef=calSemA4Efectos(dks.filter(d=>d<=hoy)).ua||null;}catch(e){R.ef=null;}
+  try{const w=cgSemanasEquipo(cgSerieEquipo()).find(x=>x.week===dks[0]);R.mono=w&&!w.parcial&&!isNaN(w.mono)?w.mono:null;R.uaEq=w?w.ua:null;}catch(e){R.mono=null;}
+  /* recuperación declarada, equipo y jugador */
+  const media=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const recs=Object.keys(STATE.players||{}).map(n=>{const ser=playerRecSeries(STATE.players[n],80);
+    const a=ser.filter(x=>enSem(x.dk)).map(x=>x.pct),b=ser.filter(x=>x.dk>=pdks[0]&&x.dk<=pdks[6]).map(x=>x.pct);
+    return {n,a:media(a),b:media(b),na:a.length};});
+  const conA=recs.filter(r=>r.a!=null),conAB=recs.filter(r=>r.a!=null&&r.b!=null);
+  R.rec={eq:media(conA.map(r=>r.a)),prev:media(recs.filter(r=>r.b!=null).map(r=>r.b)),n:conA.length,
+    bajan:conAB.map(r=>({n:r.n,d:r.a-r.b})).filter(r=>r.d<0).sort((x,y)=>x.d-y.d).slice(0,3)};
+  /* disponibilidad */
+  const fuera={},moles={};let dF=0,dM=0;
+  Object.keys(STATE.players||{}).forEach(n=>{dks.forEach(dk=>{if(dk>hoy)return;let e=null;try{e=effectiveStatus(n,dk);}catch(_){}
+    const st=e&&e.status;if(!st)return;if(NOAV_ST.includes(st)){fuera[n]=(fuera[n]||0)+1;dF++;}else if(CARE_ST.includes(st)){moles[n]=(moles[n]||0)+1;dM++;}});});
+  R.disp={dF,dM,fuera:Object.entries(fuera).sort((a,b)=>b[1]-a[1]),moles:Object.entries(moles).sort((a,b)=>b[1]-a[1])};
+  /* médico */
+  const inj=(STATE.med&&STATE.med.inj)||[];
+  R.med={nuevas:inj.filter(i=>i&&enSem(String(i.dk||''))),cerradas:inj.filter(i=>i&&i.closeDk&&enSem(String(i.closeDk)))};
+  let ojos=[];try{const ML=ojoLoad();Object.keys(ML).forEach(n=>{(ML[n]||[]).forEach(e=>{if(e&&e.type==='ojo'&&enSem(String(e.dk||'')))ojos.push({n,e});});});}catch(e){}
+  R.ojos=ojos;
+  /* valoraciones */
+  let nT=0;const jT=new Set();
+  Object.keys(STATE.testHist||{}).forEach(n=>{(STATE.testHist[n]||[]).forEach(h=>{if(h&&h.real&&enSem(String(h.date||'').slice(0,10))){const k=Object.keys(h.vals||{}).length;if(k){nT+=k;jT.add(n);}}});});
+  R.val={n:nT,j:jT.size};
+  /* pulsómetros */
+  const hs=new Set();(STATE.hr||[]).forEach(r=>{const dk=r&&(r.dk||(r.date&&dkey(r.date)));if(dk&&enSem(dk))hs.add(dk+'|'+(r.session||r.label||r.etiqueta||''));});
+  R.hr=hs.size;
+  return R;
+}
+function infHTML(R,doc){
+  const esc=bmEsc,n0=v=>Math.round(v).toLocaleString('es-ES'),MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const fd=dk=>{const p=dk.split('-');return (+p[2])+' '+MES[+p[1]-1];};
+  const corto=n=>{const t=String(n).split(' ');return t[0]+(t[1]?' '+t[1].charAt(0)+'.':'');};
+  const k=(lab,val,sub,col)=>'<div class="inf-k"><small>'+lab+'</small><b'+(col?' style="color:'+col+'"':'')+'>'+val+'</b>'+(sub?'<span>'+sub+'</span>':'')+'</div>';
+  const dev=R.ef?calDev(R.ef.plan,R.ef.real):null;
+  const kp='<div class="inf-ks">'
+    +k('Sesiones',R.ses.n,R.ses.min?n0(R.ses.min)+' min programados':'')
+    +k('Partido',R.part.length?esc(R.part.map(p=>p.riv).join(' · ')):'—',R.part.length?R.part.map(p=>fd(p.dk)).join(' · '):'sin partido')
+    +k('Carga contra plan',dev?(dev.pct>0?'+':'')+dev.pct+' %':'—',R.ef?n0(R.ef.real)+' de '+n0(R.ef.plan)+' UA · '+R.ef.n+(R.ef.n===1?' día':' días'):'sin días con plan y carga',dev?colTexto(dev.col):'')
+    +k('Monotonía',R.mono!=null?fmt(R.mono,2):'—',R.mono!=null?(R.mono>((CONFIG.load&&CONFIG.load.monoHi)||1.5)?'poco variada':'variada'):(R.cerrada?'sin carga suficiente':'se calcula al cerrar la semana'))
+    +'</div>';
+  const sec=(t,body)=>'<section class="inf-s"><h3>'+t+'</h3>'+body+'</section>';
+  const lista=(xs,f)=>xs.length?'<ul class="inf-l">'+xs.map(f).join('')+'</ul>':'';
+  const recD=R.rec.eq!=null&&R.rec.prev!=null?Math.round(R.rec.eq-R.rec.prev):null;
+  const rec=R.rec.eq!=null?'<p class="inf-p"><b>'+Math.round(R.rec.eq)+' %</b> de media'+(recD!=null?' · <span style="color:'+(recD<0?'var(--warn-text)':'var(--muted)')+'">'+(recD>0?'+':recD<0?'−':'±')+Math.abs(recD)+' puntos</span> contra la semana anterior':'')+' · '+R.rec.n+' jugadores con parte.</p>'
+    +(R.rec.bajan.length?'<p class="inf-p inf-sub">Los que más bajaron</p>'+lista(R.rec.bajan,r=>'<li><span>'+esc(corto(r.n))+'</span><b>−'+Math.round(-r.d)+' puntos</b></li>'):'<p class="inf-p inf-sub">Nadie bajó respecto a la semana anterior.</p>')
+    :'<p class="inf-p">Sin partes de wellness esta semana.</p>';
+  const disp='<p class="inf-p"><b>'+R.disp.dF+'</b> días-jugador fuera y <b>'+R.disp.dM+'</b> con molestia o limitado.</p>'
+    +lista(R.disp.fuera.slice(0,6),([n,d])=>'<li><span>'+esc(corto(n))+'</span><b style="color:var(--bad-text)">'+d+(d===1?' día fuera':' días fuera')+'</b></li>')
+    +lista(R.disp.moles.slice(0,6),([n,d])=>'<li><span>'+esc(corto(n))+'</span><b style="color:var(--warn-text)">'+d+(d===1?' día con molestia':' días con molestia')+'</b></li>');
+  const med=(R.med.nuevas.length||R.med.cerradas.length||R.ojos.length)?
+    lista(R.med.nuevas,i=>'<li><span>'+esc(corto(i.name))+'</span><b>'+(i.kind==='lesion'?'Lesión':'Molestia')+' nueva · '+esc(i.title||i.zona||'')+'</b></li>')
+    +lista(R.med.cerradas,i=>'<li><span>'+esc(corto(i.name))+'</span><b style="color:var(--ok-text)">Alta · '+esc(i.title||i.zona||'')+'</b></li>')
+    +lista(R.ojos,o=>{let l='Ojo hoy';try{l='Ojo · '+ojoLab(o.e);}catch(_){}return '<li><span>'+esc(corto(o.n))+'</span><b style="color:var(--warn-text)">'+esc(l)+'</b></li>';})
+    :'<p class="inf-p">Nada nuevo en médico ni avisos de fisioterapia.</p>';
+  const otros='<p class="inf-p">'+(R.val.n?'<b>'+R.val.n+'</b> pruebas físicas medidas a <b>'+R.val.j+'</b> jugadores':'Sin valoraciones físicas')+' · '+(R.hr?'<b>'+R.hr+'</b> '+(R.hr===1?'sesión':'sesiones')+' con pulsómetro':'sin sesiones con pulsómetro')+'.</p>';
+  return kp+'<div class="inf-g">'+sec('Bienestar · recuperación declarada',rec)+sec('Disponibilidad',disp)+sec('Médico y fisioterapia',med)+sec('Valoraciones y pulsómetros',otros)+'</div>';
+}
+function infTitulo(R){const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const a=R.dks[0].split('-').map(Number),b=R.dks[6].split('-').map(Number);
+  return 'Semana del '+a[2]+(a[1]!==b[1]?' de '+MES[a[1]-1]:'')+' al '+b[2]+' de '+MES[b[1]-1];}
+function bmInformeSemana(mon){
+  if(!mon){const t=calWeekStart(new Date());t.setDate(t.getDate()-7);mon=t;}
+  INF.mon=mon;
+  bmHoja({id:'informe',titulo:'Informe de la semana',html:'<div class="inf" id="inf-cuerpo"></div>',clase:'bm-infh'});
+  infPinta();
+}
+function infPinta(){
+  const box=document.getElementById('inf-cuerpo');if(!box||!INF.mon)return;
+  let R;try{R=infSemana(INF.mon);}catch(e){console.error('bmnava · informe',e);box.innerHTML='<p class="inf-p">No se pudo preparar el informe.</p>';return;}
+  const sig=new Date(INF.mon);sig.setDate(sig.getDate()+7);const hayFut=dkey(sig)<=dkey(new Date());
+  box.innerHTML='<div class="inf-nav"><button type="button" class="inf-fl" data-inf="-1" aria-label="Semana anterior">‹</button><b>'+infTitulo(R)+'</b>'
+    +(R.enCurso?'<span class="inf-tag">en curso</span>':'')
+    +'<button type="button" class="inf-fl" data-inf="1" aria-label="Semana siguiente"'+(hayFut?'':' disabled')+'>›</button></div>'
+    +infHTML(R)
+    +'<div class="inf-pie"><button type="button" class="btn" data-inf="png">Exportar imagen</button></div>';
+}
+function infPNG(){
+  if(!INF.mon)return;const R=infSemana(INF.mon);
+  const host=document.createElement('div');host.className='cvd-host';
+  host.innerHTML='<div class="inf-doc" id="inf-doc"><div class="cvd-h">'+(window.__LOGO_CLUB__?'<img src="'+window.__LOGO_CLUB__+'" alt="">':'')
+    +'<div><small>Informe de la semana</small><b>'+bmEsc(infTitulo(R))+'</b><span>'+(R.enCurso?'Semana en curso · ':'')+'BM Nava · Control de cargas</span></div></div>'+infHTML(R,true)+'</div>';
+  document.body.appendChild(host);
+  const fin=()=>{try{host.remove();}catch(e){}};
+  try{Promise.resolve(exportNodePNG('inf-doc','informe_semana_'+R.dks[0]+'.png')).then(fin,fin);}catch(e){fin();}
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-informe [data-inf]');if(!b||b.disabled)return;
+  const v=b.dataset.inf;if(v==='png'){infPNG();return;}const m=new Date(INF.mon);m.setDate(m.getDate()+7*(+v));INF.mon=m;infPinta();});
+window.bmInformeSemana=bmInformeSemana;
 function bmConvoc(dk){
   if(!dk)return;CV.dk=dk;
   const d=cvDatos(dk),g=cvDe(dk);
@@ -39174,6 +39290,7 @@ function bmTbMenu(e){
   const tema=auto?'auto':(dark?'dark':'light');
   const it=[
     {t:'Agenda médica',f:pulsa('#btn-agenda')},
+    {t:'Informe de la semana',f:()=>{try{bmInformeSemana();}catch(err){}}},
     {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
     {t:'Ajustes de cálculo…',k:',',f:pulsa('#btn-settings')},
     {sep:1},{h:'Apariencia'},
@@ -48576,6 +48693,38 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .cmp-cab{grid-template-columns:minmax(0,1fr)}
   .cmp-swap{justify-self:center}
 }
+</style>
+<style id="bm-v742">
+/* v742 · Informe de la semana (hoja; ordenador y móvil) y su imagen. */
+@media screen and (min-width:761px) and (pointer:fine){.bm-infh .bmh-caja{width:min(860px,96vw)}}
+.inf-nav{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.inf-nav b{font-size:17px;font-weight:700;flex:1;min-width:0}
+.inf-fl{width:32px;height:32px;border-radius:50%;border:none;background:var(--panel2);color:var(--txt);font-size:18px;cursor:pointer}
+.inf-fl:disabled{opacity:.35;cursor:default}
+.inf-tag{font-size:11px;font-weight:600;color:var(--muted);background:var(--panel2);border-radius:6px;padding:2px 7px}
+.inf-ks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.inf-k{background:var(--panel2);border-radius:12px;padding:10px 12px;min-width:0}
+.inf-k small{display:block;font-size:10px;font-weight:700;letter-spacing:.55px;text-transform:uppercase;color:var(--muted)}
+.inf-k b{display:block;font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inf-k span{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+.inf-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
+.inf-s h3{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.55px;text-transform:uppercase;color:var(--muted)}
+.inf-p{margin:0 0 6px;font-size:13.5px;line-height:1.45}
+.inf-sub{font-size:11.5px;color:var(--muted);margin-top:8px}
+.inf-l{list-style:none;margin:0 0 6px;padding:0}
+.inf-l li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:.5px solid var(--hair);font-size:13px}
+.inf-l li b{font-weight:600;text-align:right}
+.inf-pie{display:flex;justify-content:flex-end;margin-top:12px}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .inf-ks{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .inf-g{grid-template-columns:minmax(0,1fr)}
+}
+/* la imagen: un documento, fijado a claro */
+.inf-doc{--ft:1;--fmin:0px;--panel:#fff;--panel2:#f2f2f7;--txt:#1d1d1f;--muted:#6e6e73;--hair:rgba(0,0,0,.1);
+  --ok-text:#116b44;--warn-text:#8a5400;--bad-text:#b42b23;--ok:#1ea863;--warn:#e08a00;--bad:#e23b32;
+  width:860px;padding:32px 36px;background:#fff;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;box-sizing:border-box}
+.inf-doc .inf-ks{grid-template-columns:repeat(4,minmax(0,1fr))}
+.inf-doc .inf-g{grid-template-columns:repeat(2,minmax(0,1fr))}
 </style>
 <script>
 /* ============================================================
