@@ -20374,50 +20374,131 @@ buildChartTheme();
    los partidos con sus minutos jugados (`ptMinutos`). **Ni un cálculo
    nuevo.** Un día sin cuestionario no se pinta como cero: no hay barra. */
 function renderPlTemporada(name){
+  /* v747 · Rehecha a petición de Daniel (16/11/2026: «no está mal, pero seguro
+     que puedes hacerlo visualmente mejor y más aplicado»). Aplicada a lo que
+     esta app existe para hacer —prevenir—: se lee de un vistazo si una
+     molestia vino detrás de un salto de carga. Cinco cosas, ninguna nueva:
+     · la carga por SEMANAS (`weekly`), con las semanas que suben más de
+       `CONFIG.load.weekJump` sobre la anterior en ámbar y su %, que es el
+       listón de salto que la app ya usa; la semana en curso, atenuada;
+     · el ACWR de cada día (`acwrToDate`, el MISMO de la ficha, sólo donde es
+       fiable) sobre su banda 0,8–1,3, con los días fuera en el color de
+       `acwrClass`;
+     · la recuperación declarada como una tira de color (`recSev`);
+     · los días fuera o con molestia sombreados DE ARRIBA ABAJO, para ver qué
+       carga y qué ACWR los precedían; los partidos, como líneas con sus
+       minutos;
+     · y debajo, «Antes de cada molestia»: el ACWR de la víspera y el salto de
+       esa semana, que es como `lesCarga` mira al equipo (la víspera, no el
+       día), sin sacar conclusiones con tan pocos casos.
+     Al pasar el ratón o el dedo, la lectura de ese día. */
   const box=document.getElementById('pl-temporada');if(!box)return;
   const p=STATE.players[name];if(!p){box.innerHTML='';return;}
   const fin=dkey(REF()),ini=TEMP_INICIO;if(fin<ini){box.innerHTML='';return;}
   const ds=[];for(let t=dkToDate(ini).getTime(),e=dkToDate(fin).getTime();t<=e;t+=86400000)ds.push(dkey(new Date(t)));
   const N=ds.length;if(N<7){box.innerHTML='';return;}
+  const esc=bmEsc;
   let ref=REF();try{ref=refCarga();}catch(e){}
+  /* datos por día */
   const ua={};try{contDailyTo(name,ref).forEach(d=>{const k=dkey(d.date);if(k>=ini&&k<=fin&&d.ua>0)ua[k]=d.ua;});}catch(e){}
+  const ac={};ds.forEach(dk=>{if(dk>dkey(ref))return;try{const r=acwrToDate(name,new Date(dkToDate(dk).getTime()+86399000));if(r&&r.rel&&isFinite(r.ratio))ac[dk]=r.ratio;}catch(e){}});
   const rec={};(p.w||[]).forEach(w=>{if(w&&w.dk>=ini&&w.dk<=fin){try{rec[w.dk]=recPct(twVal(w));}catch(e){}}});
-  const est={};ds.forEach(dk=>{let e=null;try{e=effectiveStatus(name,dk);}catch(_){}const st=e&&e.status;if(st&&(NOAV_ST.includes(st)||CARE_ST.includes(st)))est[dk]={st,lab:(PHYSTAT[st]||{}).lab||st,c:(PHYSTAT[st]||{}).c||'var(--warn)',z:e.zone||''};});
-  const par=[];try{calPartidosDks().filter(dk=>dk>=ini&&dk<=fin).forEach(dk=>{const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};par.push({dk,riv:evRival(ev)||'Partido',min:ptMinutos(dk,name)});});}catch(e){}
-  const W=1000,pl=104,pr=6,iw=W-pl-pr,bw=iw/N,X=i=>pl+i*bw;   /* a la izquierda, el rótulo de cada carril */
-  const yC0=8,hC=74,yR0=yC0+hC+12,hR=40,yE=yR0+hR+12,hE=12,yP=yE+hE+10,H=yP+28;
-  const maxU=Math.max(1,...Object.values(ua));
-  const MES=['jul','ago','sep','oct','nov','dic','ene','feb','mar','abr','may','jun'];
-  const fd=dk=>{const q=dk.split('-');return (+q[2])+'/'+(+q[1]);};
+  const est={};ds.forEach(dk=>{let e=null;try{e=effectiveStatus(name,dk);}catch(_){}const st=e&&e.status;if(st&&(NOAV_ST.includes(st)||CARE_ST.includes(st)))est[dk]={st,fuera:NOAV_ST.includes(st),lab:(PHYSTAT[st]||{}).lab||st,c:(PHYSTAT[st]||{}).c||'var(--warn)',z:e.zone?e.zone+(e.side?' '+e.side:''):''};});
+  const par={};try{calPartidosDks().filter(dk=>dk>=ini&&dk<=fin).forEach(dk=>{const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};par[dk]={riv:evRival(ev)||'Partido',min:ptMinutos(dk,name)};});}catch(e){}
+  /* semanas */
+  const WJ=((CONFIG.load&&CONFIG.load.weekJump)||0.15)*100;
+  let wk=[];try{wk=weekly(name,'ua',ref).filter(w=>w.week>=weekKey(dkToDate(ini))&&w.week<=fin);}catch(e){}
+  const wkDe={};wk.forEach(w=>{wkDe[w.week]=w;});
+  /* geometría */
+  const W=1000,pl=104,pr=8,iw=W-pl-pr,bw=iw/N,X=i=>pl+i*bw;
+  const yW=26,hW=78,yA=yW+hW+16,hA=56,yR=yA+hA+14,hR=12,yP=yR+hR+16,H=yP+26;
+  const ACMAX=2,YA=v=>yA+hA-(Math.max(0,Math.min(ACMAX,v))/ACMAX)*hA;
+  const maxW=Math.max(1,...wk.map(w=>w.ua||0));
+  const lo=(CONFIG.load&&CONFIG.load.acwrYellowLo)||0.8,hi=(CONFIG.load&&CONFIG.load.acwrYellowHi)||1.3;
   let g='';
-  /* marcas de mes */
-  ds.forEach((dk,i)=>{if(dk.slice(8)==='01'){g+='<line x1="'+X(i).toFixed(1)+'" y1="'+(yC0-4)+'" x2="'+X(i).toFixed(1)+'" y2="'+(yP+6)+'" stroke="var(--hair)" stroke-width="1"/>';
-    const m=+dk.slice(5,7);g+='<text x="'+(X(i)+3).toFixed(1)+'" y="'+(H-2)+'" font-size="11" fill="var(--muted)">'+['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][m-1]+'</text>';}});
-  /* carga */
-  ds.forEach((dk,i)=>{const v=ua[dk];if(!v)return;const h=Math.max(1.5,v/maxU*hC);
-    g+='<rect x="'+(X(i)+bw*0.12).toFixed(2)+'" y="'+(yC0+hC-h).toFixed(1)+'" width="'+Math.max(1,bw*0.76).toFixed(2)+'" height="'+h.toFixed(1)+'" rx="1" fill="var(--c-data,var(--accent))"><title>'+fd(dk)+' · '+Math.round(v).toLocaleString('es-ES')+' UA</title></rect>';});
-  /* recuperación */
-  let d='',ab=false;ds.forEach((dk,i)=>{const v=rec[dk];if(v==null||isNaN(v)){ab=false;return;}const y=yR0+hR-(Math.max(0,Math.min(100,v))/100)*hR;d+=(ab?'L':'M')+(X(i)+bw/2).toFixed(1)+','+y.toFixed(1);ab=true;});
-  if(d)g+='<path d="'+d+'" fill="none" stroke="var(--muted2)" stroke-width="1.2" stroke-linejoin="round"/>';
-  ds.forEach((dk,i)=>{const v=rec[dk];if(v==null||isNaN(v))return;const y=yR0+hR-(Math.max(0,Math.min(100,v))/100)*hR;
-    g+='<circle cx="'+(X(i)+bw/2).toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.2" fill="var(--'+recSev(v)+')"><title>'+fd(dk)+' · recuperación '+Math.round(v)+' %</title></circle>';});
-  /* estado */
-  ds.forEach((dk,i)=>{const e=est[dk];if(!e)return;g+='<rect x="'+X(i).toFixed(2)+'" y="'+yE+'" width="'+(bw+0.3).toFixed(2)+'" height="'+hE+'" fill="'+e.c+'"><title>'+fd(dk)+' · '+bmEsc(e.lab+(e.z?' · '+e.z:''))+'</title></rect>';});
-  /* partidos */
-  par.forEach(x=>{const i=ds.indexOf(x.dk);if(i<0)return;const cx=X(i)+bw/2;
-    g+='<path d="M'+cx.toFixed(1)+','+(yP)+' l5,6 l-5,6 l-5,-6 z" fill="'+(x.min!=null?'var(--accent)':'var(--panel)')+'" stroke="var(--accent)" stroke-width="1.4"><title>'+fd(x.dk)+' · '+bmEsc(x.riv)+(x.min!=null?' · '+Math.round(x.min)+' min jugados':' · sin minutos apuntados')+'</title></path>';
-    if(x.min!=null)g+='<text x="'+cx.toFixed(1)+'" y="'+(yP+22)+'" text-anchor="middle" font-size="9.5" font-weight="600" fill="var(--muted)">'+Math.round(x.min)+'′</text>';});
-  /* rótulos de carril */
+  /* fondo: días fuera o con molestia, de arriba abajo */
+  ds.forEach((dk,i)=>{const e=est[dk];if(!e)return;g+='<rect x="'+X(i).toFixed(2)+'" y="'+(yW-6)+'" width="'+(bw+0.4).toFixed(2)+'" height="'+(yR+hR-yW+6)+'" fill="'+e.c+'" opacity="'+(e.fuera?0.16:0.11)+'"/>';});
+  /* meses */
+  const MESL=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  ds.forEach((dk,i)=>{if(dk.slice(8)==='01'){g+='<line x1="'+X(i).toFixed(1)+'" y1="'+(yW-6)+'" x2="'+X(i).toFixed(1)+'" y2="'+(yP+12)+'" stroke="var(--hair)" stroke-width="1"/>'
+    +'<text x="'+(X(i)+3).toFixed(1)+'" y="'+(H-3)+'" font-size="11" fill="var(--muted)">'+MESL[+dk.slice(5,7)-1]+'</text>';}});
+  /* partidos: línea que cruza */
+  ds.forEach((dk,i)=>{if(!par[dk])return;const cx=(X(i)+bw/2).toFixed(1);g+='<line x1="'+cx+'" y1="'+(yW-6)+'" x2="'+cx+'" y2="'+(yP)+'" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2 3" opacity=".55"/>';});
+  /* carga semanal */
+  wk.forEach(w=>{const off=w.week<ds[0]?Math.round((dkToDate(ds[0])-dkToDate(w.week))/864e5):0;const k0=w.week<ds[0]?0:ds.indexOf(w.week);if(k0<0)return;
+    const n=Math.min(7-off,N-k0);if(n<=0)return;const x=X(k0)+1.5,wd=n*bw-3,h=Math.max(1.5,(w.ua||0)/maxW*hW),y=yW+hW-h;
+    const salto=!w.parcial&&isFinite(w.delta)&&w.delta>WJ;
+    g+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,wd).toFixed(1)+'" height="'+h.toFixed(1)+'" rx="3" fill="'+(salto?'var(--warn)':'var(--c-data,var(--accent))')+'"'+(w.parcial?' opacity=".45"':'')+'/>';
+    if(salto)g+='<text x="'+(x+wd/2).toFixed(1)+'" y="'+(y-4).toFixed(1)+'" text-anchor="middle" font-size="10" font-weight="700" fill="var(--warn-text)">+'+Math.round(w.delta)+'%</text>';});
+  /* ACWR: banda y línea */
+  g+='<rect x="'+pl+'" y="'+YA(hi).toFixed(1)+'" width="'+iw+'" height="'+(YA(lo)-YA(hi)).toFixed(1)+'" fill="var(--ok)" opacity=".10"/>'
+    +'<line x1="'+pl+'" y1="'+YA(1).toFixed(1)+'" x2="'+(W-pr)+'" y2="'+YA(1).toFixed(1)+'" stroke="var(--hair)" stroke-width="1" stroke-dasharray="3 3"/>'
+    +'<text x="'+(pl-6)+'" y="'+(YA(hi)+3.5).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="var(--muted)">'+String(hi).replace('.',',')+'</text>'
+    +'<text x="'+(pl-6)+'" y="'+(YA(lo)+3.5).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="var(--muted)">'+String(lo).replace('.',',')+'</text>';
+  let d='',ab=false;ds.forEach((dk,i)=>{const v=ac[dk];if(v==null){ab=false;return;}d+=(ab?'L':'M')+(X(i)+bw/2).toFixed(1)+','+YA(v).toFixed(1);ab=true;});
+  if(d)g+='<path d="'+d+'" fill="none" stroke="var(--muted2)" stroke-width="1.6" stroke-linejoin="round"/>';
+  ds.forEach((dk,i)=>{const v=ac[dk];if(v==null)return;const c=acwrClass(v);if(c==='ok')return;g+='<circle cx="'+(X(i)+bw/2).toFixed(1)+'" cy="'+YA(v).toFixed(1)+'" r="2.6" fill="var(--'+c+')"/>';});
+  /* recuperación: tira */
+  ds.forEach((dk,i)=>{const v=rec[dk];g+='<rect x="'+(X(i)+0.3).toFixed(2)+'" y="'+yR+'" width="'+Math.max(0.6,bw-0.6).toFixed(2)+'" height="'+hR+'" rx="1" fill="'+(v!=null&&!isNaN(v)?'var(--'+recSev(v)+')':'var(--hair)')+'"'+(v!=null&&!isNaN(v)?'':' opacity=".55"')+'/>';});
+  /* partidos: rombos y minutos */
+  ds.forEach((dk,i)=>{const x=par[dk];if(!x)return;const cx=X(i)+bw/2;
+    g+='<path d="M'+cx.toFixed(1)+','+(yP-6)+' l5,6 l-5,6 l-5,-6 z" fill="'+(x.min!=null?'var(--accent)':'var(--panel)')+'" stroke="var(--accent)" stroke-width="1.4"/>';
+    if(x.min!=null)g+='<text x="'+cx.toFixed(1)+'" y="'+(yP+17)+'" text-anchor="middle" font-size="9.5" font-weight="600" fill="var(--muted)">'+Math.round(x.min)+'′</text>';});
+  /* rótulos */
   const rot=(y,t)=>'<text x="0" y="'+y+'" font-size="10.5" font-weight="700" fill="var(--muted)" letter-spacing=".4">'+t+'</text>';
-  g+=rot(yC0+hC/2+4,'CARGA')+rot(yR0+hR/2+4,'RECUPERACIÓN')+rot(yE+hE-2,'ESTADO')+rot(yP+10,'PARTIDOS');
-  const tot=Object.values(ua).reduce((a,b)=>a+b,0),dF=Object.values(est).filter(e=>NOAV_ST.includes(e.st)).length,dM=Object.keys(est).length-dF,pj=par.filter(x=>x.min!=null);
-  const min=pj.reduce((a,x)=>a+x.min,0);
-  box.innerHTML='<div class="panel pltp"><h2>Su temporada <span class="r muted">desde el 1 de julio · '+N+' días</span></h2>'
-    +'<div class="pltp-ks"><span><b>'+Math.round(tot).toLocaleString('es-ES')+'</b> UA acumuladas</span><span><b>'+Object.keys(ua).length+'</b> días con carga</span>'
-    +'<span><b>'+dF+'</b> días fuera</span><span><b>'+dM+'</b> con molestia o limitado</span><span><b>'+pj.length+'</b> de '+par.length+' partidos con minutos'+(pj.length?' · '+Math.round(min)+' min':'')+'</span></div>'
-    +'<svg class="pltp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Su temporada: carga, recuperación, estado y partidos">'+g+'</svg>'
-    +'<p class="small muted pltp-pie">Cada columna es un día. Carga: la del ACWR; un día sin cuestionario no tiene barra. Recuperación: lo que declara en el parte, con su color. Estado: en el color de su estado los días fuera o con molestia. Partidos: el rombo relleno lleva los minutos apuntados en «Min jugados».</p></div>';
+  g+=rot(yW+hW/2+4,'CARGA SEMANAL')+rot(yA+hA/2+4,'ACWR')+rot(yR+hR-1,'RECUPERACIÓN')+rot(yP+4,'PARTIDOS');
+  /* la línea de lectura */
+  g+='<line class="pltp-cur" x1="0" y1="'+(yW-6)+'" x2="0" y2="'+yP+'" stroke="var(--txt)" stroke-width="1" opacity="0"/>';
+  /* cifras de la temporada */
+  const cerr=wk.filter(w=>!w.parcial);const medW=cerr.length?cerr.reduce((a,w)=>a+(w.ua||0),0)/cerr.length:null;
+  const saltos=cerr.filter(w=>isFinite(w.delta)&&w.delta>WJ).length;
+  const acD=Object.values(ac);const acF=acD.filter(v=>acwrClass(v)!=='ok').length;
+  const dF=Object.values(est).filter(e=>e.fuera).length,dM=Object.keys(est).length-dF;
+  const pj=Object.values(par).filter(x=>x.min!=null);const minT=pj.reduce((a,x)=>a+x.min,0);
+  const ult=wk[wk.length-1];
+  const k=(v,l,col)=>'<div class="pltp-k"><b'+(col?' style="color:'+col+'"':'')+'>'+v+'</b><small>'+l+'</small></div>';
+  const ks='<div class="pltp-ks">'
+    +k(medW!=null?Math.round(medW).toLocaleString('es-ES'):'—','UA de media por semana'+(ult&&ult.parcial?' · esta, '+Math.round(ult.ua||0).toLocaleString('es-ES')+' de momento':''))
+    +k(saltos,saltos===1?'semana con salto de más del '+Math.round(WJ)+' %':'semanas con salto de más del '+Math.round(WJ)+' %',saltos?'var(--warn-text)':'')
+    +k(acD.length?acF:'—',acD.length?'días con el ACWR fuera de 0,8–1,3 · de '+acD.length:'días con ACWR fiable',acF?'var(--warn-text)':'')
+    +k(dF+' · '+dM,'días fuera · con molestia',dF?'var(--bad-text)':(dM?'var(--warn-text)':''))
+    +k(pj.length+' / '+Object.keys(par).length,'partidos con minutos'+(pj.length?' · '+Math.round(minT)+' min':''))
+    +'</div>';
+  /* antes de cada molestia */
+  const ini2=[];ds.forEach((dk,i)=>{const e=est[dk];if(!e)return;const prev=ds[i-1];if(prev&&est[prev])return;ini2.push({dk,i,e});});
+  const fd=dk=>{const q=dk.split('-');return (+q[2])+'/'+(+q[1]);};
+  const antes=ini2.length?'<div class="pltp-ant"><h3>Antes de cada molestia o baja</h3><div class="pltp-ant-l">'+ini2.slice(-6).reverse().map(x=>{
+      const v=ds[x.i-1];const a=v!=null?ac[v]:null;const w=wkDe[weekKey(dkToDate(x.dk))];const sw=w&&isFinite(w.delta)&&!w.parcial?w.delta:null;
+      return '<div class="pltp-a"><span class="pltp-a-d"><i style="background:'+x.e.c+'"></i>'+fd(x.dk)+'</span><span class="pltp-a-t">'+esc(x.e.lab+(x.e.z?' · '+x.e.z:''))+'</span>'
+        +'<span class="pltp-a-v">ACWR la víspera <b style="color:'+(a!=null?colTexto('var(--'+acwrClass(a)+')'):'var(--muted)')+'">'+(a!=null?fmt(a,2):'—')+'</b></span>'
+        +'<span class="pltp-a-v">salto de esa semana <b style="color:'+(sw!=null&&sw>WJ?'var(--warn-text)':'var(--txt)')+'">'+(sw!=null?(sw>0?'+':'')+Math.round(sw)+' %':'—')+'</b></span></div>';}).join('')
+    +'</div><p class="pltp-nota">Lo que había justo antes, para mirarlo, no una causa: con tan pocos casos no se puede concluir (la misma regla que «Carga antes de las lesiones» del equipo).</p></div>':'';
+  const ley='<div class="pltp-ley"><span><i class="pltp-sw" style="background:var(--c-data,var(--accent))"></i>Carga de la semana</span><span><i class="pltp-sw" style="background:var(--warn)"></i>Salto de más del '+Math.round(WJ)+' %</span>'
+    +'<span><i class="pltp-sw" style="background:var(--ok);opacity:.35"></i>Banda del ACWR</span><span><i class="pltp-sw" style="background:var(--bad);opacity:.35"></i>Día fuera</span><span><i class="pltp-sw" style="background:var(--warn);opacity:.35"></i>Con molestia</span><span><i class="pltp-sw pltp-rombo"></i>Partido · minutos</span></div>';
+  box.innerHTML='<div class="panel pltp"><h2>Su temporada <span class="r muted">desde el 1 de julio · '+N+' días</span></h2>'+ks
+    +'<div class="pltp-lee" aria-live="polite">Pasa por el gráfico para ver cada día.</div>'
+    +'<div class="pltp-gr"><svg class="pltp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Su temporada: carga semanal, ACWR, recuperación y partidos">'+g+'</svg></div>'+ley+antes+'</div>';
+  /* la lectura de cada día */
+  const svg=box.querySelector('.pltp-svg'),lee=box.querySelector('.pltp-lee'),cur=box.querySelector('.pltp-cur');
+  const WD=['dom','lun','mar','mié','jue','vie','sáb'];
+  const lectura=i=>{const dk=ds[i];if(!dk)return;const dd=dkToDate(dk);const w=wkDe[weekKey(dd)];const e=est[dk],x=par[dk],r=rec[dk],a=ac[dk];
+    const t=[];t.push('<b>'+WD[dd.getDay()]+' '+fd(dk)+'</b>');
+    t.push(ua[dk]?Math.round(ua[dk]).toLocaleString('es-ES')+' UA':'sin carga');
+    if(w)t.push('semana '+Math.round(w.ua||0).toLocaleString('es-ES')+' UA'+(isFinite(w.delta)&&!w.parcial?' ('+(w.delta>0?'+':'')+Math.round(w.delta)+' %)':''));
+    t.push(a!=null?'ACWR <b style="color:'+colTexto('var(--'+acwrClass(a)+')')+'">'+fmt(a,2)+'</b>':'ACWR —');
+    t.push(r!=null&&!isNaN(r)?'recuperación <b style="color:'+colTexto('var(--'+recSev(r)+')')+'">'+Math.round(r)+' %</b>':'sin parte');
+    if(e)t.push('<b style="color:'+colTinta(e.c)+'">'+esc(e.lab+(e.z?' · '+e.z:''))+'</b>');
+    if(x)t.push('Partido · '+esc(x.riv)+(x.min!=null?' · '+Math.round(x.min)+' min':''));
+    lee.innerHTML=t.join(' · ');
+    const cx=X(i)+bw/2;cur.setAttribute('x1',cx);cur.setAttribute('x2',cx);cur.setAttribute('opacity','.35');};
+  const aIdx=ev=>{const r=svg.getBoundingClientRect();const pt=(ev.touches&&ev.touches[0])||ev;const x=(pt.clientX-r.left)/r.width*W;return Math.floor((x-pl)/bw);};
+  const mueve=ev=>{const i=aIdx(ev);if(i<0||i>=N)return;lectura(i);};
+  svg.addEventListener('mousemove',mueve);svg.addEventListener('touchstart',mueve,{passive:true});svg.addEventListener('touchmove',mueve,{passive:true});
+  svg.addEventListener('mouseleave',()=>{cur.setAttribute('opacity','0');});
+  lectura(N-1);cur.setAttribute('opacity','0');
+  try{const gr=box.querySelector('.pltp-gr');if(gr&&gr.scrollWidth>gr.clientWidth)gr.scrollLeft=gr.scrollWidth;}catch(e){}
 }
+
 function renderPlayer(name){
   const p=STATE.players[name];if(!p)return;
   const ring=p.readiness!=null?`conic-gradient(var(--${p.sev}) ${p.readiness*3.6}deg, var(--line) 0)`:`var(--line)`;
@@ -48970,11 +49051,36 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 }
 </style>
 <style id="bm-v745">
-/* v745 · Ficha: su temporada de un vistazo. */
-.pltp-ks{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 10px;font-size:13px;color:var(--muted)}
-.pltp-ks b{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums}
-.pltp-svg{width:100%;height:auto;display:block}
-.pltp-pie{margin-top:8px}
+/* v745 · Ficha: su temporada de un vistazo · v747 rehecha */
+.pltp-ks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.pltp-k{background:var(--panel2);border-radius:12px;padding:9px 12px;min-width:0}
+.pltp-k b{display:block;font-size:20px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--txt)}
+.pltp-k small{display:block;font-size:11.5px;color:var(--muted);line-height:1.3;margin-top:1px}
+.pltp-lee{font-size:12.5px;color:var(--muted);min-height:18px;margin:0 0 4px;font-variant-numeric:tabular-nums}
+.pltp-lee b{color:var(--txt);font-weight:700}
+.pltp-gr{position:relative}
+.pltp-svg{width:100%;height:auto;display:block;touch-action:pan-y;cursor:crosshair}
+.pltp-ley{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0 0;font-size:11.5px;color:var(--muted)}
+.pltp-ley span{display:inline-flex;align-items:center;gap:5px}
+.pltp-sw{display:inline-block;width:10px;height:10px;border-radius:3px}
+.pltp-rombo{width:8px;height:8px;border-radius:1px;background:var(--accent);transform:rotate(45deg)}
+.pltp-ant{margin-top:14px}
+.pltp-ant h3{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.55px;text-transform:uppercase;color:var(--muted)}
+.pltp-a{display:grid;grid-template-columns:70px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:baseline;padding:6px 0;border-top:.5px solid var(--hair);font-size:13px}
+.pltp-a-d{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-variant-numeric:tabular-nums}
+.pltp-a-d i{width:8px;height:8px;border-radius:50%}
+.pltp-a-t{color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pltp-a-v{color:var(--muted);font-size:12px}
+.pltp-a-v b{font-weight:700;font-variant-numeric:tabular-nums}
+.pltp-nota{font-size:11.5px;color:var(--muted);margin:6px 0 0;max-width:74ch}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .pltp-ks{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pltp-a{grid-template-columns:60px minmax(0,1fr);row-gap:2px}
+  .pltp-a-v{grid-column:2}
+  /* en el teléfono el gráfico conserva su letra y se desplaza de lado; abre en lo más reciente */
+  .pltp-gr{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+  .pltp-svg{min-width:760px}
+}
 </style>
 <script>
 /* ============================================================
