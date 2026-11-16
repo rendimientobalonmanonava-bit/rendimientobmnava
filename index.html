@@ -15299,6 +15299,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmJugLista();}catch(e){}
     /* v708 · «Hoy, de un vistazo», en el menú */
     try{bmMenuHoy();}catch(e){}
+    /* v757 · jugadores en seguimiento */
+    try{bmSegPinta();}catch(e){}
     /* v711 · el botón de apariencia dice en qué estado está */
     try{temaBoton();}catch(e){}
     /* v716 · las tablas se ordenan y su cabecera se pega */
@@ -15896,6 +15898,61 @@ document.addEventListener('keydown',e=>{
    tecla: se sale también de la presentación. */
 document.addEventListener('fullscreenchange',()=>{const v=document.getElementById('bm-pres');if(v&&v.classList.contains('on')&&!document.fullscreenElement&&BMPRES.fs)bmPresentarSale();});
 window.bmPresentar=bmPresentar;window.bmPresentarSale=bmPresentarSale;
+/* ═══ v757 · ORDENADOR · Jugadores en seguimiento, en la barra lateral ═══
+   Como los VIP de Mail: un grupo al final del menú con quien hay que tener a
+   la vista sin ir a buscarlo. Entran solos quien tiene un episodio médico
+   abierto y quien está, el día que se mira, de baja, sin entrenar, enfermo,
+   en readaptación o con el entrenamiento modificado (`effectiveStatus`, los
+   estados de `PHYSTAT`); y a mano, con el clic derecho sobre cualquier
+   jugador, los que cada uno quiera seguir. Lo marcado a mano es de ESTE
+   ordenador (`bmnava-seguir`, con guion: no se sincroniza). Cada fila lleva
+   su cara con el aro del color de su estado y su readiness; un clic abre su
+   ficha, y el clic derecho, su menú. */
+const SEG_K='bmnava-seguir';
+const SEG_ST=['baja','noentto','enfermo','readapt','modif'];
+function segLeer(){try{const l=JSON.parse(localStorage.getItem(SEG_K)||'[]');return Array.isArray(l)?l:[];}catch(e){return [];}}
+function segGuarda(l){try{localStorage.setItem(SEG_K,JSON.stringify(l));}catch(e){}}
+function segToggle(n){const l=segLeer();const i=l.indexOf(n);if(i>=0)l.splice(i,1);else l.push(n);segGuarda(l);bmSegPinta(true);
+  toast(i>=0?n+' sale del seguimiento':n+' entra en el seguimiento de la barra lateral');}
+function segLista(){
+  const P=STATE.players||{},dk=dkey(REF()),out=[],ya=new Set();
+  const est=n=>{try{const e=effectiveStatus(n,dk);return e&&e.status||null;}catch(x){return null;}};
+  ((STATE.med&&STATE.med.inj)||[]).filter(e=>e&&e.open&&P[e.name]).forEach(e=>{if(ya.has(e.name))return;ya.add(e.name);
+    out.push({n:e.name,auto:true,mot:e.title||'Episodio abierto',st:est(e.name)});});
+  Object.keys(P).forEach(n=>{if(ya.has(n))return;const st=est(n);if(st&&SEG_ST.indexOf(st)>=0){ya.add(n);out.push({n,auto:true,mot:(PHYSTAT[st]||{}).lab||st,st});}});
+  segLeer().forEach(n=>{if(!P[n]||ya.has(n))return;ya.add(n);out.push({n,auto:false,mot:'Seguido a mano',st:est(n)});});
+  return out;
+}
+function bmSegPinta(fuerza){
+  if(esMovil())return;
+  /* con la serie de readiness en marcha REF() es prestado (§2.1): se espera */
+  if(window.__RD_CALC){clearTimeout(bmSegPinta._t);bmSegPinta._t=setTimeout(()=>bmSegPinta(fuerza),600);return;}
+  const nav=document.getElementById('sb-nav');if(!nav)return;
+  let box=document.getElementById('sb-seg');
+  const L=segLista();
+  if(!L.length){if(box)box.remove();return;}
+  const h='<div class="sb-glab">Seguimiento</div>'+L.map(x=>{
+    const p=STATE.players[x.n]||{},S=x.st&&PHYSTAT[x.st]?PHYSTAT[x.st]:null;
+    const col=S?S.c:'var(--ok)';const rd=(p.readiness!=null&&isFinite(p.readiness))?Math.round(p.readiness):null;
+    const f=p.avatar||photoFor(x.n)||'';const ini=String(x.n).split(/\s+/).slice(0,2).map(c=>c.charAt(0)).join('').toUpperCase();
+    const tit=x.n+' · '+x.mot+(S&&x.mot!==S.lab?' · '+S.lab:'')+(rd!=null?' · readiness '+rd:'');
+    return '<button type="button" class="sb-item sb-seg-it" onclick="openPlayer(\''+x.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')" title="'+bmEsc(tit)+'">'
+      +'<span class="sbseg-av" style="--c:'+bmEsc(col)+'">'+(f?'<img src="'+bmEsc(f)+'" alt="" onerror="this.remove()">':'')+'<i>'+bmEsc(ini)+'</i></span>'
+      +'<span class="sbseg-n">'+bmEsc(cvCorto(x.n))+'</span>'
+      +(rd!=null?'<span class="sb-cnt" style="color:'+colTexto('var(--'+recSev(rd)+')')+'!important">'+rd+'</span>':'')+'</button>';}).join('');
+  if(!box){box=document.createElement('div');box.id='sb-seg';box.setAttribute('role','group');box.setAttribute('aria-label','Jugadores en seguimiento');}
+  if(box.parentNode!==nav||box!==nav.lastElementChild)nav.appendChild(box);
+  if(fuerza||box.dataset.h!==h){box.dataset.h=h;box.innerHTML=h;}
+}
+/* El clic derecho de un jugador (v752) ofrece seguirlo o dejar de seguirlo. */
+function bmSegExtra(n){
+  if(esMovil())return [];
+  const auto=segLista().find(x=>x.n===n&&x.auto);
+  if(auto)return [{sep:1},{t:'En seguimiento · '+auto.mot,ic:'',dis:true}];
+  const sig=segLeer().indexOf(n)>=0;
+  return [{sep:1},{t:sig?'Dejar de seguir':'Seguir en la barra lateral',ic:'',f:()=>segToggle(n)}];
+}
+window.bmSegPinta=bmSegPinta;window.bmSegExtra=bmSegExtra;window.segToggle=segToggle;
 function bmMenuHoy(){
   if(esMovil())return;
   /* v726 · Mientras la serie de 14 días recorre los días, REF() es un día
@@ -50215,6 +50272,20 @@ html.bpr-on body{overflow:hidden}
 .bpr-at-s{grid-column:2;display:flex;flex-wrap:wrap;gap:.35em}
 .bpr-at-s i{font-style:normal;font-size:.82em;font-weight:700;border:1.5px solid;border-radius:99px;padding:.1em .6em}
 @media (prefers-reduced-motion:reduce){#bm-pres.on,.bpr-lam{animation:none}}
+</style>
+<style id="esc-v757">
+/* v757 · ORDENADOR · Jugadores en seguimiento, en la barra lateral */
+#sb-seg{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #sb-seg{display:block;padding-bottom:6px}
+  body.sb-min #sb-seg{display:none}
+  html:root body #sidebar .sb-seg-it{min-height:28px!important}
+  .sbseg-av{position:relative;width:22px;height:22px;flex:none;border-radius:50%;overflow:hidden;background:var(--panel2);display:inline-grid;place-items:center;
+    box-shadow:0 0 0 2px var(--c,var(--ok))}
+  .sbseg-av i{font-style:normal;font-size:9px;font-weight:700;color:var(--muted)}
+  .sbseg-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top}
+  .sbseg-n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+}
 </style>
 <style id="bm-v745">
 /* v745 · Ficha: su temporada de un vistazo · v747 rehecha */
