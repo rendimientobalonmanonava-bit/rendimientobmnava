@@ -19810,6 +19810,27 @@ function buildChartTheme(){
     tt.padding={top:10,right:13,bottom:10,left:13}; tt.cornerRadius=10;
     tt.titleFont={family:'Inter',size:12,weight:'700'}; tt.bodyFont={family:'-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif',size:12};
     tt.boxPadding=6; tt.usePointStyle=true; tt.caretSize=5; tt.displayColors=true;
+    /* v734 · ORDENADOR · El globo de un gráfico era un recuadro casi negro
+       también con la apariencia clara. En macOS un globo sigue a la apariencia:
+       claro con sombra suave en claro y oscuro en oscuro, con la letra del
+       sistema en título y cuerpo (el título iba en Inter y el cuerpo no). Mismo
+       contenido; sólo con ratón o trackpad. */
+    if(!esMovil()&&window.matchMedia&&matchMedia('(pointer:fine)').matches){
+      const SYS='-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif';
+      tt.backgroundColor=dark?'rgba(44,45,50,.97)':'rgba(255,255,255,.97)';
+      tt.titleColor=dark?'#f5f5f7':'#1d1d1f'; tt.bodyColor=dark?'rgba(235,235,245,.80)':'rgba(60,60,67,.88)';
+      tt.borderColor=dark?'rgba(255,255,255,.14)':'rgba(0,0,0,.10)'; tt.borderWidth=.5;
+      tt.padding={top:8,right:11,bottom:8,left:11}; tt.cornerRadius=8; tt.caretSize=0;
+      tt.titleFont={family:SYS,size:12,weight:'600'}; tt.bodyFont={family:SYS,size:12}; tt.footerFont={family:SYS,size:11};
+      tt.footerColor=dark?'rgba(235,235,245,.6)':'rgba(60,60,67,.6)';
+      tt.multiKeyBackground='transparent';
+      if(!Chart.registry.plugins.get('bmTipSombra'))Chart.register({id:'bmTipSombra',
+        /* la sombra se dibuja ANTES y aparte: con la sombra puesta en el lienzo, Chart.js la aplicaría también al texto */
+        beforeTooltipDraw(chart,args){try{if(esMovil())return;const t=args.tooltip;if(!t||!t.opacity)return;const c=chart.ctx;
+          const x=t.x,y=t.y,w=t.width,h=t.height,r=8;c.save();c.globalAlpha=t.opacity;
+          c.shadowColor=document.documentElement.getAttribute('data-theme')==='dark'?'rgba(0,0,0,.45)':'rgba(0,0,0,.16)';c.shadowBlur=18;c.shadowOffsetY=6;
+          c.fillStyle=t.options.backgroundColor;c.beginPath();if(c.roundRect)c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);c.fill();c.restore();}catch(e){}}});
+    }
     // Elementos: líneas suaves, puntos sutiles, barras redondeadas
     C.elements.line.tension=0.35; C.elements.line.borderWidth=2.5; C.elements.line.capBezierPoints=true;
     C.elements.point.radius=0; C.elements.point.hoverRadius=5; C.elements.point.hitRadius=12; C.elements.point.hoverBorderWidth=2; C.elements.point.borderWidth=0;
