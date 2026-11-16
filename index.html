@@ -10523,7 +10523,7 @@ function lsGuardar(clave,valor){
   }
 }
 /* Nombre legible de cada bloque, para que el aviso diga algo entendible. */
-const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_caltpl:'Plantillas de microciclo',
+const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_calaj:'Plan individual',bmnava_caltpl:'Plantillas de microciclo',
   bmnava_sessdur:'Duraciones de sesión',bmnava_asist:'Asistencia',bmnava_info:'Datos personales',
   bmnava_meddb:'Médico',bmnava_med:'Ficha médica',bmnava_medlog:'Agenda médica',
   bmnava_physio:'Fisioterapia',bmnava_physiodict:'Diccionario de fisioterapia',
@@ -10550,7 +10550,7 @@ function lsNombre(k){return LS_NOMBRES[k]||LS_NOMBRES_INT[k]||k;}
    sincronización: la sincronización reparte el estado actual entre el staff,
    pero no guarda historia, así que si un bloque se vacía se vacía para todos.
    Esto es lo que permite volver atrás. */
-const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
+const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_calaj','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
   'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto','bmnava_vendajes','bmnava_nutri',
   /* v504 · volumen de gimnasio de BuilderPro. Se teclea fuera de la app y se
@@ -10718,6 +10718,7 @@ function invRender(){
   const F=[
     {k:'bmnava_cal',      lab:'Calendario · sesiones programadas', porMes:true},
     {k:'bmnava_calmeta',  lab:'Datos del día',                     porMes:true},
+    {k:'bmnava_calaj',    lab:'Plan individual',                   porMes:true},
     {k:'bmnava_sessdur',  lab:'Duraciones de sesión',              porMes:true},
     {k:'bmnava_asist',    lab:'Asistencia',                        porMes:false},
     {k:'bmnava_meddb',    lab:'Médico · problemas y tratamientos', porMes:false},
@@ -16130,6 +16131,7 @@ function bmfRetiene(ov,cerrar){
 ['input','change'].forEach(t=>document.addEventListener(t,e=>{
   if(!esMovil()||!e.target||!e.target.closest)return;
   const c=e.target.closest('.med-modal.bmf,.info-modal.bmf');if(!c)return;
+  if(e.target.closest('[data-bmf-libre]'))return;   // v748 · se guarda al cambiar: no hay nada que perder
   bmfAlDia(c);
   if(performance.now()-(c._bmfT||0)<400)return;   // lo que el propio formulario hace al abrirse no es escribir
   c._bmfSucio=true;
@@ -31828,7 +31830,7 @@ window.rfIdle=rfIdle;
    pantalla hasta recargar la página entera. */
 function syInvalidateAppCaches(){
   STATE.med=null;STATE.medInfo=null;STATE.medLog=null;
-  STATE.calendar=null;STATE.calMeta=null;STATE.calTpl=null;STATE.sessDur=null;STATE.asist=null;
+  STATE.calendar=null;STATE.calMeta=null;STATE.calAj=null;STATE.calTpl=null;STATE.sessDur=null;STATE.asist=null;
   STATE.quadrants=null;STATE.testLog=null;STATE.physioDict=null;STATE.physioUser=null;
   if(window.phResetCache)phResetCache();
   if(window.lbResetBias)lbResetBias();
@@ -34854,7 +34856,7 @@ function cgPlanReal(dias){
     for(let t=dkToDate(desde).getTime();t<=dkToDate(hasta).getTime();t+=86400000){
       const dk=dkey(new Date(t));
       const pl=calDayPlan(dk);
-      if(pl.n&&pl.planUA>0)dks.push({dk,plan:pl.planUA});
+      if(pl.n&&pl.planUA>0)dks.push({dk,plan:pl.planUA});  // del equipo; cada jugador lee el suyo abajo (v748)
     }
   }catch(e){}
   if(!dks.length)return {n:0,desde,hasta,jug:[]};
@@ -34865,7 +34867,9 @@ function cgPlanReal(dias){
       let x=null;try{x=lbDayOf(d.dk,name);}catch(e){}
       /* sin dato de ese día no se compara: no es un cero, es un hueco */
       if(!x||!(x.ua>0))return;
-      plan+=d.plan;real+=x.ua;n++;
+      /* v748 · su parte del plan; un día que no le tocaba entrenar no se compara */
+      const pj=calPlanUAJug(d.dk,name);if(!(pj>0))return;
+      plan+=pj;real+=x.ua;n++;
     });
     if(n<3)return;
     jug.push({name,n,plan:Math.round(plan),real:Math.round(real),
@@ -36944,6 +36948,7 @@ function calLoad(){
   if(!STATE.calTpl)STATE.calTpl=lsLeer('bmnava_caltpl',[]);
   if(!STATE.sessDur)STATE.sessDur=lsLeer('bmnava_sessdur',{});
   if(!STATE.asist)STATE.asist=lsLeer('bmnava_asist',{});
+  if(!STATE.calAj)STATE.calAj=lsLeer('bmnava_calaj',{});
 }
 function calPersist(){return lsGuardar('bmnava_cal',STATE.calendar||{});}
 function calMetaPersist(){return lsGuardar('bmnava_calmeta',STATE.calMeta||{});}
@@ -37342,6 +37347,86 @@ function calZonasDia(dk){
 window.calZonasDia=calZonasDia;window.calZonaNivel=calZonaNivel;
 function calZonesGet(dk){const meta=(STATE.calMeta||{})[dk]||{};return {z4:meta.z4,z5:meta.z5};}
 function calPlanUA(dk){const evs=(STATE.calendar||{})[dk]||[];return Math.round(evs.reduce((a,e)=>a+CAL_RPE[evIntens(e)]*evDur(e),0));}
+/* ═══ v748 · Plan individual ═══
+   El plan del calendario es del EQUIPO, y hasta aquí la proyección del ACWR y
+   «Plan contra real por jugador» se lo ponían entero a cada uno: al que vuelve
+   de una lesión y hace la mitad, al que sólo va al gimnasio. Un ajuste por
+   jugador y día dice qué parte de lo programado le toca. No es un cálculo
+   nuevo: es la misma carga planificada (RPE objetivo × minutos de cada sesión)
+   recortada por un factor o filtrada por bloque con `evBloque`, la
+   correspondencia de «Cerrar sesión» y de la v737.
+   Vive en su propio almacén, `bmnava_calaj` = {dk:{jugador:código}}: en
+   `bmnava_calmeta` lo borraría «Guardar datos del día», que reescribe el día
+   entero. «Todo lo programado» se guarda como 'n' y no borrando la clave: la
+   fusión de la sincronización une campo a campo y una clave borrada volvería
+   desde otro equipo. */
+const CAL_AJ={
+  n:{lab:'Todo lo programado',f:1},
+  f75:{lab:'Al 75 %',f:.75},
+  f50:{lab:'Al 50 %',f:.5},
+  f25:{lab:'Al 25 %',f:.25},
+  gym:{lab:'Sólo gimnasio',b:'gym'},
+  pista:{lab:'Sólo pista',b:'pista'},
+  no:{lab:'No entrena',f:0}
+};
+function calAjLoad(){if(!STATE.calAj)STATE.calAj=lsLeer('bmnava_calaj',{});return STATE.calAj;}
+function calAjDe(dk,name){const d=calAjLoad()[dk]||{};const c=d[name];return CAL_AJ[c]?c:'n';}
+function calAjSet(dk,name,c){
+  if(!CAL_AJ[c])c='n';
+  const m=calAjLoad();m[dk]=m[dk]||{};m[dk][name]=c;
+  return lsGuardar('bmnava_calaj',m);
+}
+/* Cuántos jugadores tienen ese día algo distinto de «todo lo programado». */
+function calAjN(dk){const d=calAjLoad()[dk]||{};return Object.keys(d).filter(n=>d[n]&&d[n]!=='n'&&CAL_AJ[d[n]]&&STATE.players&&STATE.players[n]).length;}
+/* La carga planificada de UN jugador ese día. Sin ajuste es exactamente la del
+   equipo (`calPlanUA`), así que nada cambia para quien no se toca. */
+function calPlanUAJug(dk,name){
+  const a=CAL_AJ[calAjDe(dk,name)];
+  if(a.b){const evs=(STATE.calendar||{})[dk]||[];
+    return Math.round(evs.filter(e=>evBloque(e)===a.b).reduce((s,e)=>s+CAL_RPE[evIntens(e)]*evDur(e),0));}
+  return Math.round(calPlanUA(dk)*a.f);
+}
+window.calAjDe=calAjDe;window.calAjSet=calAjSet;window.calPlanUAJug=calPlanUAJug;window.calAjN=calAjN;
+function calAjResumen(dk){const n=calAjN(dk);return n?(n===1?'1 jugador con plan propio':n+' jugadores con plan propio'):'todos hacen lo programado';}
+/* El bloque del día. Sólo con una sesión programada que tenga carga: sin plan
+   no hay nada que repartir. «Sólo gimnasio» y «Sólo pista» sólo se ofrecen si
+   ese día hay una sesión de ese tipo; si no, darían 0 y dirían lo mismo que
+   «No entrena» con otro nombre. El estado del día se enseña al lado para que
+   se vea a quién hay que ajustar, pero NO se ajusta solo: decidir que un
+   lesionado hace la mitad o nada es del cuerpo técnico. */
+function calAjBox(dk){
+  const pl=calDayPlan(dk);if(!pl.n||!(pl.planUA>0))return '';
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  if(!noms.length)return '';
+  const hayB={};((STATE.calendar||{})[dk]||[]).forEach(e=>{const b=evBloque(e);if(b)hayB[b]=true;});
+  const filas=noms.map(n=>{
+    const c=calAjDe(dk,n);
+    let st=null;try{st=effectiveStatus(n,dk);}catch(e){}
+    const ps=(st&&st!=='disp'&&PHYSTAT[st])?PHYSTAT[st]:null;
+    const opts=Object.keys(CAL_AJ).filter(k=>!CAL_AJ[k].b||hayB[CAL_AJ[k].b]||k===c)
+      .map(k=>'<option value="'+k+'"'+(k===c?' selected':'')+'>'+CAL_AJ[k].lab+'</option>').join('');
+    return '<div class="cal-aj-r'+(c!=='n'?' on':'')+'">'
+      +'<span class="cal-aj-nm">'+bmEsc(n)+(ps?'<em style="color:'+colTinta(ps.c)+'">'+bmEsc(ps.lab)+'</em>':'')+'</span>'
+      +'<select class="cal-aj-s" data-bmf="nat" data-dk="'+dk+'" data-n="'+bmEsc(n)+'" aria-label="Plan de '+bmEsc(n)+'">'+opts+'</select>'
+      +'<b class="cal-aj-ua">'+calPlanUAJug(dk,n)+' UA</b></div>';
+  }).join('');
+  const nAj=calAjN(dk);
+  return '<details class="cal-aj" data-bmf-libre'+(nAj?' open':'')+'>'
+    +'<summary><span class="cal-aj-t">Plan individual</span><span class="cal-aj-sum">'+calAjResumen(dk)+'</span></summary>'
+    +'<div class="cal-aj-l">'+filas+'</div>'
+    +'<p class="small muted cal-aj-pie">Lo programado es para el equipo ('+pl.planUA+' UA). Aquí se dice qué parte le toca a cada uno: la proyección del ACWR del microciclo y «Plan contra real por jugador» de Cargas usan la suya. Se guarda al elegir.</p>'
+    +'</details>';
+}
+window.calAjBox=calAjBox;
+document.addEventListener('change',e=>{
+  const sel=e.target&&e.target.closest&&e.target.closest('select.cal-aj-s');if(!sel)return;
+  const dk=sel.dataset.dk,n=sel.dataset.n;
+  try{calAjSet(dk,n,sel.value);}catch(err){console.error('bmnava · plan individual',err);return;}
+  const r=sel.closest('.cal-aj-r');
+  if(r){r.classList.toggle('on',sel.value!=='n');const u=r.querySelector('.cal-aj-ua');if(u)u.textContent=calPlanUAJug(dk,n)+' UA';}
+  const box=sel.closest('.cal-aj');const sm=box&&box.querySelector('.cal-aj-sum');if(sm)sm.textContent=calAjResumen(dk);
+  try{if(window.renderCalMicro)renderCalMicro();}catch(err){}
+});
 function calDev(planUA,realUA){if(!planUA||realUA==null)return null;const pct=Math.round((realUA-planUA)/planUA*100);const a=Math.abs(pct);const tier=a<=15?'ok':a<=30?'warn':'bad';const col=tier==='ok'?'var(--ok)':tier==='warn'?'var(--warn)':'var(--bad)';   /* v398 · antes hexadecimales: no viraban en oscuro */const lab=a<=15?'Según lo previsto':pct>0?'Por encima del plan':'Por debajo del plan';return{pct,col,lab,tier,arrow:pct>3?'▲':pct<-3?'▼':'≈'};}
 /* v241 · las sesiones sin programar quedan fuera del cálculo de carga: sumar
    su duración y su intensidad por defecto daría un plan que nadie ha decidido.
@@ -38256,10 +38341,12 @@ function calProyeccionACWR(dk){
     const base=contDailyTo(name,dkToDate(hoy));
     if(!base.length)return;
     const ahora=acwrDeSerie(base,'ua');
-    let fin=ahora;
+    let fin=ahora,nAj=0;
     if(futuros.length){
       const ext=base.slice();
-      futuros.forEach(d=>{ext.push({dk:d.dk,date:dkToDate(d.dk),ua:plan[d.dk]||0,cal:plan[d.dk]||0,n:0});});
+      /* v748 · cada uno con SU parte del plan: sin ajuste es la del equipo */
+      futuros.forEach(d=>{const u=plan[d.dk]?calPlanUAJug(d.dk,name):0;if(u!==plan[d.dk])nAj++;
+        ext.push({dk:d.dk,date:dkToDate(d.dk),ua:u,cal:u,n:0});});
       fin=acwrDeSerie(ext,'ua');
     }
     out.push({name,pos:(STATE.players[name]||{}).pos||'',
@@ -38267,7 +38354,7 @@ function calProyeccionACWR(dk){
          cualquier serie, así que la media móvil es igual de proyectable que la
          exponencial: lo que no vale es proyectar un número que el jugador no
          ve en su ficha. */
-      ahora:ahora.ratio,fin:fin.ratio,rel:fin.rel,dias:fin.dias,
+      ahora:ahora.ratio,fin:fin.ratio,rel:fin.rel,dias:fin.dias,aj:nAj,
       delta:(isFinite(ahora.ratio)&&isFinite(fin.ratio))?fin.ratio-ahora.ratio:NaN});
   });
   return {ciclo,futuros,diasPlan,jug:out.filter(x=>isFinite(x.fin))
@@ -38420,7 +38507,7 @@ function renderCalMicro(){
     const ver=fuera.slice(0,TOPE), resto=fuera.length-ver.length;
     proy=(ver.length
       ? '<div class="mc-proj">'+ver.map(j=>
-          '<div class="mc-p"><span class="mc-p-nm">'+esc(j.name)+'</span>'
+          '<div class="mc-p"><span class="mc-p-nm">'+esc(j.name)+(j.aj?' <span class="mc-p-aj" title="Tiene un ajuste en el plan de '+j.aj+(j.aj===1?' día':' días')+' de lo que queda del ciclo">plan propio</span>':'')+'</span>'
           +flecha(j.delta)
           +'<span class="mc-p-v" style="color:'+colTexto(col(j.fin))+'">'+j.fin.toFixed(2)+'</span></div>').join('')
         +(resto?'<div class="mc-p mc-p-mas">y '+resto+' más fuera de la banda</div>':'')+'</div>'
@@ -38448,7 +38535,7 @@ function renderCalMicro(){
          acaban dentro de la banda, una línea basta: ocupar media pantalla para
          decir «no pasa nada» es justo lo que hacía que el panel estorbase. */
       +'<details class="mc-det"'+(fueraN?' open':'')+'>'
-        +'<summary title="La carga planificada del calendario es del equipo, así que se le atribuye entera a cada jugador: es «si hace lo que hay puesto», no una predicción individual. Se calcula con la misma EWMA 7:21 que el ACWR real.">'
+        +'<summary title="La carga planificada del calendario es del equipo y se le atribuye entera a cada jugador, salvo a quien tenga un plan propio ese día (Plan individual, en el día del calendario): es «si hace lo que hay puesto», no una predicción. Se calcula con la misma media móvil 7:21 que el ACWR de la ficha.">'
           +'Dónde aterriza el ACWR'
           +'<span class="mc-det-s">'+resumenCorto+'</span>'
         +'</summary>'
@@ -39154,7 +39241,8 @@ function calDayBody(dk){
           <span class="cal-qdot" style="background:${v.col}"></span>${v.lab}</button>`).join('')}</div>
    </div>`;
   const espBox=(typeof calEsperarHTML==='function')?calEsperarHTML(dk):'';
-  return `${panel}${espBox}${avisoSP}${bajasBox}${citasBox}${indivBox}${durBox}<div class="cal-evlist">${list}</div>
+  const ajBox=calAjBox(dk);
+  return `${panel}${espBox}${avisoSP}${bajasBox}${ajBox}${citasBox}${indivBox}${durBox}<div class="cal-evlist">${list}</div>
    ${ed?'':rapida}
    <div class="cal-addform"><div class="cm-lab" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">${ed?'Editar sesión':'Planificar sesión'}${ed?`<button class="btn ghost" style="padding:3px 8px;font-size:12px" onclick="calCancelEdit()">Cancelar edición</button>`:''}</div>
      <div class="cal-form-grid">
@@ -49048,6 +49136,32 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .hsl-t small{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap}
   .hsl-t small i{width:7px;height:7px;border-radius:50%;flex:none}
   .hsl-f.on .hsl-t small i{box-shadow:0 0 0 1.5px var(--on-accent,#fff)}
+}
+</style>
+<style id="bm-v748">
+/* v748 · Plan individual en el día del calendario */
+.cal-aj{border:1px solid var(--line);border-radius:12px;margin:0 0 14px;background:var(--panel)}
+.cal-aj>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:11px 14px;min-height:22px}
+.cal-aj>summary::-webkit-details-marker{display:none}
+.cal-aj>summary::after{content:'';margin-left:auto;width:7px;height:7px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg) translateY(-2px);align-self:center;transition:transform .2s}
+.cal-aj[open]>summary::after{transform:rotate(-135deg) translateY(-2px)}
+.cal-aj-t{font-weight:700;font-size:14px;color:var(--txt)}
+.cal-aj-sum{font-size:12.5px;color:var(--muted)}
+.cal-aj-l{padding:0 14px}
+.cal-aj-r{display:grid;grid-template-columns:minmax(0,1fr) 170px 64px;gap:10px;align-items:center;padding:6px 0;border-top:.5px solid var(--line)}
+.cal-aj-r:first-child{border-top:0}
+.cal-aj-nm{min-width:0;font-size:13px;color:var(--txt);line-height:1.25}
+.cal-aj-nm em{display:block;font-style:normal;font-size:11.5px;font-weight:600}
+.cal-aj-s{width:100%;font:inherit;font-size:13px}
+.cal-aj-ua{font-size:12.5px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.cal-aj-r.on .cal-aj-ua{color:var(--txt)}
+.cal-aj-r.on .cal-aj-nm{font-weight:600}
+.cal-aj-pie{padding:8px 14px 12px;margin:0}
+.mc-p-aj{font-size:10.5px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:0 4px;margin-left:4px;white-space:nowrap}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .cal-aj-r{grid-template-columns:minmax(0,1fr) auto;row-gap:6px;padding:9px 0}
+  .cal-aj-ua{grid-column:2;grid-row:1}
+  .cal-aj-s{grid-column:1/-1;grid-row:2;min-height:44px}
 }
 </style>
 <style id="bm-v745">
