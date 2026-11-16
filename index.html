@@ -28606,7 +28606,7 @@ window.ojoResolver=function(name,id){
   if(!e)return;
   e.vis=true;e.visDk=dkey(new Date());
   ojoPersist();
-  try{toast(String(name).split(' ')[0]+' · aviso retirado · queda en su historial',{accion:'Deshacer',fn:()=>{
+  try{toast(String(name).split(' ')[0]+' · aviso retirado · queda en su historial',{accion:'Deshacer',deshecho:String(name).split(' ')[0]+' · el aviso vuelve a Ojo hoy',fn:()=>{
     ojoLoad();const x=(STATE.medLog[name]||[]).find(y=>y&&y.id===id);if(!x)return;
     x.vis=false;delete x.visDk;ojoPersist();ojoRepintar(name);}});}catch(err){}
   ojoRepintar(name);
@@ -29940,15 +29940,19 @@ function vendCopiarUltimo(dk){
     return;
   }
   if(!bmPregunta('Copiar los '+src.length+' vendaje'+(src.length===1?'':'s')+' del '+prev.split('-').reverse().join('/')+' a este día.\n\nNo se toca nada de lo que ya tengas puesto hoy.',()=>vendCopiarUltimo(dk)))return;
-  let n=0;
+  let n=0;const ids=[];
   src.forEach(r=>{
     if(vendDe(dk,r.jugador,r.zona))return;
-    V.reg.push({id:vendId(),dk,jugador:r.jugador,zona:r.zona,lado:r.lado,n:r.n,upd:Date.now()});n++;
+    const id=vendId();V.reg.push({id,dk,jugador:r.jugador,zona:r.zona,lado:r.lado,n:r.n,upd:Date.now()});ids.push(id);n++;
   });
   vendPersist();renderFisio();
   const ya=src.length-n;
+  /* v721 · el mismo «deshacer» que el móvil, con ⌘Z */
+  const und=n&&bmDeshacerApunta('',()=>{
+    const W=vendLoad();try{lsTumbarIds(VEND_LS,ids.map(String));}catch(e){}
+    W.reg=W.reg.filter(r=>ids.indexOf(r.id)<0);vendPersist();renderFisio();},'Quitado'+(n===1?' el vendaje copiado':'s los '+n+' vendajes copiados'));
   alert(n?('Copiado'+(n===1?'':'s')+' '+n+' vendaje'+(n===1?'':'s')+'.'
-    +(ya?(ya===1?' El otro ya lo tenías puesto.':' Los otros '+ya+' ya los tenías puestos.'):'')):'Ya tenías puestos todos los de ese día.');
+    +(ya?(ya===1?' El otro ya lo tenías puesto.':' Los otros '+ya+' ya los tenías puestos.'):'')+(und?'\n\nSi te has equivocado, ⌘Z lo deshace.':'')):'Ya tenías puestos todos los de ese día.');
 }
 function vendBorrarDia(dk){
   const V=vendLoad();
@@ -38401,6 +38405,27 @@ function calDelEvent(dk,id){try{calLoad();}catch(e){}const arr=((STATE.calendar|
    desde arriba como una notificación de iOS y se quita deslizándolo hacia
    arriba (`bmToastGesto`). En el ordenador ninguna regla lee esa clase y el
    aviso sigue saliendo abajo, igual que siempre. */
+/* v721 · ORDENADOR · ⌘Z deshace. Daniel, 16/11/2026 (propuesta 4). Dos
+   acciones de la app ya traían su «deshacer» escrito —«Ya pasó» de un aviso de
+   Ojo hoy y «Copiar el último día» de Vendajes— y en el ordenador no había
+   forma de usarlo: el botón del aviso es sólo del móvil (v703). En el Mac,
+   deshacer es ⌘Z (HIG · Undo and redo: «people expect to undo with ⌘Z»). Aquí
+   no se añade nada a la pantalla: el aviso de abajo dice «⌘Z para deshacer» y
+   el teclado usa la MISMA función que el botón del móvil. Un solo nivel —la
+   última acción—, que caduca a los diez minutos para que un ⌘Z suelto no
+   deshaga algo que ya no se recuerda. Dentro de un campo de texto, ⌘Z es el
+   deshacer del campo, como siempre. Ctrl+Z fuera del Mac. */
+const BMUNDO={fn:null,msg:'',t:0,CADUCA:600000};
+function bmDeshacerApunta(msg,fn,hecho){if(esMovil()||typeof fn!=='function')return false;BMUNDO.fn=fn;BMUNDO.msg=String(hecho||('Deshecho · '+(msg||'')));BMUNDO.t=Date.now();return true;}
+document.addEventListener('keydown',e=>{
+  if(esMovil()||!(e.metaKey||e.ctrlKey)||e.altKey||e.shiftKey||String(e.key).toLowerCase()!=='z')return;
+  const x=e.target,tag=(x&&x.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select'||(x&&x.isContentEditable))return;
+  e.preventDefault();
+  if(!BMUNDO.fn||Date.now()-BMUNDO.t>BMUNDO.CADUCA){BMUNDO.fn=null;toast('No hay nada que deshacer');return;}
+  const f=BMUNDO.fn,m=BMUNDO.msg;BMUNDO.fn=null;
+  try{f();toast(m);}catch(err){console.error('bmnava · deshacer',err);toast('No se ha podido deshacer');}
+});
 function toastOculta(){const t=document.getElementById('toast');if(!t)return;t.style.opacity='0';t.style.transform='translateX(-50%) translateY(10px)';t.style.pointerEvents='none';t.classList.remove('vis');}
 function bmToastGesto(t){let y0=null,dy=0;
   t.addEventListener('touchstart',e=>{if(!esMovil()||e.touches.length!==1||(e.target.closest&&e.target.closest('.toast-acc')))return;y0=e.touches[0].clientY;dy=0;t.style.setProperty('transition','none','important');},{passive:true});
@@ -38408,7 +38433,7 @@ function bmToastGesto(t){let y0=null,dy=0;
   const fin=()=>{if(y0==null)return;y0=null;t.style.removeProperty('transition');t.style.removeProperty('transform');
     if(dy<-18){clearTimeout(_toastT);toastOculta();}else t.style.transform='translateX(-50%) translateY(0)';};
   t.addEventListener('touchend',fin);t.addEventListener('touchcancel',fin);}
-function toast(msg,o){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);bmToastGesto(t);}t.textContent=msg;const acc=!!(o&&o.accion&&typeof o.fn==='function'&&esMovil());if(acc){const b=document.createElement('button');b.type='button';b.className='toast-acc';b.textContent=o.accion;b.onclick=()=>{clearTimeout(_toastT);t.style.opacity='0';t.style.pointerEvents='none';t.classList.remove('vis');try{o.fn();}catch(e){console.error('bmnava · deshacer',e);}};t.appendChild(b);}t.style.pointerEvents=acc?'auto':'none';t.classList.toggle('con-acc',acc);requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';t.classList.add('vis');});clearTimeout(_toastT);_toastT=setTimeout(toastOculta,acc?5200:2200);}
+function toast(msg,o){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);bmToastGesto(t);}t.textContent=msg;const acc=!!(o&&o.accion&&typeof o.fn==='function'&&esMovil());const und=!!(o&&typeof o.fn==='function'&&!esMovil()&&bmDeshacerApunta(msg,o.fn,o.deshecho));if(und)t.textContent=msg+' · ⌘Z para deshacer';if(acc){const b=document.createElement('button');b.type='button';b.className='toast-acc';b.textContent=o.accion;b.onclick=()=>{clearTimeout(_toastT);t.style.opacity='0';t.style.pointerEvents='none';t.classList.remove('vis');try{o.fn();}catch(e){console.error('bmnava · deshacer',e);}};t.appendChild(b);}t.style.pointerEvents=acc?'auto':'none';t.classList.toggle('con-acc',acc);requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';t.classList.add('vis');});clearTimeout(_toastT);_toastT=setTimeout(toastOculta,acc?5200:(und?3800:2200));}
 
 /* --- Tema --- */
 /* ===== v216 · Modo ligero =====
