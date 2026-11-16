@@ -10249,7 +10249,7 @@ const LS_VISTO={};
    copia antigua perdona las tumbas de lo que restaura: eso sí es resucitar a
    propósito. */
 const LS_TUMBAS='bmnava_tumbas';
-const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos)$/;
+const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos|alertas)$/;
 /* v371 · Las sesiones de Polar se quedaban fuera del sistema de tumbas, así que
    borrar una no dejaba rastro: la fusión la conservaba desde la copia del
    servidor y volvía en cada actualización, una y otra vez. Sus registros no
@@ -10533,7 +10533,7 @@ const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava
   bmnava_partidos:'Zonas por partido',bmnava_vhfases:'Fase de cada valoración',
   bmnava_quadrants:'Cuadrantes',bmnava_sespec:'Umbrales de sesión calibrados',
   bmnava_vhurl:'Hoja de valoraciones',bmnava_wmset:'Ajuste de wellness ausente',
-  bmnava_gymvol:'Volumen de gimnasio (BuilderPro)'};
+  bmnava_gymvol:'Volumen de gimnasio (BuilderPro)',bmnava_alertas:'Alertas marcadas como vistas'};
 /* v321 · Estas no son datos del equipo: son las copias y apuntes que lleva la
    propia app. Salen en el desglose de Conexión, así que necesitan un nombre que
    se entienda. */
@@ -10553,6 +10553,8 @@ const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_caltpl','bmnava_sessdur'
   /* v504 · volumen de gimnasio de BuilderPro. Se teclea fuera de la app y se
      importa a mano: si se pierde, no se puede recalcular desde nada. */
   'bmnava_gymvol',
+  /* v739 · quién ha visto qué alerta */
+  'bmnava_alertas',
   /* v481 · `bmnava_sesniv` son las correcciones MANUALES de nivel de sesión, que
      mandan por encima del cálculo (§2.1.1) y no se pueden recalcular: se escriben
      a mano. Llevaban fuera de la copia de seguridad desde siempre — el mismo
@@ -10716,6 +10718,7 @@ function invRender(){
     {k:'bmnava_meddb',    lab:'Médico · problemas y tratamientos', porMes:false},
     {k:'bmnava_physio',   lab:'Fisioterapia · partes del día',     porMes:true},
     {k:'bmnava_vendajes', lab:'Vendajes funcionales',                porMes:true},
+    {k:'bmnava_alertas',  lab:'Alertas marcadas como vistas',        porMes:false},
     {k:'bmnava_nutri',    lab:'Nutrición · pedidos y cobros',       porMes:false},
     {k:'bmnava_medlog',   lab:'Agenda médica · citas y pruebas',   porMes:true},
     {k:'bmnava_reuniones',lab:'Reuniones',                         porMes:true},
@@ -11664,7 +11667,9 @@ try{buildPhysio();const _td=new Date();for(const name in STATE.players){const ev
   const byReg={};srt.filter(e=>['trat','noentto','baja'].includes(e.status)).forEach(e=>{const r=zoneRegion(e.zone);if(!r)return;(byReg[r]=byReg[r]||[]).push(e);});
   Object.keys(byReg).forEach(r=>{const arr=byReg[r];if(arr.length>=2){const li=arr[arr.length-1];const dl=Math.round((_td-li.date)/864e5);if(dl<=45&&last.status!=='baja')A.push({name,pos:p.pos,type:'Reincidencia · '+r,sev:'warn',val:arr.length,z:NaN,rel:true,mdx:p.mdx,date:li.dk,mod:'Físico'});}});
 }}catch(e){}
-const o={bad:0,warn:1};STATE.alerts=A.sort((a,b)=>o[a.sev]-o[b.sev]);}
+const o={bad:0,warn:1};STATE.alerts=A.sort((a,b)=>o[a.sev]-o[b.sev]);
+/* v739 · las marcas de «Visto» de lo que ya se resolvió o empeoró */
+try{if(typeof alvPoda==='function')alvPoda();}catch(e){}}
 
 /* ===================== NAV / RENDER ===================== */
 /* ===================== MÓDULO MÉDICO ===================== */
@@ -14989,7 +14994,7 @@ const bmiOn=()=>{try{return localStorage.getItem(BMI_K)==='1';}catch(e){return f
 function bmInsignia(){
   if(!bmiPuede()||!bmiOn())return;
   if(window.Notification&&Notification.permission!=='granted')return;
-  const n=(STATE.alerts||[]).length;
+  const n=alvNuevas().length;   /* v739 · sólo las nuevas */
   try{(n?navigator.setAppBadge(n):navigator.clearAppBadge()).catch(()=>{});}catch(e){}
 }
 function bmInsigniaPinta(){
@@ -24388,7 +24393,7 @@ function posToggleRadar(p){POSUI.sel=POSUI.sel||{};POSUI.sel[p]=!POSUI.sel[p];re
 function posSetPos(name,val){STATE.posOverride=STATE.posOverride||{};STATE.posOverride[name]=val;renderAll();renderPosMap();}
 
 function setAlertFilter(s){FILTER.alertSev=s;renderAlerts();}
-function renderAlerts(){try{bdAlertas();}catch(e){console.error('bmnava · recuento de alertas',e);}const _tg=[document.getElementById('alerts-body'),document.getElementById('alerts-body-dispo')].filter(Boolean);if(!_tg.length)return;const b={set innerHTML(x){_tg.forEach(t=>t.innerHTML=x);}};const all=STATE.alerts||[];const sevf=FILTER.alertSev||'all';const A=all.filter(a=>sevf==='all'||a.sev===sevf);const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;const players=new Set(all.map(a=>a.name)).size;const byMod={};all.forEach(a=>byMod[a.mod]=(byMod[a.mod]||0)+1);const order={bad:0,warn:1};const groups={};A.forEach(a=>{(groups[a.name]=groups[a.name]||[]).push(a);});const names=Object.keys(groups).sort((x,y)=>{const sx=Math.min.apply(null,groups[x].map(a=>order[a.sev]));const sy=Math.min.apply(null,groups[y].map(a=>order[a.sev]));return sx-sy||groups[y].length-groups[x].length;});const sumCard=(lab,val,sub,cls)=>`<div class="asum ${cls||''}"><div class="asum-v">${val}</div><div class="asum-l">${lab}</div>${sub?`<div class="asum-s">${sub}</div>`:''}</div>`;const fbtn=(s,l)=>`<button class="afilter ${sevf===s?'on':''}" onclick="setAlertFilter('${s}')">${l}</button>`;let html=`<div class="alert-summary">${sumCard('Alertas rojas',bad,'atención inmediata','bad')}${sumCard('Alertas ámbar',warn,'vigilar','warn')}${sumCard('Jugadores afectados',players,'de '+Object.keys(STATE.players).length)}${sumCard('Total alertas',all.length,Object.entries(byMod).map(([k,v])=>k+' '+v).join(' · '))}</div>`;html+=`<div class="alert-filters">${fbtn('all','Todas')}${fbtn('bad','Solo rojas')}${fbtn('warn','Solo ámbar')}</div>`;const _flagged=new Set(all.map(a=>a.name));const _wp=Object.values(STATE.players).filter(p=>p.readiness!=null&&p.sev==='ok'&&!_flagged.has(p.name)).sort((a,c)=>c.readiness-a.readiness);const wellHtml=_wp.length?`<div class="well-band"><div class="well-h"><span class="led ok"></span> En forma y disponibles · ${_wp.length}</div><div class="well-pills">${_wp.map(p=>`<span class="wpill ${p.readiness>=85?'top':''}" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')">${p.name} <b>${p.readiness}</b></span>`).join('')}</div></div>`:'';if(!names.length){html+='<p class="muted" style="padding:8px">Sin alertas en este filtro.</p>';b.innerHTML=html+wellHtml;return;}html+='<div class="alert-grid">'+names.map(nm=>{const p=STATE.players[nm]||{};const items=groups[nm].slice().sort((a,c)=>order[a.sev]-order[c.sev]);const worst=items[0].sev;const ph=(p.avatar||window.__AVATAR__);return `<div class="acard sev-${worst}" onclick="openPlayer('${nm.replace(/'/g,"\\'")}')">`+`<div class="acard-head">${ph?`<img class="acard-photo" src="${ph}" alt="">`:`<div class="acard-photo acard-ini">${nm.split(' ').slice(0,2).map(s=>s[0]||'').join('')}</div>`}<div style="min-width:0"><div class="acard-name">${nm}</div><div class="small muted">${p.pos||''}</div></div><span class="acard-count sev-${worst}">${items.length}</span></div>`+`<div class="acard-list">${items.map(a=>`<div class="arow"><span class="adot ${a.sev}"></span><span class="atype">${a.type}</span><span class="amod amod-${a.mod==='Físico'?'fis':a.mod==='Carga'?'car':'wel'}">${a.mod}</span></div>`).join('')}</div></div>`;}).join('')+'</div>';b.innerHTML=html+wellHtml;}
+function renderAlerts(){try{bdAlertas();}catch(e){console.error('bmnava · recuento de alertas',e);}const _tg=[document.getElementById('alerts-body'),document.getElementById('alerts-body-dispo')].filter(Boolean);if(!_tg.length)return;const b={set innerHTML(x){_tg.forEach(t=>t.innerHTML=x);}};const todas=STATE.alerts||[];/* v739 · las vistas, aparte */const vistas=todas.filter(alvVista);const all=todas.filter(a=>!alvVista(a));const sevf=FILTER.alertSev||'all';const A=(ALV.verVistas?todas:all).filter(a=>sevf==='all'||a.sev===sevf);const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;const players=new Set(all.map(a=>a.name)).size;const byMod={};all.forEach(a=>byMod[a.mod]=(byMod[a.mod]||0)+1);const order={bad:0,warn:1};const groups={};A.forEach(a=>{(groups[a.name]=groups[a.name]||[]).push(a);});const names=Object.keys(groups).sort((x,y)=>{const sx=Math.min.apply(null,groups[x].map(a=>order[a.sev]));const sy=Math.min.apply(null,groups[y].map(a=>order[a.sev]));return sx-sy||groups[y].length-groups[x].length;});const sumCard=(lab,val,sub,cls)=>`<div class="asum ${cls||''}"><div class="asum-v">${val}</div><div class="asum-l">${lab}</div>${sub?`<div class="asum-s">${sub}</div>`:''}</div>`;const fbtn=(s,l)=>`<button class="afilter ${sevf===s?'on':''}" onclick="setAlertFilter('${s}')">${l}</button>`;let html=`<div class="alert-summary">${sumCard('Alertas rojas',bad,'atención inmediata','bad')}${sumCard('Alertas ámbar',warn,'vigilar','warn')}${sumCard('Jugadores afectados',players,'de '+Object.keys(STATE.players).length)}${sumCard('Total alertas',all.length,Object.entries(byMod).map(([k,v])=>k+' '+v).join(' · '))}</div>`;html+=`<div class="alert-filters">${fbtn('all','Todas')}${fbtn('bad','Solo rojas')}${fbtn('warn','Solo ámbar')}${vistas.length?`<button type="button" class="afilter alv-ver ${ALV.verVistas?'on':''}" data-alv="ver">${ALV.verVistas?'Ocultar las vistas':'Ver también las vistas'} · ${vistas.length}</button>`:''}</div>`;const _flagged=new Set(all.map(a=>a.name));const _wp=Object.values(STATE.players).filter(p=>p.readiness!=null&&p.sev==='ok'&&!_flagged.has(p.name)).sort((a,c)=>c.readiness-a.readiness);const wellHtml=_wp.length?`<div class="well-band"><div class="well-h"><span class="led ok"></span> En forma y disponibles · ${_wp.length}</div><div class="well-pills">${_wp.map(p=>`<span class="wpill ${p.readiness>=85?'top':''}" onclick="openPlayer('${p.name.replace(/'/g,"\\'")}')">${p.name} <b>${p.readiness}</b></span>`).join('')}</div></div>`:'';if(!names.length){html+='<p class="muted" style="padding:8px">'+(vistas.length&&!all.length?'No hay alertas nuevas: las '+vistas.length+' que siguen activas están vistas.':'Sin alertas en este filtro.')+'</p>';b.innerHTML=html+wellHtml;return;}html+='<div class="alert-grid">'+names.map(nm=>{const p=STATE.players[nm]||{};const items=groups[nm].slice().sort((a,c)=>order[a.sev]-order[c.sev]);const worst=items[0].sev;const ph=(p.avatar||window.__AVATAR__);return `<div class="acard sev-${worst}${items.every(alvVista)?' alv-card-vista':''}" onclick="openPlayer('${nm.replace(/'/g,"\\'")}')">`+`<div class="acard-head">${ph?`<img class="acard-photo" src="${ph}" alt="">`:`<div class="acard-photo acard-ini">${nm.split(' ').slice(0,2).map(s=>s[0]||'').join('')}</div>`}<div style="min-width:0"><div class="acard-name">${nm}</div><div class="small muted">${p.pos||''}</div></div><span class="acard-count sev-${worst}">${items.length}</span>${items.some(x=>!alvVista(x))?`<button type="button" class="alv-todo" data-alv="todo" data-n="${encodeURIComponent(nm)}" title="Marcar como vistas todas las de ${nm}">Visto</button>`:''}</div>`+`<div class="acard-list">${items.map(a=>(()=>{const v=alvVista(a),m=v?alvDe(a):null;return `<div class="arow${v?' alv-vista':''}"><span class="adot ${a.sev}"></span><span class="atype">${a.type}${v?`<small class="alv-quien">Vista${m.quien?' por '+bmEsc(m.quien):''} · ${alvHace(m.t)}</small>`:''}</span><span class="amod amod-${a.mod==='Físico'?'fis':a.mod==='Carga'?'car':'wel'}">${a.mod}</span>${v?`<button type="button" class="alv-b" data-alv="deshacer" data-n="${encodeURIComponent(a.name)}" data-k="${encodeURIComponent(alvClave(a))}" title="Volver a tenerla como nueva">Deshacer</button>`:`<button type="button" class="alv-b" data-alv="uno" data-n="${encodeURIComponent(a.name)}" data-k="${encodeURIComponent(alvClave(a))}" title="Visto: no vuelve a salir hasta que empeore o se resuelva">Visto</button>`}</div>`;})()).join('')}</div></div>`;}).join('')+'</div>';b.innerHTML=html+wellHtml;}
 
 /* ===================== P2 · PERFIL FÍSICO (z-scores / TSA · Turner 2019) ===================== */
 const CATS=['Condición','Fuerza','Explosividad'];
@@ -27817,7 +27822,67 @@ function renderAvail(){
 function dspFold(){const b=document.getElementById('avail-body');if(!b)return;
   const ab=b.classList.toggle('dsp-mas');const f=b.querySelector('.dsp-fold');if(f)f.setAttribute('aria-expanded',ab?'true':'false');
   if(ab)setTimeout(()=>{try{Object.values((window.Chart&&Chart.instances)||{}).forEach(c=>{if(c&&c.canvas&&c.canvas.closest('#avail-body'))c.resize();});}catch(e){}},0);}
-function bdAlertas(){const all=STATE.alerts||[];try{bmInsignia();}catch(e){}
+/* v739 · ALERTAS QUE SE GESTIONAN. Daniel, 16/11/2026. Medido ese día: 29
+   alertas y 22 ya estaban el día antes; 13 de los 18 jugadores con alguna. Una
+   alerta que sale todos los días deja de leerse y tapa la nueva. Cada alerta se
+   puede marcar «Visto» —queda quién y cuándo— y desaparece de la lista y del
+   número del menú **hasta que empeore (de ámbar a rojo) o se resuelva**; si
+   después vuelve, es nueva. No toca ningún umbral: lo que decide si hay alerta
+   sigue siendo `buildAlerts`.
+   · La identidad es jugador + tipo **sin las cifras** («Pico de carga
+     semanal (1,62× su media)» y «(1,70×…)» son la misma alerta); la zona de un
+     dolor sí cuenta: un dolor en otra zona es otro motivo.
+   · Se guarda en `bmnava_alertas` (lista con `id`, `jugador` y sello `t`): se
+     comparte entre equipos y el filtro de bajas la ve. Cada marca lleva un id
+     propio porque una tumba es para siempre: con id = jugador+tipo, volver a
+     marcar algo que ya se resolvió una vez lo borraría la tumba vieja.
+   · Se da por resuelta y se borra la marca **sólo mirando hoy, con datos
+     reales y sin la serie de readiness en marcha**, cuando la alerta ya no
+     sale. Una de wellness no se da por resuelta si el jugador aún no ha
+     rellenado el parte de hoy: sin parte no hay alerta, pero tampoco se sabe. */
+const ALV_LS='bmnava_alertas';
+const ALV_SEV={warn:1,bad:2};
+const ALV={verVistas:false};
+function alvGet(){if(!Array.isArray(STATE.alAck))STATE.alAck=lsLeer(ALV_LS,[])||[];if(!Array.isArray(STATE.alAck))STATE.alAck=[];return STATE.alAck;}
+function alvPersist(){return lsGuardar(ALV_LS,alvGet());}
+function alvClave(a){return a.name+'|'+String(a.type||'').replace(/\d+([.,]\d+)?/g,'#');}
+function alvDe(a){const k=alvClave(a);let m=null;alvGet().forEach(x=>{if(x&&x.k===k&&(!m||String(x.t||'')>String(m.t||'')))m=x;});return m;}
+function alvVista(a){const m=alvDe(a);return !!(m&&(ALV_SEV[m.sev]||0)>=(ALV_SEV[a.sev]||0));}
+function alvNuevas(){return (STATE.alerts||[]).filter(a=>!alvVista(a));}
+function alvQuien(){try{const st=window.syState?syState():null;const e=String((st&&st.email)||'');return e?e.split('@')[0]:'';}catch(e){return '';}}
+function alvMarca(lista){
+  const L=alvGet();const t=new Date().toISOString(),dk=dkey(new Date()),q=alvQuien();
+  lista.forEach(a=>{L.push({id:'av|'+Date.now().toString(36)+'|'+Math.random().toString(36).slice(2,7),k:alvClave(a),jugador:a.name,tipo:a.type,mod:a.mod,sev:a.sev,quien:q,t,dk});});
+  alvPersist();
+}
+function alvQuita(claves){const set=new Set(claves);const L=alvGet();const q=L.filter(x=>!(x&&set.has(x.k)));if(q.length===L.length)return false;STATE.alAck=q;alvPersist();return true;}
+function alvPoda(){
+  try{
+    if(window.__RD_CALC||STATE.mode!=='live'||!STATE.refDate||dkey(REF())!==dkey(new Date()))return;
+    const L=alvGet();if(!L.length)return;
+    const act={};(STATE.alerts||[]).forEach(a=>{act[alvClave(a)]=a;});
+    const fuera=[];
+    L.forEach(x=>{if(!x||!x.k)return;const a=act[x.k];
+      if(a){if((ALV_SEV[a.sev]||0)>(ALV_SEV[x.sev]||0))fuera.push(x.k);return;}   // ha empeorado: vuelve a ser nueva
+      if(x.mod==='Wellness'){const p=(STATE.players||{})[x.jugador];if(!p||!p.last||p.stale)return;}   // sin parte de hoy: no se sabe
+      fuera.push(x.k);});
+    if(fuera.length)alvQuita(fuera);
+  }catch(e){console.error('bmnava · alertas vistas',e);}
+}
+function alvHace(t){const m=Math.round((Date.now()-new Date(t).getTime())/60000);if(!isFinite(m))return '';
+  return m<1?'ahora':m<60?'hace '+m+' min':m<1440?'hace '+Math.round(m/60)+' h':'el '+new Date(t).toLocaleDateString('es',{day:'numeric',month:'numeric'});}
+document.addEventListener('click',e=>{
+  const b=e.target&&e.target.closest&&e.target.closest('[data-alv]');if(!b)return;
+  e.stopPropagation();e.preventDefault();
+  const op=b.dataset.alv;
+  if(op==='ver'){ALV.verVistas=!ALV.verVistas;renderAlerts();return;}
+  const nm=decodeURIComponent(b.dataset.n||'');
+  if(op==='uno'){const a=(STATE.alerts||[]).find(x=>x.name===nm&&alvClave(x)===decodeURIComponent(b.dataset.k||''));if(a)alvMarca([a]);}
+  else if(op==='todo'){alvMarca((STATE.alerts||[]).filter(x=>x.name===nm&&!alvVista(x)));}
+  else if(op==='deshacer'){alvQuita([decodeURIComponent(b.dataset.k||'')]);}
+  renderAlerts();
+},true);
+function bdAlertas(){/* v739 · el número cuenta sólo las que no se han visto */const all=alvNuevas();try{bmInsignia();}catch(e){}
   const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;
   /* v538 · El mismo recuento, en la barra inferior: sobre «Más», que es por
      donde se llega a Alertas, y sobre la propia entrada dentro de la hoja.
@@ -48177,6 +48242,26 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   /* en dos columnas, la de los anillos necesita unos 270 px: por debajo de 500 de panel, una sola */
   @container (max-width:500px){#player-readiness .rc-panel{grid-template-columns:minmax(0,1fr)}}
   #player-readiness .rc-cell svg{width:100%;max-width:78px;height:auto}
+}
+</style>
+<style id="bm-v739">
+/* v739 · Alertas que se gestionan (ordenador y móvil). */
+.acard-head{position:relative}
+.alv-todo,.alv-b{flex:none;border:none;background:var(--panel2);color:var(--acc-seg,var(--accent));font:inherit;font-size:12px;font-weight:600;
+  border-radius:7px;padding:3px 9px;margin-left:8px;cursor:pointer;line-height:1.4}
+.alv-todo:hover,.alv-b:hover{background:var(--hair)}
+.acard-head .alv-todo{margin-left:6px}
+.arow{align-items:center}
+.arow .alv-b{margin-left:6px;padding:2px 8px;font-size:11.5px}
+.arow.alv-vista .atype{color:var(--muted)}
+.arow.alv-vista .adot{opacity:.45}
+.alv-quien{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
+.acard.alv-card-vista{opacity:1;box-shadow:none}
+.acard.alv-card-vista .acard-name{color:var(--muted)}
+.alv-ver{margin-left:auto}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .alv-todo,.alv-b{min-height:32px;padding:5px 11px}
+  .arow .alv-b{min-height:30px}
 }
 </style>
 <script>
