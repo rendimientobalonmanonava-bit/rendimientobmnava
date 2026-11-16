@@ -33282,6 +33282,48 @@ function hrKey(r){return r.dk+'|'+(r.session||'Sesión');}
 /* HR_SES_LOCK: true cuando el usuario ha elegido a mano una sesión en el selector.
    Se limpia al cambiar el día (setRefDate) para que vuelva a seguir al calendario. */
 let HR_SES_LOCK=false;
+/* v744 · ORDENADOR · PULSÓMETROS COMO MAIL. Daniel, 16/11/2026, eligió la
+   propuesta 6. Las 69 sesiones se elegían en un desplegable, debajo de tres
+   niveles de pestañas. Con ventana ancha y ratón, las mismas sesiones van en
+   una lista a la izquierda —fecha, nombre, el punto con el nivel de la sesión
+   y cuántos pulsómetros llevó—, agrupadas por mes; el detalle, a la derecha.
+   Se cambia de sesión con un clic o con ↑ ↓ con la lista enfocada. **Es el
+   mismo desplegable por debajo**: cada fila pone su valor y llama a
+   `hrSesPick`, así que todo lo que lee la sesión elegida sigue igual. El
+   nivel es `hrpNivel` (el mismo de toda la app, con la corrección manual); el
+   color, el de `LV`. Sin ventana ancha o en el móvil, el desplegable de
+   siempre. */
+function hrListaPinta(sessions,cur){
+  /* sólo fuera del móvil, y AL FINAL del panel: delante, contaría para los
+     selectores de «primer hijo» de lo que ya hay (la regla de la v534) */
+  if(esMovil())return;
+  const pane=document.getElementById('hr-pane-equipo');if(!pane)return;
+  let L=document.getElementById('hr-seslista');
+  if(!L){L=document.createElement('div');L.id='hr-seslista';L.setAttribute('role','listbox');L.setAttribute('aria-label','Sesiones de Polar');L.tabIndex=0;
+    pane.appendChild(L);
+    L.addEventListener('click',e=>{const r=e.target.closest('[data-hk]');if(r)hrListaElige(r.dataset.hk);});
+    L.addEventListener('keydown',e=>{if(e.key!=='ArrowDown'&&e.key!=='ArrowUp')return;e.preventDefault();e.stopPropagation();
+      const rs=[...L.querySelectorAll('[data-hk]')];const i=rs.findIndex(x=>x.classList.contains('on'));const j=Math.max(0,Math.min(rs.length-1,(i<0?0:i)+(e.key==='ArrowDown'?1:-1)));
+      if(rs[j]&&j!==i)hrListaElige(rs[j].dataset.hk,true);});}
+  const ix=(typeof hrpIndice==='function')?hrpIndice():{porKey:{}};
+  const MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const WD=['dom','lun','mar','mié','jue','vie','sáb'];
+  let mesAct='',h='';
+  sessions.forEach(k=>{const i=k.indexOf('|');const dk=k.slice(0,i),lab=k.slice(i+1);const d=dkToDate(dk);
+    const m=MES[d.getMonth()]+' '+d.getFullYear();if(m!==mesAct){mesAct=m;h+='<div class="hsl-mes">'+m+'</div>';}
+    let nv=null;try{nv=hrpNivel(k,dk);}catch(e){}
+    const lv=nv!=null&&LV[nv]?LV[nv]:null;const n=(ix.porKey[k]||[]).length;
+    h+='<button type="button" class="hsl-f'+(k===cur?' on':'')+'" role="option" aria-selected="'+(k===cur)+'" data-hk="'+bmEsc(k)+'">'
+      +'<span class="hsl-d"><b>'+d.getDate()+'</b><small>'+WD[d.getDay()]+'</small></span>'
+      +'<span class="hsl-t"><b>'+bmEsc(lab||'Sesión')+'</b><small>'+(lv?'<i style="background:'+lv[1]+'"></i>'+lv[0].charAt(0)+lv[0].slice(1).toLowerCase():'Sin nivel')+' · '+n+(n===1?' pulsómetro':' pulsómetros')+'</small></span></button>';});
+  const y=L.scrollTop;L.innerHTML='<div class="hsl-cab">Sesiones<span>'+sessions.length+'</span></div>'+h;L.scrollTop=y;
+  const on=L.querySelector('.hsl-f.on');if(on&&L._prim!==true){L._prim=true;on.scrollIntoView({block:'center'});}
+}
+function hrListaElige(k,teclado){const sel=document.getElementById('hr-session');if(!sel||sel.value===k)return;
+  sel.value=k;hrSesPick();
+  const L=document.getElementById('hr-seslista');if(!L)return;const on=L.querySelector('.hsl-f.on');
+  if(on){const r=on.getBoundingClientRect(),q=L.getBoundingClientRect();if(r.top<q.top+30||r.bottom>q.bottom)on.scrollIntoView({block:'nearest'});}
+  if(teclado)try{L.focus({preventScroll:true});}catch(e){}}
 function hrSesPick(){HR_SES_LOCK=true;renderHR();}
 /* Devuelve la clave de la última sesión con fecha <= día seleccionado (REF).
    Si no hay ninguna anterior, cae en la primera disponible. sessionsAsc = claves ordenadas ascendentemente. */
@@ -35668,7 +35710,9 @@ function renderHR(){
     if(HR_SES_LOCK&&sel.value&&sessions.includes(sel.value))cur=sel.value;
     else cur=defKey;
     sel.innerHTML=sessions.map(s=>{const i=s.indexOf('|');const dk=s.slice(0,i),lab=s.slice(i+1);const dd=dk.split('-');return `<option value="${s}">${dd[2]}/${dd[1]}/${dd[0]} · ${lab}</option>`;}).join('');
-    sel.value=cur;}
+    sel.value=cur;
+    /* v744 · en el ordenador ancho, las mismas sesiones en una lista a la izquierda */
+    try{hrListaPinta(sessions,sel.value);}catch(e){console.error('bmnava · lista de sesiones',e);}}
   const key=sel?sel.value:defKey;
   const rows=STATE.hr.filter(r=>hrKey(r)===key);
   renderHRIndiv(rows);
@@ -48830,6 +48874,33 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .uv-ver{min-height:36px}
 }
 @media (prefers-reduced-motion:reduce){#bm-uv{transition:opacity .2s ease}}
+</style>
+<style id="esc-v744">
+/* v744 · ORDENADOR · Pulsómetros como Mail (ver hrListaPinta). */
+#hr-seslista{display:none}
+@media screen and (min-width:1560px) and (pointer:fine){
+  body:not(.sb-min) #hr-pane-equipo,body.sb-min #hr-pane-equipo{display:grid;grid-template-columns:250px minmax(0,1fr);column-gap:20px;row-gap:0;align-items:start}
+  #hr-pane-equipo>*{grid-column:2;min-width:0}
+  #hr-pane-equipo>#hr-seslista{display:block;grid-column:1;grid-row:1 / span 60;position:sticky;top:66px;max-height:calc(100vh - 86px);overflow:auto;
+    background:var(--panel);border-radius:16px;box-shadow:var(--lg-shadow);padding:6px;outline:none;overscroll-behavior:contain}
+  #hr-seslista:focus-visible{box-shadow:var(--lg-shadow),0 0 0 2px var(--accent)}
+  #hr-pane-equipo>.ctrlrow:has(#hr-session){display:none}
+  .hsl-cab{display:flex;justify-content:space-between;align-items:baseline;padding:8px 10px 6px;font-size:13px;font-weight:700}
+  .hsl-cab span{font-weight:500;color:var(--muted);font-size:12px}
+  .hsl-mes{position:sticky;top:-6px;z-index:1;background:var(--panel);padding:8px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.55px;text-transform:uppercase;color:var(--muted)}
+  .hsl-f{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border:none;border-radius:9px;background:transparent;color:var(--txt);font:inherit;text-align:left;cursor:default}
+  .hsl-f:hover{background:var(--panel2)}
+  .hsl-f.on{background:var(--accent);color:var(--on-accent,#fff)}
+  .hsl-f.on .hsl-t small,.hsl-f.on .hsl-d small{color:inherit;opacity:.85}
+  .hsl-d{display:flex;flex-direction:column;align-items:center;width:30px;flex:none}
+  .hsl-d b{font-size:17px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
+  .hsl-d small{font-size:10.5px;color:var(--muted);text-transform:capitalize}
+  .hsl-t{display:flex;flex-direction:column;min-width:0}
+  .hsl-t b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hsl-t small{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .hsl-t small i{width:7px;height:7px;border-radius:50%;flex:none}
+  .hsl-f.on .hsl-t small i{box-shadow:0 0 0 1.5px var(--on-accent,#fff)}
+}
 </style>
 <script>
 /* ============================================================
