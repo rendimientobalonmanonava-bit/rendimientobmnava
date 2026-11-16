@@ -14034,6 +14034,10 @@ function bmHoja(o){
   try{const cj=h.querySelector('.bmh-caja');bmDetenteQuita(cj);if(!h.classList.contains('on'))h.classList.add('on');bmDetente(cj);}catch(e){}
   if(BMH.pila.indexOf(id)<0){h._foco=document.activeElement;BMH.pila.push(id);}
   h.classList.add('on');void h.offsetWidth;h.classList.add('vis');
+  /* v718 · en el ordenador el foco entra en la hoja: su primer campo o, si no
+     tiene, el aspa (nunca un botón de acción: Intro lo pulsaría) */
+  if(typeof bmEscFino==='function'&&bmEscFino())setTimeout(()=>{if(!h.classList.contains('on')||h.contains(document.activeElement))return;
+    const f=bmEscCampo(c)||h.querySelector('.bmh-x');try{f&&f.focus({preventScroll:true});}catch(_){}},60);
   return h;
 }
 function bmHojaCierra(id){
@@ -18623,6 +18627,83 @@ function bmCierraCapa(){
   if(document.body.classList.contains('sb-open')){sbToggleMobile(false);return true;}
   return false;
 }
+/* v718 · ORDENADOR · Esc cierra los formularios y el foco entra en ellos.
+   Daniel, 16/11/2026 (propuesta 1 de la tanda de ordenador). Medido a 1.745 px:
+   Parte del día, Lesión, Tratamiento rápido y Agenda no se cerraban con Esc y,
+   al abrirlos, el foco se quedaba en la página; Ajustes sí se cerraba, pero el
+   foco se perdía; la hoja de atajos no lo tomaba. En el Mac, Esc cancela una
+   hoja y el foco empieza en su primer campo (HIG · Sheets: «include a Cancel
+   button … people expect Escape to dismiss»; Keyboard: el foco tiene que ir
+   donde se va a escribir). Tres cosas, sólo fuera del móvil:
+   · al abrirse un formulario, el foco va a su PRIMER CAMPO y nunca a un botón
+     —con el foco en «Guardar», un Intro de más guardaría—; si no tiene campos,
+     a la propia ventana. Al cerrarse, vuelve a lo que lo abrió;
+   · Esc cierra la capa de arriba, en el mismo orden que «atrás» en el móvil
+     (`bmCierraCapa`);
+   · si en el formulario se ha escrito algo, Esc pregunta antes con la ventana
+     del navegador (la del ordenador, v704). Cerrar con «Cerrar ✕» no cambia:
+     pulsarlo ya es decir que no se guarde.
+   Las capas se siguen con los observadores que ya existían (`modalWatch`), sin
+   uno nuevo. */
+const BMESC={capas:['iso-overlay','sescal-a4','ficha-overlay','ph-overlay','med-overlay','info-overlay','drawer'],est:{},antes:null};
+const BMESC_CIERRA={'iso-overlay':()=>isoCerrar(),'sescal-a4':()=>sesCalA4Cerrar(),
+  'ficha-overlay':()=>closeFicha(),'ph-overlay':()=>closeHeroForm(),'med-overlay':()=>closeMedAgenda(),'info-overlay':()=>closeInfoEdit()};
+function bmEscFino(){return !esMovil()&&!!window.matchMedia&&matchMedia('(pointer:fine)').matches;}
+function bmEscAbierta(id){const e=document.getElementById(id);if(!e)return null;
+  if(id==='drawer')return e.classList.contains('on')?e:null;
+  return getComputedStyle(e).display!=='none'?e:null;}
+function bmEscCampo(raiz){
+  const cs=raiz.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([disabled]):not([readonly]),select:not([disabled]),textarea:not([disabled]):not([readonly])');
+  for(const c of cs){if(c.getClientRects().length&&getComputedStyle(c).visibility!=='hidden')return c;}
+  return null;
+}
+function bmEscAbre(id,el){
+  const st=BMESC.est[id]={t:Date.now(),sucio:false,de:null};
+  const a=document.activeElement;if(a&&a!==document.body&&!el.contains(a))st.de=a;
+  if(!bmEscFino())return;
+  setTimeout(()=>{if(!bmEscAbierta(id)||el.contains(document.activeElement))return;
+    const m=el.querySelector('.med-modal,.info-modal,.ficha-card')||el;
+    /* Ajustes no es un formulario que se rellena: el foco va al panel, no a su primer umbral */
+    const c=id==='drawer'?null:bmEscCampo(m);
+    try{if(c)c.focus({preventScroll:true});else{if(!m.hasAttribute('tabindex'))m.setAttribute('tabindex','-1');m.focus({preventScroll:true});}}catch(e){}
+  },60);
+}
+function bmEscCierraEst(id,el){
+  const st=BMESC.est[id];delete BMESC.est[id];
+  if(!st||!st.de||!bmEscFino())return;
+  const a=document.activeElement;
+  if(a&&a!==document.body&&!(el&&el.contains(a)))return;
+  try{if(document.contains(st.de)&&st.de.getClientRects().length)st.de.focus({preventScroll:true});}catch(e){}
+}
+function bmEscSync(){
+  BMESC.capas.forEach(id=>{const el=document.getElementById(id);const ab=!!bmEscAbierta(id);const ya=!!BMESC.est[id];
+    if(ab&&!ya)bmEscAbre(id,el);else if(!ab&&ya)bmEscCierraEst(id,el);});
+}
+/* lo que se escribe después de abrir (los primeros 400 ms son del propio formulario al pintarse) */
+['input','change'].forEach(t=>document.addEventListener(t,e=>{
+  const x=e.target;if(!x||!x.closest)return;
+  for(const id in BMESC.est){const el=document.getElementById(id);
+    if(el&&el.contains(x)&&Date.now()-BMESC.est[id].t>400){BMESC.est[id].sucio=true;break;}}
+},true));
+/* Esc: antes, se apunta si había un calendario, el menú de añadir o Ajustes
+   abiertos (sus propios Esc ya los cierran y aquí no hay que cerrar nada más) */
+window.addEventListener('keydown',e=>{if(e.key!=='Escape')return;
+  const dp=document.getElementById('dp-pop'),am=document.getElementById('add-menu'),dr=document.getElementById('drawer');
+  BMESC.antes=!!((dp&&!dp.hidden)||(am&&am.classList.contains('open'))||(dr&&dr.classList.contains('on')));},true);
+window.addEventListener('keydown',e=>{
+  if(e.key!=='Escape'||esMovil())return;
+  const otra=BMESC.antes;BMESC.antes=null;if(otra)return;
+  for(const id of BMESC.capas){if(id==='drawer')continue;
+    const el=bmEscAbierta(id);if(!el)continue;
+    try{bmEscSync();}catch(_){}
+    const st=BMESC.est[id];
+    if(st&&st.sucio&&!confirm('Hay cambios sin guardar en este formulario.\n\n¿Cerrarlo y descartar lo escrito?'))return;
+    e.preventDefault();
+    try{(BMESC_CIERRA[id]||(()=>{el.style.display='none';}))();}catch(err){el.style.display='none';}
+    try{bmEscSync();}catch(_){}
+    return;
+  }
+});
 window.addEventListener('popstate',e=>{
   if(!esMovil())return;
   if(window.__BM_VUELVE){window.__BM_VUELVE=false;return;}
@@ -26279,6 +26360,8 @@ function modalAnyOpen(){
   });
 }
 function modalLockSync(){
+  /* v718 · Esc y el foco de los formularios (ordenador) */
+  try{if(typeof bmEscSync==='function')bmEscSync();}catch(e){}
   const abierto=modalAnyOpen();
   if(abierto===document.body.classList.contains('modal-open'))return;
   document.body.classList.toggle('modal-open',abierto);
