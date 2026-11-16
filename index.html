@@ -15034,6 +15034,8 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmAtrasEsc();}catch(e){}
     /* v689 · el título y las secciones, en la barra */
     try{bmBarraTit();}catch(e){}
+    /* v736 · el buscador y «Añadir datos» enteros si caben */
+    try{bmTbAjusta();}catch(e){}
     /* v694 · las rejillas de tarjetas, sin huecos */
     try{bmMasonry();}catch(e){}
     /* v696 · la plantilla al lado de la ficha */
@@ -38858,6 +38860,22 @@ document.addEventListener('mousedown',e=>{const m=document.getElementById('bm-tb
 window.addEventListener('resize',()=>bmTbMenuCierra());
 window.addEventListener('scroll',()=>bmTbMenuCierra(),{passive:true});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('bm-tbm')){e.stopPropagation();bmTbMenuCierra();}},true);
+/* v736 · ORDENADOR · La forma entera del buscador y de «Añadir datos» sólo si
+   cabe en la barra (ver esc-v736). Se prueba y se mide: el sitio depende de la
+   ventana y del ancho de la barra lateral. */
+function bmTbAjusta(){
+  const b=document.body;
+  if(esMovil()||!bmEscFino()||!b.classList.contains('bm-tbs-on')){b.classList.remove('bm-tb-ancha');return;}
+  const h=document.querySelector('header .hub');if(!h)return;
+  b.classList.add('bm-tb-ancha');
+  const its=[...h.querySelectorAll('button,input')].filter(e=>e.getClientRects().length);
+  const lim=Math.min(innerWidth-6,h.getBoundingClientRect().right+1);
+  if(h.scrollWidth>h.clientWidth+1||its.some(e=>e.getBoundingClientRect().right>lim))b.classList.remove('bm-tb-ancha');
+}
+(function(){let t=0;const pide=()=>{cancelAnimationFrame(t);t=requestAnimationFrame(()=>{try{bmTbAjusta();}catch(e){}});};
+  window.addEventListener('resize',pide);
+  const arma=()=>{const h=document.querySelector('header .hub');if(h&&typeof ResizeObserver==='function'&&!h._bmTbRO){h._bmTbRO=new ResizeObserver(pide);h._bmTbRO.observe(h);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arma);else arma();})();
 function toggleAddData(e){if(e){e.stopPropagation();}const m=document.getElementById('add-menu'),b=document.getElementById('btn-adddata');if(!m)return;const open=m.classList.toggle('open');if(b)b.setAttribute('aria-expanded',open?'true':'false');}
 function closeAddData(){const m=document.getElementById('add-menu'),b=document.getElementById('btn-adddata');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');}
 document.addEventListener('click',e=>{if(!(e.target.closest&&e.target.closest('.add-wrap')))closeAddData();});
@@ -48071,6 +48089,21 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   #hr-kpis>.kpi:nth-last-child(1 of .kpi):nth-child(odd of .kpi){grid-column:1/-1}
 }
 </style>
+<style id="esc-v736">
+/* v736 · ORDENADOR · Con la barra de herramientas más ligera (v728: cinco
+   botones y el estado menos, unos 300 px), el buscador y «Añadir datos» caben
+   enteros más a menudo. Los cortes de la v689 iban por ancho de VENTANA y
+   eran para la barra llena; pero el sitio de la barra depende también del
+   ancho de la barra lateral, que se ajusta (v724). Así que se mide: con el
+   control de sección en la barra, `bmTbAjusta` prueba la forma entera
+   (`bm-tb-ancha`) y la quita si no cabe. */
+@media screen and (min-width:1360px) and (pointer:fine){
+  body.bm-tbs-on.bm-tb-ancha header [onclick="focusSearch()"]{width:180px!important;padding:0 8px 0 9px!important;justify-content:flex-start!important}
+  body.bm-tbs-on.bm-tb-ancha header [onclick="focusSearch()"] .t,body.bm-tbs-on.bm-tb-ancha header [onclick*="focusSearch"][data-kbd]::after{display:inline!important}
+  body.bm-tbs-on.bm-tb-ancha header #btn-adddata .t{display:inline!important}
+  body.bm-tbs-on.bm-tb-ancha header #btn-adddata{padding:0 12px 0 10px!important}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -51659,8 +51692,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-16.4*/
-const VER_ACTUAL='2026-11-16.4';
+/*BUILD:2026-11-16.5*/
+const VER_ACTUAL='2026-11-16.5';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){

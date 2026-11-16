@@ -1419,7 +1419,7 @@ Daniel, 16/11/2026: *«la barra lateral sigue sin convencerme. Cámbiala 100 % y
 **Lo que NO está probado**: el Mac de Daniel con sus datos y con un próximo partido real en la barra; arrastrar el asa con un ratón de verdad; Esc y ⌘Z en Safari de macOS.
 
 
-#### 6.12.30 Nueve detalles de app de Mac (v725–v735)
+#### 6.12.30 Nueve detalles de app de Mac (v725–v736)
 
 Daniel, 16/11/2026, con la barra lateral flotante aceptada: *«sigue dándome mejoras… a nivel visual, estético, que hagan lucir a la aplicación muchísimo más profesional… como una aplicación nativa de ordenador de Apple»*. Medidas las 13 pantallas a 1.745 px antes de proponer; respuesta: *«dale con todas»*. Todo con ratón o trackpad (`screen and (min-width:761px) and (pointer:fine)`, bloques `esc-v727`… `esc-v735`); el móvil y el iPad no cambian. **No se repropuso** nada de lo que la v710 quitó para llevar el aspecto del Resumen a todas las pantallas (título en la barra, botones y tablas de macOS dentro de las pantallas, explicaciones tras un (i), cajas dentro de cajas).
 
@@ -1436,6 +1436,7 @@ Daniel, 16/11/2026, con la barra lateral flotante aceptada: *«sigue dándome me
 | v733 · Ningún texto por debajo de 10 px | El estilo más pequeño de macOS. Es el suelo del móvil (`--fmin`, v579) a 10 px: `html body main{--fmin:10px}` y `#v-cal` a 0. **Incluye el Resumen** («FAT · DOMS · MOOD» de «A vigilar» iban a 7,5 px). *83 textos fuera del Calendario → 0, sin ningún texto cortado nuevo* |
 | v734 · Los globos de los gráficos | Siguen a la apariencia —claro con sombra en claro, oscuro en oscuro— con la letra del sistema en título y cuerpo (el título iba en Inter). La sombra la dibuja el plugin `bmTipSombra` **antes y aparte**: con la sombra puesta en el lienzo, Chart.js se la aplicaría también al texto |
 | v735 · Las cifras sueltas, con la forma de la tira del Resumen | Alertas, Disponibilidad (`.asum`, el rótulo pasa arriba), Fisioterapia (`.fis-k`, micrográfico a la derecha y tarjeta blanca porque va sobre el fondo) y Perfil físico (`.tsum-t`): rótulo en versalitas, cifra a 22 px, línea debajo. *De 98–110 px a 74–79.* **En Pulsómetros no**: las cifras se estiran para igualar la columna de al lado; en una fila dejaban un hueco de 350 px y a 22 px quedaban vacías en recuadros de 117. Ahí sólo la última ocupa la fila entera en vez de dejar la casilla vacía (`:nth-child(odd of .kpi)`: dentro de `#hr-kpis` va también la tarjeta oculta del móvil) |
+| v736 · El buscador y «Añadir datos», enteros cuando caben | Con cinco botones menos en la barra (v728) los cortes de la v689 —buscador a icono por debajo de 1.700 px de ventana, «Añadir datos» sin nombre por debajo de 1.440— sobraban. Pero el sitio de la barra depende también del ancho de la barra lateral (v724), así que **no se cambia un corte por otro: se mide**. `bmTbAjusta` prueba la forma entera (`bm-tb-ancha`) y la quita si algo se sale; corre en el observador, al cambiar la ventana y con un `ResizeObserver` sobre la barra. *Medido a 1.360, 1.401, 1.440 y 1.745 px con la barra lateral a 220 y a 320: nada se sale ni se monta* |
 
 **Cómo se comprobó.** Las 13 pantallas a 1.745, 1.440 (claro y oscuro) y 1.100 px: una sola vista, nada se sale ni de la página ni de la barra, sin errores. Contraste de lo nuevo en los dos temas: el menú «⋯» (5,71 como mínimo), el pie de las hojas (6,06) y los recuadros de cifra (5,98). Los siete formularios abiertos uno a uno, «Cancelar» e Intro probados. **El móvil, idéntico a la v724**: huella de 10 pantallas a 375 px con el día fijado, incluido el cursor.
 
@@ -1475,7 +1476,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
-- **Lo de la v725–v735**: que Daniel vea con sus datos los formularios como hojas, el menú «⋯», el cursor y las barras de desplazamiento del sistema (§6.12.30)
+- **Lo de la v725–v736**: que Daniel vea con sus datos los formularios como hojas, el menú «⋯», el cursor y las barras de desplazamiento del sistema (§6.12.30)
 - **Lo de la v718–v724**: que Daniel vea con sus datos la barra flotante (§6.12.29), y que pruebe en Safari Esc en los formularios, ⌘Z tras «Ya pasó» y arrastrar el borde de la barra
 - **`exportNodePNG` no convierte `color()` dentro de `box-shadow`**: exportar el Resumen entero falla por los puntos `.eq-cab-p` (salió al capturar los prototipos de la barra). Ninguna exportación de la app incluye hoy ese bloque, así que no afecta a nadie; si algún día se exporta, hay que añadir `box-shadow` a la conversión de colores
 - **Lo de la v710–v717**: que Daniel vea con sus datos el aspecto del Resumen en las otras pantallas (§6.12.28), y que pruebe en Safari «Añadir al Dock», la insignia, soltar una foto sobre un jugador y ⌘-clic para abrir otra ventana
