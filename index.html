@@ -14246,6 +14246,80 @@ function bmBusca(){
   try{inp.focus({preventScroll:true});}catch(e){}
   return hoja;
 }
+/* ═══ v753 · ORDENADOR · Buscar como Spotlight ═══
+   ⌘K, «/» o la lupa abrían en el ordenador la hoja del móvil centrada: una
+   lista de iOS con el mismo «+» en todas las acciones. Ahora es una barra
+   flotante arriba, con un campo grande, los resultados por tipo y, a la
+   derecha, la vista previa de lo elegido: la mini-ficha del jugador (la de la
+   vista rápida, v670), la tarjeta del día (la del Calendario) o qué hace la
+   acción. ↑ ↓ mueven, Intro abre, Esc cierra.
+   El índice, el orden de los resultados y los recientes son los de la hoja
+   del móvil (`bmbIndice`, `bmbDia`, `bmnava-busca`): no hay una segunda
+   búsqueda que mantener. */
+const BMS={idx:null,vis:[],sel:0};
+function bmSpotCierra(){const v=document.getElementById('bm-spot');if(!v)return false;const f=v._foco;v.remove();try{f&&f.focus&&document.contains(f)&&f.focus({preventScroll:true});}catch(e){}return true;}
+function bmsIcono(x){
+  if(x.g==='j'){const f=((STATE.players||{})[x.n]||{}).avatar||photoFor(x.n)||'';const ini=String(x.n).split(/\s+/).slice(0,2).map(c=>c.charAt(0)).join('').toUpperCase();
+    return '<span class="bms-av">'+(f?'<img src="'+bmEsc(f)+'" alt="" onerror="this.remove()">':'')+'<i>'+bmEsc(ini)+'</i></span>';}
+  return '<span class="bms-ic">'+(x.g==='p'?(SB_ICONS[x.v]||SB_ICONS._||BMB_IC.ir):(x.g==='d'?BMB_IC.dia:BMB_IC.mas))+'</span>';
+}
+function bmsPrevia(x){
+  if(!x)return '<div class="bms-pv-vacio">Escribe para buscar jugadores, pantallas, acciones o un día («hoy», «12/11»).</div>';
+  if(x.g==='j')return '<div class="bms-pv-j">'+bmPreviaJ(x.n)+'</div><p class="bms-pv-nota">Intro abre su ficha.</p>';
+  if(x.g==='d'){const dk=(x.k||'').slice(2);try{const d=dkToDate(dk),i=(d.getDay()+6)%7,hoy=dkey(new Date());const wdL=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+      let mdMap={};try{mdMap=calMDmap([dk]).map||{};}catch(e){}
+      const col=calDiaCol(dk,i,window.__CAL_REAL||calRealMap(),mdMap,hoy,wdL).replace(/\sonclick="[^"]*"/g,'');
+      return '<div class="bms-pv-d">'+col+'</div><p class="bms-pv-nota">'+bmEsc(x.s||'')+'</p>';}catch(e){}}
+  return '<div class="bms-pv-a"><span class="bms-pv-ic">'+bmsIcono(x)+'</span><b>'+bmEsc(x.l)+'</b>'+(x.s?'<p>'+bmEsc(x.s)+'</p>':'')
+    +'<p class="bms-pv-nota">'+(x.g==='p'?'Intro abre esta pantalla.':'Intro lo abre.')+'</p></div>';
+}
+function bmSpot(){
+  if(document.getElementById('bm-spot')){const i=document.querySelector('#bm-spot input');if(i){i.focus();i.select();}return;}
+  try{bmMenuMacCierra();}catch(e){}
+  BMS.idx=bmbIndice();BMS.vis=[];BMS.sel=0;
+  const v=document.createElement('div');v.id='bm-spot';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');v.setAttribute('aria-label','Buscar');
+  v._foco=document.activeElement;
+  v.innerHTML='<div class="bms-caja"><div class="bms-campo">'+BMB_IC_LUPA+'<input type="search" placeholder="Buscar en BM Nava" aria-label="Buscar jugadores, pantallas, acciones o un día" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="bms-lista"><kbd>esc</kbd></div>'
+    +'<div class="bms-cuerpo"><div class="bms-lista" id="bms-lista" role="listbox"></div><div class="bms-pv" aria-live="polite"></div></div></div>';
+  document.body.appendChild(v);
+  const inp=v.querySelector('input'),lista=v.querySelector('.bms-lista'),pv=v.querySelector('.bms-pv');
+  const marca=()=>{lista.querySelectorAll('.bms-r').forEach((r,i)=>{const on=i===BMS.sel;r.classList.toggle('on',on);r.setAttribute('aria-selected',on?'true':'false');if(on)r.scrollIntoView({block:'nearest'});});
+    pv.innerHTML=bmsPrevia(BMS.vis[BMS.sel]);};
+  const pinta=()=>{
+    const idx=BMS.idx,q=normH(inp.value).trim();let grupos=[];
+    if(!q){let rec=[];try{rec=(JSON.parse(localStorage.getItem(BMB_REC)||'[]')||[]).map(k=>idx.find(x=>x.k===k)).filter(Boolean);}catch(e){}
+      grupos=[['Recientes',rec],['Acciones',idx.filter(x=>x.g==='a'&&rec.indexOf(x)<0).slice(0,8)]];}
+    else{const ts=q.split(/\s+/);const casa=x=>ts.every(t=>x.q.indexOf(t)>=0);
+      const peso=x=>(x.q.indexOf(q)===0?0:(x.q.split(' ').some(w=>w.indexOf(ts[0])===0)?1:2));
+      const ord=xs=>xs.filter(casa).sort((a,b)=>peso(a)-peso(b));
+      const d=bmbDia(q);
+      grupos=[['Día',d?[d]:[]],['Jugadores',ord(idx.filter(x=>x.g==='j')).slice(0,6)],['Pantallas',ord(idx.filter(x=>x.g==='p')).slice(0,6)],['Acciones',ord(idx.filter(x=>x.g==='a')).slice(0,6)]];}
+    BMS.vis=[];let h='';
+    grupos.forEach(([rot,xs])=>{if(!xs.length)return;h+='<div class="bms-rot" role="presentation">'+rot+'</div>';
+      xs.forEach(x=>{const i=BMS.vis.length;BMS.vis.push(x);
+        h+='<div class="bms-r" role="option" id="bms-o'+i+'" data-i="'+i+'">'+bmsIcono(x)+'<span class="bms-t">'+bmEsc(x.l)+'</span>'+(x.s&&x.g!=='a'?'<span class="bms-s">'+bmEsc(x.s)+'</span>':'')+'</div>';});});
+    lista.innerHTML=h||'<p class="bms-nada">Nada con «'+bmEsc(inp.value.trim())+'».</p>';
+    BMS.sel=0;marca();
+  };
+  const abre=x=>{if(!x)return;
+    try{if(x.g!=='d'){const r=(JSON.parse(localStorage.getItem(BMB_REC)||'[]')||[]).filter(k=>k!==x.k);r.unshift(x.k);localStorage.setItem(BMB_REC,JSON.stringify(r.slice(0,5)));}}catch(e){}
+    bmSpotCierra();setTimeout(()=>{try{x.f();}catch(e){console.error('bmnava · buscar',e);}},30);};
+  inp.addEventListener('input',pinta);
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){e.preventDefault();if(BMS.vis.length){BMS.sel=(BMS.sel+1)%BMS.vis.length;marca();}}
+    else if(e.key==='ArrowUp'){e.preventDefault();if(BMS.vis.length){BMS.sel=(BMS.sel-1+BMS.vis.length)%BMS.vis.length;marca();}}
+    else if(e.key==='Enter'){e.preventDefault();abre(BMS.vis[BMS.sel]);}
+    else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();bmSpotCierra();}
+    inp.setAttribute('aria-activedescendant','bms-o'+BMS.sel);});
+  lista.addEventListener('mousemove',e=>{const r=e.target.closest('.bms-r');if(!r)return;const i=+r.dataset.i;if(i!==BMS.sel){BMS.sel=i;marca();}});
+  lista.addEventListener('click',e=>{const r=e.target.closest('.bms-r');if(r)abre(BMS.vis[+r.dataset.i]);});
+  v.addEventListener('mousedown',e=>{if(!e.target.closest('.bms-caja'))bmSpotCierra();});
+  pinta();
+  setTimeout(()=>{try{inp.focus({preventScroll:true});}catch(e){}},0);
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('bm-spot')){e.stopPropagation();e.preventDefault();bmSpotCierra();}},true);
+const BMB_IC_LUPA='<svg class="bms-lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>';
+window.bmSpot=bmSpot;window.bmSpotCierra=bmSpotCierra;
 /* v573 · Mantener pulsado, en el móvil. Sobre cualquier cosa que abre la ficha
    de un jugador —una tarjeta, una fila, una cara— sube un menú con lo que se
    suele hacer con él: ver la ficha, apuntar el parte del día, marcar un «ojo
@@ -40104,7 +40178,9 @@ function addDataFisio(){closeAddData();if(window.openFisioReg)openFisioReg();}
 function focusSearch(){
   /* v572 · En el móvil, la lupa busca en toda la app. v671 · Y en el ordenador
      también: jugadores, pantallas, acciones y días, con ⌘K. Lo que hacía antes
-     —filtrar la plantilla— está dentro: un jugador abre su ficha. */
+     —filtrar la plantilla— está dentro: un jugador abre su ficha.
+     v753 · En el Mac, como Spotlight. */
+  if(!esMovil()&&window.bmEscFino&&bmEscFino()&&window.bmSpot){bmSpot();return;}
   bmBusca();return;
   go('equipo');
   const d=document.getElementById('eq-plantilla');
@@ -40206,7 +40282,7 @@ document.addEventListener('keydown',e=>{
   if(!(e.metaKey||e.ctrlKey)||e.altKey||e.shiftKey||String(e.key).toLowerCase()!=='k')return;
   e.preventDefault();e.stopPropagation();
   if(document.querySelector('.bmh.on.bmb'))return;
-  try{bmBusca();}catch(err){console.error('bmnava · buscar',err);}
+  try{focusSearch();}catch(err){console.error('bmnava · buscar',err);}   /* v753 · en el Mac, Spotlight */
 },true);
 (function(){const pon=()=>{const mac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent||'');
   document.querySelectorAll('[onclick*="focusSearch"]').forEach(b=>{b.dataset.kbd=mac?'⌘K':'Ctrl K';b.title='Buscar en toda la app ('+(mac?'⌘K':'Ctrl+K')+')';});};
@@ -49684,6 +49760,50 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .bm-mm .bm-mm-h{padding:4px 10px 3px 28px;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   header #btn-adddata.on{filter:brightness(.95)}
   @media (prefers-reduced-motion:reduce){.bm-mm{animation:none}}
+}
+</style>
+<style id="esc-v753">
+/* v753 · ORDENADOR · Buscar como Spotlight */
+@media screen and (min-width:761px) and (pointer:fine){
+  #bm-spot{position:fixed;inset:0;z-index:10090;background:rgba(0,0,0,.08);animation:bmsIn .14s ease-out}
+  html[data-theme="dark"] #bm-spot{background:rgba(0,0,0,.28)}
+  @keyframes bmsIn{from{opacity:0}}
+  .bms-caja{position:absolute;left:50%;top:14vh;transform:translateX(-50%);width:min(780px,calc(100vw - 48px));border-radius:16px;overflow:hidden;
+    background:var(--tbm-bg);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);
+    box-shadow:0 0 0 .5px var(--tbm-borde),0 24px 70px rgba(0,0,0,.30);color:var(--txt);animation:bmsCaja .16s cubic-bezier(.32,.72,0,1)}
+  @keyframes bmsCaja{from{opacity:0;transform:translateX(-50%) scale(.98)}}
+  .bms-campo{display:flex;align-items:center;gap:12px;padding:14px 18px}
+  .bms-lupa{width:22px;height:22px;flex:none;color:var(--muted)}
+  .bms-campo input{flex:1;min-width:0;border:0!important;outline:0;background:transparent!important;box-shadow:none!important;padding:0!important;
+    font:inherit;font-size:22px!important;font-weight:400;color:var(--txt);height:auto!important;-webkit-appearance:none;appearance:none}
+  .bms-campo input::-webkit-search-cancel-button{display:none}
+  .bms-campo kbd{font:inherit;font-size:11px;color:var(--muted);border:1px solid var(--tbm-borde);border-radius:5px;padding:1px 6px}
+  .bms-cuerpo{display:grid;grid-template-columns:minmax(0,1fr) 300px;border-top:.5px solid var(--tbm-borde);height:min(430px,60vh)}
+  .bms-lista{overflow-y:auto;padding:6px;border-right:.5px solid var(--tbm-borde)}
+  .bms-rot{font-size:11px;font-weight:600;color:var(--muted);padding:8px 10px 3px}
+  .bms-r{display:flex;align-items:center;gap:10px;min-height:32px;padding:3px 10px;border-radius:7px;cursor:default;font-size:13.5px}
+  .bms-r.on{background:var(--accent);color:var(--on-accent,#fff)}
+  .bms-r.on .bms-s,.bms-r.on .bms-ic{color:inherit;opacity:.85}
+  .bms-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bms-s{flex:none;max-width:45%;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bms-ic{width:22px;height:22px;flex:none;display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
+  .bms-ic svg{width:17px;height:17px}
+  .bms-av{position:relative;width:24px;height:24px;flex:none;border-radius:50%;overflow:hidden;background:var(--panel2);display:inline-grid;place-items:center}
+  .bms-av i{font-style:normal;font-size:10px;font-weight:700;color:var(--muted)}
+  .bms-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top}
+  .bms-nada{padding:18px 12px;color:var(--muted);font-size:13px;margin:0}
+  .bms-pv{overflow-y:auto;padding:14px;font-size:13px}
+  .bms-pv-vacio{color:var(--muted);line-height:1.45;padding:6px 2px}
+  .bms-pv-nota{font-size:11.5px;color:var(--muted);margin:10px 0 0}
+  .bms-pv-j .bmp-tarjeta{box-shadow:none;margin:0;width:100%;max-width:none;background:var(--panel)}
+  .bms-pv-d{transform-origin:top left}
+  .bms-pv-d>*{max-width:100%}
+  .bms-pv-a{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:4px 2px}
+  .bms-pv-a .bms-ic,.bms-pv-a .bms-av{width:40px;height:40px}
+  .bms-pv-a .bms-ic svg{width:28px;height:28px}
+  .bms-pv-a b{font-size:15px}
+  .bms-pv-a p{margin:0;color:var(--muted);line-height:1.4}
+  @media (prefers-reduced-motion:reduce){#bm-spot,.bms-caja{animation:none}}
 }
 </style>
 <style id="bm-v745">
