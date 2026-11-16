@@ -13835,11 +13835,60 @@ function sbMark(v){const eff=v==='jugador'?'jugadores':(v==='estado'?'dispo':v);
    contenido gana ~150 px; al volver a ensanchar, recupera lo que tenías
    elegido. Abrirla a mano estando estrecha vale mientras siga estrecha y no
    cambia tu preferencia guardada. */
+/* v724 · ORDENADOR · La barra lateral, de ancho ajustable. Daniel, 16/11/2026
+   (propuesta 6). Medía 216 px fijos. En el Mac el borde de la barra lateral se
+   arrastra y doble clic la devuelve a su ancho (HIG · Sidebars: «let people
+   resize the sidebar»). Un asa en el hueco entre la barra flotante (v722) y el
+   contenido: arrastrar va de 200 a 320 px, doble clic vuelve a 220, y con el
+   teclado (Tab hasta el asa) ← → la mueven de 10 en 10. El ancho es de ESTE
+   ordenador (`bmnava-sbw`, con guion: no se sincroniza). Todo lo que depende
+   del ancho —el contenido, la plantilla de la ficha— lee la misma variable
+   (`--sbw`), así que se mueve con ella. Plegada o en una ventana estrecha, no
+   hay asa. */
+const BMSW={MIN:200,MAX:320,DEF:220,LS:'bmnava-sbw'};
+function bmSbAncho(w,guarda){
+  const r=document.documentElement;
+  if(w==null){r.style.removeProperty('--sbw');if(guarda)try{localStorage.removeItem(BMSW.LS);}catch(e){}}
+  else{w=Math.round(Math.min(BMSW.MAX,Math.max(BMSW.MIN,w)));r.style.setProperty('--sbw',w+'px');if(guarda)try{localStorage.setItem(BMSW.LS,String(w));}catch(e){}}
+  const h=document.getElementById('bm-sbres');if(h)h.setAttribute('aria-valuenow',String(w==null?BMSW.DEF:w));
+  document.body.classList.toggle('sb-estrecha',w!=null&&w<BMSW.DEF);
+  return w;
+}
+function bmSbResArma(){
+  if(esMovil()||document.getElementById('bm-sbres'))return;
+  let g=null;try{g=+localStorage.getItem(BMSW.LS)||null;}catch(e){}
+  if(g)bmSbAncho(g,false);
+  const h=document.createElement('div');h.id='bm-sbres';h.tabIndex=0;
+  h.setAttribute('role','separator');h.setAttribute('aria-orientation','vertical');h.setAttribute('aria-label','Ancho de la barra lateral');
+  h.setAttribute('aria-valuemin',String(BMSW.MIN));h.setAttribute('aria-valuemax',String(BMSW.MAX));h.setAttribute('aria-valuenow',String(g||BMSW.DEF));
+  h.title='Arrastra para cambiar el ancho de la barra · doble clic: ancho normal';
+  document.body.appendChild(h);
+  const actual=()=>{const v=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sbw'));return isFinite(v)?v:BMSW.DEF;};
+  const fin=()=>{document.body.classList.remove('bm-sbres-on');h.classList.remove('on');window.dispatchEvent(new Event('resize'));};
+  h.addEventListener('pointerdown',e=>{
+    if(e.button!==0)return;e.preventDefault();
+    try{h.setPointerCapture(e.pointerId);}catch(_){}
+    const x0=e.clientX,w0=actual();let raf=0,ult=w0;
+    document.body.classList.add('bm-sbres-on');h.classList.add('on');
+    const mueve=ev=>{ult=w0+(ev.clientX-x0);if(!raf)raf=requestAnimationFrame(()=>{raf=0;bmSbAncho(ult,false);});};
+    const suelta=ev=>{h.removeEventListener('pointermove',mueve);h.removeEventListener('pointerup',suelta);h.removeEventListener('pointercancel',suelta);
+      cancelAnimationFrame(raf);bmSbAncho(ult,true);fin();};
+    h.addEventListener('pointermove',mueve);h.addEventListener('pointerup',suelta);h.addEventListener('pointercancel',suelta);
+  });
+  h.addEventListener('dblclick',()=>{bmSbAncho(null,true);fin();});
+  h.addEventListener('keydown',e=>{
+    if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+    e.preventDefault();e.stopPropagation();
+    bmSbAncho(actual()+(e.key==='ArrowRight'?10:-10),true);window.dispatchEvent(new Event('resize'));
+  });
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{try{bmSbResArma();}catch(e){}});else{try{bmSbResArma();}catch(e){}}
 const BMSB={estrecho:false};
 function sbToggle(){document.body.classList.toggle('sb-min');
   if(!BMSB.estrecho){try{localStorage.setItem('bmnava_sbmin',document.body.classList.contains('sb-min')?'1':'0');}catch(e){}}
   window.dispatchEvent(new Event('resize'));}
 function bmSbAuto(){
+  try{bmSbResArma();}catch(e){}
   if(esMovil()||!window.matchMedia||!matchMedia('(pointer:fine)').matches)return;
   const est=window.innerWidth<1200;if(est===BMSB.estrecho)return;
   BMSB.estrecho=est;
@@ -30993,13 +31042,15 @@ function bmActPinta(estado){
   let last=0;try{last=+localStorage.getItem(RF_LS)||0;}catch(e){}
   const t=Math.max(last,window.__BM_LEIDO||0);
   const hhmm=x=>new Date(x).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
-  let txt,c='ok';
-  if(estado==='load'){txt='Actualizando…';c='load';}
-  else if(window.__BM_COPIA){const k=window.__BM_COPIA.t;txt='Sin conexión'+(k?' · copia de las '+hhmm(k):'');c='warn';}
-  else if(!t){txt='Sin actualizar';c='';}
+  let txt,corto,c='ok';
+  if(estado==='load'){txt=corto='Actualizando…';c='load';}
+  else if(window.__BM_COPIA){const k=window.__BM_COPIA.t;txt='Sin conexión'+(k?' · copia de las '+hhmm(k):'');corto='Sin conexión';c='warn';}
+  else if(!t){txt=corto='Sin actualizar';c='';}
   else{const m=Math.round((Date.now()-t)/60000);
-    txt='Actualizado '+(m<1?'ahora mismo':m<60?'hace '+m+' min':m<1440?'hace '+Math.round(m/60)+' h':'el '+new Date(t).toLocaleDateString('es',{day:'numeric',month:'numeric'}));}
-  const h='<i aria-hidden="true"></i><span>'+txt+'</span>';
+    corto=m<1?'Ahora mismo':m<60?'Hace '+m+' min':m<1440?'Hace '+Math.round(m/60)+' h':'El '+new Date(t).toLocaleDateString('es',{day:'numeric',month:'numeric'});
+    txt='Actualizado '+corto.charAt(0).toLowerCase()+corto.slice(1);}
+  /* v724 · con la barra más estrecha que la normal, la forma corta */
+  const h='<i aria-hidden="true"></i><span class="sba-l">'+txt+'</span><span class="sba-c">'+corto+'</span>';
   if(b.dataset.h!==h){b.dataset.h=h;b.innerHTML=h;}
   b.dataset.c=c;
   b.title='Actualizar ahora · tecla R'+(t?' · última lectura de las hojas: '+hhmm(t):'');
@@ -47687,6 +47738,8 @@ html[data-theme="dark"]{--sbf-bg:rgba(44,44,50,.84);--sbf-borde:rgba(255,255,255
   html:root body #sidebar .sb-act{grid-area:act;display:flex;align-items:center;gap:7px;min-width:0;height:28px;padding:0 8px;margin:0;border:none;border-radius:7px;
     background:none;font:inherit;font-size:11.5px;font-weight:500;text-align:left;cursor:pointer}
   html:root body #sidebar .sb-act span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html:root body #sidebar .sb-act .sba-c,html:root body.sb-estrecha #sidebar .sb-act .sba-l{display:none}
+  html:root body.sb-estrecha #sidebar .sb-act .sba-c{display:inline}
   html:root body #sidebar .sb-act i{flex:none;width:7px;height:7px;border-radius:50%;background:var(--muted)}
   html:root body #sidebar .sb-act[data-c="ok"] i{background:var(--ok)}
   html:root body #sidebar .sb-act[data-c="warn"] i{background:var(--warn)}
@@ -47696,6 +47749,18 @@ html[data-theme="dark"]{--sbf-bg:rgba(44,44,50,.84);--sbf-borde:rgba(255,255,255
   html:root body #sidebar .sb-act:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   @keyframes bmActLate{50%{opacity:.25}}
   @media (prefers-reduced-motion:reduce){html:root body #sidebar .sb-act[data-c="load"] i{animation:none}}
+}
+</style>
+<style id="esc-v724">
+/* v724 · ORDENADOR · El asa para cambiar el ancho de la barra lateral. */
+#bm-sbres{display:none}
+@media screen and (min-width:901px) and (pointer:fine){
+  body:not(.sb-min) #bm-sbres{display:block;position:fixed;top:12px;bottom:12px;left:calc(var(--sbw) + 12px);width:12px;z-index:71;cursor:col-resize;outline:none;touch-action:none}
+  #bm-sbres::after{content:"";position:absolute;top:50%;left:5px;width:3px;height:40px;margin-top:-20px;border-radius:2px;background:var(--muted);opacity:0;transition:opacity .15s ease}
+  #bm-sbres:hover::after,#bm-sbres.on::after{opacity:.45}
+  #bm-sbres:focus-visible::after{opacity:1;background:var(--accent)}
+  body.bm-sbres-on,body.bm-sbres-on #sidebar,body.bm-sbres-on #bm-jl{transition:none!important}
+  body.bm-sbres-on,body.bm-sbres-on *{cursor:col-resize!important;user-select:none!important}
 }
 </style>
 <script>
