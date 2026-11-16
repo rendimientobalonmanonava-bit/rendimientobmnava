@@ -30894,7 +30894,8 @@ function renderAll(){
   buildPlayers();buildTests();buildPhysio();syncDatePicker();renderDayCtx();renderTeam();renderPosBand();renderAlerts();
   document.getElementById('cfg-dump').innerHTML=`Ventana aguda/crónica: ${CONFIG.load.acute}/${CONFIG.load.chronic} d · ACWR coupled · EWMA α ${CONFIG.load.ewmaAcute}/${CONFIG.load.ewmaChronic} · z amarillo/rojo: ±${CONFIG.z.yellow}/±${CONFIG.z.red} · mín. registros z: ${CONFIG.z.minRecords} · z contextual MDx ≥${CONFIG.z.minContext} · factor contacto: ${Object.entries(CONFIG.contactFactor).map(([k,v])=>k+'→'+v).join(', ')} · peso posición en media de contacto: ${Object.entries(CONFIG.contactPosW||{}).map(([k,v])=>k+'→'+v).join(', ')}`;
   document.getElementById('src-dot').className="dot "+(STATE.mode||"");
-  document.getElementById('src-txt').textContent=STATE.mode==="demo"?"MODO DEMO":STATE.mode==="live"?"DATOS REALES":"sin datos";}
+  document.getElementById('src-txt').textContent=STATE.mode==="demo"?"MODO DEMO":STATE.mode==="live"?"DATOS REALES":"sin datos";
+  try{if(typeof bmActPinta==='function')bmActPinta();}catch(e){}}
 
 /* ===================== CONEXIÓN ===================== */
 /* v326 · Esto era `await fetch(url)` a pelo, sin tope de espera, y en toda la
@@ -31114,6 +31115,8 @@ function bmActPinta(estado){
   let txt,corto,c='ok';
   if(estado==='load'){txt=corto='Actualizando…';c='load';}
   else if(window.__BM_COPIA){const k=window.__BM_COPIA.t;txt='Sin conexión'+(k?' · '+hhmm(k):'');corto='Sin conexión';c='warn';}
+  /* v728 · lo que decía «● MODO DEMO» en la barra de herramientas */
+  else if(STATE.mode==='demo'){txt='Modo demo · datos de ejemplo';corto='Modo demo';c='warn';}
   else if(!t){txt=corto='Sin actualizar';c='';}
   else{const m=Math.round((Date.now()-t)/60000);
     corto=m<1?'Ahora mismo':m<60?'Hace '+m+' min':m<1440?'Hace '+Math.round(m/60)+' h':'El '+new Date(t).toLocaleDateString('es',{day:'numeric',month:'numeric'});
@@ -38755,7 +38758,61 @@ function buildHeaderActions(){const host=document.getElementById('hdr-actions');
   <button class="iconbtn" title="Buscar jugador ( / )" onclick="focusSearch()">🔍<span class="t">Buscar</span></button>
   <button class="iconbtn" title="Imprimir / Guardar PDF" onclick="window.print()">🖨️<span class="t">PDF</span></button>
   <button class="iconbtn" id="btn-settings" title="Ajustes de cálculo ( ⚙ )" onclick="openDrawer()">⚙️<span class="t">Ajustes</span></button>
-  <button class="iconbtn" id="btn-theme" title="Cambiar tema ( T )" onclick="toggleTheme()">${dark?'☀️':'🌙'}<span class="t">${dark?'Claro':'Oscuro'}</span></button>`;}
+  <button class="iconbtn" id="btn-theme" title="Cambiar tema ( T )" onclick="toggleTheme()">${dark?'☀️':'🌙'}<span class="t">${dark?'Claro':'Oscuro'}</span></button>
+  <button type="button" id="bm-tbmas" title="Más acciones" aria-label="Más acciones" aria-haspopup="menu" aria-expanded="false" onclick="bmTbMenu(event)"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9.2"/><circle cx="7.6" cy="12" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r=".9" fill="currentColor" stroke="none"/><circle cx="16.4" cy="12" r=".9" fill="currentColor" stroke="none"/></svg></button>`;}
+/* v728 · ORDENADOR · La barra de herramientas, con lo secundario en un menú.
+   Daniel, 16/11/2026. Eran once controles con el mismo tamaño y el mismo peso;
+   «Actualizar» estaba dos veces (el pie de la barra lateral ya lo hace, v723) y
+   el estado de los datos iba en versalitas («● DATOS REALES»). HIG · Toolbars:
+   pocos elementos, los importantes siempre a la vista y el resto en un menú.
+   Quedan el día, las secciones, Buscar y «＋»; agenda, PDF, ajustes, apariencia
+   y actualizar pasan a «⋯», y CADA ENTRADA PULSA EL BOTÓN DE SIEMPRE (que sigue
+   en el marcado, oculto): no hay una segunda forma de hacer nada. El estado de
+   los datos pasa al pie, junto a «Actualizado…». Sólo con ratón o trackpad. */
+function temaPon(m){
+  if(m==='auto'){try{localStorage.removeItem('bmnava-theme-manual');}catch(e){}applyTheme(temaSistema());}
+  else{try{lsSet('bmnava-theme-manual','1');}catch(e){}applyTheme(m==='dark'?'dark':'light');}
+  try{themeRepaint();}catch(e){}try{temaBoton();}catch(e){}
+}
+function bmTbMenuCierra(){const m=document.getElementById('bm-tbm');if(m)m.remove();const b=document.getElementById('bm-tbmas');if(b){b.setAttribute('aria-expanded','false');b.classList.remove('on');}}
+function bmTbMenu(e){
+  if(e){e.stopPropagation();}
+  if(document.getElementById('bm-tbm')){bmTbMenuCierra();return;}
+  const b=document.getElementById('bm-tbmas');if(!b)return;
+  const pulsa=sel=>()=>{const x=document.querySelector(sel);if(x)x.click();};
+  const auto=temaAuto(),dark=document.documentElement.getAttribute('data-theme')==='dark';
+  const tema=auto?'auto':(dark?'dark':'light');
+  const it=[
+    {t:'Agenda médica',f:pulsa('#btn-agenda')},
+    {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
+    {t:'Ajustes de cálculo…',k:',',f:pulsa('#btn-settings')},
+    {sep:1},{h:'Apariencia'},
+    {t:'Automática (la del Mac)',chk:tema==='auto',f:()=>temaPon('auto')},
+    {t:'Clara',chk:tema==='light',f:()=>temaPon('light')},
+    {t:'Oscura',chk:tema==='dark',f:()=>temaPon('dark')},
+    {sep:1},
+    {t:'Actualizar los datos',k:'R',f:()=>{try{refreshAll();}catch(err){}}}
+  ];
+  const m=document.createElement('div');m.id='bm-tbm';m.setAttribute('role','menu');m.setAttribute('aria-label','Más acciones');
+  m.innerHTML=it.map((x,i)=>x.sep?'<div class="bm-tbm-sep" role="separator"></div>':x.h?'<div class="bm-tbm-h">'+bmEsc(x.h)+'</div>'
+    :'<button type="button" role="'+(x.chk!==undefined?'menuitemradio':'menuitem')+'"'+(x.chk!==undefined?' aria-checked="'+(x.chk?'true':'false')+'"':'')+' data-i="'+i+'"><i aria-hidden="true">'+(x.chk?'✓':'')+'</i><span>'+bmEsc(x.t)+'</span>'+(x.k?'<kbd>'+bmEsc(x.k)+'</kbd>':'')+'</button>').join('');
+  document.body.appendChild(m);
+  const r=b.getBoundingClientRect(),W=m.offsetWidth;
+  m.style.top=Math.round(r.bottom+6)+'px';m.style.left=Math.round(Math.max(8,Math.min(innerWidth-W-8,r.right-W)))+'px';
+  b.setAttribute('aria-expanded','true');b.classList.add('on');
+  m.addEventListener('click',ev=>{const k=ev.target.closest('button[data-i]');if(!k)return;const x=it[+k.dataset.i];bmTbMenuCierra();try{b.focus({preventScroll:true});}catch(_){}try{x.f();}catch(err){console.error('bmnava · menú ⋯',err);}});
+  const bs=[...m.querySelectorAll('button')];
+  m.addEventListener('keydown',ev=>{const i=bs.indexOf(document.activeElement);
+    if(ev.key==='ArrowDown'){ev.preventDefault();bs[(i+1)%bs.length].focus();}
+    else if(ev.key==='ArrowUp'){ev.preventDefault();bs[(i-1+bs.length)%bs.length].focus();}
+    else if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();bmTbMenuCierra();try{b.focus();}catch(_){}}
+    else if(ev.key==='Tab'){bmTbMenuCierra();}});
+  if(e&&e.detail===0)setTimeout(()=>{try{bs[0].focus();}catch(_){}},0);
+}
+document.addEventListener('mousedown',e=>{const m=document.getElementById('bm-tbm');if(m&&!m.contains(e.target)&&!(e.target.closest&&e.target.closest('#bm-tbmas')))bmTbMenuCierra();},true);
+window.addEventListener('resize',()=>bmTbMenuCierra());
+window.addEventListener('scroll',()=>bmTbMenuCierra(),{passive:true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('bm-tbm')){e.stopPropagation();bmTbMenuCierra();}},true);
 function toggleAddData(e){if(e){e.stopPropagation();}const m=document.getElementById('add-menu'),b=document.getElementById('btn-adddata');if(!m)return;const open=m.classList.toggle('open');if(b)b.setAttribute('aria-expanded',open?'true':'false');}
 function closeAddData(){const m=document.getElementById('add-menu'),b=document.getElementById('btn-adddata');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');}
 document.addEventListener('click',e=>{if(!(e.target.closest&&e.target.closest('.add-wrap')))closeAddData();});
@@ -47851,6 +47908,34 @@ html[data-theme="dark"]{--sbf-bg:rgba(44,44,50,.84);--sbf-borde:rgba(255,255,255
   .bmhm .bmhm-pie>.bmhm-can{display:inline-flex;order:2}
   .bmhm .bmhm-pie>.bmhm-prim{order:3;min-width:96px;justify-content:center}
   .bmhm .bmhm-pie>.btn,.bmhm .bmhm-pie>button{min-height:30px!important;box-sizing:border-box}
+}
+</style>
+<style id="esc-v728">
+/* v728 · ORDENADOR · La barra de herramientas, con lo secundario en «⋯». */
+#bm-tbmas{display:none}
+:root{--tbm-bg:rgba(250,250,252,.94);--tbm-borde:rgba(0,0,0,.12)}
+html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255,.12)}
+@media screen and (min-width:761px) and (pointer:fine){
+  header :is(#btn-agenda,[onclick="window.print()"],#btn-settings,#btn-theme),header #rf-btn,header .status,header .vsep{display:none!important}
+  header #bm-tbmas{display:inline-flex;align-items:center;justify-content:center;order:9;flex:none;width:32px;height:30px;padding:0;margin-left:2px;border:none;border-radius:8px;
+    background:transparent;color:var(--txt);cursor:default}
+  header #bm-tbmas svg{opacity:.78}
+  header #bm-tbmas:hover,header #bm-tbmas.on{background:var(--tb-hover)}
+  header #bm-tbmas:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #bm-tbm{position:fixed;z-index:10070;min-width:240px;padding:5px;border-radius:10px;background:var(--tbm-bg);
+    -webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);
+    box-shadow:0 0 0 .5px var(--tbm-borde),0 10px 32px rgba(0,0,0,.22);font-size:13px;color:var(--txt);animation:bmTbmIn .12s ease-out}
+  @keyframes bmTbmIn{from{opacity:0;transform:translateY(-3px)}}
+  #bm-tbm button{display:flex;align-items:center;gap:4px;width:100%;min-height:24px;padding:3px 10px 3px 4px;border:none;border-radius:5px;background:none;
+    color:inherit;font:inherit;text-align:left;cursor:default}
+  #bm-tbm button i{width:18px;flex:none;font-style:normal;text-align:center;font-size:12px}
+  #bm-tbm button span{flex:1}
+  #bm-tbm kbd{font:inherit;color:var(--muted);margin-left:18px}
+  #bm-tbm button:hover,#bm-tbm button:focus-visible{background:var(--accent);color:var(--on-accent,#fff);outline:none}
+  #bm-tbm button:hover kbd,#bm-tbm button:focus-visible kbd{color:inherit;opacity:.8}
+  #bm-tbm .bm-tbm-sep{height:.5px;margin:5px 10px;background:var(--tbm-borde)}
+  #bm-tbm .bm-tbm-h{padding:4px 10px 2px 26px;font-size:11px;font-weight:600;color:var(--muted)}
+  @media (prefers-reduced-motion:reduce){#bm-tbm{animation:none}}
 }
 </style>
 <script>
