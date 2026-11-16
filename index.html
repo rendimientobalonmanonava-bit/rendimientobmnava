@@ -11395,7 +11395,7 @@ function dpSyncLabel(){const lab=document.getElementById('dp-label');if(!lab)ret
    reanuda. Sin esto, o te arrastra a hoy mientras revisas el martes pasado, o
    te deja clavado en un día viejo: las dos cosas molestan. */
 let REF_SIGUE_HOY=true;
-function setRefDate(v,auto){if(!v)return;if(!auto)REF_SIGUE_HOY=(v===dkey(new Date()));const a=v.split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);HR_SES_LOCK=false;buildPlayers();renderTeam();renderAlerts();renderDayCtx();if(document.getElementById('v-jugador').classList.contains('on')&&STATE.curPlayer)renderPlayer(STATE.curPlayer);if(document.getElementById('v-carga').classList.contains('on'))renderLoad();if(document.getElementById('v-hr').classList.contains('on'))renderHR();dpSyncLabel();writeHash();}
+function setRefDate(v,auto){if(!v)return;if(!auto)REF_SIGUE_HOY=(v===dkey(new Date()));const a=v.split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);HR_SES_LOCK=false;buildPlayers();renderTeam();renderAlerts();renderDayCtx();if(document.getElementById('v-jugador').classList.contains('on')&&STATE.curPlayer)fichaRepinta();if(document.getElementById('v-carga').classList.contains('on'))renderLoad();if(document.getElementById('v-hr').classList.contains('on'))renderHR();dpSyncLabel();writeHash();}
 /* v388 · Iba a inp.max —la última jornada con datos—, no al día de hoy. */
 function goToday(){const hoy=dkey(new Date());const inp=document.getElementById('ref-date');if(inp)inp.value=hoy;REF_SIGUE_HOY=true;setRefDate(hoy,true);}
 /* ---- Calendario propio (liquid glass) ---- */
@@ -19467,6 +19467,9 @@ function teamReadinessSerieAsync(n){
        en la caché, se le da ese turno. La caché evita que este repintado
        vuelva a lanzar el recorrido. */
     if(window.__RD_PEND){window.__RD_PEND=false;try{renderAll();}catch(e){}}
+    /* v738 · una ficha abierta mientras la serie recorría los días se pintó con
+       un día prestado: se repinta con el de verdad */
+    try{if(typeof fichaRepinta==='function')fichaRepinta();}catch(e){}
     return out;
   })();
   return RD_SERIE_PROM;
@@ -19759,6 +19762,15 @@ function drawAvail(){
 function wellnessChip(p){const m=mean(["fatiga","sueno","doms","stress","mood"].map(k=>p.last[k]).filter(x=>!isNaN(x)));const sev=m<=2.2?"ok":m<=3.2?"warn":"bad";return`<span class="chip ${sev}">${fmt(m,1)}/5</span>`;}
 
 function openPlayerYa(name){STATE.curPlayer=name;go('jugador');renderPlayer(name);renderPlayerReadiness(name);if(window.medRenderPlayer)medRenderPlayer(name);if(window.renderPlayerHero)renderPlayerHero(name);}
+/* v738 · Repintar la ficha ENTERA, lo mismo que pinta abrirla. Al cambiar de
+   día sólo se repintaba `renderPlayer`: el panel «Readiness» y la cabecera se
+   quedaban en el día anterior. */
+function fichaRepinta(){const n=STATE.curPlayer;const v=document.getElementById('v-jugador');if(!n||!v||!v.classList.contains('on'))return;
+  try{renderPlayer(n);}catch(e){console.error('bmnava · ficha',e);}
+  try{renderPlayerReadiness(n);}catch(e){console.error('bmnava · ficha',e);}
+  try{if(window.medRenderPlayer)medRenderPlayer(n);}catch(e){}
+  try{if(window.renderPlayerHero)renderPlayerHero(n);}catch(e){}}
+window.fichaRepinta=fichaRepinta;
 function openPlayer(name){
   const im=bmvFoto();
   if(!im){openPlayerYa(name);return;}
@@ -26458,7 +26470,13 @@ function renderTestHist(name){
     options:{...BASE,plugins:{legend:{display:hUmb?true:false,labels:{boxWidth:9,font:{size:10}}}},scales:{x:AX,y:{...AX,title:{display:true,text:t.name+' ('+t.unit+')',color:'#8a93a0',font:{size:9}}}}}});
 }
 /* ===================== JUGADORES · rejilla + perfil holístico ===================== */
-function lastWell(name){const ws=(STATE.wellness||[]).filter(w=>w.name===name);if(!ws.length)return null;ws.sort((a,b)=>String(a.dk||a.date||'').localeCompare(String(b.dk||b.date||'')));return ws[ws.length-1];}
+/* v738 · El último parte HASTA EL DÍA QUE SE ESTÁ VIENDO, no el último que
+   exista. Sin el tope, con el selector en un día pasado, la ficha pintaba los
+   anillos de hoy junto al readiness y los z-scores de aquel día, y «A vigilar»
+   del Resumen ponía la fatiga de hoy al lado del readiness de ese día. Es el
+   mismo parte que `buildPlayers` deja en `p.last`. */
+function lastWell(name){const tope=(()=>{try{return dkey(REF());}catch(e){return '9999';}})();
+  const ws=(STATE.wellness||[]).filter(w=>w.name===name&&String(w.dk||'')<=tope);if(!ws.length)return null;ws.sort((a,b)=>String(a.dk||a.date||'').localeCompare(String(b.dk||b.date||'')));return ws[ws.length-1];}
 const ROSTER_PDF=[
 {plantilla:'ASOBAL',pos:'EI',dorsal:'',nombre:'Alex',apellidos:'Ugalde',nacimiento:'2006-07-25',dni:'21115819W',pasaporte:'',nac:'',edad:'20',peso:'',talla:'',telefono:'653156825',telEsp:'',correo:'augaldediez@gmail.com',repre:'',estado:'Disponible',estatusClub:'Nueva incorporación',llegada:'28/07/26'},
 {plantilla:'ASOBAL',pos:'LI',dorsal:'8',nombre:'Alfredo',apellidos:'Otero',nacimiento:'2006-05-27',dni:'70283545F',pasaporte:'',nac:'ESP',edad:'20',peso:'83',talla:'184',telefono:'',telEsp:'',correo:'',repre:'',estado:'Disponible',estatusClub:'Ya en el club',llegada:'27/07/26'},
@@ -30874,11 +30892,15 @@ async function exportParte(){
 function rcRingSVG(numTxt,fillPct,color,size,sub){
   const sw=Math.round(size*0.11),r=(size-sw)/2,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,fillPct))/100);
   const fs=Math.round(size*0.30);
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${sw}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'45%':'50%'}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="800" fill="${color}" font-family="'Inter',sans-serif">${numTxt}</text>${sub?`<text x="50%" y="67%" text-anchor="middle" font-size="${Math.round(size*0.135)}" fill="var(--muted)">${sub}</text>`:''}</svg>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--hair)" stroke-width="${sw}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="800" fill="${color}" font-family="'Inter',sans-serif">${numTxt}${sub?`<tspan dx="1" font-size="${Math.round(size*0.15)}" font-weight="600" fill="var(--muted)">${sub}</tspan>`:''}</text></svg>`;
 }
 function renderPlayerReadiness(name){
   const box=document.getElementById('player-readiness');if(!box||!name)return;
-  const p=STATE.players[name]||{};const w=lastWell(name);
+  /* v738 · el parte es el de `p.last`, el MISMO con el que se calculan el
+     readiness, los z-scores y «¿De dónde viene?»: los anillos no pueden decir
+     un día y el resto otro. Daniel, 16/11/2026: Ánimo 2,0 en el anillo y 5 en
+     los z-scores, en la misma pantalla. */
+  const p=STATE.players[name]||{};const w=p.last||lastWell(name);
   if(!w){box.innerHTML='<h2>Readiness</h2><p class="small muted">Sin parte de wellness para este jugador.</p>';if(charts['ch-pl-radar']){charts['ch-pl-radar'].destroy();delete charts['ch-pl-radar'];}return;}
   const rd=p.readiness;const colBig=rd==null?'#9aa3ae':(rd>=75?'#1ea863':rd>=55?'#e08a00':'#e23b32');
   const dd=(w.dk||'').split('-').reverse().join('/');
@@ -30896,7 +30918,8 @@ function renderPlayerReadiness(name){
     </div>`;
   // radar jugador vs equipo (escala 1-5, eje invertido para que fuera=mejor)
   const AX5=[['fatiga','Fatiga'],['sueno','Sueño'],['doms','DOMS'],['mood','Ánimo'],['stress','Estrés']];
-  const tmean=k=>{const vals=Object.keys(STATE.players).map(nm=>{const ww=lastWell(nm);return ww?ww[k]:null;}).filter(x=>x!=null&&!isNaN(x));return vals.length?mean(vals):null;};
+  /* el equipo, en el MISMO día que el jugador: sólo quien tiene parte de ese día */
+  const tmean=k=>{const vals=Object.keys(STATE.players).map(nm=>{const ww=(STATE.players[nm]||{}).last;return ww&&ww.dk===w.dk?ww[k]:null;}).filter(x=>x!=null&&!isNaN(x));return vals.length?mean(vals):null;};
   const rds=Object.values(STATE.players).map(x=>x.readiness).filter(x=>x!=null);const trd=rds.length?Math.round(mean(rds)):'—';
   const mc=getComputedStyle(document.body).getPropertyValue('--muted')||'#6b7480';const gc=getComputedStyle(document.body).getPropertyValue('--hair')||'#e6eaef';
   if(charts['ch-pl-radar']){charts['ch-pl-radar'].destroy();delete charts['ch-pl-radar'];}
@@ -48142,6 +48165,20 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   body.bm-tbs-on.bm-tb-ancha header #btn-adddata{padding:0 12px 0 10px!important}
 }
 </style>
+<style id="esc-v738">
+/* v738 · ORDENADOR · El panel «Readiness» de la ficha, cuando es estrecho. Con
+   la plantilla al lado de la ficha (v696) y a 1.440 px, el panel medía 424 px:
+   los seis anillos (78 px) no cabían en sus casillas (63) y se montaban, y el
+   radar quedaba en 142 px. El corte a una columna iba por ancho de VENTANA
+   (820 px) y no veía ni la barra lateral ni la plantilla: ahora lo decide el
+   ancho del propio panel, y los anillos encogen si su casilla es menor. */
+@media screen and (min-width:761px) and (pointer:fine){
+  #player-readiness{container-type:inline-size}
+  /* en dos columnas, la de los anillos necesita unos 270 px: por debajo de 500 de panel, una sola */
+  @container (max-width:500px){#player-readiness .rc-panel{grid-template-columns:minmax(0,1fr)}}
+  #player-readiness .rc-cell svg{width:100%;max-width:78px;height:auto}
+}
+</style>
 <script>
 /* ============================================================
    CUADRANTES DE CARGA · v189
@@ -51730,8 +51767,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-16.6*/
-const VER_ACTUAL='2026-11-16.6';
+/*BUILD:2026-11-16.7*/
+const VER_ACTUAL='2026-11-16.7';
 window.__BUILD=VER_ACTUAL;
 
 function verBanner(otra){
