@@ -538,6 +538,7 @@ button:focus-visible,nav button:focus-visible,.iconbtn:focus-visible,a:focus-vis
    si algo falla, el anillo sale entero. */
 @keyframes arcIn{from{stroke-dashoffset:var(--arc-c)}}
 .arc-in{animation:arcIn .9s cubic-bezier(.16,1,.3,1)}
+.arc-in.arc-ok{animation:none}
 @media(prefers-reduced-motion:reduce){.arc-in{animation:none}}
 
 @media print{.kpi-spark,.rdcell .spark{display:none}.panel h2{border-bottom:1px solid #e5e5e5}}
@@ -21809,8 +21810,8 @@ const ARC_DUR=900;
    Los anillos de `conic-gradient` (el del readiness) hacen lo mismo: no se
    rebobinan si no cambian, y si cambian van del arco anterior al nuevo.
    Cada cifra se reconoce por el bloque con id que la contiene y su orden
-   dentro de él. Con «reducir movimiento», nada se mueve. En el ordenador no
-   cambia nada: las dos funciones siguen por su camino de siempre. */
+   dentro de él. Con «reducir movimiento», nada se mueve. Desde la v779,
+   también en el ordenador. */
 const BMR={};
 function bmrClave(el,attr){
   const c=el.parentElement&&el.parentElement.closest('[id]');if(!c)return null;
@@ -21848,7 +21849,7 @@ function animarAnillos(root){
     /* v639 · En el móvil, un anillo que no cambia no se rebobina y uno que
        cambia va desde el arco que tenía. */
     let desde=0;
-    if(esMovil()){const k=bmrClave(el,'data-arc');if(k){const p=BMR[k];BMR[k]=deg;if(p!==undefined){if(Math.abs(p-deg)<0.05)return;desde=p;}}}
+    {const k=bmrClave(el,'data-arc');if(k){const p=BMR[k];BMR[k]=deg;if(p!==undefined){if(Math.abs(p-deg)<0.05)return;desde=p;}}}
     const t0=performance.now();
     let fin=false;
     pinta(desde);
@@ -21864,12 +21865,28 @@ function animarAnillos(root){
      arcIn, que parte del vacío y termina en el valor que trae el marcado */
 }
 window.animarAnillos=animarAnillos;
-function animateKPIs(root){try{animarAnillos(root);}catch(e){}
+/* v779 · Los anillos SVG (`.arc-in`) se animan con CSS, y una animación CSS
+   vuelve a empezar cada vez que el elemento reaparece o se repinta: al volver
+   a una pantalla o cambiar de día, el arco se vaciaba y se volvía a llenar
+   aunque marcase lo mismo. Si un anillo ya visto (mismo bloque y mismo orden)
+   vuelve con el mismo valor, entra quieto; si cambia, se anima. Y uno que ya
+   terminó no vuelve a empezar al reaparecer. */
+function bmArcosQuietos(root){
+  (root||document).querySelectorAll('.arc-in').forEach(el=>{
+    const k=bmrClave(el,'class');if(!k)return;
+    const v=(el.getAttribute('stroke-dashoffset')||'')+'|'+(el.style.getPropertyValue('--arc-c')||'');
+    const p=BMR[k];BMR[k]=v;if(p!==undefined&&p===v)el.classList.add('arc-ok');
+  });
+}
+document.addEventListener('animationend',e=>{if(e.animationName==='arcIn'&&e.target&&e.target.classList)e.target.classList.add('arc-ok');},true);
+function animateKPIs(root){try{animarAnillos(root);}catch(e){}try{bmArcosQuietos(root);}catch(e){}
   (root||document).querySelectorAll('[data-count]').forEach(el=>{
   const target=parseFloat(el.getAttribute('data-count'));if(isNaN(target))return;
   const dc=el.getAttribute('data-count');const dec=(dc.split('.')[1]||'').length;const t0=performance.now(),dur=700;
-  /* v639 · En el móvil, una cifra que ya se había visto no vuelve a contar desde 0. */
-  if(esMovil()){const k=bmrClave(el,'data-count');if(k){const p=BMR[k];BMR[k]=dc;if(p!==undefined){
+  /* v639 · Una cifra que ya se había visto no vuelve a contar desde 0.
+     v779 · Y ahora también en el ordenador (Daniel, 17/11/2026, propuesta 4):
+     al volver al Resumen las cifras recontaban desde 0 en cada visita. */
+  {const k=bmrClave(el,'data-count');if(k){const p=BMR[k];BMR[k]=dc;if(p!==undefined){
     let quieto=false;try{quieto=matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(_){}
     if(p!==dc&&!quieto)bmrRueda(el,parseFloat(p).toFixed(dec),target.toFixed(dec));
     return;}}}
