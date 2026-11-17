@@ -17150,6 +17150,104 @@ document.addEventListener('mouseover',e=>{
   },380);
 },{passive:true});
 ['scroll','mousedown','keydown'].forEach(t=>window.addEventListener(t,bmHiQuita,{passive:true,capture:true}));
+/* ═══ v798 · ORDENADOR · Dos pantallas a la vez (como Split View) ═══
+   Daniel, 17/11/2026, propuesta 7. Con la ventana de 1.600 px o más, el botón
+   de dos columnas de la barra fija una segunda pantalla a la derecha —por
+   ejemplo Calendario con Cargas, o Parte wellness con Fisioterapia—, que se
+   desplaza por su cuenta. Es la MISMA sección de siempre, que se enseña al
+   lado (`.bm-split`), y se pinta con su función de siempre; se repinta al
+   cambiar de día y cuando cambian los datos. Su barra dice cuál es y permite
+   intercambiarlas o quitarla. Lo delicado, y lo que se ha cuidado:
+   · el Resumen, la ficha y Conexión no entran en ninguno de los dos lados:
+     el Resumen tiene su distribución, que no se toca;
+   · las cuatro pestañas de Estado (Disponibilidad, Médico, Parte, Fisio)
+     viven en la misma sección: no pueden estar las dos a la vez, y mientras
+     coinciden la de la derecha se aparta sola;
+   · por debajo de 1.600 px se aparta y vuelve al ensanchar.
+   Se recuerda en este ordenador (`bmnava-split`). */
+const BMSP={v:null,clave:'',t:null};
+const BMSP_V={cal:['v-cal','Calendario'],carga:['v-carga','Cargas'],hr:['v-hr','Pulsómetros'],dispo:['v-estado','Disponibilidad'],medico:['v-estado','Médico'],
+  parte:['v-estado','Parte wellness'],fisio:['v-estado','Fisioterapia'],nutri:['v-nutri','Nutrición'],tests:['v-tests','Perfil físico'],jugadores:['v-jugadores','Jugadores'],alertas:['v-alertas','Alertas']};
+const BMSP_IC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M12 4.5v15"/></svg>';
+try{const g=localStorage.getItem('bmnava-split');if(g&&BMSP_V[g])BMSP.v=g;}catch(e){}
+function bmSpPuede(){return !esMovil()&&bmEscFino()&&innerWidth>=1600;}
+function bmSpActiva(){
+  const v=STATE.view;if(!v)return null;
+  if(v==='estado'||v==='dispo'||v==='medico'||v==='parte'||v==='fisio')return 'v-estado';
+  const s=document.querySelector('main>.view.on');return s?s.id:null;
+}
+function bmSpVale(){
+  if(!BMSP.v||!bmSpPuede())return false;
+  const act=bmSpActiva();if(!act||['v-equipo','v-jugador','v-config'].includes(act))return false;
+  return act!==BMSP_V[BMSP.v][0];
+}
+function bmSpBoton(){
+  if(esMovil()||!bmEscFino()||document.getElementById('bm-split-btn'))return;
+  const mas=document.getElementById('bm-tbmas');if(!mas)return;
+  const b=document.createElement('button');b.type='button';b.id='bm-split-btn';b.innerHTML=BMSP_IC;b.title='Dos pantallas a la vez';b.setAttribute('aria-label','Dos pantallas a la vez');b.setAttribute('aria-haspopup','menu');
+  b.addEventListener('click',e=>{e.stopPropagation();bmSpMenu(b);});
+  mas.parentNode.insertBefore(b,mas);
+}
+function bmSpMenu(b){
+  const act=bmSpActiva();
+  const it=[{h:'Fijar a la derecha'}];
+  Object.keys(BMSP_V).forEach(k=>{const [id,lab]=BMSP_V[k];if(id===act)return;it.push({t:lab,chk:BMSP.v===k,f:()=>bmSpFija(k)});});
+  if(BMSP.v){it.push({sep:1});it.push({t:'Quitar la segunda pantalla',f:()=>bmSpFija(null)});}
+  if(!innerWidth||innerWidth<1600)it.push({sep:1},{h:'Hace falta una ventana de 1.600 px o más'});
+  try{bmMenuMac(it,{el:b,alinea:'der'},{de:'split',etiqueta:'Dos pantallas'});}catch(e){console.error('bmnava · dos pantallas',e);}
+}
+function bmSpFija(k){
+  BMSP.v=k&&BMSP_V[k]?k:null;try{if(BMSP.v)localStorage.setItem('bmnava-split',BMSP.v);else localStorage.removeItem('bmnava-split');}catch(e){}
+  BMSP.clave='';bmSpAplica(true);
+}
+function bmSpPinta(){
+  const k=BMSP.v;if(!k)return;
+  try{
+    if(k==='carga'){showCargaPane(FILTER.cargaTab||'resumen');renderLoad();}
+    else if(k==='hr')renderHR();
+    else if(k==='cal')renderCalendar();
+    else if(k==='tests')renderTests();
+    else if(k==='jugadores')renderPlayersGrid();
+    else if(k==='nutri')renderNutri();
+    else if(k==='alertas')renderAlerts();
+    else estadoPanes(k);
+  }catch(e){console.error('bmnava · dos pantallas · pintar',e);}
+  BMSP.clave=bmSpClave();
+}
+function bmSpClave(){let th='';try{th=document.documentElement.dataset.theme||'';}catch(e){}return [BMSP.v,STATE.refDate?STATE.refDate.getTime():0,BM_DV,th].join('|');}
+function bmSpAplica(pintar){
+  bmSpBoton();
+  const on=bmSpVale();
+  document.querySelectorAll('main>.view.bm-split').forEach(s=>{if(!on||s.id!==BMSP_V[BMSP.v][0])s.classList.remove('bm-split');});
+  document.body.classList.toggle('bm-split-on',on);
+  const b=document.getElementById('bm-split-btn');if(b){b.classList.toggle('on',!!BMSP.v);}
+  let bar=document.getElementById('bm-split-bar');
+  if(!on){if(bar)bar.remove();if(BMSP.t){clearInterval(BMSP.t);BMSP.t=null;}return;}
+  const sec=document.getElementById(BMSP_V[BMSP.v][0]);if(!sec)return;
+  const nueva=!sec.classList.contains('bm-split');sec.classList.add('bm-split');
+  if(!bar){bar=document.createElement('div');bar.id='bm-split-bar';sec.parentNode.insertBefore(bar,sec);
+    bar.addEventListener('click',e=>{const a=e.target.closest('[data-sp]');if(!a)return;
+      if(a.dataset.sp==='x')bmSpFija(null);
+      else if(a.dataset.sp==='swap'){const fue=STATE.view==='estado'?(window.ESTADO_TAB||'dispo'):STATE.view;const ir=BMSP.v;
+        BMSP.v=BMSP_V[fue]?fue:null;try{if(BMSP.v)localStorage.setItem('bmnava-split',BMSP.v);else localStorage.removeItem('bmnava-split');}catch(x){}
+        go(ir);}
+      else if(a.dataset.sp==='ir'){const ir=BMSP.v;bmSpFija(null);go(ir);}});}
+  bar.innerHTML='<b>'+bmEsc(BMSP_V[BMSP.v][1])+'</b><span class="bmsp-g"></span>'
+    +'<button type="button" data-sp="swap" title="Intercambiar las dos pantallas">Intercambiar</button>'
+    +'<button type="button" data-sp="ir" title="Abrirla en toda la ventana">Abrir sola</button>'
+    +'<button type="button" class="bmsp-x" data-sp="x" aria-label="Quitar la segunda pantalla" title="Quitar">×</button>';
+  if(pintar||nueva||bmSpClave()!==BMSP.clave)bmSpPinta();
+  if(!BMSP.t)BMSP.t=setInterval(()=>{if(!window.__RD_CALC&&bmSpVale()&&bmSpClave()!==BMSP.clave)bmSpPinta();},1500);
+}
+(function(){
+  const g=window.go;if(typeof g==='function')window.go=function(){const x=g.apply(this,arguments);try{bmSpAplica(false);}catch(e){}return x;};
+  const s=window.setRefDate;if(typeof s==='function')window.setRefDate=function(){const x=s.apply(this,arguments);try{if(bmSpVale())bmSpPinta();}catch(e){}return x;};
+  const et=window.estadoTab;if(typeof et==='function')window.estadoTab=function(){const x=et.apply(this,arguments);try{bmSpAplica(false);}catch(e){}return x;};
+  let t=null;window.addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(()=>{try{bmSpAplica(false);}catch(e){}},200);});
+  const ini=()=>{try{bmSpBoton();}catch(e){}let k=0;const tt=setInterval(()=>{k++;if(k>60){clearInterval(tt);return;}if(Object.keys(STATE.players||{}).length&&!window.__RD_CALC){clearInterval(tt);try{bmSpAplica(true);}catch(e){}}},1000);};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else setTimeout(ini,0);
+})();
+window.bmSpFija=bmSpFija;
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -53655,6 +53753,31 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   #bm-hi .bmhi-t{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
   #bm-hi .bmal-g{max-width:none}
   #bm-hi .bmhi-p{display:block;margin-top:5px;font-size:11px;color:var(--muted);line-height:1.35}
+}
+</style>
+<style id="esc-v798">
+/* v798 · ORDENADOR · Dos pantallas a la vez: la de la derecha, en su columna y con su propio desplazamiento. */
+#bm-split-btn,#bm-split-bar{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  header #bm-split-btn{display:inline-flex;align-items:center;justify-content:center;order:8;flex:none;width:32px;height:30px;padding:0;margin-left:2px;border:none;border-radius:8px;background:none;color:var(--muted);cursor:default}
+  header #bm-split-btn svg{width:18px;height:18px}
+  header #bm-split-btn:hover{background:var(--tb-hover,rgba(118,118,128,.12));color:var(--txt)}
+  header #bm-split-btn.on{color:var(--acc-seg,var(--accent));background:color-mix(in srgb,var(--accent) 14%,transparent)}
+}
+@media screen and (min-width:1600px) and (pointer:fine){
+  html body.bm-split-on main{max-width:none!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:22px;align-items:start}
+  body.bm-split-on main>:not(.view):not(#bm-split-bar){grid-column:1/-1}
+  body.bm-split-on main>.view.on{grid-column:1;grid-row:1/span 2;min-width:0}
+  body.bm-split-on #bm-split-bar{display:flex;align-items:center;gap:6px;grid-column:2;grid-row:1;position:sticky;top:calc(var(--bm-th-top,53px) + 8px);z-index:4;
+    margin-top:14px;padding:6px 8px 6px 14px;border-radius:12px;background:var(--panel);box-shadow:0 0 0 .5px var(--line)}
+  body.bm-split-on #bm-split-bar b{font-size:14px;font-weight:600}
+  body.bm-split-on #bm-split-bar .bmsp-g{flex:1}
+  body.bm-split-on #bm-split-bar button{border:none;background:var(--sbf-pozo,rgba(118,118,128,.12));color:var(--txt);font:inherit;font-size:12.5px;font-weight:500;height:26px;padding:0 10px;border-radius:7px;cursor:default}
+  body.bm-split-on #bm-split-bar button:hover{background:var(--sbf-hover,rgba(118,118,128,.18))}
+  body.bm-split-on #bm-split-bar .bmsp-x{width:26px;padding:0;font-size:17px;line-height:1}
+  html body.bm-split-on main>.view.bm-split{display:block!important;grid-column:2;grid-row:2;min-width:0;position:sticky;top:calc(var(--bm-th-top,53px) + 52px);
+    max-height:calc(100vh - var(--bm-th-top,53px) - 64px);overflow:auto;overscroll-behavior:contain;padding:4px 4px 24px;border-radius:12px;animation:none!important;transform:none!important}
+  body.bm-split-on main>.view.bm-split>.pagehead{display:none!important}
 }
 </style>
 <style id="esc-v762">
