@@ -21567,6 +21567,56 @@ const bmCursorPlugin={id:'bmCursor',
       ctx.save();ctx.strokeStyle=osc?'rgba(255,255,255,.32)':'rgba(0,0,0,.22)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,A.top);ctx.lineTo(x,A.bottom);ctx.stroke();ctx.restore();}catch(e){}
   }
 };
+/* ═══ v795 · ORDENADOR · Los partidos, marcados en los gráficos de días ═══
+   Daniel, 17/11/2026, propuesta 4. Fuera del Resumen y el Calendario hay
+   cuatro gráficos de días —Cargas ③ y ④ y los dos de Pulsómetros— y ninguno
+   marcaba los partidos: la carga y el ACWR se leían sin saber dónde cayó el
+   partido. Ahora cada día de partido lleva detrás una franja tenue con el
+   rival arriba, y su globo lo dice. La lista de partidos es la de toda la app
+   (`calPartidosDks`, `evRival`) y «gráfico de días» es la regla de las notas
+   (`bmnDks`). Fuera el Resumen, el Calendario y los documentos (`NOTAS_FUERA`),
+   y el móvil. */
+const BMPAR={dv:-1,m:{}};
+function bmParMapa(){
+  if(BMPAR.dv===BM_DV)return BMPAR.m;
+  const m={};try{const cal=STATE.calendar||{};calPartidosDks().forEach(dk=>{const e=(cal[dk]||[]).find(evEsPartido);m[dk]=(e&&evRival(e))||'Partido';});}catch(e){}
+  BMPAR.m=m;BMPAR.dv=BM_DV;return m;
+}
+const bmPartidosPlugin={id:'bmPartidos',
+  beforeInit(ch){try{
+    if(esMovil())return;
+    const o=ch.config.options||(ch.config.options={});o.plugins=o.plugins||{};
+    const t=o.plugins.tooltip=o.plugins.tooltip||{};const cb=t.callbacks=t.callbacks||{};
+    if(cb.footer&&cb.footer.__bmpar)return;
+    const prev=cb.footer;
+    const f=function(items){
+      const r=prev?prev.apply(this,arguments):undefined;
+      try{const it=items&&items[0],c=it&&it.chart;if(!c||c.canvas.closest(NOTAS_FUERA))return r;
+        const dks=bmnDks(c),dk=dks&&dks[it.dataIndex];const riv=dk&&bmParMapa()[dk];if(!riv)return r;
+        return ['Partido · '+riv].concat(r==null||r===''?[]:r);
+      }catch(e){return r;}};
+    f.__bmpar=true;cb.footer=f;
+  }catch(e){}},
+  beforeDatasetsDraw(ch){try{
+    if(esMovil())return;
+    const cv=ch.canvas;if(!cv||!cv.closest||cv.closest(NOTAS_FUERA))return;
+    const dks=bmnDks(ch);if(!dks)return;
+    const m=bmParMapa(),xs=ch.scales&&ch.scales.x,A=ch.chartArea;if(!xs||!A)return;
+    const paso=dks.length>1?Math.abs(xs.getPixelForValue(1)-xs.getPixelForValue(0)):(A.right-A.left);
+    const osc=document.documentElement.getAttribute('data-theme')==='dark',ctx=ch.ctx;
+    dks.forEach((dk,i)=>{const riv=dk&&m[dk];if(!riv)return;
+      const x=xs.getPixelForValue(i);if(!(x>=A.left-1&&x<=A.right+1))return;
+      const w=Math.max(6,paso*0.9);
+      ctx.save();ctx.fillStyle=osc?'rgba(109,140,255,.13)':'rgba(48,86,196,.08)';ctx.fillRect(x-w/2,A.top,w,A.bottom-A.top);
+      ctx.fillStyle=osc?'rgba(163,182,255,.95)':'rgba(48,86,196,.9)';ctx.fillRect(x-w/2,A.top,w,2);
+      /* el rival, recortado a lo que cabe: los partidos están a días de distancia, así que puede ocupar unas cuatro columnas */
+      const maxW=Math.min(96,paso*4.5);
+      if(maxW>=30){ctx.font='600 10px -apple-system,BlinkMacSystemFont,Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+        let t=riv;while(t.length>3&&ctx.measureText(t).width>maxW)t=t.slice(0,-1);if(t!==riv)t=t.slice(0,-1)+'…';
+        ctx.fillText(t,x,A.top+5);}
+      ctx.restore();});
+  }catch(e){}}
+};
 /* ═══ v778 · Gráficos que se transforman en vez de volver a crecer ═══
    Daniel, 17/11/2026 (propuesta 3). 14 de los 18 gráficos se redibujaban desde
    cero con la animación por defecto de Chart.js (1 s) cada vez que se
@@ -23429,6 +23479,7 @@ function buildChartTheme(){
     if(!Chart.registry.plugins.get('bmNotas'))Chart.register(bmNotasPlugin);
     if(!Chart.registry.plugins.get('bmMorph'))Chart.register(bmMorphPlugin);
     if(!Chart.registry.plugins.get('bmCursor'))Chart.register(bmCursorPlugin);
+    if(!Chart.registry.plugins.get('bmPartidos'))Chart.register(bmPartidosPlugin);
   }
 }
 buildChartTheme();
