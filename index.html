@@ -11544,7 +11544,7 @@ let BM_DV=0;
 }catch(e){}})();
 const BMPC=new Map();
 function bmpcClave(){let c='';try{c=JSON.stringify([CONFIG.z,CONFIG.load,CONFIG.wellnessVars]);}catch(e){}
-  return REF().getTime()+'|'+BM_DV+'|'+dkey(new Date())+'|'+(STATE.wellness||[]).length+'|'+(STATE.rpe||[]).length+'|'+c.length+':'+c.slice(-60);}
+  return REF().getTime()+'|'+BM_DV+'|'+dkey(new Date())+'|'+(STATE.wellness||[]).length+'|'+rpeReales()+'|'+c.length+':'+c.slice(-60);}
 function bmpcHay(dk){const a=String(dk).split('-').map(Number);const t=new Date(a[0],a[1]-1,a[2],23,59,59).getTime();const pre=t+'|'+BM_DV+'|';for(const k of BMPC.keys())if(k.indexOf(pre)===0)return true;return false;}
 window.bmpcHay=bmpcHay;
 function buildPlayers(){
@@ -21487,7 +21487,7 @@ function teamReadinessSerieAsync(n){
   if(RD_SERIE_PROM)return RD_SERIE_PROM;
   const dks=[...new Set((STATE.wellness||[]).map(w=>w.dk).filter(Boolean))].sort().slice(-n);
   if(!dks.length)return Promise.resolve([]);
-  const clave=(STATE.wellness||[]).length+'|'+(STATE.rpe||[]).length+'|'+dks.join(',');
+  const clave=(STATE.wellness||[]).length+'|'+rpeReales()+'|'+dks.join(',');
   const orig=STATE.refDate;
   const out=[];
   const respira=()=>new Promise(r=>{
@@ -21525,6 +21525,8 @@ function teamReadinessSerieAsync(n){
     /* v769 · el día que se eligió mientras la serie recorría fechas */
     if(window.__RD_REFPEND){const x=window.__RD_REFPEND;window.__RD_REFPEND=null;try{setRefDate(x[0],x[1]);}catch(e){}}
     RD_SERIE_CACHE={clave,datos:out};
+    /* v772 · y en este aparato, para la próxima vez que se abra */
+    try{if(out.length)localStorage.setItem(RDS_K,JSON.stringify({clave,huella:rdHuella(dks),datos:out}));}catch(e){}
     /* Lo que quiso pintarse durante el recorrido se saltó el turno para no
        salir con la fecha prestada. Ahora, con la fecha ya devuelta y la serie
        en la caché, se le da ese turno. La caché evita que este repintado
@@ -21544,8 +21546,40 @@ window.teamReadinessSerieAsync=teamReadinessSerieAsync;
 function teamReadinessSerieCache(n){
   n=n||14;
   const dks=[...new Set((STATE.wellness||[]).map(w=>w.dk).filter(Boolean))].sort().slice(-n);
-  const clave=(STATE.wellness||[]).length+'|'+(STATE.rpe||[]).length+'|'+dks.join(',');
-  return (RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave)?RD_SERIE_CACHE.datos:null;
+  const clave=(STATE.wellness||[]).length+'|'+rpeReales()+'|'+dks.join(',');
+  if(RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave)return RD_SERIE_CACHE.datos;
+  /* v772 · la que se calculó en una visita anterior, si los datos son los mismos */
+  try{if(!dks.length)return null;const g=JSON.parse(localStorage.getItem(RDS_K)||'null');
+    if(g&&g.clave===clave&&g.huella===rdHuella(dks)&&Array.isArray(g.datos)){RD_SERIE_CACHE={clave,datos:g.datos};return g.datos;}}catch(e){}
+  return null;
+}
+/* ═══ v772 · El arranque no traba los primeros toques ═══
+   Daniel, 17/11/2026 (propuesta 4). Al abrir, la serie de readiness de 14 días
+   se calculaba en cuatro tandas de ~215 ms: tocar algo en ese segundo tardaba
+   en responder, y en cada apertura. Ahora la serie calculada se guarda EN ESTE
+   APARATO (clave con guion: no se sincroniza ni sube la versión de los datos)
+   con una huella de todo aquello de lo que depende: el wellness de esos días,
+   el RPE de las cinco semanas anteriores (el ACWR mira 28 días), los minutos,
+   las convocatorias, los estados y episodios (quién estaba con la selección) y
+   los ajustes de cálculo. Si al abrir la huella coincide, se usa tal cual; si
+   no, se calcula como siempre. La clave de siempre (recuentos y días) se exige
+   además: la huella sólo puede hacerla más estricta. */
+const RDS_K='bmnava-rdserie';
+/* Los registros de RPE de verdad: sin los que fabrica la app al aplicar los
+   minutos (`bloqueConvocado`, `sinRegistro`). Contando también esos, la clave
+   valía 2.984 o 3.005 según si `sessDurApply` había corrido ya, y la serie se
+   calculaba DOS veces en cada arranque. */
+function rpeReales(){let n=0;(STATE.rpe||[]).forEach(r=>{if(r&&!r.bloqueConvocado&&!r.sinRegistro)n++;});return n;}
+function rdHuella(dks){
+  let h=7;const add=x=>{h=(Math.imul(h,31)+(x|0))|0;};
+  try{
+    const ini=dkSumaDias(dks[0],-35),vars=Object.keys((CONFIG&&CONFIG.wellnessVars)||{});
+    (STATE.wellness||[]).forEach(w=>{if(w&&w.dk>=dks[0]){add(w.dk.charCodeAt(9));add((w.name||'').length);vars.forEach(k=>add(Math.round((+w[k]||0)*10)));if(w.dolor)add(7);if(w.golpe)add(11);}});
+    (STATE.rpe||[]).forEach(r=>{if(r&&!r.bloqueConvocado&&!r.sinRegistro&&r.dk>=ini){add(Math.round((+r.rpe||0)*10));add(+r.dur0||0);add((r.tipo||'').length);}});
+    ['bmnava_sessdur','bmnava_asist','bmnava_physio','bmnava_meddb'].forEach(k=>{const t=localStorage.getItem(k)||'';add(t.length);for(let i=0;i<t.length;i+=5)add(t.charCodeAt(i));});
+    const c=JSON.stringify([CONFIG.z,CONFIG.load,CONFIG.wellnessVars]);for(let i=0;i<c.length;i++)add(c.charCodeAt(i));
+  }catch(e){add(Date.now()%9973);}
+  return h;
 }
 window.teamReadinessSerieCache=teamReadinessSerieCache;
 function teamAcwrSeries(n){const byDk={};Object.keys(STATE.players).forEach(nm=>{try{acwrSeries(nm,'ua',REF()).slice(-(n||12)).forEach(d=>{if(!isNaN(d.ra))(byDk[d.dk]=byDk[d.dk]||[]).push(d.ra);});}catch(e){}});
