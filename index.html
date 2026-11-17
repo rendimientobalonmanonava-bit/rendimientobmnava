@@ -11415,7 +11415,7 @@ let REF_SIGUE_HOY=true;
 /* v769 · Con la serie de 14 días recorriendo fechas, STATE.refDate es prestado
    y al terminar se devuelve el que había AL EMPEZAR: un día elegido en medio se
    perdía. Se apunta y se aplica cuando la serie acaba. */
-function setRefDate(v,auto){if(!v)return;try{const _i=document.getElementById('ref-date');if(_i&&_i.value!==v)_i.value=v;}catch(e){}if(window.__RD_CALC){window.__RD_REFPEND=[v,auto];return;}if(!auto)REF_SIGUE_HOY=(v===dkey(new Date()));const a=v.split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);HR_SES_LOCK=false;buildPlayers();renderTeam();renderAlerts();renderDayCtx();if(document.getElementById('v-jugador').classList.contains('on')&&STATE.curPlayer)fichaRepinta();if(document.getElementById('v-carga').classList.contains('on'))renderLoad();if(document.getElementById('v-hr').classList.contains('on'))renderHR();dpSyncLabel();writeHash();}
+function setRefDate(v,auto){if(!v)return;try{const _i=document.getElementById('ref-date');if(_i&&_i.value!==v)_i.value=v;}catch(e){}if(window.__RD_CALC){window.__RD_REFPEND=[v,auto];return;}try{bmPreProgramar();}catch(e){}if(!auto)REF_SIGUE_HOY=(v===dkey(new Date()));const a=v.split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);HR_SES_LOCK=false;buildPlayers();renderTeam();renderAlerts();renderDayCtx();if(document.getElementById('v-jugador').classList.contains('on')&&STATE.curPlayer)fichaRepinta();if(document.getElementById('v-carga').classList.contains('on'))renderLoad();if(document.getElementById('v-hr').classList.contains('on'))renderHR();dpSyncLabel();writeHash();}
 /* v388 · Iba a inp.max —la última jornada con datos—, no al día de hoy. */
 function goToday(){const hoy=dkey(new Date());const inp=document.getElementById('ref-date');if(inp)inp.value=hoy;REF_SIGUE_HOY=true;setRefDate(hoy,true);}
 /* ---- Calendario propio (liquid glass) ---- */
@@ -11444,6 +11444,36 @@ function dpRender(){const pop=document.getElementById('dp-pop');if(!pop||!DP_YM)
   +'<div class="dp-grid dp-dow"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>'
   +'<div class="dp-grid dp-days">'+cells+'</div>'
   +'<div class="dp-foot"><button type="button" class="dp-foot-btn" onclick="goToday();dpClose()">Ir a hoy</button></div>';}
+/* ═══ v776 · Las flechas de día, siempre instantáneas ═══
+   Daniel, 17/11/2026 (propuesta 1). Un día ya visto se pone en 25–55 ms en el
+   motor de Safari; uno nuevo, en 290–340. Cuando la app lleva un rato quieta
+   (`BMPRE_ESPERA`, sin toques ni teclas), se calcula EL DÍA ANTERIOR y EL
+   SIGUIENTE al que se mira —uno cada vez, y se para en cuanto se toca algo—,
+   y la caché de la v769 los guarda: cualquier flecha pasa a ser un día visto.
+   Se toma prestada la fecha de referencia y se devuelve en la MISMA tarea,
+   sin ceder el hilo en medio, así que nada puede pintarse con ella (§2.1).
+   No corre con la serie de 14 días en marcha, con la pestaña en segundo
+   plano ni con una espera de día pendiente. */
+const BMPRE_ESPERA=1500;
+let BMPRE_T=null,BMPRE_U=Date.now();
+function bmPreDia(dk){
+  const prev=STATE.refDate;const a=dk.split('-').map(Number);
+  try{STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);buildPlayers();}
+  finally{STATE.refDate=prev;try{buildPlayers();}catch(e){}}
+}
+function bmPreSig(){
+  BMPRE_T=null;
+  if(window.__RD_CALC||STEP_T||document.hidden||!(STATE.wellness||[]).length){bmPreProgramar();return;}
+  if(Date.now()-BMPRE_U<BMPRE_ESPERA){bmPreProgramar();return;}
+  const inp=document.getElementById('ref-date');const cur=dkey(REF());
+  const cand=[dkSumaDias(cur,-1),dkSumaDias(cur,1)].filter(dk=>(!inp||((!inp.min||dk>=inp.min)&&(!inp.max||dk<=inp.max)))&&!bmpcHay(dk));
+  if(!cand.length)return;
+  try{bmPreDia(cand[0]);}catch(e){console.error('bmnava · precálculo del día',e);return;}
+  if(cand.length>1)bmPreProgramar(700);
+}
+function bmPreProgramar(ms){clearTimeout(BMPRE_T);BMPRE_T=setTimeout(bmPreSig,ms||BMPRE_ESPERA);}
+['pointerdown','keydown','wheel'].forEach(ev=>document.addEventListener(ev,()=>{BMPRE_U=Date.now();},{passive:true,capture:true}));
+window.bmPreProgramar=bmPreProgramar;
 /* v769 · La fecha cambia en el acto y el cálculo espera a que se deje de
    pulsar: tres toques seguidos eran tres recálculos de 130–350 ms. Un día que
    ya está calculado (`bmpcHay`) se pone sin esperar, salvo que sea un toque
@@ -33617,6 +33647,7 @@ function renderAll(){
      y se repinta al terminar el recorrido. */
   if(window.__RD_CALC){window.__RD_PEND=true;return;}
   BM_DV++;   /* v769 · lo que entra de las hojas pasa por aquí */
+  try{bmPreProgramar();}catch(e){}   /* v776 */
   /* v775 · el primer pintado con datos entra con un fundido */
   try{if(!window.__BM_DATOS_VISTOS&&(STATE.wellness||[]).length){window.__BM_DATOS_VISTOS=true;const vv=document.querySelector('main .view.on');if(vv){vv.classList.add('bm-nuevo');setTimeout(()=>vv.classList.remove('bm-nuevo'),460);}}}catch(e){}
   applyHist();
