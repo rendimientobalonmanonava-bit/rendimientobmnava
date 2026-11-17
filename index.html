@@ -14456,13 +14456,75 @@ function bmsPrevia(x){
   return '<div class="bms-pv-a"><span class="bms-pv-ic">'+bmsIcono(x)+'</span><b>'+bmEsc(x.l)+'</b>'+(x.s?'<p>'+bmEsc(x.s)+'</p>':'')
     +'<p class="bms-pv-nota">'+(x.g==='p'?'Intro abre esta pantalla.':'Intro lo abre.')+'</p></div>';
 }
+/* ═══ v790 · ORDENADOR · ⌘K responde preguntas ═══
+   Daniel, 17/11/2026, propuesta 8. La búsqueda encontraba nombres, pantallas y
+   acciones. Ahora además contesta preguntas sobre la plantilla escritas tal
+   cual: «acwr > 1,3», «readiness < 60», «fatiga >= 4», «carga 7 > 2500»,
+   «sin parte», «fuera», «con molestia», «dolor tobillo», «selección», «ojo
+   hoy». La respuesta sale arriba, con cada jugador y su cifra, y Intro abre su
+   ficha. No calcula nada: cada cifra es la del jugador el día que se está
+   viendo, la misma de la tabla de la plantilla (v784) —el parte del día, el
+   ACWR fiable, la carga de 7 y 14 días, la nota TSA— y los estados salen de
+   `effectiveStatus`, como los contadores del menú. */
+const BMSQ_MET=[
+  {k:'acwr',re:/^acwr$/,lab:'ACWR',v:p=>p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null,d:2},
+  {k:'readiness',re:/^(readiness|rd|forma)$/,lab:'Readiness',v:p=>p.readiness!=null&&isFinite(p.readiness)?Math.round(p.readiness):null,d:0},
+  {k:'fatiga',re:/^fatiga$/,lab:'Fatiga',w:'fatiga',d:1},
+  {k:'sueno',re:/^(sueno|calidad de sueno|calidad sueno)$/,lab:'Sueño',w:'sueno',d:1},
+  {k:'horas',re:/^(horas|horas de sueno|horas sueno)$/,lab:'Horas de sueño',w:'horas_sueno',d:1},
+  {k:'doms',re:/^(doms|agujetas)$/,lab:'DOMS',w:'doms',d:1},
+  {k:'estres',re:/^estres$/,lab:'Estrés',w:'stress',d:1},
+  {k:'animo',re:/^animo$/,lab:'Ánimo',w:'mood',d:1},
+  {k:'c14',re:/^(carga 14|carga 14 d|carga 14 dias|carga 14d)$/,lab:'Carga 14 días',v:p=>p.load14?Math.round(p.load14):null,d:0,u:' UA'},
+  {k:'c7',re:/^(carga|carga 7|carga 7 d|carga 7 dias|carga 7d|ua)$/,lab:'Carga 7 días',v:p=>p.acwr&&p.acwr.acute?Math.round(p.acwr.acute):null,d:0,u:' UA'},
+  {k:'tsa',re:/^(tsa|nota|nota tsa)$/,lab:'Nota TSA',tsa:true,d:0}
+];
+const BMSQ_OP=[['>=',/^(>=|≥|mayor o igual( que| a)?|al menos)$/],['<=',/^(<=|≤|menor o igual( que| a)?|como mucho)$/],['>',/^(>|mas de|mayor que|por encima de|sobre)$/],['<',/^(<|menos de|menor que|por debajo de|bajo)$/],['=',/^(=|==|igual a)$/]];
+function bmSpotPregunta(raw){
+  const q=normH(raw).replace(/\s+/g,' ').trim();if(q.length<2)return null;
+  const ps=STATE.players||{},ns=Object.keys(ps).sort((a,b)=>a.localeCompare(b,'es')),dkR=dkey(REF());
+  /* la clave es la del jugador en el índice: así va a «Recientes» como él */
+  const it=(n,s)=>({g:'j',k:'j|'+n,l:n,s:s,q:'',n:n,f:()=>openPlayer(n)});
+  const est=n=>{try{const ev=effectiveStatus(n,dkEstado());return ev&&ev.status&&ev.status!=='disp'&&ev.status!=='partido'?ev.status:null;}catch(e){return null;}};
+  const lab=st=>((PHYSTAT[st]||{}).lab||st);
+  let m=q.match(/^(.+?)\s*(>=|<=|≥|≤|>|<|==|=|mayor o igual que|mayor o igual a|menor o igual que|menor o igual a|al menos|como mucho|mas de|menos de|mayor que|menor que|por encima de|por debajo de|igual a)\s*(-?\d+(?:[.,]\d+)?)$/);
+  if(m){
+    const met=BMSQ_MET.find(x=>x.re.test(m[1].trim()));if(!met)return null;
+    const op=(BMSQ_OP.find(o=>o[1].test(m[2].trim()))||[])[0];if(!op)return null;
+    const lim=parseFloat(m[3].replace(',','.'));if(!isFinite(lim))return null;
+    let tsa={};if(met.tsa){try{if(typeof buildTests==='function')buildTests();tsaRows().forEach(r=>{tsa[r.name]=r.t100;});}catch(e){}}
+    const val=n=>{const p=ps[n];if(met.w){const w=p.last;return w&&w.dk===dkR&&w[met.w]!=null&&!isNaN(w[met.w])?+w[met.w]:null;}if(met.tsa)return tsa[n]!=null&&isFinite(tsa[n])?Math.round(tsa[n]):null;return met.v(p);};
+    const cmp={'>':(a,b)=>a>b,'<':(a,b)=>a<b,'>=':(a,b)=>a>=b,'<=':(a,b)=>a<=b,'=':(a,b)=>Math.abs(a-b)<1e-9}[op];
+    const r=ns.map(n=>[n,val(n)]).filter(x=>x[1]!=null&&cmp(x[1],lim)).sort((a,b)=>op[0]==='<'?a[1]-b[1]:b[1]-a[1]);
+    const fv=v=>(met.d?fmt(v,met.d):Math.round(v).toLocaleString('es-ES'))+(met.u||'');
+    const limTx=String(m[3]).replace('.',',');
+    return {tit:r.length+(r.length===1?' jugador':' jugadores')+' con '+met.lab+' '+op.replace('>=','≥').replace('<=','≤')+' '+limTx,items:r.map(x=>it(x[0],met.lab+' '+fv(x[1])))};
+  }
+  if(/^(sin parte|sin wellness|no han respondido|faltan partes?)$/.test(q)){
+    const r=ns.filter(n=>!(ps[n].last&&ps[n].last.dk===dkR));return {tit:r.length+' sin parte del día',items:r.map(n=>it(n,'Sin parte'))};}
+  if(/^(fuera|bajas?|no disponibles?|no entrenan)$/.test(q)){
+    const r=ns.filter(n=>NOAV_ST.includes(est(n)));return {tit:r.length+' fuera hoy',items:r.map(n=>it(n,lab(est(n))))};}
+  if(/^(con molestias?|molestias?|tocados?)$/.test(q)){
+    const r=ns.filter(n=>CARE_ST.includes(est(n)));return {tit:r.length+' con molestia hoy',items:r.map(n=>it(n,lab(est(n))))};}
+  if(/^(seleccion|con la seleccion|selecciones)$/.test(q)){
+    const r=ns.filter(n=>est(n)==='seleccion');return {tit:r.length+' con la selección',items:r.map(n=>it(n,'Con la selección'))};}
+  if(/^(ojo|ojo hoy)$/.test(q)){
+    let oj=[];try{oj=ojoAbiertos();}catch(e){}return {tit:oj.length+' con Ojo hoy',items:oj.filter(x=>ps[x.name]).map(x=>it(x.name,'Ojo hoy'+(x.e.zona?' · '+x.e.zona:'')))};}
+  if(/^(readiness bajo|en rojo|rojos?)$/.test(q)){
+    const r=ns.filter(n=>ps[n].sev==='bad');return {tit:r.length+' con el readiness en rojo',items:r.map(n=>it(n,'Readiness '+Math.round(ps[n].readiness)))};}
+  m=q.match(/^dolor(?: (?:de |en |el |la )?(.+))?$/);
+  if(m){const z=(m[1]||'').trim();
+    const r=ns.filter(n=>{const w=ps[n].last;return w&&w.dk===dkR&&(w.dolor||w.golpe)&&(!z||normH(w.zona||'').indexOf(z)>=0);});
+    return {tit:r.length+(z?' con dolor en «'+z+'»':' con dolor en el parte del día'),items:r.map(n=>it(n,'Dolor'+(ps[n].last.zona?': '+ps[n].last.zona:'')))};}
+  return null;
+}
 function bmSpot(){
   if(document.getElementById('bm-spot')){const i=document.querySelector('#bm-spot input');if(i){i.focus();i.select();}return;}
   try{bmMenuMacCierra();}catch(e){}
   BMS.idx=bmbIndice();BMS.vis=[];BMS.sel=0;
   const v=document.createElement('div');v.id='bm-spot';v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');v.setAttribute('aria-label','Buscar');
   v._foco=document.activeElement;
-  v.innerHTML='<div class="bms-caja"><div class="bms-campo">'+BMB_IC_LUPA+'<input type="search" placeholder="Buscar en BM Nava" aria-label="Buscar jugadores, pantallas, acciones o un día" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="bms-lista"><kbd>esc</kbd></div>'
+  v.innerHTML='<div class="bms-caja"><div class="bms-campo">'+BMB_IC_LUPA+'<input type="search" placeholder="Buscar o preguntar: «acwr > 1,3», «sin parte», «dolor tobillo»…" aria-label="Buscar jugadores, pantallas, acciones o un día, o preguntar por la plantilla" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="bms-lista"><kbd>esc</kbd></div>'
     +'<div class="bms-cuerpo"><div class="bms-lista" id="bms-lista" role="listbox"></div><div class="bms-pv" aria-live="polite"></div></div></div>';
   document.body.appendChild(v);
   const inp=v.querySelector('input'),lista=v.querySelector('.bms-lista'),pv=v.querySelector('.bms-pv');
@@ -14476,7 +14538,9 @@ function bmSpot(){
       const peso=x=>(x.q.indexOf(q)===0?0:(x.q.split(' ').some(w=>w.indexOf(ts[0])===0)?1:2));
       const ord=xs=>xs.filter(casa).sort((a,b)=>peso(a)-peso(b));
       const d=bmbDia(q);
-      grupos=[['Día',d?[d]:[]],['Jugadores',ord(idx.filter(x=>x.g==='j')).slice(0,6)],['Pantallas',ord(idx.filter(x=>x.g==='p')).slice(0,6)],['Acciones',ord(idx.filter(x=>x.g==='a')).slice(0,6)]];}
+      /* v790 · si es una pregunta, la respuesta va primero */
+      let rq=null;try{rq=bmSpotPregunta(inp.value);}catch(e){console.error('bmnava · pregunta',e);}
+      grupos=[[rq?rq.tit:'',rq?(rq.items.length?rq.items:[{g:'a',k:'q|0',l:'Nadie',s:'Ningún jugador cumple eso el día que se está viendo',q:'',f:()=>{}}]):[]],['Día',d?[d]:[]],['Jugadores',ord(idx.filter(x=>x.g==='j')).slice(0,6)],['Pantallas',ord(idx.filter(x=>x.g==='p')).slice(0,6)],['Acciones',ord(idx.filter(x=>x.g==='a')).slice(0,6)]];}
     BMS.vis=[];let h='';
     grupos.forEach(([rot,xs])=>{if(!xs.length)return;h+='<div class="bms-rot" role="presentation">'+rot+'</div>';
       xs.forEach(x=>{const i=BMS.vis.length;BMS.vis.push(x);
