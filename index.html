@@ -6905,6 +6905,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 
     <div class="carga-pane" id="carga-resumen" style="display:none"></div>
 
+    <div class="carga-pane" id="carga-mapa" style="display:none"></div>
+
     <div class="carga-pane" id="carga-cuadrantes" style="display:none"></div>
 
     <div class="carga-pane" id="carga-grupal">
@@ -16810,6 +16812,108 @@ function bmShGuarda(){
   bmHecho('Semana guardada · '+n+(n===1?' sesión':' sesiones'),()=>bmcaRestaura(foto),'Semana deshecha');
 }
 window.bmHojaSemana=bmHojaSemana;
+/* ═══ v792 · ORDENADOR · El mapa de la plantilla: jugadores × días ═══
+   Daniel, 17/11/2026, propuesta 1. El Dashboard enseña al EQUIPO y la ficha a
+   UN jugador: ninguna pantalla enseñaba a los dieciocho, día a día, a la vez.
+   Pestaña nueva de Cargas, «Plantilla»: una fila por jugador (por puestos) y
+   una columna por día de la ventana de la pestaña (14 d, 28 d, 8 sem o la
+   temporada desde el 1 de julio). El color de la casilla es SU carga de ese
+   día (`dailyAgg`, la de toda la app) en un solo tono, más intenso cuanto más
+   alta —el criterio del mapa de calor del Dashboard: sin rojo, porque más
+   carga no es una alerta—; el tope de la escala es el percentil 95 de las
+   casillas de la ventana, para que un día excepcional no deje pálido todo lo
+   demás, y la leyenda lo dice. Un día sin cuestionario va VACÍO, no a cero
+   (regla de siempre); con cuestionario y sin minutos, con un puntito: la carga
+   no es calculable. Los días fuera van rayados con el color de su estado
+   (`effectiveStatus`, el mismo de la lista de Jugadores) y la molestia con un
+   punto ámbar. Los partidos y hoy van marcados en la cabecera. Pasar el ratón
+   dice el día; un clic abre su inspector (v783). Sólo en el ordenador. */
+const BMMP={sel:null};
+function bmMpColEst(st){return st==='baja'?'var(--bad)':(NOAV_FIS_ST.includes(st)||CARE_ST.includes(st))?'var(--warn)':'#7c9cbf';}
+function bmMpDatos(){
+  const ps=STATE.players||{},hoy=dkey(new Date()),fin=dkey(REF());
+  const win=FILTER.window||28;
+  let ini=win>=9999?TEMP_INICIO:dkSumaDias(fin,-(win-1));if(ini<TEMP_INICIO&&win>=9999)ini=TEMP_INICIO;
+  const dks=dkRango(ini,fin);
+  let par={};try{const cal=STATE.calendar||{};dks.forEach(dk=>{const e=(cal[dk]||[]).find(evEsPartido);if(e)par[dk]=evRival(e)||'Partido';});}catch(e){}
+  /* por puestos, como la lista de Jugadores */
+  const GR=(typeof JL_GR!=='undefined'?JL_GR:[]).concat([['_','Sin puesto']]);
+  const grupos=GR.map(([k,t])=>({t,ns:Object.keys(ps).filter(n=>{const p=ps[n].pos;return k==='_'?!GR.some(g=>g[0]===p&&g[0]!=='_'):p===k;}).sort((a,b)=>a.localeCompare(b,'es'))})).filter(g=>g.ns.length);
+  const filas={},vals=[];
+  Object.keys(ps).forEach(n=>{
+    const m={};try{(dailyAgg(n)||[]).forEach(d=>{if(d.dk>=ini&&d.dk<=fin)m[d.dk]=+d.ua||0;});}catch(e){}
+    const est={};dks.forEach(dk=>{try{const ev=effectiveStatus(n,dk);if(ev&&ev.status&&ev.status!=='disp'&&ev.status!=='partido')est[dk]=ev.status;}catch(e){}});
+    Object.values(m).forEach(v=>{if(v>0)vals.push(v);});
+    const tot=Object.values(m).reduce((s,v)=>s+v,0),dias=Object.values(m).filter(v=>v>0).length;
+    filas[n]={m,est,tot,dias};
+  });
+  vals.sort((a,b)=>a-b);
+  const tope=vals.length?vals[Math.min(vals.length-1,Math.floor(vals.length*.95))]:1;
+  return {dks,par,grupos,filas,tope:Math.max(1,tope),hoy,fin};
+}
+function renderMapaPlantilla(){
+  const box=document.getElementById('carga-mapa');if(!box)return;
+  if(window.__RD_CALC)return;
+  const D=bmMpDatos(),E=bmEsc,N=D.dks.length;
+  const L=['D','L','M','X','J','V','S'];
+  const ancho=N>40?'s':N>21?'m':'l';
+  let cab='<div class="bmmp-nom bmmp-esq"></div>'+D.dks.map((dk,i)=>{const d=dkToDate(dk),w=d.getDay();
+    const cls=['bmmp-h'];if(w===1)cls.push('lun');if(dk===D.hoy)cls.push('hoy');if(D.par[dk])cls.push('par');
+    const lab=ancho==='s'?(w===1?String(d.getDate()):''):'<b>'+L[w]+'</b>'+d.getDate();
+    return '<div class="'+cls.join(' ')+'" title="'+E(bmInspFecha(dk)+(D.par[dk]?' · Partido · '+D.par[dk]:''))+'">'+lab+'</div>';}).join('')+'<div class="bmmp-tot bmmp-esq">Carga · días</div>';
+  let filas='';const orden=[];
+  D.grupos.forEach(g=>{
+    filas+='<div class="bmmp-g">'+E(g.t)+'</div>';
+    g.ns.forEach(n=>{const F=D.filas[n],pi=orden.length;orden.push(n);
+      filas+='<div class="bmmp-nom" data-n="'+E(n)+'" title="Abrir su ficha">'+bmjCara(n,'bmmp-av')+'<span>'+E(cvCorto(n))+'</span></div>';
+      filas+=D.dks.map(dk=>{const v=F.m[dk],st=F.est[dk],w=dkToDate(dk).getDay();
+        const cls=['bmmp-c'];if(w===1)cls.push('lun');if(D.par[dk])cls.push('par');if(dk===D.hoy)cls.push('hoy');
+        let sty='';
+        if(v>0){const a=Math.min(1,v/D.tope);sty+='--a:'+(0.12+a*0.88).toFixed(3)+';';cls.push('v');}
+        else if(v===0)cls.push('m0');
+        if(st){if(NOAV_ST.includes(st)){cls.push('fu');sty+='--ec:'+bmMpColEst(st)+';';}else cls.push('mo');}
+        return '<div class="'+cls.join(' ')+'" data-p="'+pi+'" data-dk="'+dk+'"'+(sty?' style="'+sty+'"':'')+'></div>';}).join('');
+      filas+='<div class="bmmp-tot"><b>'+(F.tot?Math.round(F.tot).toLocaleString('es-ES'):'—')+'</b><small>'+F.dias+' d</small></div>';
+    });
+  });
+  const desde=dkToDate(D.dks[0]),hasta=dkToDate(D.fin);
+  box.innerHTML='<div class="panel bmmp"><h2>La plantilla, día a día <span class="r">del '+desde.getDate()+'/'+(desde.getMonth()+1)+' al '+hasta.getDate()+'/'+(hasta.getMonth()+1)+'</span></h2>'
+    +'<div class="bmmp-ley"><span><i class="bmmp-esc"></i>Carga del día · de 0 a '+Math.round(D.tope).toLocaleString('es-ES')+' UA o más</span>'
+    +'<span><i class="bmmp-lc m0"></i>Con cuestionario y sin minutos</span><span><i class="bmmp-lc fu" style="--ec:var(--bad)"></i>Fuera (el color de su estado)</span>'
+    +'<span><i class="bmmp-lc mo"></i>Con molestia</span><span><i class="bmmp-lc par"></i>Partido</span><span class="bmmp-vac"><i class="bmmp-lc"></i>Sin cuestionario</span></div>'
+    +'<div class="bmmp-w"><div class="bmmp-r bmmp-'+ancho+'" style="--n:'+N+'">'+cab+filas+'</div></div>'
+    +'<p class="bmmp-pie">Pasa el ratón por una casilla para ver el día; un clic abre su inspector y un clic en el nombre, su ficha. La ventana se cambia arriba (14 d · 28 d · 8 sem · Temporada).</p></div>';
+  BMMP.D=D;BMMP.orden=orden;
+  const w=box.querySelector('.bmmp-w');if(w)w.scrollLeft=w.scrollWidth;
+}
+function bmMpTip(c,x,y){
+  let t=document.getElementById('bmmp-tip');if(!t){t=document.createElement('div');t.id='bmmp-tip';t.setAttribute('aria-hidden','true');document.body.appendChild(t);}
+  if(!c){t.classList.remove('on');return;}
+  const D=BMMP.D;if(!D)return;
+  const nom=(BMMP.orden||[])[+c.dataset.p],dk=c.dataset.dk;if(!nom||!dk)return;
+  const F=D.filas[nom],v=F.m[dk],st=F.est[dk];
+  let d=dkToDate(dk).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'short'});d=d.charAt(0).toUpperCase()+d.slice(1);
+  const l=[v>0?Math.round(v).toLocaleString('es-ES')+' UA':v===0?'Cuestionario sin minutos':'Sin cuestionario'];
+  if(st)l.push((PHYSTAT[st]||{}).lab||st);if(D.par[dk])l.push('Partido · '+D.par[dk]);
+  t.innerHTML='<b>'+bmEsc(nom)+'</b><span>'+bmEsc(d)+'</span><em>'+bmEsc(l.join(' · '))+'</em>';
+  t.classList.add('on');const W=t.offsetWidth,H=t.offsetHeight;
+  t.style.left=Math.round(Math.min(innerWidth-W-10,x+14))+'px';t.style.top=Math.round(Math.max(10,y-H-12))+'px';
+}
+document.addEventListener('mousemove',e=>{
+  if(!BMMP.D||!e.target||!e.target.closest)return;
+  const c=e.target.closest('#carga-mapa .bmmp-c');
+  if(c===BMMP.sel){if(c)bmMpTip(c,e.clientX,e.clientY);return;}
+  BMMP.sel=c;bmMpTip(c,e.clientX,e.clientY);
+},{passive:true});
+document.addEventListener('click',e=>{
+  if(!e.target||!e.target.closest)return;
+  const nm=e.target.closest('#carga-mapa .bmmp-nom[data-n]');if(nm){openPlayer(nm.dataset.n);return;}
+  const c=e.target.closest('#carga-mapa .bmmp-c');if(!c)return;
+  const nom=(BMMP.orden||[])[+c.dataset.p];
+  if(nom&&window.bmInspAbre){bmMpTip(null);bmInspAbre(nom);}
+});
+window.addEventListener('scroll',()=>{if(BMMP.sel){BMMP.sel=null;bmMpTip(null);}},{passive:true,capture:true});
+window.renderMapaPlantilla=renderMapaPlantilla;
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -25777,6 +25881,7 @@ function renderCargaActive(){const t=FILTER.cargaTab||'resumen';
      ellas (comprobado: ninguna de sus funciones escribe fuera de él). */
   if(t==='resumen')renderCargaResumen();else if(t==='cuadrantes'){if(window.qdRenderFull)qdRenderFull();}else if(t==='posicion')renderCargaPos();else if(t==='individual')renderLoadDetail();
   else if(t==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}
+  else if(t==='mapa'){try{renderMapaPlantilla();}catch(e){console.error('bmnava · mapa de la plantilla',e);}}
   else if(t==='partidos'){try{renderPartidos();}catch(e){console.error('partidos',e);}}
   else renderCargaGrupal();}
 
@@ -43523,9 +43628,11 @@ window.ptEstRender=function(){
    guardada en `bmnava_cargatab` de todo el mundo—; lo que cambia es lo que
    pone, porque ya no es un resumen del día sino la temporada. */
 const CARGAS_TABS=[['resumen','Dashboard'],['pulso','Pulso · Polar'],['gym','Gimnasio'],['partidos','Perfil de partido']];
+/* v792 · la plantilla día a día, sólo en el ordenador */
+try{if(!esMovil()&&bmEscFino())CARGAS_TABS.splice(1,0,['mapa','Plantilla']);}catch(e){}
 const RPE_SUBS=[['grupal','Grupal'],['individual','Individual'],['posicion','Por posición']];
 const RPE_KEYS=RPE_SUBS.map(s=>s[0]);
-const CARGA_PANES=['resumen','grupal','individual','posicion','partidos','gym'];
+const CARGA_PANES=['resumen','mapa','grupal','individual','posicion','partidos','gym'];
 function cargasTopKey(){return (STATE.view==='hr')?'pulso':(RPE_KEYS.includes(FILTER.cargaTab)?'rpe':(FILTER.cargaTab||'resumen'));}
 function mountCargasTabs(){
   const top='<div class="seg cargas-seg">'+CARGAS_TABS.map(([k,l])=>`<button data-k="${k}" onclick="cargasTab('${k}')">${l}</button>`).join('')+'</div>';
@@ -53158,6 +53265,49 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   .bmsh .bmsh-mas:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
   .bmsh .bmsh-pie{margin:10px 2px 0;font-size:12px;color:var(--muted)}
   .bmsh .bmsh-acc{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+}
+</style>
+<style id="esc-v792">
+/* v792 · ORDENADOR · El mapa de la plantilla (Cargas › Plantilla). */
+@media screen and (min-width:761px) and (pointer:fine){
+  .bmmp h2 .r{font-weight:500;color:var(--muted);font-size:13px}
+  .bmmp-ley{display:flex;flex-wrap:wrap;gap:6px 16px;margin:2px 0 14px;font-size:12px;color:var(--muted)}
+  .bmmp-ley span{display:inline-flex;align-items:center;gap:6px}
+  .bmmp-esc{display:inline-block;width:64px;height:10px;border-radius:3px;background:linear-gradient(90deg,color-mix(in srgb,var(--c-data) 12%,transparent),var(--c-data))}
+  .bmmp-lc{display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--panel2);box-shadow:inset 0 0 0 .5px var(--line)}
+  .bmmp-w{overflow-x:auto;padding-bottom:4px}
+  .bmmp-r{display:grid;grid-template-columns:150px repeat(var(--n),minmax(var(--cw,26px),1fr)) 84px;gap:2px;align-items:stretch;min-width:min-content}
+  .bmmp-r.bmmp-m{--cw:16px}.bmmp-r.bmmp-s{--cw:7px;gap:1px}
+  .bmmp-esq{position:sticky;left:0}
+  .bmmp-h{font-size:10.5px;line-height:1.1;text-align:center;color:var(--muted);padding:2px 0 4px;white-space:nowrap;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-height:28px;position:relative}
+  .bmmp-h b{font-weight:500;font-size:10px;opacity:.75}
+  .bmmp-h.hoy{color:var(--acc-seg,var(--accent));font-weight:700}
+  .bmmp-h.par::before{content:"";position:absolute;top:0;left:15%;right:15%;height:3px;border-radius:2px;background:var(--acc-seg,var(--accent))}
+  .bmmp-g{grid-column:1/-1;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:10px 0 2px;position:sticky;left:0}
+  .bmmp-nom{position:sticky;left:0;z-index:2;background:var(--panel);display:flex;align-items:center;gap:8px;padding-right:8px;min-width:0;cursor:default}
+  .bmmp-nom span{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bmmp-nom:hover span{text-decoration:underline;text-underline-offset:3px}
+  .bmmp-av{width:24px;height:24px;flex:none;font-size:9px}
+  .bmmp-c{height:24px;border-radius:4px;background:var(--panel2);position:relative;cursor:default}
+  .bmmp-r.bmmp-s .bmmp-c{border-radius:2px}
+  .bmmp-c.v{background:color-mix(in srgb,var(--c-data) calc(var(--a) * 100%),var(--panel2))}
+  .bmmp-c.m0::after,.bmmp-lc.m0::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;border-radius:50%;background:var(--muted)}
+  .bmmp-lc.m0{position:relative}
+  .bmmp-c.fu,.bmmp-lc.fu{background-image:repeating-linear-gradient(135deg,var(--ec) 0 2px,transparent 2px 6px)!important;box-shadow:inset 0 0 0 1px var(--ec)}
+  .bmmp-c.mo::before,.bmmp-lc.mo::before{content:"";position:absolute;right:2px;top:2px;width:5px;height:5px;border-radius:50%;background:var(--warn)}
+  .bmmp-lc.mo{position:relative}
+  .bmmp-lc.par{background:var(--acc-seg,var(--accent))}
+  .bmmp-c.lun,.bmmp-h.lun{margin-left:3px}
+  .bmmp-c.hoy{box-shadow:inset 0 0 0 1.5px var(--acc-seg,var(--accent))}
+  .bmmp-c.par{box-shadow:inset 0 -2px 0 var(--acc-seg,var(--accent))}
+  .bmmp-c:hover{outline:2px solid var(--txt);outline-offset:0;z-index:1}
+  .bmmp-tot{position:sticky;right:0;background:var(--panel);display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding-left:6px;font-variant-numeric:tabular-nums}
+  .bmmp-tot b{font-size:12.5px;font-weight:600}.bmmp-tot small{font-size:10.5px;color:var(--muted)}
+  .bmmp-tot.bmmp-esq{font-size:10.5px;color:var(--muted);justify-content:flex-end}
+  .bmmp-pie{margin:12px 0 0;font-size:12px;color:var(--muted)}
+  #bmmp-tip{position:fixed;z-index:95;pointer-events:none;display:none;flex-direction:column;gap:1px;padding:8px 10px;border-radius:9px;background:var(--sbf-bg);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 0 0 .5px var(--sbf-borde),0 8px 24px -6px rgba(0,0,0,.3);color:var(--txt);max-width:280px}
+  #bmmp-tip.on{display:flex}
+  #bmmp-tip b{font-size:12.5px;font-weight:600}#bmmp-tip span{font-size:11.5px;color:var(--muted)}#bmmp-tip em{font-style:normal;font-size:12px;font-weight:500}
 }
 </style>
 <style id="esc-v762">
