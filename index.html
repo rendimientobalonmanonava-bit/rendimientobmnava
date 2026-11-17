@@ -32627,6 +32627,7 @@ function vendDe(dk,jug,zona){
    queda a cero: un cero guardado diría «ese día le miré y no le vendé nada», y
    eso no es lo que ha pasado. */
 function vendCicla(dk,jug,zona){
+  try{bmVibra();}catch(e){}   /* v774 · un toque por casilla */
   const V=vendLoad();
   const r=vendDe(dk,jug,zona);
   const act=r?(r.lado||''):'';
@@ -41472,7 +41473,19 @@ function bmToastGesto(t){let y0=null,dy=0;
   const fin=()=>{if(y0==null)return;y0=null;t.style.removeProperty('transition');t.style.removeProperty('transform');
     if(dy<-18){clearTimeout(_toastT);toastOculta();}else t.style.transform='translateX(-50%) translateY(0)';};
   t.addEventListener('touchend',fin);t.addEventListener('touchcancel',fin);}
-function toast(msg,o){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);bmToastGesto(t);}t.textContent=msg;const acc=!!(o&&o.accion&&typeof o.fn==='function'&&esMovil());const und=!!(o&&typeof o.fn==='function'&&!esMovil()&&bmDeshacerApunta(msg,o.fn,o.deshecho));if(und)t.textContent=msg+' · ⌘Z para deshacer';if(acc){const b=document.createElement('button');b.type='button';b.className='toast-acc';b.textContent=o.accion;b.onclick=()=>{clearTimeout(_toastT);t.style.opacity='0';t.style.pointerEvents='none';t.classList.remove('vis');try{o.fn();}catch(e){console.error('bmnava · deshacer',e);}};t.appendChild(b);}t.style.pointerEvents=acc?'auto':'none';t.classList.toggle('con-acc',acc);requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';t.classList.add('vis');});clearTimeout(_toastT);_toastT=setTimeout(toastOculta,acc?5200:(und?3800:2200));}
+/* ═══ v774 · Vibración donde se cierra algo ═══
+   Daniel, 17/11/2026 (propuesta 6). Vibraba al cambiar de pestaña, en los
+   menús y al cobrar. Ahora también al TERMINAR una acción, y se decide en UN
+   sitio: el aviso que ya sale al acabar cada una. Si dice que algo se ha
+   guardado, apuntado, cerrado, planificado…, un toque; si dice que algo ha
+   fallado o falta, dos. Sólo en el móvil (`bmVibra`), y en el iPhone sólo con
+   iOS 18 o posterior. Las casillas de vendajes, que no sacan aviso, dan un
+   toque en cada pulsación, como un selector del sistema. */
+const BMV_OK=/(guardad|actualizad|registrad|apuntad|programad|cerrad|planificad|cobrad|copiad|pegad|añadid|aplicad|importad|asignad|marcad|exportad)/i;
+const BMV_MAL=/^(No se pudo|NO SE HA|Selecciona|Introduce|Pon |JSON no válido|Tipo no válido|Error)|no puede ser/i;
+function bmVibra2(){try{bmVibra();setTimeout(()=>{BMV_T=0;bmVibra();},130);}catch(e){}}
+function bmVibraAviso(m){m=String(m||'');if(BMV_MAL.test(m)){bmVibra2();return;}if(BMV_OK.test(m)){try{bmVibra();}catch(e){}}}
+function toast(msg,o){try{bmVibraAviso(msg);}catch(e){}let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.25);pointer-events:none';document.body.appendChild(t);bmToastGesto(t);}t.textContent=msg;const acc=!!(o&&o.accion&&typeof o.fn==='function'&&esMovil());const und=!!(o&&typeof o.fn==='function'&&!esMovil()&&bmDeshacerApunta(msg,o.fn,o.deshecho));if(und)t.textContent=msg+' · ⌘Z para deshacer';if(acc){const b=document.createElement('button');b.type='button';b.className='toast-acc';b.textContent=o.accion;b.onclick=()=>{clearTimeout(_toastT);t.style.opacity='0';t.style.pointerEvents='none';t.classList.remove('vis');try{o.fn();}catch(e){console.error('bmnava · deshacer',e);}};t.appendChild(b);}t.style.pointerEvents=acc?'auto':'none';t.classList.toggle('con-acc',acc);requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';t.classList.add('vis');});clearTimeout(_toastT);_toastT=setTimeout(toastOculta,acc?5200:(und?3800:2200));}
 
 /* --- Tema --- */
 /* ===== v216 · Modo ligero =====
