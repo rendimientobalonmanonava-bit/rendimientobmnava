@@ -56791,9 +56791,19 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-17.4*/
-const VER_ACTUAL='2026-11-17.5';
+/*BUILD:2026-11-17.6*/
+const VER_ACTUAL='2026-11-17.6';
 window.__BUILD=VER_ACTUAL;
+/* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
+   subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
+   decía «17.4», la app «17.5», y TODOS los dispositivos veían «Hay una versión
+   nueva» por mucho que actualizaran —y, con el aviso puesto, la app deja de
+   subir al servidor (v332): lo apuntado se quedaba en la cola de cada uno—.
+   Ahora se compara la marca del servidor con la marca del archivo que corre:
+   las dos salen del mismo sitio, así que no pueden discrepar por un descuido.
+   VER_ACTUAL sigue siendo lo que se enseña y lo que viaja con cada subida. */
+const VER_MARCA=(function(){try{const m=(document.currentScript&&document.currentScript.textContent||'').match(/\/\*BUILD:([^*]+)\*\//);return m?m[1].trim():VER_ACTUAL;}catch(e){return VER_ACTUAL;}})();
+if(VER_MARCA!==VER_ACTUAL)console.warn('bmnava · la marca BUILD ('+VER_MARCA+') y VER_ACTUAL ('+VER_ACTUAL+') no coinciden');
 
 function verBanner(otra){
   /* v332 · Desde este momento esta pestaña no escribe en el servidor. */
@@ -56866,7 +56876,7 @@ async function verComprobar(forzar){
     try{
       if(VER_SELLO){const s=await verCabecera();if(s&&s===VER_SELLO)return;}
       const remota=await verDelServidor();
-      if(remota&&remota!==VER_ACTUAL)verBanner(remota);
+      if(remota&&remota!==VER_MARCA)verBanner(remota);
     }finally{VER_ULT=Date.now();VER_VUELO=null;}
   })();
   return VER_VUELO;
@@ -56874,7 +56884,7 @@ async function verComprobar(forzar){
 window.verComprobar=verComprobar;
 /* Para mirarlo desde la consola cuando algo "sigue exactamente igual". */
 window.verEstado=async function(){
-  return {corriendo:VER_ACTUAL, enServidor:await verDelServidor()};
+  return {corriendo:VER_ACTUAL, marca:VER_MARCA, enServidor:await verDelServidor()};
 };
 
 /* Primera comprobación con la app ya pintada, y luego cada diez minutos, que es
