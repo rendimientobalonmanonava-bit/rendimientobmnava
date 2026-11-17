@@ -12229,13 +12229,17 @@ window.pbEditar=function(tipo,name,id){
 };
 window.pbBorrar=function(tipo,name,id){
   if(tipo==='parte'||tipo==='episodio'){
-    if(!bmPregunta('¿Borrar este parte del día? No se puede deshacer.',()=>window.pbBorrar(tipo,name,id)))return;
+    /* v763 · el parte que viene de un episodio médico (med_…) sigue preguntando:
+       devuelto con id nuevo perdería su enlace con la lesión */
+    const deEpisodio=String(id||'').indexOf('med_')===0;
+    if(deEpisodio&&!bmPregunta('¿Borrar este parte del día? No se puede deshacer.',()=>window.pbBorrar(tipo,name,id)))return;
     physioEnsure();
     const arr=(STATE.physioUser||{})[name]||[];
     const i=arr.findIndex(e=>e&&e._id===id);
     if(i<0){if(window.toast)toast('No se encuentra ese registro');return;}
-    arr.splice(i,1);physioPersist();
+    const quit=arr.splice(i,1)[0];physioPersist();
     STATE.physioEx=null;try{buildPhysio();}catch(e){}
+    if(!deEpisodio&&quit)bmHecho('Parte borrado · '+name,()=>bmParteDevuelve(name,quit),'Deshecho · vuelve el parte de '+name);
   }else if(tipo==='trat'){
     if(!bmPregunta('¿Borrar este tratamiento? No se puede deshacer.',()=>window.pbBorrar(tipo,name,id)))return;
     STATE.med.treat=(STATE.med.treat||[]).filter(t=>t&&t.id!==id);medPersist();
@@ -15979,8 +15983,9 @@ const SEG_K='bmnava-seguir';
 const SEG_ST=['baja','noentto','enfermo','readapt','modif'];
 function segLeer(){try{const l=JSON.parse(localStorage.getItem(SEG_K)||'[]');return Array.isArray(l)?l:[];}catch(e){return [];}}
 function segGuarda(l){try{localStorage.setItem(SEG_K,JSON.stringify(l));}catch(e){}}
-function segToggle(n){const l=segLeer();const i=l.indexOf(n);if(i>=0)l.splice(i,1);else l.push(n);segGuarda(l);bmSegPinta(true);
-  toast(i>=0?n+' sale del seguimiento':n+' entra en el seguimiento de la barra lateral');}
+function segToggle(n,sinAviso){const l=segLeer();const i=l.indexOf(n);if(i>=0)l.splice(i,1);else l.push(n);segGuarda(l);bmSegPinta(true);
+  if(sinAviso)return;
+  bmHecho(i>=0?n+' sale del seguimiento':n+' entra en el seguimiento de la barra lateral',()=>segToggle(n,true),i>=0?'Deshecho · '+n+' vuelve al seguimiento':'Deshecho · '+n+' sale del seguimiento');}
 function segLista(){
   const P=STATE.players||{},dk=dkey(REF()),out=[],ya=new Set();
   const est=n=>{try{const e=effectiveStatus(n,dk);return e&&e.status||null;}catch(x){return null;}};
@@ -18052,7 +18057,10 @@ function bmciLee(){
 function bmCierreGuarda(){
   const box=document.getElementById('bci-cuerpo');if(!box||!BMCI.dk)return;
   const dk=BMCI.dk;
-  const SD=sessDurGet();SD[dk]=SD[dk]||{};
+  const SD=sessDurGet();
+  /* v763 · foto de cómo estaba el día, para deshacer */
+  const fotoSD=SD[dk]?JSON.parse(JSON.stringify(SD[dk])):null,fotoA=(asistGet()[dk])?JSON.parse(JSON.stringify(asistGet()[dk])):null;
+  SD[dk]=SD[dk]||{};
   const puestos=[];
   box.querySelectorAll('[data-bci-min]').forEach(i=>{const b=i.dataset.bciMin;const v=(i.value||'').trim();
     if(v===''||isNaN(+v))return;
@@ -18075,7 +18083,10 @@ function bmCierreGuarda(){
   if(conv)hechos.push(conv+(conv===1?' convocado':' convocados'));
   if(quit)hechos.push(quit+(quit===1?' desconvocado':' desconvocados'));
   bmHojaCierra('bmh-cierre');
-  toast(hechos.length?'Sesión cerrada · '+hechos.join(' · '):'Sesión cerrada · sin cambios');
+  if(!hechos.length){toast('Sesión cerrada · sin cambios');}
+  else bmHecho('Sesión cerrada · '+hechos.join(' · '),()=>{const S=sessDurGet(),A2=asistGet();
+      if(fotoSD)S[dk]=fotoSD;else delete S[dk];if(fotoA)A2[dk]=fotoA;else delete A2[dk];
+      sessDurPersist();asistPersist();try{sessDurRecalc(dk);}catch(e){}try{bmFaltaLinea();}catch(e){}},'Deshecho · el '+bmciTit(dk)+' vuelve a como estaba');
   if(document.getElementById('bmh-faltan')&&document.getElementById('bmh-faltan').classList.contains('on'))bmFaltanPinta();
   try{bmFaltaLinea();}catch(e){}
 }
@@ -29578,8 +29589,10 @@ document.addEventListener('click',e=>{
   const op=b.dataset.alv;
   if(op==='ver'){ALV.verVistas=!ALV.verVistas;renderAlerts();return;}
   const nm=decodeURIComponent(b.dataset.n||'');
-  if(op==='uno'){const a=(STATE.alerts||[]).find(x=>x.name===nm&&alvClave(x)===decodeURIComponent(b.dataset.k||''));if(a)alvMarca([a]);}
-  else if(op==='todo'){alvMarca((STATE.alerts||[]).filter(x=>x.name===nm&&!alvVista(x)));}
+  /* v763 · marcar «Visto» se deshace */
+  const deshaz=xs=>{if(!xs.length)return;const ks=xs.map(alvClave);bmHecho(xs.length===1?'Alerta vista':xs.length+' alertas vistas',()=>{alvQuita(ks);renderAlerts();},'Deshecho · vuelven a la lista');};
+  if(op==='uno'){const a=(STATE.alerts||[]).find(x=>x.name===nm&&alvClave(x)===decodeURIComponent(b.dataset.k||''));if(a){alvMarca([a]);deshaz([a]);}}
+  else if(op==='todo'){const xs=(STATE.alerts||[]).filter(x=>x.name===nm&&!alvVista(x));alvMarca(xs);deshaz(xs);}
   else if(op==='deshacer'){alvQuita([decodeURIComponent(b.dataset.k||'')]);}
   renderAlerts();
 },true);
@@ -29654,14 +29667,23 @@ function availQuitarParte(n,id){
   if(i<0){if(window.toast)toast('Ese registro es de ejemplo y no se puede borrar');return;}
   const e=arr[i];
   const qu=(PHYSTAT[e.status]||{}).lab||e.status;
-  if(!bmPregunta('¿Borrar este parte del día?\n\n'+n+' · '+qu+(e.zone?' · '+e.zone:'')+'\n'+(e.dk||'').split('-').reverse().join('/')+'\n\nNo se puede deshacer.',()=>availQuitarParte(n,id)))return;
+  const deEpisodio=String(id||'').indexOf('med_')===0;
+  if(deEpisodio&&!bmPregunta('¿Borrar este parte del día?\n\n'+n+' · '+qu+(e.zone?' · '+e.zone:'')+'\n'+(e.dk||'').split('-').reverse().join('/')+'\n\nNo se puede deshacer.',()=>availQuitarParte(n,id)))return;
   arr.splice(i,1);
   physioPersist();
   STATE.physioEx=null;try{buildPhysio();}catch(err){}
   try{parteRefresh(n);}catch(err){try{renderAvail();}catch(e2){}}
-  if(window.toast)toast('Parte borrado · '+n);
+  if(deEpisodio){if(window.toast)toast('Parte borrado · '+n);}
+  else bmHecho('Parte borrado · '+n+' · '+qu,()=>bmParteDevuelve(n,e),'Deshecho · vuelve el parte de '+n);
 }
 window.availQuitarParte=availQuitarParte;
+/* v763 · devolver un parte borrado: el mismo, con id nuevo (el suyo ya tiene tumba) */
+function bmParteDevuelve(n,e){physioEnsure();const arr=(STATE.physioUser[n]=STATE.physioUser[n]||[]);
+  arr.push(Object.assign(JSON.parse(JSON.stringify(e)),{_id:'u_'+Date.now()+'_d'}));physioPersist();
+  STATE.physioEx=null;try{buildPhysio();}catch(err){}
+  try{parteRefresh(n);}catch(err){try{renderAvail();}catch(e2){}}
+  try{renderProblemas(n);}catch(err){}}
+window.bmParteDevuelve=bmParteDevuelve;
 function availMatrix(roster){
   const today=new Date();const W=16;const monday=new Date(today);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));const weeks=[];for(let i=W-1;i>=0;i--){const ws=new Date(monday);ws.setDate(ws.getDate()-i*7);weeks.push(ws);}
   const wkStatus=(n,ws)=>{const we=new Date(ws);we.setDate(we.getDate()+7);let best=null;
@@ -31879,8 +31901,9 @@ function vendCopiarUltimo(dk){
   if(!prev){alert('No hay ningún día anterior con vendajes que copiar.');return;}
   const src=vendDia(prev);
   /* v582 · En el móvil se copia sin preguntar y el aviso trae «Deshacer»:
-     copiar no pisa nada y se revierte entero, así que la pregunta sobra. */
-  if(esMovil()){
+     copiar no pisa nada y se revierte entero, así que la pregunta sobra.
+     v763 · y en el ordenador igual, con ⌘Z. */
+  if(true){
     const ids=[],f=prev.split('-').reverse().slice(0,2).join('/');
     src.forEach(r=>{if(vendDe(dk,r.jugador,r.zona))return;const id=vendId();
       V.reg.push({id,dk,jugador:r.jugador,zona:r.zona,lado:r.lado,n:r.n,upd:Date.now()});ids.push(id);});
@@ -31910,10 +31933,13 @@ function vendBorrarDia(dk){
   const V=vendLoad();
   const hoy=vendDia(dk);
   if(!hoy.length)return;
-  if(!bmPregunta('¿Borrar los '+hoy.length+' vendajes de este día?\n\nNo se puede deshacer.',()=>vendBorrarDia(dk)))return;
+  /* v763 · sin pregunta: se borra y el aviso trae «Deshacer», que los devuelve con id nuevo */
+  const copia=JSON.parse(JSON.stringify(hoy));
   try{lsTumbarIds(VEND_LS,hoy.map(r=>String(r.id)));}catch(e){}
   V.reg=V.reg.filter(r=>hoy.indexOf(r)<0);
   vendPersist();renderFisio();
+  bmHecho('Borrados '+copia.length+(copia.length===1?' vendaje':' vendajes')+' del día',()=>{const W=vendLoad();
+    copia.forEach(r=>{if(!vendDe(r.dk,r.jugador,r.zona))W.reg.push(Object.assign({},r,{id:vendId(),upd:Date.now()}));});vendPersist();renderFisio();},'Deshecho · vuelven los vendajes del día');
 }
 window.vendCicla=vendCicla;window.vendSetCm=vendSetCm;window.vendSetCfg=vendSetCfg;
 window.vendCopiarUltimo=vendCopiarUltimo;window.vendBorrarDia=vendBorrarDia;
@@ -38564,8 +38590,13 @@ function calAjBox(dk){
 window.calAjBox=calAjBox;
 document.addEventListener('change',e=>{
   const sel=e.target&&e.target.closest&&e.target.closest('select.cal-aj-s');if(!sel)return;
-  const dk=sel.dataset.dk,n=sel.dataset.n;
+  const dk=sel.dataset.dk,n=sel.dataset.n;const antes=calAjDe(dk,n);
   try{calAjSet(dk,n,sel.value);}catch(err){console.error('bmnava · plan individual',err);return;}
+  /* v763 · deshacer */
+  bmHecho(n+': '+CAL_AJ[sel.value].lab.toLowerCase(),()=>{calAjSet(dk,n,antes);const s2=document.querySelector('select.cal-aj-s[data-dk="'+dk+'"][data-n="'+n.replace(/"/g,'\\"')+'"]');
+    if(s2){s2.value=antes;s2.dispatchEvent(new Event('bm-aj-sin',{bubbles:true}));const r=s2.closest('.cal-aj-r');if(r){r.classList.toggle('on',antes!=='n');const u=r.querySelector('.cal-aj-ua');if(u)u.textContent=calPlanUAJug(dk,n)+' UA';}
+      const box=s2.closest('.cal-aj');const sm=box&&box.querySelector('.cal-aj-sum');if(sm)sm.textContent=calAjResumen(dk);}
+    try{if(window.renderCalMicro)renderCalMicro();}catch(_){}},n+' vuelve a «'+CAL_AJ[antes].lab.toLowerCase()+'»');
   const r=sel.closest('.cal-aj-r');
   if(r){r.classList.toggle('on',sel.value!=='n');const u=r.querySelector('.cal-aj-ua');if(u)u.textContent=calPlanUAJug(dk,n)+' UA';}
   const box=sel.closest('.cal-aj');const sm=box&&box.querySelector('.cal-aj-sum');if(sm)sm.textContent=calAjResumen(dk);
@@ -40594,6 +40625,12 @@ document.addEventListener('keydown',e=>{
   const f=BMUNDO.fn,m=BMUNDO.msg;BMUNDO.fn=null;
   try{f();toast(m);}catch(err){console.error('bmnava · deshacer',err);toast('No se ha podido deshacer');}
 });
+/* v763 · Deshacer en vez de preguntar. Lo que se puede devolver sin perder
+   nada se hace al momento y el aviso trae «Deshacer» (en el ordenador, ⌘Z).
+   Lo que mueve dinero o borra para siempre sigue preguntando. Un registro
+   borrado que se devuelve nace con id nuevo: el suyo ya tiene tumba (§2.3.1). */
+function bmHecho(msg,fn,deshecho){toast(msg,{accion:'Deshacer',fn:fn,deshecho:deshecho||('Deshecho · '+msg)});}
+window.bmHecho=bmHecho;
 function toastOculta(){const t=document.getElementById('toast');if(!t)return;t.style.opacity='0';t.style.transform='translateX(-50%) translateY(10px)';t.style.pointerEvents='none';t.classList.remove('vis');}
 function bmToastGesto(t){let y0=null,dy=0;
   t.addEventListener('touchstart',e=>{if(!esMovil()||e.touches.length!==1||(e.target.closest&&e.target.closest('.toast-acc')))return;y0=e.touches[0].clientY;dy=0;t.style.setProperty('transition','none','important');},{passive:true});
