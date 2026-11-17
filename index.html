@@ -16130,7 +16130,7 @@ function bmJugLista(){
   if(!c){c=document.createElement('aside');c.id='bm-jl';c.setAttribute('aria-label','La plantilla');document.body.appendChild(c);
     c.addEventListener('click',e=>{
       const f=e.target.closest('.jl-f');
-      if(f){e.preventDefault();const n=f.dataset.n;if(n&&n!==STATE.curPlayer){const y=c.scrollTop;openPlayerYa(n);c.scrollTop=y;}return;}
+      if(f){e.preventDefault();const n=f.dataset.n;if(n&&n!==STATE.curPlayer){const y=c.scrollTop;/* v782 · por openPlayer: la foto vuela hasta la ficha */openPlayer(n);c.scrollTop=y;requestAnimationFrame(()=>{c.scrollTop=y;});setTimeout(()=>{c.scrollTop=y;},450);}return;}
       if(e.target.closest('.bmjl-fot')){const r=document.querySelector('#v-jugadores [data-fhk="fot"]');if(r)r.click();}
     });
     c.addEventListener('input',e=>{if(e.target.matches('.jl-q')){BMJL.q=e.target.value;bmJlFiltra(c);}});
@@ -21306,9 +21306,11 @@ const BMV={t:null,ts:0};
 document.addEventListener('pointerdown',e=>{BMV.t=e.target;BMV.ts=Date.now();},{capture:true,passive:true});
 function bmvFoto(){
   try{
-    if(!esMovil()||!document.startViewTransition||Date.now()-BMV.ts>900||!BMV.t||!BMV.t.closest)return null;
+    /* v782 · también en el ordenador (Daniel, 17/11/2026, propuesta 7), y
+       desde la plantilla que va al lado de la ficha (v696) */
+    if(!document.startViewTransition||Date.now()-BMV.ts>900||!BMV.t||!BMV.t.closest)return null;
     if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches)return null;
-    const c=BMV.t.closest('main [onclick*="openPlayer("]');if(!c)return null;
+    const c=BMV.t.closest('main [onclick*="openPlayer("],#bm-jl [data-n]');if(!c)return null;
     const im=(BMV.t.tagName==='IMG'&&c.contains(BMV.t))?BMV.t:c.querySelector('img');
     if(!im||!im.complete||!im.naturalWidth||!im.checkVisibility||!im.checkVisibility())return null;
     const r=im.getBoundingClientRect();if(r.width<20||r.bottom<0||r.top>window.innerHeight)return null;
@@ -52030,6 +52032,16 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
 /* v780 · Un punto en las pantallas que han traído algo nuevo al actualizar */
 #sidebar .sb-item.sb-nuevo>span::after,#tabbar .tb-i.sb-nuevo>span::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle;transform:translateY(-1px)}
 #sidebar .sb-item.sb-nuevo.on>span::after{background:var(--on-accent,#fff)}
+</style>
+<style id="esc-v782">
+/* v782 · ORDENADOR · La foto vuela hasta la ficha y el resto de la pantalla se funde, como Vista Rápida */
+@keyframes bmvtFuera{from{opacity:1}to{opacity:0}}
+@keyframes bmvtDentro{from{opacity:0}to{opacity:1}}
+@media screen and (min-width:761px) and (pointer:fine){
+  ::view-transition-old(root){animation:bmvtFuera .16s ease-out both;opacity:1}
+  ::view-transition-new(root){animation:bmvtDentro .22s ease-out both}
+  ::view-transition-group(bm-foto){animation-duration:.4s}
+}
 </style>
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
