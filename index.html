@@ -8779,16 +8779,30 @@ function syRepintar(){
   try{rerenderCurrent();}catch(e){}
 }
 let SY_PEDIENTE_REPINTAR=false;
+/* v797 · Lo que registra el equipo, dicho en el momento. Daniel, 17/11/2026,
+   propuesta 6. La app ya miraba el servidor cada 25 s, pero avisaba con un
+   genérico «Actualizado con lo que ha registrado el equipo». Ahora se hace la
+   foto de lo que hay antes de bajar (`bmActFoto`, la del botón «Actualizar»,
+   v780) y se dice qué ha entrado —«2 tratamientos · 1 nota»—, con el punto en
+   las secciones del menú donde está. Si la comparación no encuentra nada que
+   nombrar, queda el aviso de siempre. */
+let SY_ACT_ANTES=null;
 async function syMirar(){
   if(!SY.on||document.hidden)return;
   if(Object.keys(SY.pending).length)return;        // hay algo saliendo: no interrumpir
+  if(!SY_PEDIENTE_REPINTAR){try{SY_ACT_ANTES=window.bmActFoto?bmActFoto():null;}catch(e){SY_ACT_ANTES=null;}}
   let r=null;
   try{r=await syPull();}catch(e){return;}
   if(r&&r.n>0)SY_PEDIENTE_REPINTAR=true;
   if(SY_PEDIENTE_REPINTAR&&syPuedeRepintar()){
     SY_PEDIENTE_REPINTAR=false;
     syRepintar();
-    if(window.toast)toast('Actualizado con lo que ha registrado el equipo');
+    let msg='Actualizado con lo que ha registrado el equipo';
+    try{if(SY_ACT_ANTES&&window.bmActDif){const d=bmActDif(SY_ACT_ANTES,bmActFoto());
+      if(d&&d.txt&&d.txt!=='nada nuevo'){msg=/^del equipo: /.test(d.txt)?'El equipo ha registrado '+d.txt.replace(/^del equipo: /,''):'Ha entrado: '+d.txt;
+        try{bmActMarca(d.vistas||[]);}catch(e){}}}}catch(e){}
+    SY_ACT_ANTES=null;
+    if(window.toast)toast(msg);
   }
 }
 window.syMirar=syMirar;
