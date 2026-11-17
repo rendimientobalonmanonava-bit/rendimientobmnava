@@ -8534,37 +8534,81 @@ window.syBoot=async function(){
    están fijas arriba (SY_DEFAULT_URL/KEY); aquí solo se pide correo y
    contraseña. Se muestra una única vez por navegador: mientras el token siga
    siendo válido, en las siguientes visitas se pasa directo. */
+/* v794 · La pantalla de acceso, con la imagen del club. Daniel, 17/11/2026,
+   propuesta 3: es lo primero que ve cualquiera en un equipo nuevo, y el título
+   llevaba un balón de voleibol (🏐), los colores no eran los de la app y no
+   salía el escudo. Ahora: el escudo del 50 aniversario sobre el fondo de la
+   pantalla de arranque, el nombre, los campos como los de macOS e iOS, un
+   botón para ver la contraseña e Intro para pasar de campo y entrar. La forma
+   de entrar NO cambia: mismos ids, mismo `attempt`, misma sesión. Va siempre
+   en oscuro, como la pantalla de arranque, porque se ve antes que el tema. */
+const SY_GATE_CSS=`
+      #sy-gate{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px 16px calc(24px + env(safe-area-inset-bottom));overflow:auto;
+        background:radial-gradient(60% 45% at 30% 20%,rgba(48,86,196,.42),transparent 70%),radial-gradient(50% 45% at 78% 72%,rgba(28,150,160,.28),transparent 70%),radial-gradient(40% 35% at 55% 50%,rgba(201,162,39,.10),transparent 70%),#0b0d12;
+        font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;color:#f5f5f7;-webkit-font-smoothing:antialiased}
+      #sy-gate-box{width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;animation:syGateIn .5s cubic-bezier(.16,1,.3,1) both}
+      @keyframes syGateIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+      @media (prefers-reduced-motion:reduce){#sy-gate-box{animation:none}}
+      #sy-gate-escudo{height:112px;width:auto;margin:0 0 18px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+      #sy-gate-box h2{font-size:28px;font-weight:700;letter-spacing:-.01em;margin:0;color:#f5f5f7;text-align:center}
+      #sy-gate-box .syg-sub{font-size:14px;color:rgba(235,235,245,.62);margin:4px 0 26px;text-align:center}
+      #sy-gate-box .syg-tarjeta{width:100%;box-sizing:border-box;padding:22px 20px 18px;border-radius:18px;background:rgba(255,255,255,.06);
+        box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 24px 60px -20px rgba(0,0,0,.6);-webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%)}
+      #sy-gate-box label{display:block;font-size:13px;font-weight:500;color:rgba(235,235,245,.72);margin:0 0 6px;text-transform:none;letter-spacing:0}
+      #sy-gate-box input{width:100%;box-sizing:border-box;height:44px;padding:0 14px;margin:0 0 14px;border-radius:10px;border:none;outline:none;
+        background:rgba(118,118,128,.24);color:#f5f5f7;font:inherit;font-size:16px;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.08);transition:box-shadow .15s ease}
+      #sy-gate-box input::placeholder{color:rgba(235,235,245,.35)}
+      #sy-gate-box input:focus{box-shadow:inset 0 0 0 .5px rgba(255,255,255,.08),0 0 0 3px rgba(109,140,255,.55)}
+      #sy-gate-box .syg-pass{position:relative}
+      #sy-gate-box .syg-pass input{padding-right:48px}
+      #sy-gate-ver{position:absolute;right:4px;top:4px;width:36px;height:36px;border:none;border-radius:8px;background:none;color:rgba(235,235,245,.6);display:flex;align-items:center;justify-content:center;cursor:pointer}
+      #sy-gate-ver:hover{color:#f5f5f7;background:rgba(255,255,255,.08)}
+      #sy-gate-ver svg{width:20px;height:20px}
+      #sy-gate-btn{width:100%;height:46px;margin-top:4px;border:none;border-radius:11px;background:#3056c4;color:#fff;font:inherit;font-size:16px;font-weight:600;cursor:pointer;transition:background .15s ease,transform .1s ease}
+      #sy-gate-btn:hover{background:#2a4cb0}
+      #sy-gate-btn:active{transform:scale(.985)}
+      #sy-gate-btn:disabled{opacity:.55;cursor:default}
+      #sy-gate-btn:focus-visible,#sy-gate-ver:focus-visible{outline:3px solid rgba(109,140,255,.7);outline-offset:2px}
+      #sy-gate-err{color:#ff8a80;font-size:13px;margin-top:12px;min-height:18px;text-align:center}
+      #sy-gate-box .syg-pie{margin-top:22px;font-size:12px;color:rgba(235,235,245,.42);text-align:center}
+    `;
+const SY_GATE_OJO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
+const SY_GATE_OJO_NO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-3.2 3.8M6.1 7.6A16.6 16.6 0 0 0 2.5 12s3.5 6.5 9.5 6.5a9.4 9.4 0 0 0 4.4-1.1"/><path d="M9.9 9.9a2.8 2.8 0 0 0 4 4"/></svg>';
+function syGateHTML(){
+  return '<div id="sy-gate-box" role="dialog" aria-label="Acceso a BM Nava">'+
+      '<img id="sy-gate-escudo" alt="BM Nava" src="escudo.png" onerror="this.onerror=null;var s=(document.querySelector(\'.club-logo\')||{}).src||window.__LOGO_CLUB__;if(s)this.src=s;else this.remove();">'+
+      '<h2>BM Nava</h2>'+
+      '<p class="syg-sub">Control de cargas y rendimiento</p>'+
+      '<div class="syg-tarjeta">'+
+        '<label for="sy-gate-email">Correo</label>'+
+        '<input id="sy-gate-email" type="email" placeholder="nombre@correo.com" autocomplete="username" autocapitalize="off" spellcheck="false" enterkeyhint="next"/>'+
+        '<label for="sy-gate-pass">Contraseña</label>'+
+        '<div class="syg-pass"><input id="sy-gate-pass" type="password" placeholder="Contraseña" autocomplete="current-password" enterkeyhint="go"/>'+
+        '<button type="button" id="sy-gate-ver" aria-label="Mostrar la contraseña" title="Mostrar la contraseña">'+SY_GATE_OJO+'</button></div>'+
+        '<button id="sy-gate-btn">Entrar</button>'+
+        '<div id="sy-gate-err" role="alert"></div>'+
+      '</div>'+
+      '<p class="syg-pie">Acceso solo para el cuerpo técnico</p>'+
+    '</div>';
+}
+window.syGateVista=function(){/* para ver la pantalla en la copia de prueba */const st=document.createElement('style');st.textContent=SY_GATE_CSS;document.head.appendChild(st);const o=document.createElement('div');o.id='sy-gate';o.innerHTML=syGateHTML();document.body.appendChild(o);syGateExtras();return o;};
+function syGateExtras(){
+  const ver=document.getElementById('sy-gate-ver'),pw=document.getElementById('sy-gate-pass'),em=document.getElementById('sy-gate-email');
+  if(ver&&pw)ver.addEventListener('click',()=>{const vis=pw.type==='password';pw.type=vis?'text':'password';ver.innerHTML=vis?SY_GATE_OJO_NO:SY_GATE_OJO;
+    ver.setAttribute('aria-label',vis?'Ocultar la contraseña':'Mostrar la contraseña');ver.title=ver.getAttribute('aria-label');pw.focus();});
+  if(em&&pw)em.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();pw.focus();}});
+  setTimeout(()=>{try{if(em&&!em.value)em.focus();}catch(e){}},60);
+}
 function syShowGate(){
   return new Promise(resolve=>{
     if(document.getElementById('sy-gate')){resolve();return;}
-    const css=`
-      #sy-gate{position:fixed;inset:0;background:#0f172a;display:flex;align-items:center;justify-content:center;z-index:99999;font-family:'Inter',sans-serif;}
-      #sy-gate-box{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 25px 50px rgba(0,0,0,.5);}
-      #sy-gate-box h2{color:#f1f5f9;font-size:22px;font-weight:700;margin:0 0 4px;}
-      #sy-gate-box p{color:#94a3b8;font-size:13px;margin:0 0 28px;}
-      #sy-gate-box label{display:block;color:#cbd5e1;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
-      #sy-gate-box input{width:100%;box-sizing:border-box;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;color:#f1f5f9;font-size:14px;margin-bottom:16px;outline:none;}
-      #sy-gate-box input:focus{border-color:#6366f1;}
-      #sy-gate-btn{width:100%;background:#6366f1;color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:600;cursor:pointer;}
-      #sy-gate-btn:hover{background:#4f46e5;}
-      #sy-gate-btn:disabled{opacity:.5;cursor:not-allowed;}
-      #sy-gate-err{color:#f87171;font-size:13px;margin-top:12px;min-height:20px;text-align:center;}
-    `;
+    const css=SY_GATE_CSS;
     const style=document.createElement('style');style.textContent=css;document.head.appendChild(style);
     const overlay=document.createElement('div');
     overlay.id='sy-gate';
-    overlay.innerHTML=
-      '<div id="sy-gate-box">'+
-        '<h2>\ud83c\udfd0 BM Nava</h2>'+
-        '<p>Control de cargas \u00b7 Acceso restringido</p>'+
-        '<label>Correo</label>'+
-        '<input id="sy-gate-email" type="email" placeholder="daniel@bmnava.es" autocomplete="email"/>'+
-        '<label>Contrase\u00f1a</label>'+
-        '<input id="sy-gate-pass" type="password" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" autocomplete="current-password"/>'+
-        '<button id="sy-gate-btn">Entrar</button>'+
-        '<div id="sy-gate-err"></div>'+
-      '</div>';
+    overlay.innerHTML=syGateHTML();
     document.body.appendChild(overlay);
+    try{syGateExtras();}catch(e){}
 
     const showErr=t=>{const el=document.getElementById('sy-gate-err');if(el)el.textContent=t;};
     const setLoading=v=>{const b=document.getElementById('sy-gate-btn');if(b)b.disabled=v;};
