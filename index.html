@@ -10256,7 +10256,7 @@ const LS_VISTO={};
    copia antigua perdona las tumbas de lo que restaura: eso sí es resucitar a
    propósito. */
 const LS_TUMBAS='bmnava_tumbas';
-const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos|alertas)$/;
+const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos|alertas|notas)$/;
 /* v371 · Las sesiones de Polar se quedaban fuera del sistema de tumbas, así que
    borrar una no dejaba rastro: la fusión la conservaba desde la copia del
    servidor y volvía en cada actualización, una y otra vez. Sus registros no
@@ -10527,7 +10527,7 @@ function lsGuardar(clave,valor){
   }
 }
 /* Nombre legible de cada bloque, para que el aviso diga algo entendible. */
-const LS_NOMBRES={bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_calaj:'Plan individual',bmnava_caltpl:'Plantillas de microciclo',
+const LS_NOMBRES={bmnava_notas:'Notas en los gráficos',bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_calaj:'Plan individual',bmnava_caltpl:'Plantillas de microciclo',
   bmnava_sessdur:'Duraciones de sesión',bmnava_asist:'Asistencia',bmnava_info:'Datos personales',
   bmnava_meddb:'Médico',bmnava_med:'Ficha médica',bmnava_medlog:'Agenda médica',
   bmnava_physio:'Fisioterapia',bmnava_physiodict:'Diccionario de fisioterapia',
@@ -10554,7 +10554,7 @@ function lsNombre(k){return LS_NOMBRES[k]||LS_NOMBRES_INT[k]||k;}
    sincronización: la sincronización reparte el estado actual entre el staff,
    pero no guarda historia, así que si un bloque se vacía se vacía para todos.
    Esto es lo que permite volver atrás. */
-const BKP_CLAVES=['bmnava_cal','bmnava_calmeta','bmnava_calaj','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
+const BKP_CLAVES=['bmnava_notas','bmnava_cal','bmnava_calmeta','bmnava_calaj','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
   'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto','bmnava_vendajes','bmnava_nutri',
   /* v504 · volumen de gimnasio de BuilderPro. Se teclea fuera de la app y se
@@ -10736,6 +10736,7 @@ function invRender(){
     {k:'bmnava_hr',       lab:'Sesiones de Polar',                 porMes:false},
     {k:'bmnava_testlog',  lab:'Valoraciones físicas',              porMes:false},
     {k:'bmnava_caltpl',   lab:'Plantillas de microciclo',          porMes:false},
+    {k:'bmnava_notas',    lab:'Notas en los gráficos',             porMes:false},
     {k:'bmnava_fisiotpl', lab:'Plantillas de fisioterapia',        porMes:false},
     {k:'bmnava_photos',   lab:'Fotos',                             porMes:false},
     {k:'bmnava_info',     lab:'Datos personales',                  porMes:false}
@@ -14193,6 +14194,7 @@ function bmbIndice(){
   if(!esMovil())A('Presentar','Pantalla completa para la reunión o la tele del vestuario',()=>{if(window.bmPresentar)bmPresentar();},'presentacion pantalla completa reunion tele vestuario');
   A('Recordatorio del parte','Copia «Falta el cuestionario de wellness de hoy: …» para el grupo',()=>{if(window.bmRecordatorio)bmRecordatorio('well');},'recordatorio wellness parte whatsapp grupo faltan');
   A('Datos que faltan','Días sin minutos, partidos sin minutos jugados y cuestionarios pendientes',()=>{if(window.bmFaltan)bmFaltan();},'faltan pendientes huecos completar');
+  A('Añadir una nota','Apunta algo en un día: sale como marca en los gráficos de ese día',()=>{if(window.bmNota)bmNota();},'nota apunte anotar comentario viaje fiebre incidencia grafico');
   A('Planificar con lo habitual','La sesión habitual de cada día del ciclo, para los días vacíos',()=>{if(window.bmHabitual)bmHabitual();},'planificar ciclo microciclo semana habitual rellenar plantilla');
   A('Desde tu última visita','Lo que ha entrado desde la última vez en este equipo',()=>{if(window.bmDesdeVisita)bmDesdeVisita();},'novedades cambios nuevo');
   A('Informe del jugador','Su mes: carga, recuperación, ACWR, minutos, pruebas y salud, para la reunión',()=>{if(window.bmInformeJugador)bmInformeJugador();},'informe reunion jugador mes');
@@ -14373,14 +14375,14 @@ function bmlpMenu(x){
         +(window.openFisioReg?fila(BMLP_IC.trat,'Registrar en fisioterapia','Tratamiento, vendaje o parte','trat'):'')
         +(window.openHeroForm?fila(BMLP_IC.cita,'Cita o documento médico','','cita'):'')
       +'</div>';
-    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),carta:()=>bmCarta(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),carta:()=>bmCarta(n),nota:()=>bmNota(dkey(new Date()),n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
   }else{
     const p=x.dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]),pas=x.dk<=dkey(new Date());
     tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
     h='<div class="bmh-grupo">'+fila(BMLP_IC.lapiz,'Planificar o editar el día','Sesiones, partido, datos reales','edita')
       +(pas?fila(BMLP_IC.ojo,'Ver ese día','Cambia el día que se está viendo y abre el Resumen','ver'):'')
       +(window.bmHabitual&&x.dk>=dkey(new Date())?fila(BMLP_IC.lapiz,'Planificar el ciclo con lo habitual','La sesión habitual de cada día vacío','hab'):'')+'</div>';
-    acc={edita:()=>calOpenDay(x.dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=x.dk;setRefDate(x.dk);go('equipo');},hab:()=>bmHabitual(x.dk)};
+    acc={edita:()=>calOpenDay(x.dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=x.dk;setRefDate(x.dk);go('equipo');},hab:()=>bmHabitual(x.dk),nota:()=>bmNota(x.dk)};
   }
   /* v599 · Con vista previa, como en iOS. Si algo falla al montarla, la hoja de siempre. */
   try{if(bmPrevia(x,acc))return;}catch(err){console.error('bmnava · vista previa',err);}
@@ -14444,6 +14446,7 @@ function bmPrevia(x,acc){
       +(window.bmComparar?fila('cmp',BMLP_IC.ficha,'Comparar con…'):'')
       +(window.bmInformeJugador?fila('inf',BMLP_IC.parte,'Informe del mes'):'')
       +(window.bmCarta?fila('carta',BMLP_IC.ficha,'Carta del jugador'):'')
+      +(window.bmNota?fila('nota',BMLP_IC.parte,'Añadir una nota'):'')
       +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
       +(window.ojoMarcar?fila('ojo',BMLP_IC.ojo,'Ojo hoy'):'')
       +(window.openFisioReg?fila('trat',BMLP_IC.trat,'Registrar en fisioterapia'):'')
@@ -14458,7 +14461,8 @@ function bmPrevia(x,acc){
     lab=wdL[i]+' '+d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase();
     tarjeta='<div class="bmp-tarjeta bmp-d" data-a="edita"><div class="bmp-d-h">'+E(lab)+'</div><div class="bmp-d-c">'+col.replace(/\sonclick="[^"]*"/,'')+'</div></div>';
     menu=fila('edita',BMLP_IC.lapiz,'Planificar o editar el día')+(pas?fila('ver',BMLP_IC.ojo,'Ver ese día'):'')
-      +(window.bmHabitual&&x.dk>=dkey(new Date())?fila('hab',BMLP_IC.lapiz,'Planificar el ciclo con lo habitual'):'');
+      +(window.bmHabitual&&x.dk>=dkey(new Date())?fila('hab',BMLP_IC.lapiz,'Planificar el ciclo con lo habitual'):'')
+      +(window.bmNota&&pas?fila('nota',BMLP_IC.parte,'Notas del día'):'');
   }
   v._acc=acc;if(x.t==='j'&&!esMovil())v._acc=Object.assign({},acc,{nueva:()=>bmAbreVentana(bmUrlDe('jugador',x.n))});v.setAttribute('aria-label',lab);
   v.innerHTML='<div class="bmp-caja">'+tarjeta+'<div class="bmp-menu" role="menu">'+menu+'</div></div>';
@@ -14568,7 +14572,7 @@ function bmCtxMac(x,cx,cy){
   const I=BMLP_IC;let it=[];
   if(x.t==='j'){
     const n=x.n;
-    const acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),carta:()=>bmCarta(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    const acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),carta:()=>bmCarta(n),nota:()=>bmNota(dkey(new Date()),n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
     it.push({h:n});
     it.push({t:'Ver la ficha',ic:I.ficha,f:acc.ficha});
     it.push({t:'Abrir en una ventana nueva',ic:'',k:'⌘ clic',f:()=>bmAbreVentana(bmUrlDe('jugador',n))});
@@ -14576,6 +14580,7 @@ function bmCtxMac(x,cx,cy){
     if(window.bmComparar)it.push({t:'Comparar con…',ic:'',f:acc.cmp});
     if(window.bmInformeJugador)it.push({t:'Informe del mes',ic:'',f:()=>bmInformeJugador(n)});
     if(window.bmCarta)it.push({t:'Carta del jugador',ic:'',f:()=>bmCarta(n)});
+    if(window.bmNota)it.push({t:'Añadir una nota…',ic:'',tit:'De hoy, sale como marca en sus gráficos',f:()=>bmNota(dkey(new Date()),n)});
     it.push({sep:1});
     if(window.openHeroForm)it.push({t:'Parte del día',ic:I.parte,tit:'Dolor, tratamiento o incidencia',f:acc.parte});
     if(window.ojoMarcar)it.push({t:'Ojo hoy',ic:I.ojo,tit:'Avisar de que hay que valorarlo',f:acc.ojo});
@@ -14584,7 +14589,7 @@ function bmCtxMac(x,cx,cy){
     if(window.bmSegExtra)it=it.concat(bmSegExtra(n));
   }else{
     const dk=x.dk,hoy=dkey(new Date()),pas=dk<=hoy;
-    const acc={edita:()=>calOpenDay(dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=dk;setRefDate(dk);go('equipo');},hab:()=>bmHabitual(dk)};
+    const acc={edita:()=>calOpenDay(dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=dk;setRefDate(dk);go('equipo');},hab:()=>bmHabitual(dk),nota:()=>bmNota(dk)};
     const d=dkToDate(dk);let tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
     it.push({h:tit});
     it.push({t:'Planificar o editar el día',ic:I.lapiz,f:acc.edita});
@@ -14592,6 +14597,7 @@ function bmCtxMac(x,cx,cy){
     let plan=false;try{plan=pas&&calBloquesPlan(dk).size>0;}catch(e){}
     if(plan&&window.bmCierre)it.push({t:'Cerrar la sesión…',ic:I.cita,tit:'Minutos de cada bloque y quién entrenó',f:()=>bmCierre(dk)});
     if(dk>=hoy&&window.bmHabitual)it.push({t:'Planificar el ciclo con lo habitual…',ic:I.lapiz,tit:'La sesión habitual de cada día del ciclo, para los días vacíos',f:()=>bmHabitual(dk)});
+    if(pas&&window.bmNota){const nn=notasDe(dk,null).length;it.push({t:nn?'Notas del día ('+nn+')…':'Añadir una nota…',ic:'',tit:'Sale como marca en los gráficos de ese día',f:()=>bmNota(dk)});}
     /* v762 · copiar y pegar el día */
     const nEv=((STATE.calendar||{})[dk]||[]).length;
     if(nEv||(BMCA&&BMCA.clip))it.push({sep:1});
@@ -20081,6 +20087,151 @@ function bmGrafImagen(c){
   const nom=(tit||'grafico').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40)||'grafico';
   return {cv:o,nombre:nom+'_'+dkey(d)+'.png'};
 }
+/* ═══ v767 · Notas en los gráficos ═══
+   Daniel, 17/11/2026, eligió la propuesta 7: apuntar algo en un día —del equipo
+   o de un jugador: «viaje de 6 h», «jugó con fiebre», «cambio de pista»— y que
+   salga como marca en los gráficos de días de ese día. Cuando dentro de un mes
+   se vea un pico raro, el motivo está escrito al lado.
+   · Almacén propio, `bmnava_notas`: una lista de {id, dk, jugador, txt, quien,
+     upd}. `jugador` vacío = del equipo. Va registrado en las cuatro listas
+     (§9): tumbas, copia, nombres e inventario; la sincronización entra sola.
+   · Dónde sale: en los gráficos de DÍAS (Chart.js) una raya discontinua con un
+     punto arriba, y la nota en el globo de ese día; en «Su temporada» de la
+     ficha y en la fila de cada día del Dashboard de cargas. En un gráfico del
+     equipo, las notas del equipo; en uno de un jugador, las suyas y las del
+     equipo.
+   · Un gráfico es «de días» si sus etiquetas se leen como fechas, van en
+     orden y entre una y otra hay como mucho cuatro días: así entran también
+     los de sesión a sesión y no los de semanas.
+   · No sale en el Resumen ni en el Calendario —Daniel los quiere como están—
+     ni en los documentos que se exportan.
+   · El texto es libre y se escapa siempre al pintarlo (§4.2). */
+const NOTAS_K='bmnava_notas';
+const NOTAS_FUERA=BMG_DOC+',#v-equipo,#v-cal';
+const NOTAS_H={dk:null,jug:null};
+function notasLoad(){if(!Array.isArray(STATE.notas))STATE.notas=lsLeer(NOTAS_K,[]);if(!Array.isArray(STATE.notas))STATE.notas=[];return STATE.notas;}
+function notasPersist(){return lsGuardar(NOTAS_K,STATE.notas||[]);}
+/* jug null → las del equipo; jug → las del equipo y las suyas */
+function notasDe(dk,jug){return notasLoad().filter(x=>x&&x.dk===dk&&(!x.jugador||(jug&&x.jugador===jug)));}
+function bmnRefresca(){
+  try{if(window.Chart&&Chart.instances)Object.values(Chart.instances).forEach(c=>{try{c.draw();}catch(e){}});}catch(e){}
+  try{rerenderCurrent();}catch(e){}
+  try{if(document.querySelector('#bmh-notas.on'))bmnPinta();}catch(e){}
+}
+function bmnDks(ch){
+  const labs=(ch&&ch.data&&ch.data.labels)||[];if(labs.length<2)return null;
+  const key=labs.length+'|'+labs[0]+'|'+labs[labs.length-1];
+  if(ch.$bmn&&ch.$bmn.key===key)return ch.$bmn.dks;
+  const ref=(typeof REF==='function'?REF():new Date()),p2=n=>String(n).padStart(2,'0');
+  const parse=l=>{
+    if(Array.isArray(l))l=l.join(' ');l=String(l==null?'':l).trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(l))return l;
+    let d=null,mo=null,m=l.match(/(?:^|\s)(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+    if(m){d=+m[1];mo=+m[2];if(m[3]){let y=+m[3];if(y<100)y+=2000;return (mo>=1&&mo<=12&&d>=1&&d<=31)?y+'-'+p2(mo)+'-'+p2(d):null;}}
+    else{m=l.match(/^(\d{2})-(\d{2})$/);if(m){mo=+m[1];d=+m[2];}}
+    if(!d||!mo||mo>12||d>31)return null;
+    let best=null;[ref.getFullYear()-1,ref.getFullYear(),ref.getFullYear()+1].forEach(y=>{const t=new Date(y,mo-1,d),df=t-ref;if(df>120*864e5)return;if(!best||Math.abs(df)<Math.abs(best.df))best={t,df};});
+    return best?dkey(best.t):null;
+  };
+  const dks=labs.map(parse),ok=dks.filter(Boolean);let res=null;
+  if(ok.length>=Math.max(2,labs.length*0.8)){
+    let crece=true;const gaps=[];
+    for(let i=1;i<dks.length;i++){if(!dks[i]||!dks[i-1])continue;const g=(dkToDate(dks[i])-dkToDate(dks[i-1]))/864e5;if(g<=0){crece=false;break;}gaps.push(g);}
+    gaps.sort((a,b)=>a-b);const med=gaps.length?gaps[gaps.length>>1]:99;
+    if(crece&&med<=4)res=dks;
+  }
+  ch.$bmn={key,dks:res};return res;
+}
+function bmnJug(cv){
+  if(!cv||!cv.closest)return null;
+  if(cv.closest('#v-jugador'))return STATE.curPlayer||null;
+  if(cv.closest('#hrp-body')){const s=document.getElementById('hrp-player');return (s&&s.value)||null;}
+  return null;
+}
+const bmNotasPlugin={id:'bmNotas',
+  beforeInit(ch){try{
+    const o=ch.config.options||(ch.config.options={});o.plugins=o.plugins||{};
+    const t=o.plugins.tooltip=o.plugins.tooltip||{};const cb=t.callbacks=t.callbacks||{};
+    if(cb.footer&&cb.footer.__bmn)return;
+    const prev=cb.footer;
+    const f=function(items){
+      const r=prev?prev.apply(this,arguments):undefined;
+      try{const it=items&&items[0],c=it&&it.chart;if(!c||!notasLoad().length)return r;
+        if(c.canvas.closest(NOTAS_FUERA))return r;
+        const dks=bmnDks(c),dk=dks&&dks[it.dataIndex];if(!dk)return r;
+        const ns=notasDe(dk,bmnJug(c.canvas));if(!ns.length)return r;
+        const ls=ns.map(n=>{const s=(n.jugador?cvCorto(n.jugador)+': ':'')+n.txt;return '✎ '+(s.length>70?s.slice(0,68)+'…':s);});
+        return [].concat(r==null||r===''?[]:r,ls);
+      }catch(e){return r;}};
+    f.__bmn=true;cb.footer=f;
+  }catch(e){}},
+  afterDatasetsDraw(ch){try{
+    if(!notasLoad().length)return;
+    const cv=ch.canvas;if(!cv||!cv.closest||cv.closest(NOTAS_FUERA))return;
+    const dks=bmnDks(ch);if(!dks)return;
+    const xs=ch.scales&&ch.scales.x,A=ch.chartArea;if(!xs||!A)return;
+    const jug=bmnJug(cv),ctx=ch.ctx;
+    const col=(getComputedStyle(cv).getPropertyValue('--txt')||'').trim()||'#1d1d1f';
+    dks.forEach((dk,i)=>{if(!dk||!notasDe(dk,jug).length)return;
+      const x=xs.getPixelForValue(i);if(!(x>=A.left-1&&x<=A.right+1))return;
+      ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;ctx.globalAlpha=.42;ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(x,A.top+9);ctx.lineTo(x,A.bottom);ctx.stroke();
+      ctx.setLineDash([]);ctx.globalAlpha=.9;ctx.beginPath();ctx.arc(x,A.top+4,4,0,Math.PI*2);ctx.fill();ctx.restore();});
+  }catch(e){}}
+};
+/* la hoja de notas de un día */
+function bmNota(dk,jug){
+  notasLoad();
+  NOTAS_H.dk=dk||dkey(new Date());NOTAS_H.jug=(jug&&(STATE.players||{})[jug])?jug:null;
+  bmHoja({id:'notas',titulo:'Notas del día',html:'<div class="bnt" id="bnt-cuerpo"></div>',clase:'bm-nth'});
+  bmnPinta(true);
+}
+function bmnPinta(foco){
+  const box=document.getElementById('bnt-cuerpo');if(!box||!NOTAS_H.dk)return;
+  const E=bmEsc,dk=NOTAS_H.dk,hoy=dkey(new Date());
+  const ns=notasLoad().filter(x=>x&&x.dk===dk).sort((a,b)=>(a.jugador?1:0)-(b.jugador?1:0)||(a.upd||0)-(b.upd||0));
+  const hora=t=>{if(!t)return '';const d=new Date(t);return d.getDate()+'/'+(d.getMonth()+1)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const borrador=(box.querySelector('.bnt-t')||{}).value||'';
+  box.innerHTML='<div class="bci-nav"><button type="button" class="inf-fl" data-bnt="-1" aria-label="Día anterior">‹</button><b>'+E(bmciTit(dk))+(dk===hoy?' · hoy':'')+'</b>'
+      +'<button type="button" class="inf-fl" data-bnt="1" aria-label="Día siguiente"'+(dk>=hoy?' disabled':'')+'>›</button></div>'
+    +'<div class="bnt-l">'+(ns.length?ns.map(n=>'<div class="bnt-r"><span class="bnt-q">'+(n.jugador?E(n.jugador):'Equipo')+'</span><p>'+E(n.txt)+'</p>'
+        +'<small>'+E([n.quien||'',hora(n.upd)].filter(Boolean).join(' · '))+'</small>'
+        +'<button type="button" class="bnt-x" data-bnt-x="'+E(n.id)+'" aria-label="Borrar esta nota">'+BMH_X+'</button></div>').join('')
+      :'<p class="bnt-nada">Ninguna nota este día.</p>')+'</div>'
+    +'<div class="bnt-f"><textarea class="bnt-t" maxlength="200" rows="2" placeholder="Viaje de 6 h, jugó con fiebre, cambio de pista…" aria-label="Texto de la nota">'+E(borrador)+'</textarea>'
+    +'<div class="bnt-fr"><select class="bnt-s" aria-label="De quién es la nota"><option value="">Todo el equipo</option>'
+      +noms.map(x=>'<option'+(x===NOTAS_H.jug?' selected':'')+'>'+E(x)+'</option>').join('')+'</select>'
+    +'<button type="button" class="btn" data-bnt="ok">Añadir nota</button></div></div>'
+    +'<p class="small muted bnt-pie">Sale como una marca en los gráficos de días de ese día, con la nota en el globo. En los del equipo, las del equipo; en los de un jugador, las suyas y las del equipo. No sale en el Resumen ni en el Calendario.</p>';
+  if(foco)setTimeout(()=>{const t=box.querySelector('.bnt-t');try{t&&t.focus({preventScroll:true});}catch(e){}},80);
+}
+function bmnAnade(){
+  const box=document.getElementById('bnt-cuerpo');if(!box)return;
+  const t=box.querySelector('.bnt-t'),s=box.querySelector('.bnt-s');const txt=String(t&&t.value||'').replace(/\s+/g,' ').trim();
+  if(!txt){try{t.focus();}catch(e){}return;}
+  const jug=(s&&s.value)||'';
+  const n={id:'nt_'+Date.now()+'_'+Math.round(Math.random()*99999),dk:NOTAS_H.dk,jugador:jug,txt:txt.slice(0,200),quien:(typeof alvQuien==='function'?alvQuien():''),upd:Date.now()};
+  notasLoad().push(n);
+  if(!notasPersist()){STATE.notas=STATE.notas.filter(x=>x!==n);toast('No se pudo guardar');return;}
+  t.value='';NOTAS_H.jug=jug||null;
+  bmnRefresca();
+  toast('Nota apuntada · '+bmciTit(n.dk).toLowerCase());
+}
+function bmnBorra(id){
+  const L=notasLoad(),i=L.findIndex(x=>x&&x.id===id);if(i<0)return;
+  const n=L[i];L.splice(i,1);notasPersist();bmnRefresca();
+  bmHecho('Nota borrada',()=>{notasLoad().push(Object.assign({},n,{id:'nt_'+Date.now()+'_'+Math.round(Math.random()*99999),upd:Date.now()}));notasPersist();bmnRefresca();},'Deshecho · la nota vuelve');
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-notas [data-bnt],#bmh-notas [data-bnt-x]');if(!b||b.disabled)return;
+  if(b.dataset.bntX){bmnBorra(b.dataset.bntX);return;}
+  const v=b.dataset.bnt;if(v==='ok'){bmnAnade();return;}
+  const d=dkToDate(NOTAS_H.dk);d.setDate(d.getDate()+(+v));const k=dkey(d);if(k>dkey(new Date()))return;NOTAS_H.dk=k;bmnPinta();});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&e.target&&e.target.matches&&e.target.matches('#bmh-notas .bnt-t')){e.preventDefault();bmnAnade();}});
+/* la nota en una línea, para listas */
+function bmnLinea(dk,jug){const ns=notasDe(dk,jug);if(!ns.length)return '';
+  return '<span class="bm-nota-l">✎ '+ns.map(n=>bmEsc((n.jugador&&n.jugador!==jug?cvCorto(n.jugador)+': ':'')+n.txt)).join(' · ')+'</span>';}
+window.bmNota=bmNota;window.notasDe=notasDe;window.bmnLinea=bmnLinea;
 document.addEventListener('contextmenu',e=>{
   if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino()))return;
   const c=e.target&&e.target.closest&&e.target.closest('canvas');if(!c||!window.Chart||!Chart.getChart(c))return;
@@ -20095,6 +20246,11 @@ document.addEventListener('contextmenu',e=>{
   if(copia)it.push({t:'Copiar el gráfico',ic:'',k:'',f:()=>hazlo('copia')});
   it.push({t:'Guardar como imagen',ic:'',f:()=>hazlo('guarda')});
   it.push({t:'Ver y compartir…',ic:'',f:()=>hazlo('ver')});
+  /* v767 · apuntar una nota en el día que hay bajo el ratón */
+  try{if(!c.closest(NOTAS_FUERA)){const ch=Chart.getChart(c),dks=bmnDks(ch);
+    if(dks){const el=ch.getElementsAtEventForMode(e,'index',{intersect:false},false);const dk=el&&el.length?dks[el[0].index]:null;
+      if(dk&&dk<=dkey(new Date())){const j=bmnJug(c),n=notasDe(dk,j).length;it.push({sep:1});
+        it.push({t:(n?'Notas del '+bmciTit(dk).toLowerCase()+' ('+n+')…':'Añadir una nota el '+bmciTit(dk).toLowerCase()+'…'),ic:'',f:()=>bmNota(dk,j)});}}}}catch(err){}
   bmMenuMac(it,{x:e.clientX,y:e.clientY},{de:'graf',etiqueta:'Gráfico'});
 });
 /* v590 · Enseñar lo que no se ve. Mantener pulsado, deslizar una fila, tirar
@@ -21715,6 +21871,7 @@ function buildChartTheme(){
     if(!Chart.registry.plugins.get('bmDir'))Chart.register(bmdPlugin);
     if(!Chart.registry.plugins.get('bmEjes'))Chart.register(bmEjesPlugin);
     if(!Chart.registry.plugins.get('bmMacGraf'))Chart.register(bmMacGrafPlugin);
+    if(!Chart.registry.plugins.get('bmNotas'))Chart.register(bmNotasPlugin);
   }
 }
 buildChartTheme();
@@ -21800,6 +21957,9 @@ function renderPlTemporada(name){
   ds.forEach((dk,i)=>{const x=par[dk];if(!x)return;const cx=X(i)+bw/2;
     g+='<path d="M'+cx.toFixed(1)+','+(yP-6)+' l5,6 l-5,6 l-5,-6 z" fill="'+(x.min!=null?'var(--accent)':'var(--panel)')+'" stroke="var(--accent)" stroke-width="1.4"/>';
     if(x.min!=null)g+='<text x="'+cx.toFixed(1)+'" y="'+(yP+17)+'" text-anchor="middle" font-size="9.5" font-weight="600" fill="var(--muted)">'+Math.round(x.min)+'′</text>';});
+  /* v767 · notas: un punto arriba en los días con nota (del equipo o suyas) */
+  const nts={};try{ds.forEach(dk=>{const n=notasDe(dk,name);if(n.length)nts[dk]=n;});}catch(e){}
+  ds.forEach((dk,i)=>{if(!nts[dk])return;const cx=(X(i)+bw/2).toFixed(1);g+='<line x1="'+cx+'" y1="12" x2="'+cx+'" y2="'+(yW+hW)+'" stroke="var(--txt)" stroke-width="1" stroke-dasharray="2 3" opacity=".35"/><circle cx="'+cx+'" cy="9" r="3.6" fill="var(--txt)" opacity=".85"/>';});
   /* rótulos */
   const rot=(y,t)=>'<text x="0" y="'+y+'" font-size="10.5" font-weight="700" fill="var(--muted)" letter-spacing=".4">'+t+'</text>';
   g+=rot(yW+hW/2+4,'CARGA SEMANAL')+rot(yA+hA/2+4,'ACWR')+rot(yR+hR-1,'RECUPERACIÓN')+rot(yP+4,'PARTIDOS');
@@ -21832,7 +21992,7 @@ function renderPlTemporada(name){
   const ley='<div class="pltp-ley"><span><i class="pltp-sw" style="background:var(--c-data,var(--accent))"></i>Carga de la semana</span><span><i class="pltp-sw" style="background:var(--warn)"></i>Salto de más del '+Math.round(WJ)+' %</span>'
     +'<span><i class="pltp-sw" style="background:var(--ok);opacity:.35"></i>Banda del ACWR</span><span><i class="pltp-sw" style="background:var(--bad);opacity:.35"></i>Día fuera</span><span><i class="pltp-sw" style="background:var(--warn);opacity:.35"></i>Con molestia</span><span><i class="pltp-sw pltp-rombo"></i>Partido · minutos</span></div>';
   box.innerHTML='<div class="panel pltp"><h2>Su temporada <span class="r muted">desde el 1 de julio · '+N+' días</span></h2>'+ks
-    +'<div class="pltp-lee" aria-live="polite">Pasa por el gráfico para ver cada día.</div>'
+    +'<div class="pltp-lee" aria-live="polite">Pasa por el gráfico para ver cada día; haz clic en uno para apuntar una nota.</div>'
     +'<div class="pltp-gr"><svg class="pltp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Su temporada: carga semanal, ACWR, recuperación y partidos">'+g+'</svg></div>'+ley+antes+'</div>';
   /* la lectura de cada día */
   const svg=box.querySelector('.pltp-svg'),lee=box.querySelector('.pltp-lee'),cur=box.querySelector('.pltp-cur');
@@ -21845,12 +22005,16 @@ function renderPlTemporada(name){
     t.push(r!=null&&!isNaN(r)?'recuperación <b style="color:'+colTexto('var(--'+recSev(r)+')')+'">'+Math.round(r)+' %</b>':'sin parte');
     if(e)t.push('<b style="color:'+colTinta(e.c)+'">'+esc(e.lab+(e.z?' · '+e.z:''))+'</b>');
     if(x)t.push('Partido · '+esc(x.riv)+(x.min!=null?' · '+Math.round(x.min)+' min':''));
+    if(nts[dk])t.push('<b>✎ '+nts[dk].map(n=>esc((n.jugador?'':'Equipo: ')+n.txt)).join(' · ')+'</b>');
     lee.innerHTML=t.join(' · ');
     const cx=X(i)+bw/2;cur.setAttribute('x1',cx);cur.setAttribute('x2',cx);cur.setAttribute('opacity','.35');};
   const aIdx=ev=>{const r=svg.getBoundingClientRect();const pt=(ev.touches&&ev.touches[0])||ev;const x=(pt.clientX-r.left)/r.width*W;return Math.floor((x-pl)/bw);};
   const mueve=ev=>{const i=aIdx(ev);if(i<0||i>=N)return;lectura(i);};
   svg.addEventListener('mousemove',mueve);svg.addEventListener('touchstart',mueve,{passive:true});svg.addEventListener('touchmove',mueve,{passive:true});
   svg.addEventListener('mouseleave',()=>{cur.setAttribute('opacity','0');});
+  /* v767 · clic en un día: sus notas */
+  svg.addEventListener('click',ev=>{const i=aIdx(ev);if(i<0||i>=N||!window.bmNota)return;bmNota(ds[i],name);});
+  svg.style.cursor='pointer';
   lectura(N-1);cur.setAttribute('opacity','0');
   try{const gr=box.querySelector('.pltp-gr');if(gr&&gr.scrollWidth>gr.clientWidth)gr.scrollLeft=gr.scrollWidth;}catch(e){}
 }
@@ -25877,8 +26041,10 @@ function renderCargaResumen(){
     const part=/partido|competi/i.test(d.tipo||'');
     const cab=(sub)=>`<span class="cg-d14-d"><b>${DIA[d.date.getDay()]} ${dmy(d.date)}</b>`
       +`${sub?`<em>${sub}</em>`:''}</span>`;
+    /* v767 · la nota del equipo de ese día, debajo */
+    const nota=(()=>{try{const ns=notasDe(d.dk,null);return ns.length?`<i class="bm-nota-l">✎ ${ns.map(n=>esc(n.txt)).join(' · ')}</i>`:'';}catch(e){return '';}})();
     if(d.vacio)return `<div class="cg-d14 cg-r--off">${cab('')}`
-      +`<span class="cg-d14-ses">Libre o sin registro</span></div>`;
+      +`<span class="cg-d14-ses">Libre o sin registro${nota}</span></div>`;
     const niv=(d.dk in nivDia)?nivDia[d.dk]:null;
     const v=uaEsc>0?Math.max(0,Math.min(1,d.ua/uaEsc)):0;
     /* `mdx` llega como «—» cuando no hay partido de referencia, así que no
@@ -25908,7 +26074,7 @@ function renderCargaResumen(){
         <span><em>Monotonía</em>${n2(d.mono)}</span>
         <span><em>Fatiga</em>${n0(d.strain)}</span>
         <span><em>Aguda</em>${n0(d.aguda)}</span>
-        <span><em>Crónica</em>${n0(d.cronica)}</span>
+        <span><em>Crónica</em>${n0(d.cronica)}</span>${nota}
       </span>
     </div>`;}).join('');
 
@@ -33308,7 +33474,7 @@ window.rfIdle=rfIdle;
 function syInvalidateAppCaches(){
   STATE.med=null;STATE.medInfo=null;STATE.medLog=null;
   STATE.calendar=null;STATE.calMeta=null;STATE.calAj=null;STATE.calTpl=null;STATE.sessDur=null;STATE.asist=null;
-  STATE.quadrants=null;STATE.testLog=null;STATE.physioDict=null;STATE.physioUser=null;
+  STATE.quadrants=null;STATE.testLog=null;STATE.physioDict=null;STATE.physioUser=null;STATE.notas=null;
   if(window.phResetCache)phResetCache();
   if(window.lbResetBias)lbResetBias();
   try{hrLoadSaved();}catch(e){}
@@ -41151,6 +41317,7 @@ function bmTbMenu(e){
     {t:'Cerrar la sesión…',f:()=>{try{bmCierre();}catch(err){}}},
     {t:'Datos que faltan…',f:()=>{try{bmFaltan();}catch(err){}}},
     {t:'Planificar con lo habitual…',f:()=>{try{bmHabitual();}catch(err){}}},
+    {t:'Añadir una nota…',f:()=>{try{bmNota();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Qué hay de nuevo…',f:()=>{try{bmNovedadesMac();}catch(err){}}},
     {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
@@ -51177,6 +51344,32 @@ html.bpr-on body{overflow:hidden}
   .cj-nav select{min-height:44px;flex:1;max-width:none}
   .cj-nav{flex-wrap:nowrap}
   .cj-nav .bm-jsel{flex:1 1 auto;min-width:0;width:auto;margin:0}
+}
+</style>
+<style id="bm-v767">
+/* v767 · Notas en los gráficos */
+.bnt-l{border-top:.5px solid var(--line);margin:0 0 12px}
+.bnt-r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 0;border-bottom:.5px solid var(--line)}
+.bnt-q{grid-column:1;font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.bnt-r p{grid-column:1;margin:0;font-size:14px;line-height:1.4;color:var(--txt);overflow-wrap:anywhere}
+.bnt-r small{grid-column:1;font-size:11.5px;color:var(--muted)}
+.bnt-x{grid-column:2;grid-row:1/4;align-self:center;width:30px;height:30px;border-radius:50%;border:0;background:var(--panel2);color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0}
+.bnt-x svg{width:12px;height:12px}
+.bnt-nada{margin:10px 0;color:var(--muted);font-size:13.5px}
+.bnt-f{display:flex;flex-direction:column;gap:8px}
+.bnt-t{width:100%;box-sizing:border-box;font:inherit;font-size:14px;line-height:1.4;padding:10px 12px;border-radius:10px;resize:vertical;min-height:62px}
+.bnt-fr{display:flex;gap:8px;align-items:center}
+.bnt-s{flex:1;min-width:0;font:inherit;font-size:13.5px}
+.bnt-fr .btn{white-space:nowrap;flex:none}
+.bnt-fr .bm-jsel{flex:1 1 auto;min-width:0;width:auto;margin:0}
+.bnt-pie{margin:12px 0 0}
+.bm-nota-l{display:block;flex-basis:100%;font-style:normal;font-weight:600;font-size:12.5px;line-height:1.35;color:var(--txt);margin-top:3px;overflow-wrap:anywhere}
+.cg-d14-ses .bm-nota-l{font-weight:500}
+@media screen and (min-width:761px) and (pointer:fine){.bm-nth .bmh-caja{width:min(560px,calc(100vw - 80px))!important;max-width:none!important}}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bnt-x{width:44px;height:44px}
+  .bnt-fr .btn,.bnt-s,.bm-nth .bci-nav .inf-fl{min-height:44px}
+  .bm-nth .bci-nav .inf-fl{min-width:44px}
 }
 </style>
 <style id="esc-v762">
