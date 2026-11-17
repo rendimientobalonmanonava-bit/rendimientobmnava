@@ -21141,6 +21141,62 @@ function go(v){const _y0=window.scrollY||0;try{bmScSale(_y0);}catch(e){}const ES
   NAV.forEach((g,i)=>{const vs=g.v?[g.v]:g.items.map(it=>it[0]);const inJ=(g.v==='jugadores'&&(v==='jugador'||v==='jugadores'));const inC=(g.v==='carga'&&(v==='carga'||v==='hr'));const top=document.querySelector('#nav .navtop[data-grp="'+i+'"]')||document.querySelector('#nav .navtop[data-v="'+g.v+'"]');if(top)top.classList.toggle('on',vs.includes(v)||inJ||inC);});
   document.querySelectorAll('.navdrop').forEach(x=>x.classList.remove('open'));
   window.scrollTo(0,0);if(v==='carga'){showCargaPane(FILTER.cargaTab||'grupal');renderLoad();if(FILTER.cargaTab==='partidos'){try{renderPartidos();}catch(e){}}if(FILTER.cargaTab==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}}if(v==='equipo'){try{renderTeamCitas();}catch(e){}try{renderTeamReuniones();}catch(e){}}if(v==='hr')renderHR();if(v==='cal')renderCalendar();if(v==='tests')renderTests();if(v==='jugadores')renderPlayersGrid();if(v==='nutri'){try{renderNutri();}catch(e){console.error('bmnava · nutrición',e);}}if(v==='avail')renderAvail();if(v==='config'){renderPosMap();try{exRender();}catch(e){}try{bkpRender();}catch(e){}}if(ESUB[v]){estadoTab(v);}else if(v==='estado')renderEstado();const _pv=STATE.view;STATE.view=v;try{document.documentElement.dataset.nav=bmvSentido();window.__BM_DE=_pv;}catch(e){}writeHash(!!_pv&&_pv!==v,_y0);try{syncCargasTabs();}catch(e){}try{animateKPIs(document.getElementById('v-'+realV));}catch(e){}const lab=(TABS.find(t=>t[0]===v)||['',''])[1];document.title='BM Nava · '+(lab||'Telemetría');try{bmTituloVentana();}catch(e){}try{bmTitulo(v);}catch(e){}try{bmUltPon({v:v,pl:(v==='jugador'?(STATE.curPlayer||''):''),y:0});}catch(e){}try{setTimeout(bmVacios,80);setTimeout(bmVacios,900);}catch(e){}try{bmScEntra(v);}catch(e){}}
+/* ═══ v770 · Volver a una pantalla sin repintarla ═══
+   Daniel, 17/11/2026 (propuesta 2). Cada vez que se entraba en una pantalla se
+   repintaba entera aunque nada hubiera cambiado: en el motor de Safari, el
+   Calendario 176 ms, Cargas 162, Pulsómetros 137, Disponibilidad 135,
+   Jugadores 133 y la ficha 111.
+   Ahora cada función de pintar recuerda CON QUÉ se pintó: la versión de los
+   datos (`BM_DV`, v769), la fecha de referencia, el día de hoy, el tema, el
+   ancho, el valor de cada control de su pantalla y su estado propio
+   (`BMRP_EXTRA`). Si al VOLVER (llamada desde `go`) todo es igual y la pantalla
+   tiene contenido, no se repinta. Cualquier llamada desde dentro de la
+   pantalla —cambiar un filtro, guardar algo— pinta como siempre y anota la
+   nueva clave. Ante la duda, repinta: una clave de más sólo cuesta tiempo. */
+const BMRP={k:{},go:false,saltos:0};
+const BMRP_F={renderLoad:'v-carga',renderHR:'v-hr',renderCalendar:'v-cal',renderTests:'v-tests',renderPlayersGrid:'v-jugadores',renderNutri:'v-nutri',
+  renderAvail:'estado-dispo',renderParte:'estado-parte',renderFisio:'estado-fisio',renderMedico:'estado-medico'};
+const bmrpLS=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
+const BMRP_EXTRA={
+  renderLoad:()=>JSON.stringify(FILTER),
+  renderCalendar:()=>[CALMODE,JSON.stringify(CALVIEW),CALWEEK?+CALWEEK:'',CAL_SEL||''].join('/'),
+  renderHR:()=>bmrpLS('bmnava_hrmodo')+'/'+HR_SES_LOCK,
+  renderTests:()=>bmrpLS('bmnava_tsamodo')+'/'+JSON.stringify(TSA_TBL),
+  renderNutri:()=>[NUT_MES,NUT_TODOS].join('/'),
+  renderMedico:()=>[MED_TAB,MED_SEL,JSON.stringify(window.MED_TL||{})].join('/'),
+  renderFisio:()=>[FIS_TAB,FIS_MODO,FIS_JUG,FIS_ANCLA?+FIS_ANCLA:'',VEND_DK||''].join('/')
+};
+function bmrpClave(fn){
+  let x='';
+  try{const el=document.getElementById(BMRP_F[fn]);if(el){x+=(el.dataset.mtab||'')+';';el.querySelectorAll('select,input').forEach(i=>{if(i.type==='file')return;x+=(i.id||i.name||'')+'='+((i.type==='checkbox'||i.type==='radio')?i.checked:i.value)+';';});}}catch(e){}
+  try{if(BMRP_EXTRA[fn])x+='|'+BMRP_EXTRA[fn]();}catch(e){x+='|?'+Date.now();}
+  return BM_DV+'|'+(STATE.refDate?STATE.refDate.getTime():0)+'|'+dkey(new Date())+'|'+(document.documentElement.getAttribute('data-theme')||'')+'|'+(esMovil()?'m':'e')+'|'+Math.round(innerWidth/40)+'|'+(STATE.mode||'')+'|'+x;
+}
+function bmrpInstala(){
+  Object.keys(BMRP_F).forEach(fn=>{const f=window[fn];if(typeof f!=='function'||f.__bmrp)return;
+    const w=function(){
+      if(BMRP.go&&!arguments.length&&!window.__RD_CALC){const el=document.getElementById(BMRP_F[fn]);
+        if(el&&el.childElementCount&&BMRP.k[fn]===bmrpClave(fn)){BMRP.saltos++;return;}}
+      const r=f.apply(this,arguments);
+      /* se anota al terminar y otra vez cuando la pantalla acaba de rellenarse:
+         hay desplegables que se llenan justo después de pintar (Cargas) */
+      const anota=()=>{try{BMRP.k[fn]=window.__RD_CALC?null:bmrpClave(fn);}catch(e){}};
+      anota();setTimeout(anota,0);setTimeout(anota,450);
+      return r;};
+    w.__bmrp=true;window[fn]=w;});
+  const g=window.go;if(typeof g==='function'&&!g.__bmrp){const wg=function(){BMRP.go=true;try{return g.apply(this,arguments);}finally{BMRP.go=false;}};wg.__bmrp=true;window.go=wg;}
+  /* la ficha: abrirla otra vez con el mismo jugador y nada cambiado no la repinta */
+  const oy=window.openPlayerYa;if(typeof oy==='function'&&!oy.__bmrp){
+    const wo=function(name){
+      const v=document.getElementById('v-jugador');
+      if(name&&name===BMRP.fichaN&&v&&v.childElementCount&&!window.__RD_CALC&&BMRP.k.__ficha===bmrpFichaClave()){STATE.curPlayer=name;go('jugador');BMRP.saltos++;return;}
+      const r=oy.apply(this,arguments);try{BMRP.fichaN=name;BMRP.k.__ficha=window.__RD_CALC?null:bmrpFichaClave();}catch(e){}return r;};
+    wo.__bmrp=true;window.openPlayerYa=wo;}
+  const fr=window.fichaRepinta;if(typeof fr==='function'&&!fr.__bmrp){const wf=function(){const r=fr.apply(this,arguments);try{BMRP.fichaN=STATE.curPlayer;BMRP.k.__ficha=window.__RD_CALC?null:bmrpFichaClave();}catch(e){}return r;};wf.__bmrp=true;window.fichaRepinta=wf;}
+}
+function bmrpFichaClave(){return BM_DV+'|'+(STATE.refDate?STATE.refDate.getTime():0)+'|'+dkey(new Date())+'|'+(document.documentElement.getAttribute('data-theme')||'')+'|'+(esMovil()?'m':'e')+'|'+Math.round(innerWidth/40);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmrpInstala);else setTimeout(bmrpInstala,0);
+window.bmrpInstala=bmrpInstala;
 /* v562 · El título de la pantalla, en corto, dentro de la cápsula del día. En
    el móvil aparece ahí cuando el título grande se ha ido por arriba: es el
    gesto de cualquier app de teléfono, y evita no saber en qué pantalla se
