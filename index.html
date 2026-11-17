@@ -1892,8 +1892,11 @@ main{padding:20px 18px 80px}
 .a4-foot-d{flex:none;text-align:right;font-size:10.5px;font-weight:700;color:#59616d}
 .a4-foot-d em{display:block;font-style:normal;font-weight:600;color:#9aa1ac;margin-top:2px}
 @media(max-width:1200px){#sescal-a4{overflow-x:auto}}
-@media print{body *{visibility:hidden}#sescal-a4,#sescal-a4 *{visibility:visible}
-  #sescal-a4{position:absolute;left:0;top:0;margin:0}
+/* v764 · Con la clase en el body, como las otras láminas: sin ella esta regla
+   ocultaba TODO al imprimir, y «Imprimir o guardar en PDF» de cualquier otra
+   pantalla salía en blanco */
+@media print{body.sescal-print *{visibility:hidden}body.sescal-print #sescal-a4,body.sescal-print #sescal-a4 *{visibility:visible}
+  body.sescal-print #sescal-a4{position:absolute;left:0;top:0;margin:0}
   .a4-page{box-shadow:none;border-radius:0}
   @page{size:A4 landscape;margin:0}}
 
@@ -33500,7 +33503,7 @@ function sesCalA4(){
   host.innerHTML='<div class="a4-tools">'
       +'<span class="a4-tools-t">Infografía A4 apaisada · lista para imprimir o enviar</span>'
       +'<button class="btn" onclick="exportNodePNG(\'sescal-a4-page\',\'umbrales_bmnava.png\')">Descargar PNG</button>'
-      +'<button class="btn ghost" onclick="window.print()">Imprimir / PDF</button>'
+      +'<button class="btn ghost" onclick="sesCalA4Imprimir()">Imprimir / PDF</button>'
       +'<button class="btn ghost" onclick="sesCalA4Cerrar()">Cerrar</button>'
     +'</div>'
     +'<div class="a4-page" id="sescal-a4-page">'
@@ -39389,6 +39392,14 @@ function calSemanaA4PNG(){
 }
 /* La clase en el body es lo que activa el @media print, y se quita al terminar
    para no dejar la aplicación en blanco si se cancela el diálogo. */
+/* v764 · la lámina de umbrales se imprime con su clase, que se quita al terminar */
+function sesCalA4Imprimir(){
+  document.body.classList.add('sescal-print');
+  const limpiar=()=>{document.body.classList.remove('sescal-print');window.removeEventListener('afterprint',limpiar);};
+  window.addEventListener('afterprint',limpiar);
+  setTimeout(()=>{try{window.print();}finally{setTimeout(limpiar,1200);}},30);
+}
+window.sesCalA4Imprimir=sesCalA4Imprimir;
 function calSemanaA4Imprimir(){
   const m=calSemanaA4Montar();
   document.body.classList.add('sa-print');
