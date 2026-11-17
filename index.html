@@ -16914,6 +16914,130 @@ document.addEventListener('click',e=>{
 });
 window.addEventListener('scroll',()=>{if(BMMP.sel){BMMP.sel=null;bmMpTip(null);}},{passive:true,capture:true});
 window.renderMapaPlantilla=renderMapaPlantilla;
+/* ═══ v793 · ORDENADOR · Alertas como Mail ═══
+   Daniel, 17/11/2026, propuesta 2. Medido: 39 alertas en 15 tarjetas que dicen
+   el TIPO («Sueño · Wellness») pero no la cifra, ni desde cuándo, ni contra
+   qué: para entender una había que abrir la ficha. Con la ventana ancha, debajo
+   del resumen y los filtros de siempre, la lista de jugadores va a la
+   izquierda —foto, nombre, cuántas y la primera— y el detalle a la derecha:
+   cada alerta con su cifra y lo que la explica, dibujado con lo que la app ya
+   tiene —el parte de sus últimos 14 días con los colores de los anillos de la
+   ficha y su mediana; el ACWR de 28 días sobre su banda (`acwrToDate`); sus
+   semanas de carga y de monotonía (`weekly`)—, con su «Visto» de siempre (los
+   mismos `data-alv`, así que se marcan, se deshacen y cuentan igual), y las
+   acciones del jugador. ↑ ↓ recorren la lista. La lista de tarjetas sigue
+   intacta en el marcado: por debajo de 1.100 px y en el móvil, como siempre. */
+const BMMAIL={sel:null};
+function bmalPuede(){return !esMovil()&&bmEscFino()&&innerWidth>=1100;}
+function bmalGrupos(){
+  const todas=STATE.alerts||[],sevf=FILTER.alertSev||'all';
+  const A=(ALV.verVistas?todas:todas.filter(a=>!alvVista(a))).filter(a=>sevf==='all'||a.sev===sevf);
+  const o={bad:0,warn:1},g={};A.forEach(a=>{(g[a.name]=g[a.name]||[]).push(a);});
+  return Object.keys(g).map(n=>({n,xs:g[n].slice().sort((a,b)=>o[a.sev]-o[b.sev])}))
+    .sort((x,y)=>o[x.xs[0].sev]-o[y.xs[0].sev]||y.xs.length-x.xs.length||x.n.localeCompare(y.n,'es'));
+}
+function bmalMed(v){const s=v.filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);return s.length?s[s.length>>1]:null;}
+function bmalBarras(vals,cols,ref,opts){
+  opts=opts||{};const W=320,H=56,n=vals.length;if(!n)return '';
+  const mx=Math.max(opts.max||0,...vals.filter(v=>v!=null),ref||0)||1,bw=W/n;
+  let h='<svg class="bmal-g" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">';
+  if(opts.banda)h+='<rect class="bmal-banda" x="0" width="'+W+'" y="'+(H-2-opts.banda[1]/mx*(H-8)).toFixed(1)+'" height="'+((opts.banda[1]-opts.banda[0])/mx*(H-8)).toFixed(1)+'"/>';
+  vals.forEach((v,i)=>{if(v==null)return;const y=H-2-(v/mx)*(H-8);
+    h+='<rect x="'+(i*bw+bw*.2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw*.6).toFixed(1)+'" height="'+Math.max(1.5,H-2-y).toFixed(1)+'" rx="1.5" style="fill:'+(cols[i]||'var(--c-data)')+'"'+(i===n-1?' class="ult"':'')+'/>';});
+  if(ref!=null)h+='<line class="bmal-ref" x1="0" x2="'+W+'" y1="'+(H-2-ref/mx*(H-8)).toFixed(1)+'" y2="'+(H-2-ref/mx*(H-8)).toFixed(1)+'" vector-effect="non-scaling-stroke"/>';
+  return h+'</svg>';
+}
+function bmalLinea(vals,banda,max){
+  const W=320,H=56,n=vals.length;if(n<2)return '';const mx=max||Math.max(...vals.filter(v=>v!=null),banda?banda[1]:0)*1.08||1;
+  const y=v=>H-3-(v/mx)*(H-8),x=i=>i*(W/(n-1));
+  let h='<svg class="bmal-g" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">';
+  if(banda)h+='<rect class="bmal-banda" x="0" width="'+W+'" y="'+y(banda[1]).toFixed(1)+'" height="'+(y(banda[0])-y(banda[1])).toFixed(1)+'"/>';
+  let d='';vals.forEach((v,i)=>{if(v==null)return;d+=(d?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1);});
+  h+='<path class="bmal-l" d="'+d+'" vector-effect="non-scaling-stroke"/>';
+  const u=vals.length-1;if(vals[u]!=null)h+='<circle class="bmal-pt" cx="'+x(u).toFixed(1)+'" cy="'+y(vals[u]).toFixed(1)+'" r="3"/>';
+  return h+'</svg>';
+}
+function bmalBloque(a){
+  const E=bmEsc,p=STATE.players[a.name]||{},v=alvVista(a),m=v?alvDe(a):null;
+  const k=encodeURIComponent(alvClave(a)),nn=encodeURIComponent(a.name);
+  let cuerpo='';
+  const tipo=String(a.type).split(' · ')[0];
+  const wk=Object.keys(CONFIG.wellnessVars).find(x=>CONFIG.wellnessVars[x].label===tipo);
+  try{
+    if(a.mod==='Wellness'&&wk){
+      const ws=(p.w||[]).slice(-14),vals=ws.map(w=>w[wk]!=null&&!isNaN(w[wk])?+w[wk]:null);
+      const hrs=wk==='horas_sueno',col=x=>x==null?'':hrs?(x>=7.5?'var(--ok)':x>=6.5?'var(--warn)':'var(--bad)'):(x<=2?'var(--ok)':x<=3?'var(--warn)':'var(--bad)');
+      const med=bmalMed((p.w||[]).map(w=>w[wk]!=null&&!isNaN(w[wk])?+w[wk]:null));
+      const z=p.z&&p.z[wk];
+      cuerpo='<p class="bmal-tx"><b>'+E(tipo)+' '+(z?fmt(z.val,hrs?1:0):E(a.val))+(hrs?' h':'')+'</b> en el parte del '+bmInspFecha(a.date||(p.last&&p.last.dk))
+        +(med!=null?' · su mediana '+fmt(med,hrs?1:0)+(hrs?' h':''):'')+(z&&isFinite(z.z)?' · z '+fmt(z.z,2):'')+(hrs?'':' · escala 1–5, 1 es lo mejor')+'</p>'
+        +bmalBarras(vals,vals.map(col),med,{max:hrs?9:5})+'<p class="bmal-pie">Sus últimos '+ws.length+' partes · la raya es su mediana</p>';
+    }else if(/^ACWR/.test(a.type)){
+      const hoy=REF(),vals=[];for(let i=27;i>=0;i--){const d=new Date(hoy);d.setDate(d.getDate()-i);let r=null;try{r=acwrToDate(a.name,d);}catch(e){}vals.push(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0?r.ratio:null);}
+      cuerpo='<p class="bmal-tx"><b>ACWR '+E(a.val)+'</b> · banda 0,8–1,3</p>'+bmalLinea(vals,[0.8,1.3],Math.max(2,...vals.filter(x=>x!=null)))+'<p class="bmal-pie">Sus últimos 28 días · la franja es la banda</p>';
+    }else if(/carga semanal/i.test(a.type)||/^Monoton/.test(a.type)){
+      const mono=/^Monoton/.test(a.type),ws=weekly(a.name,'ua',REF()).slice(-6),vals=ws.map(w=>mono?(isFinite(w.mono)?w.mono:null):(w.ua||0));
+      cuerpo='<p class="bmal-tx"><b>'+E(a.type)+'</b>'+(mono?' · '+E(a.val)+' en su última semana':' · '+E(a.val)+' UA esta semana')+'</p>'
+        +bmalBarras(vals,vals.map((x,i)=>i===vals.length-1?'var(--accent)':''),null,{})+'<p class="bmal-pie">Sus últimas '+ws.length+' semanas'+(mono?' · monotonía de cada una':' · carga de cada una; la última, en curso')+'</p>';
+    }else if(/^Dolor/.test(a.type)){
+      const ws=(p.w||[]).slice(-14),cols=ws.map(w=>w.dolor?(w.golpe?'var(--bad)':'var(--warn)'):'var(--hair)');
+      const nd=ws.filter(w=>w.dolor).length;
+      cuerpo='<p class="bmal-tx"><b>'+a.type+'</b> · '+nd+(nd===1?' parte':' partes')+' con dolor de los últimos '+ws.length+'</p>'+bmalBarras(ws.map(()=>1),cols,null,{max:1})+'<p class="bmal-pie">Sus últimos partes · en color, los días con dolor</p>';
+    }else if(a.mod==='Físico'&&/tercio bajo/.test(a.type)){
+      cuerpo='<p class="bmal-tx"><b>Nota TSA '+E(a.val)+'</b> · en el tercio bajo de la plantilla</p><p class="bmal-acc1"><button type="button" class="btn ghost" data-bmal-go="tests">Abrir Perfil físico</button></p>';
+    }else if(a.mod==='Físico'){
+      cuerpo='<p class="bmal-tx"><b>'+E(a.type)+'</b>'+(a.date?' · desde el '+bmInspFecha(a.date):'')+'</p><p class="bmal-acc1"><button type="button" class="btn ghost" data-bmal-go="medico">Abrir en Médico</button></p>';
+    }else cuerpo='<p class="bmal-tx"><b>'+E(a.type)+'</b>'+(a.val&&a.val!=='—'?' · '+E(a.val):'')+'</p>';
+  }catch(e){cuerpo='<p class="bmal-tx"><b>'+E(a.type)+'</b></p>';}
+  return '<section class="bmal-b'+(v?' vista':'')+'"><div class="bmal-bh"><span class="adot '+a.sev+'"></span><span class="bmal-bt">'+E(tipo)+'</span><span class="amod amod-'+(a.mod==='Físico'?'fis':a.mod==='Carga'?'car':'wel')+'">'+E(a.mod)+'</span>'
+    +(v?'<small class="alv-quien">Vista'+(m&&m.quien?' por '+E(m.quien):'')+(m?' · '+alvHace(m.t):'')+'</small><button type="button" class="alv-b" data-alv="deshacer" data-n="'+nn+'" data-k="'+k+'">Deshacer</button>'
+       :'<button type="button" class="alv-b" data-alv="uno" data-n="'+nn+'" data-k="'+k+'" title="Visto: no vuelve a salir hasta que empeore o se resuelva">Visto</button>')
+    +'</div>'+cuerpo+'</section>';
+}
+function bmalDetalle(g){
+  if(!g)return '<p class="bmal-nada">Elige un jugador de la lista.</p>';
+  const E=bmEsc,p=STATE.players[g.n]||{},rd=p.readiness!=null&&isFinite(p.readiness)?Math.round(p.readiness):null;
+  const sev=p.sev==='ok'?'var(--ok)':p.sev==='warn'?'var(--warn)':p.sev==='bad'?'var(--bad)':'';
+  let pos='';try{pos=posDetailOf(g.n)||posGroup(p.pos)||'';}catch(e){}
+  const nuevas=g.xs.filter(a=>!alvVista(a)).length;
+  return '<div class="bmal-cab">'+bmjCara(g.n,'bmal-av')+'<div class="bmal-q"><b>'+E(g.n)+'</b><span>'+E(pos)+(rd!=null?' · readiness <em style="color:'+colTexto(sev)+'">'+rd+'</em>':'')+'</span></div>'
+    +'<div class="bmal-acc">'+(nuevas>1?'<button type="button" class="btn ghost" data-alv="todo" data-n="'+encodeURIComponent(g.n)+'">Todas vistas</button>':'')
+    +'<button type="button" class="btn ghost" data-bmal="insp">Inspector</button>'+(window.ojoMarcar?'<button type="button" class="btn ghost" data-bmal="ojo">Ojo hoy</button>':'')
+    +(window.bmNota?'<button type="button" class="btn ghost" data-bmal="nota">Nota</button>':'')+'<button type="button" class="btn" data-bmal="ficha">Abrir ficha</button></div></div>'
+    +g.xs.map(bmalBloque).join('');
+}
+function bmalPinta(){
+  const body=document.getElementById('alerts-body');if(!body)return;
+  const vw=document.getElementById('v-alertas');
+  if(!bmalPuede()){if(vw)vw.classList.remove('bm-mail');const x=body.querySelector('.bmal');if(x)x.remove();return;}
+  const G=bmalGrupos();
+  if(!G.length){if(vw)vw.classList.remove('bm-mail');return;}
+  if(!BMMAIL.sel||!G.some(g=>g.n===BMMAIL.sel))BMMAIL.sel=G[0].n;
+  const E=bmEsc,g=G.find(x=>x.n===BMMAIL.sel);
+  const lista=G.map(x=>{const w=x.xs[0].sev,nv=x.xs.filter(a=>!alvVista(a)).length;
+    return '<button type="button" class="bmal-f'+(x.n===BMMAIL.sel?' on':'')+(nv?'':' vista')+'" data-al="'+E(x.n)+'" role="option" aria-selected="'+(x.n===BMMAIL.sel)+'">'+bmjCara(x.n,'bmal-fav')
+      +'<span class="bmal-ft"><b>'+E(x.n)+'</b><small>'+E(String(x.xs[0].type).split(' · ')[0])+(x.xs.length>1?' y '+(x.xs.length-1)+' más':'')+'</small></span><em class="bmal-n sev-'+w+'">'+x.xs.length+'</em></button>';}).join('');
+  let box=body.querySelector('.bmal');
+  const y=box&&box.querySelector('.bmal-lista')?box.querySelector('.bmal-lista').scrollTop:0;
+  if(!box){box=document.createElement('div');box.className='bmal';const gr=body.querySelector('.alert-grid');if(gr)gr.after(box);else body.appendChild(box);}
+  box.innerHTML='<div class="bmal-lista" role="listbox" tabindex="0" aria-label="Jugadores con alertas">'+lista+'</div><div class="bmal-det" aria-live="polite">'+bmalDetalle(g)+'</div>';
+  box.querySelector('.bmal-lista').scrollTop=y;
+  if(vw)vw.classList.add('bm-mail');
+}
+document.addEventListener('click',e=>{
+  if(!e.target||!e.target.closest)return;
+  const f=e.target.closest('#v-alertas .bmal-f');if(f){BMMAIL.sel=f.dataset.al;bmalPinta();const l=document.querySelector('#v-alertas .bmal-lista');if(l)l.focus({preventScroll:true});return;}
+  const go_=e.target.closest('#v-alertas [data-bmal-go]');if(go_){go(go_.dataset.bmalGo);return;}
+  const b=e.target.closest('#v-alertas [data-bmal]');if(!b||!BMMAIL.sel)return;const n=BMMAIL.sel;
+  ({ficha:()=>openPlayer(n),insp:()=>bmInspAbre(n),ojo:()=>ojoMarcar(n),nota:()=>bmNota(dkey(REF()),n)}[b.dataset.bmal]||(()=>{}))();
+});
+document.addEventListener('keydown',e=>{
+  const l=e.target&&e.target.closest&&e.target.closest('#v-alertas .bmal-lista');if(!l||(e.key!=='ArrowDown'&&e.key!=='ArrowUp'))return;
+  e.preventDefault();e.stopPropagation();const G=bmalGrupos();const i=G.findIndex(g=>g.n===BMMAIL.sel);const j=Math.max(0,Math.min(G.length-1,i+(e.key==='ArrowDown'?1:-1)));
+  if(G[j]){BMMAIL.sel=G[j].n;bmalPinta();const f=document.querySelector('#v-alertas .bmal-f.on');if(f)f.scrollIntoView({block:'nearest'});document.querySelector('#v-alertas .bmal-lista').focus({preventScroll:true});}
+},true);
+(function(){const r=window.renderAlerts;if(typeof r==='function')window.renderAlerts=function(){const x=r.apply(this,arguments);try{bmalPinta();}catch(e){console.error('bmnava · alertas como Mail',e);}return x;};})();
+window.addEventListener('resize',()=>{clearTimeout(BMMAIL.t);BMMAIL.t=setTimeout(()=>{try{if(document.getElementById('v-alertas').classList.contains('on'))bmalPinta();}catch(e){}},200);});
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -53308,6 +53432,51 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   #bmmp-tip{position:fixed;z-index:95;pointer-events:none;display:none;flex-direction:column;gap:1px;padding:8px 10px;border-radius:9px;background:var(--sbf-bg);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 0 0 .5px var(--sbf-borde),0 8px 24px -6px rgba(0,0,0,.3);color:var(--txt);max-width:280px}
   #bmmp-tip.on{display:flex}
   #bmmp-tip b{font-size:12.5px;font-weight:600}#bmmp-tip span{font-size:11.5px;color:var(--muted)}#bmmp-tip em{font-style:normal;font-size:12px;font-weight:500}
+}
+</style>
+<style id="esc-v793">
+/* v793 · ORDENADOR · Alertas como Mail: lista a la izquierda, detalle a la derecha. */
+@media screen and (min-width:761px) and (pointer:fine){
+  #v-alertas.bm-mail .alert-grid{display:none!important}
+  .bmal{display:grid;grid-template-columns:minmax(260px,320px) 1fr;gap:0;margin-top:14px;border-radius:12px;box-shadow:0 0 0 .5px var(--line);overflow:hidden;min-height:520px}
+  .bmal-lista{border-right:.5px solid var(--line);overflow:auto;max-height:calc(100vh - 230px);background:var(--panel2);outline:none}
+  .bmal-lista:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+  .bmal-f{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:none;border-bottom:.5px solid var(--line);background:none;text-align:left;font:inherit;color:var(--txt);cursor:default}
+  .bmal-f:hover{background:color-mix(in srgb,var(--txt) 5%,transparent)}
+  .bmal-f.on{background:var(--accent);color:var(--on-accent)}
+  .bmal-f.on small,.bmal-f.on b{color:var(--on-accent)}
+  .bmal-f.vista{opacity:.6}
+  .bmal-fav{width:34px;height:34px;flex:none;font-size:12px}
+  .bmal-ft{display:flex;flex-direction:column;min-width:0;flex:1}
+  .bmal-ft b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bmal-ft small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bmal-n{font-style:normal;flex:none;min-width:22px;height:20px;padding:0 6px;border-radius:10px;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;color:#fff}
+  .bmal-n.sev-bad{background:var(--bad)}.bmal-n.sev-warn{background:var(--warn);color:var(--on-warn,#1d1d1f)}
+  .bmal-f.on .bmal-n{box-shadow:0 0 0 1.5px var(--on-accent)}
+  .bmal-det{padding:18px 22px;overflow:auto;max-height:calc(100vh - 230px);background:var(--panel)}
+  .bmal-cab{display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap}
+  .bmal-av{width:52px;height:52px;flex:none;font-size:16px}
+  .bmal-q{display:flex;flex-direction:column;gap:2px;flex:1;min-width:160px}
+  .bmal-q b{font-size:19px;font-weight:700}
+  .bmal-q span{font-size:12.5px;color:var(--muted)}
+  .bmal-q em{font-style:normal;font-weight:700}
+  .bmal-acc{display:flex;gap:6px;flex-wrap:wrap}
+  .bmal-b{padding:14px 0;border-top:.5px solid var(--line)}
+  .bmal-b.vista{opacity:.7}
+  .bmal-bh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .bmal-bt{font-size:14px;font-weight:600;flex:1}
+  .bmal-bh .alv-quien{font-size:11.5px;color:var(--muted)}
+  .bmal-tx{margin:0 0 8px;font-size:13px;color:var(--muted)}
+  .bmal-tx b{color:var(--txt);font-weight:600}
+  .bmal-g{display:block;width:100%;max-width:560px;height:56px}
+  .bmal-g rect.ult{stroke:var(--txt);stroke-width:1;vector-effect:non-scaling-stroke}
+  .bmal-banda{fill:var(--ok);opacity:.13}
+  .bmal-ref{stroke:var(--muted);stroke-dasharray:3 3;stroke-width:1}
+  .bmal-l{fill:none;stroke:var(--c-data);stroke-width:2}
+  .bmal-pt{fill:var(--accent)}
+  .bmal-pie{margin:4px 0 0;font-size:11.5px;color:var(--muted)}
+  .bmal-acc1{margin:6px 0 0}
+  .bmal-nada{color:var(--muted);font-size:13px}
 }
 </style>
 <style id="esc-v762">
