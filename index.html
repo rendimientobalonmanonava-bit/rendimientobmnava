@@ -20381,6 +20381,40 @@ const bmNotasPlugin={id:'bmNotas',
       ctx.setLineDash([]);ctx.globalAlpha=.9;ctx.beginPath();ctx.arc(x,A.top+4,4,0,Math.PI*2);ctx.fill();ctx.restore();});
   }catch(e){}}
 };
+/* ═══ v778 · Gráficos que se transforman en vez de volver a crecer ═══
+   Daniel, 17/11/2026 (propuesta 3). 14 de los 18 gráficos se redibujaban desde
+   cero con la animación por defecto de Chart.js (1 s) cada vez que se
+   repintaban: al cambiar de día, de pestaña o de dato. Como en Salud:
+   · al destruir un gráfico se guarda dónde estaba cada barra y cada punto
+     (por el `id` de su lienzo); si el que se crea en ese lienzo es del mismo
+     tipo y llega en menos de 8 s, cada elemento PARTE de su posición anterior
+     y se mueve a la nueva en 0,35 s (`animations.x/y.from`, que Chart.js
+     resuelve elemento a elemento);
+   · la primera vez, crece en 0,5 s en vez de 1 s;
+   · lo que ya no animaba (`animation:false`), los documentos y quien pide
+     menos movimiento, sin animación.
+   Las opciones se copian antes de tocarlas: alguno comparte su objeto (BASE). */
+const BMMOR=new Map();
+const bmMorphPlugin={id:'bmMorph',
+  beforeDestroy(ch){try{const id=ch.canvas&&ch.canvas.id;if(!id)return;
+    const pos=ch.data.datasets.map((d,i)=>{const m=ch.getDatasetMeta(i);return ((m&&m.data)||[]).map(e=>e?{x:e.x,y:e.y}:null);});
+    BMMOR.set(id,{t:Date.now(),type:ch.config.type,pos});}catch(e){}},
+  beforeInit(ch){try{
+    const o0=ch.config.options||{};
+    if(o0.animation===false)return;
+    if(ch.canvas&&ch.canvas.closest&&ch.canvas.closest(BMG_DOC))return;
+    const o=Object.assign({},o0);
+    const base=(o0.animation&&typeof o0.animation==='object')?o0.animation:{};
+    if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){o.animation=false;ch.config.options=o;return;}
+    const id=ch.canvas&&ch.canvas.id,prev=id&&BMMOR.get(id);
+    if(prev&&Date.now()-prev.t<8000&&prev.type===ch.config.type){
+      const P=prev.pos;const de=k=>ctx=>{if(!ctx||ctx.type!=='data')return undefined;const a=P[ctx.datasetIndex];const e=a&&a[ctx.dataIndex];return e&&isFinite(e[k])?e[k]:undefined;};
+      o.animation=Object.assign({},base,{duration:350,easing:'easeOutCubic'});
+      o.animations=Object.assign({},o0.animations||{},{x:{from:de('x')},y:{from:de('y')}});
+    }else o.animation=Object.assign({},base,{duration:Math.min(500,base.duration||500),easing:base.easing||'easeOutQuart'});
+    ch.config.options=o;
+  }catch(e){}}
+};
 /* la hoja de notas de un día */
 function bmNota(dk,jug){
   notasLoad();
@@ -22179,6 +22213,7 @@ function buildChartTheme(){
     if(!Chart.registry.plugins.get('bmEjes'))Chart.register(bmEjesPlugin);
     if(!Chart.registry.plugins.get('bmMacGraf'))Chart.register(bmMacGrafPlugin);
     if(!Chart.registry.plugins.get('bmNotas'))Chart.register(bmNotasPlugin);
+    if(!Chart.registry.plugins.get('bmMorph'))Chart.register(bmMorphPlugin);
   }
 }
 buildChartTheme();
