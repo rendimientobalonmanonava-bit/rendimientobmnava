@@ -26249,7 +26249,9 @@ function corridorCard(p){
 function loadWellnessPts(){const out=[];for(const nm in STATE.players){const p=STATE.players[nm];if(p.readiness==null)continue;let ua=NaN;try{const wk=weekly(nm,'ua',REF());ua=wk.length?wk[wk.length-1].ua:NaN;}catch(e){}const acwr=p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:NaN;out.push({name:nm,acwr,ua,readiness:p.readiness});}return out;}
 function drawLWScatter(id,xf,xlabel,infoId){const pts=loadWellnessPts().filter(o=>!isNaN(xf(o))&&o.readiness!=null).map(o=>({x:xf(o),y:o.readiness,n:o.name}));const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));const info=document.getElementById(infoId);if(info)info.innerHTML=`r = <b style="color:${colTexto('var(--'+(Math.abs(r)>=0.5?'accent':'ink')+')')}">${fmt(r,2)}</b> · r² = <b>${fmt(r*r,2)}</b> <span class="small muted">(${isNaN(r)?'—':rDesc(r)}; n=${pts.length})</span>`;killCharts([id]);const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,{type:'scatter',data:{datasets:[{data:pts,backgroundColor:rgba(PAL.data,.55),borderColor:PAL.data,pointRadius:5,pointHoverRadius:7}]},options:{...BASE,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.n+' ('+fmt(c.raw.x,2)+', '+fmt(c.raw.y,0)+')'}}},scales:{x:{...AX,title:{display:true,text:xlabel,color:'#8a93a0',font:{size:10}}},y:{...AX,min:0,max:100,title:{display:true,text:'Readiness',color:'#8a93a0',font:{size:10}}}}}});}
 function renderLoadWellness(){drawLWScatter('ch-lw-acwr',o=>o.acwr,'ACWR','lw-acwr-info');drawLWScatter('ch-lw-ua',o=>o.ua,'Carga semanal (UA)','lw-ua-info');}
-function renderCargaActive(){const t=FILTER.cargaTab||'resumen';
+function renderCargaActive(){/* v792 · «Plantilla» es sólo del ordenador: si se quedó elegida y la ventana es de móvil, el Dashboard */
+  if(FILTER.cargaTab==='mapa'&&(esMovil()||!bmEscFino())){FILTER.cargaTab='resumen';try{showCargaPane('resumen');syncCargasTabs();}catch(e){}}
+  const t=FILTER.cargaTab||'resumen';
   /* v438 · El selector de ventana (14 d / 28 d / 8 sem / Temporada) es de toda
      la pestaña, pero «La temporada» va siempre desde el 1 de julio y no
      depende de él: dejarlo ahí es poner un control que no hace nada, y eso se
