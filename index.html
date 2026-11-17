@@ -16417,6 +16417,115 @@ window.addEventListener('resize',()=>{if(BMTL.on){bmTlApretada();bmTlCabecera();
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else setTimeout(ini,0);
 })();
 window.bmTlAlterna=bmTlAlterna;
+/* ═══ v787 · ORDENADOR · Ampliar un bloque a toda la ventana ═══
+   Daniel, 17/11/2026, propuesta 5. Un gráfico de 28 días o una tabla ancha se
+   leen mejor en grande, y en un Mac la ventana es grande. Al pasar el ratón
+   por un bloque con un gráfico o una tabla sale arriba a la derecha el botón
+   de ampliar; también vale el doble clic en su título o ⌘↩ con el ratón
+   encima. El bloque ocupa la ventana y Esc, el aspa o pulsar fuera lo
+   devuelven. NO se copia ni se mueve: es el MISMO bloque, que pasa a ser fijo
+   en su sitio del documento (la técnica de la tabla a pantalla completa del
+   móvil, v588), así que conserva sus estilos y quien lo repinta lo sigue
+   encontrando. Los gráficos se hacen más altos mientras dura y vuelven a su
+   alto al cerrar. Fuera el Resumen, el Calendario y los documentos. */
+const BMAMP={el:null,hov:null,hueco:null,altos:[],y:0};
+const BMAMP_FUERA=BMG_DOC+',#v-equipo,#v-cal,#bm-insp,.phero,.bmh';
+const BMAMP_IC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/></svg>';
+function bmAmpPuede(){return !esMovil()&&bmEscFino();}
+function bmAmpPanel(t){
+  if(!t||!t.closest)return null;
+  /* las tarjetas son .panel y, en el Dashboard de cargas, .cgr-card */
+  const SEL='.panel,.cgr-card';
+  let p=t.closest(SEL);if(!p||!p.closest('main .view.on')||p.closest(BMAMP_FUERA))return null;
+  /* el bloque de fuera, si hay uno dentro de otro */
+  let q=p.parentElement&&p.parentElement.closest(SEL);while(q&&q.closest('main .view.on')){p=q;q=p.parentElement&&p.parentElement.closest(SEL);}
+  return p;
+}
+function bmAmpVale(p){
+  if(!p)return false;const r=p.getBoundingClientRect();if(r.width<300||r.height<150)return false;
+  return !!p.querySelector('canvas,table,svg[viewBox]');
+}
+function bmAmpBoton(){
+  let b=document.getElementById('bm-amp-b');
+  if(!b){b=document.createElement('button');b.type='button';b.id='bm-amp-b';b.innerHTML=BMAMP_IC;b.title='Ampliar a toda la ventana (⌘↩)';b.setAttribute('aria-label','Ampliar este bloque a toda la ventana');
+    b.addEventListener('click',e=>{e.stopPropagation();if(BMAMP.hov)bmAmpAbre(BMAMP.hov);});
+    b.addEventListener('mouseenter',()=>{clearTimeout(BMAMP.tq);});
+    document.body.appendChild(b);}
+  return b;
+}
+function bmAmpBotonPon(p){
+  const b=bmAmpBoton();
+  if(!p||BMAMP.el){b.classList.remove('on');return;}
+  const r=p.getBoundingClientRect();
+  const top=Math.max(r.top+10,(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bm-th-top'))||53)+6);
+  if(top>r.bottom-40){b.classList.remove('on');return;}
+  b.style.top=Math.round(top)+'px';b.style.left=Math.round(r.right-40)+'px';b.classList.add('on');
+}
+function bmAmpAbre(p){
+  if(!bmAmpPuede()||!p||BMAMP.el)return;
+  bmAmpBotonPon(null);
+  BMAMP.el=p;BMAMP.y=scrollY;
+  const cs=getComputedStyle(p),r=p.getBoundingClientRect();
+  const h=document.createElement('div');h.className='bm-amp-hueco';
+  h.style.cssText='height:'+Math.round(r.height)+'px;margin:'+cs.margin+';grid-column:'+cs.gridColumn+';grid-row:'+cs.gridRow+';order:'+cs.order+';flex:'+cs.flex+';align-self:'+cs.alignSelf;
+  p.parentNode.insertBefore(h,p);BMAMP.hueco=h;
+  for(let a=p.parentElement;a&&a!==document.body;a=a.parentElement)a.classList.add('bm-amp-anc');
+  /* los gráficos, más altos mientras dura */
+  const cvs=[...p.querySelectorAll('canvas')];const k=cvs.length<=2?1.8:1.35;
+  BMAMP.altos=[];
+  cvs.forEach(cv=>{const w=cv.parentElement;if(!w)return;const hh=w.getBoundingClientRect().height;if(hh<60)return;
+    const obj=cvs.length===1?Math.max(hh*k,innerHeight*.5):hh*k;
+    BMAMP.altos.push([w,w.style.height,w.style.maxHeight]);w.style.height=Math.round(Math.min(innerHeight*.62,obj))+'px';w.style.maxHeight='none';});
+  let v=document.getElementById('bm-amp-velo');
+  if(!v){v=document.createElement('div');v.id='bm-amp-velo';v.addEventListener('click',bmAmpCierra);document.body.appendChild(v);}
+  let x=document.getElementById('bm-amp-x');
+  if(!x){x=document.createElement('button');x.type='button';x.id='bm-amp-x';x.setAttribute('aria-label','Cerrar la vista ampliada');x.title='Cerrar (Esc)';x.textContent='×';x.addEventListener('click',bmAmpCierra);document.body.appendChild(x);}
+  p.classList.add('bm-amp');p.setAttribute('role','dialog');p.setAttribute('aria-modal','true');
+  document.documentElement.classList.add('bm-amp-on');v.classList.add('on');x.classList.add('on');
+  p.scrollTop=0;
+  setTimeout(()=>{try{p.querySelectorAll('canvas').forEach(cv=>{const c=Chart.getChart(cv);if(c)c.resize();});}catch(e){}},60);
+}
+function bmAmpCierra(){
+  const p=BMAMP.el;if(!p)return;
+  p.classList.remove('bm-amp');p.removeAttribute('role');p.removeAttribute('aria-modal');
+  BMAMP.altos.forEach(([w,h,m])=>{w.style.height=h;w.style.maxHeight=m;});BMAMP.altos=[];
+  document.querySelectorAll('.bm-amp-anc').forEach(a=>a.classList.remove('bm-amp-anc'));
+  if(BMAMP.hueco){BMAMP.hueco.remove();BMAMP.hueco=null;}
+  document.documentElement.classList.remove('bm-amp-on');
+  ['bm-amp-velo','bm-amp-x'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('on');});
+  BMAMP.el=null;window.scrollTo(0,BMAMP.y);
+  setTimeout(()=>{try{p.querySelectorAll('canvas').forEach(cv=>{const c=Chart.getChart(cv);if(c)c.resize();});}catch(e){}},60);
+}
+document.addEventListener('mouseover',e=>{
+  if(!bmAmpPuede()||BMAMP.el)return;
+  if(e.target&&e.target.closest&&e.target.closest('#bm-amp-b'))return;
+  const p=bmAmpPanel(e.target);
+  if(p===BMAMP.hov)return;
+  clearTimeout(BMAMP.tq);
+  if(!p||!bmAmpVale(p)){BMAMP.tq=setTimeout(()=>{BMAMP.hov=null;bmAmpBotonPon(null);},120);return;}
+  BMAMP.hov=p;bmAmpBotonPon(p);
+},{passive:true});
+window.addEventListener('scroll',()=>{if(BMAMP.hov&&!BMAMP.el)bmAmpBotonPon(BMAMP.hov);},{passive:true});
+document.addEventListener('dblclick',e=>{
+  if(!bmAmpPuede()||!e.target||!e.target.closest)return;
+  const h=e.target.closest('h2,h3,.cgr-card-h');if(!h||e.target.closest('button,a,input,select,textarea'))return;
+  if(BMAMP.el&&BMAMP.el.contains(h)){bmAmpCierra();return;}
+  const p=bmAmpPanel(h);if(!p||!bmAmpVale(p))return;
+  /* sólo el título del propio bloque, no uno de dentro de una tabla */
+  if(h.closest('table'))return;
+  e.preventDefault();try{getSelection().removeAllRanges();}catch(x){}bmAmpAbre(p);
+});
+document.addEventListener('keydown',e=>{
+  if(!bmAmpPuede())return;
+  if(e.key==='Escape'&&BMAMP.el){e.preventDefault();e.stopPropagation();bmAmpCierra();return;}
+  if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.shiftKey&&!bmTecladoEscribe(e.target)){
+    if(BMAMP.el){e.preventDefault();bmAmpCierra();return;}
+    if(BMAMP.hov&&BMAMP.hov.isConnected){e.preventDefault();bmAmpAbre(BMAMP.hov);}
+  }
+},true);
+/* si la pantalla cambia con un bloque ampliado, se cierra antes */
+(function(){const g=window.go;if(typeof g==='function')window.go=function(){try{if(BMAMP.el)bmAmpCierra();}catch(e){}BMAMP.hov=null;try{bmAmpBotonPon(null);}catch(e){}return g.apply(this,arguments);};})();
+window.bmAmpAbre=bmAmpAbre;window.bmAmpCierra=bmAmpCierra;
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -17027,7 +17136,7 @@ function bmAtajos(){
   const ord=bmMenuOrden().slice(0,9).map((v,i)=>{const it=document.querySelector('#sidebar .sb-item[data-v="'+v+'"] span');return [k(String(i+1)),it?it.textContent.trim():v];});
   const filas=ord.concat([[k('/')+' '+k('⌘')+k('K'),'Buscar'],[k('N'),'Añadir datos'],[k('←')+' '+k('→'),'Día anterior · siguiente'],[k('H'),'Volver a hoy'],
     [k('R'),'Actualizar los datos'],[k('P'),'Presentar a pantalla completa'],[k(','),'Ajustes'],[k('T'),'Apariencia: automática, clara u oscura'],
-    [k('↑')+' '+k('↓'),'Jugador anterior · siguiente (en la ficha)'],[k('Espacio'),'Vista rápida del jugador bajo el ratón'],[k('I')+' · '+k('⌥')+' clic','Inspector del jugador'],[k('L'),'Línea de tiempo: elegir el día'],
+    [k('↑')+' '+k('↓'),'Jugador anterior · siguiente (en la ficha)'],[k('Espacio'),'Vista rápida del jugador bajo el ratón'],[k('I')+' · '+k('⌥')+' clic','Inspector del jugador'],[k('L'),'Línea de tiempo: elegir el día'],[k('⌘')+k('↩'),'Ampliar el bloque bajo el ratón (o doble clic en su título)'],
     [k('⌃')+k('⌘')+k('S'),'Mostrar u ocultar la barra lateral'],[k('⌘')+' clic','Abrir en otra ventana'],
     [k('?'),'Esta lista'],[k('Esc'),'Cerrar lo que esté abierto']]);
   const html='<div class="bm-atj">'+filas.map(f=>'<div class="bm-atj-f"><span class="bm-atj-k">'+f[0]+'</span><span>'+bmEsc(f[1])+'</span></div>').join('')+'</div>';
@@ -52672,6 +52781,34 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   #bm-tl .bmtl-x{align-self:center;flex:none;width:26px;height:26px;border:none;border-radius:6px;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:default}
   #bm-tl .bmtl-x:hover{background:var(--sbf-hover,rgba(118,118,128,.12));color:var(--txt)}
   #bm-tl.arrastra,#bm-tl.arrastra *{cursor:ew-resize}
+}
+</style>
+
+<style id="esc-v787">
+/* v787 · ORDENADOR · Ampliar un bloque a toda la ventana: el mismo bloque,
+   fijo, por encima de todo. */
+#bm-amp-b,#bm-amp-velo,#bm-amp-x{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #bm-amp-b{display:flex;align-items:center;justify-content:center;position:fixed;z-index:58;width:28px;height:28px;padding:0;border:none;border-radius:8px;
+    background:var(--sbf-bg);color:var(--muted);box-shadow:0 0 0 .5px var(--sbf-borde),0 2px 8px rgba(0,0,0,.12);opacity:0;pointer-events:none;transition:opacity .15s ease;cursor:default}
+  #bm-amp-b.on{opacity:1;pointer-events:auto}
+  #bm-amp-b:hover{color:var(--txt)}
+  #bm-amp-b svg{width:15px;height:15px}
+  #bm-amp-b:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #bm-amp-velo{display:block;position:fixed;inset:0;z-index:88;background:rgba(0,0,0,.28);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .2s ease}
+  html[data-theme="dark"] #bm-amp-velo{background:rgba(0,0,0,.5)}
+  #bm-amp-velo.on{opacity:1;pointer-events:auto}
+  #bm-amp-x{display:flex;align-items:center;justify-content:center;position:fixed;top:30px;right:34px;z-index:92;width:30px;height:30px;border:none;border-radius:50%;
+    background:var(--panel2);color:var(--txt);font-size:20px;line-height:1;opacity:0;pointer-events:none;cursor:default;box-shadow:0 0 0 .5px var(--sbf-borde)}
+  #bm-amp-x.on{opacity:1;pointer-events:auto}
+  html body main .bm-amp{position:fixed!important;inset:20px!important;z-index:90!important;margin:0!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;
+    overflow:auto!important;border-radius:16px!important;box-shadow:0 30px 80px -20px rgba(0,0,0,.45),0 0 0 .5px var(--sbf-borde)!important;padding:26px 30px!important;
+    grid-column:auto!important;grid-row:auto!important;transform:none!important;animation:bmAmpIn .22s cubic-bezier(.32,.72,0,1)}
+  @keyframes bmAmpIn{from{opacity:.4;transform:scale(.985)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){html body main .bm-amp{animation:none}}
+  html.bm-amp-on,html.bm-amp-on body{overflow:hidden}
+  .bm-amp-anc{transform:none!important;animation:none!important;filter:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+    perspective:none!important;contain:none!important;will-change:auto!important;z-index:auto!important;isolation:auto!important}
 }
 </style>
 
