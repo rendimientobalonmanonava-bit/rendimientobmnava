@@ -14022,7 +14022,7 @@ function buildSidebar(){const sb=document.getElementById('sb-nav');if(!sb)return
   try{let i=0;NAV.forEach(g=>{const vs=g.v?[g.v]:g.items.map(x=>x[0]);
     vs.forEach((v,j)=>{const b=sb.querySelector('.sb-item[data-v="'+v+'"]');if(!b)return;b.dataset.sg=String(i);
       if(j===0)b.classList.add('sbg-ini');if(j===vs.length-1)b.classList.add('sbg-fin');});i++;});}catch(e){}}
-function sbMark(v){const eff=v==='jugador'?'jugadores':(v==='estado'?'dispo':v);document.querySelectorAll('.sb-item').forEach(b=>b.classList.toggle('on',b.dataset.v===eff));tbMark(v);}
+function sbMark(v){const eff=v==='jugador'?'jugadores':(v==='estado'?'dispo':v);try{document.querySelectorAll('.sb-nuevo[data-v="'+eff+'"]').forEach(x=>x.classList.remove('sb-nuevo'));}catch(e){}document.querySelectorAll('.sb-item').forEach(b=>b.classList.toggle('on',b.dataset.v===eff));tbMark(v);}
 /* v717 · ORDENADOR · La barra lateral se pliega sola en ventanas estrechas,
    como en las apps de macOS. Con ratón o trackpad y la ventana por debajo de
    1.200 px (media pantalla en un portátil), la barra pasa a sólo iconos y el
@@ -34012,10 +34012,51 @@ function frescuraTxt(){
   return 'último wellness: '+f(w)+' · último RPE: '+f(r);
 }
 window.frescuraTxt=frescuraTxt;
+/* ═══ v780 · «Actualizar» dice qué ha traído ═══
+   Daniel, 17/11/2026 (propuesta 5). Tardaba 2–4 s y al terminar decía
+   «Wellness 3.369 · RPE 3.005», que no dice si ha llegado algo. Ahora se hace
+   una foto de lo que hay ANTES de leer las hojas y sincronizar y se compara
+   con lo de DESPUÉS: partes de wellness y RPE nuevos (por jugador y día) y,
+   de lo que comparte el resto del equipo, cuántos tratamientos, lesiones,
+   partes del día, sesiones del calendario, vendajes, notas, cobros, pruebas o
+   registros de pulsómetro han entrado. El botón dice en qué paso va. Y las
+   pantallas con algo nuevo llevan un punto en el menú hasta que se entra
+   (`sb-nuevo`); la que se está viendo, no, porque ya se ve. */
+const BMACT_N={trat:['tratamiento','tratamientos','medico'],les:['lesión','lesiones','medico'],partes:['parte del día','partes del día','dispo'],
+  cal:['sesión del calendario','sesiones del calendario','cal'],vend:['vendaje','vendajes','fisio'],notas:['nota','notas',''],
+  cobros:['cobro marcado','cobros marcados','nutri'],pruebas:['prueba física','pruebas físicas','tests'],polar:['registro de pulsómetro','registros de pulsómetro','hr']};
+function bmActFoto(){
+  const f={w:new Set(),r:new Set(),n:{}};
+  (STATE.wellness||[]).forEach(w=>{if(w)f.w.add(w.name+'|'+w.dk);});
+  (STATE.rpe||[]).forEach(r=>{if(r&&!r.bloqueConvocado&&!r.sinRegistro)f.r.add(r.name+'|'+r.dk+'|'+(r.tipo||'')+'|'+(r.rpe||''));});
+  const L=k=>{try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;}};
+  const suma=o=>!o?0:Array.isArray(o)?o.length:Object.values(o).reduce((a,v)=>a+(Array.isArray(v)?v.length:1),0);
+  const c={trat:()=>((L('bmnava_meddb')||{}).treat||[]).length,les:()=>((L('bmnava_meddb')||{}).inj||[]).length,partes:()=>suma(L('bmnava_physio')),
+    cal:()=>suma(L('bmnava_cal')),vend:()=>(((L('bmnava_vendajes')||{}).reg)||[]).length,notas:()=>(L('bmnava_notas')||[]).length,
+    cobros:()=>(((L('bmnava_nutri')||{}).cobros)||[]).filter(x=>x&&x.pagado).length,pruebas:()=>suma(L('bmnava_testlog')),polar:()=>suma(L(LS_HR))};
+  Object.keys(c).forEach(k=>{try{f.n[k]=c[k]();}catch(e){f.n[k]=0;}});
+  return f;
+}
+function bmActDif(a,b){
+  const nw=[...b.w].filter(x=>!a.w.has(x)).length,nr=[...b.r].filter(x=>!a.r.has(x)).length;
+  const eq=[];const vistas=new Set();
+  if(nw)vistas.add('parte');if(nr)vistas.add('carga');
+  Object.keys(BMACT_N).forEach(k=>{const d=(b.n[k]||0)-(a.n[k]||0);if(d>0){const N=BMACT_N[k];eq.push(d+' '+(d===1?N[0]:N[1]));if(N[2])vistas.add(N[2]);}});
+  const t=[];if(nw)t.push(nw+(nw===1?' parte de wellness':' partes de wellness'));if(nr)t.push(nr+' RPE');
+  if(eq.length)t.push('del equipo: '+eq.join(', '));
+  return {txt:t.length?t.join(' · '):'nada nuevo',vistas:[...vistas]};
+}
+function bmActMarca(vistas){
+  const actual=STATE.view==='jugador'?'jugadores':(STATE.view==='estado'?(window.ESTADO_TAB||'dispo'):STATE.view);
+  vistas.forEach(v=>{if(v===actual)return;document.querySelectorAll('#sidebar .sb-item[data-v="'+v+'"],#tabbar .tb-i[data-v="'+v+'"]').forEach(el=>el.classList.add('sb-nuevo'));});
+}
+function bmActPaso(t){try{const l=document.querySelector('#rf-btn .rf-lbl');if(l)l.textContent=t;}catch(e){}}
 window.refreshAll=async function(){
   const b=document.getElementById('rf-btn');
   if(b&&b.disabled)return;
   rfSet('load');
+  let _antes=null;try{_antes=bmActFoto();}catch(e){}
+  bmActPaso('Leyendo las hojas…');
   /* connect() acaba llevando a Resumen; se guarda la vista para volver a ella y
      que el botón no saque al usuario de donde estaba trabajando. */
   const vista=STATE.view;
@@ -34030,6 +34071,7 @@ window.refreshAll=async function(){
   try{
     const st=window.syState?syState():null;
     if(st&&st.on&&window.syRefreshShared){
+      bmActPaso('Trayendo lo del equipo…');
       syTxt=await syRefreshShared();
       syInvalidateAppCaches();
     }
@@ -34038,7 +34080,9 @@ window.refreshAll=async function(){
      vista), para que lo reci\u00e9n sincronizado se vea sin tener que navegar. */
   try{if(vista)go(vista);}catch(e){}
   try{localStorage.setItem(RF_LS,String(Date.now()));}catch(e){}
-  if(ok){rfSet('ok','Actualizado');if(window.toast)toast('Datos actualizados \u00b7 '+msgTxt+syTxt+' \u00b7 '+frescuraTxt());}
+  let _dif=null;try{if(_antes)_dif=bmActDif(_antes,bmActFoto());}catch(e){}
+  if(_dif)try{bmActMarca(_dif.vistas);}catch(e){}
+  if(ok){rfSet('ok','Actualizado');if(window.toast)toast(_dif?('Actualizado · '+_dif.txt+(/pendiente/.test(syTxt)?' · sincronización pendiente':'')+(()=>{try{const f=frescuraTxt();return f?' · '+f:'';}catch(e){return '';}})()):('Datos actualizados \u00b7 '+msgTxt+syTxt+' \u00b7 '+frescuraTxt()));}
   else{rfSet('err','Sin conexi\u00f3n');if(window.toast)toast('No se pudieron leer las hojas: '+msgTxt);}
 };
 
@@ -51940,6 +51984,11 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   #v-equipo>.bm-res-hoy{order:1;display:block;height:82px;border-radius:16px;background:var(--panel);opacity:.55}
 }
 @media (prefers-reduced-motion:reduce){.bm-nuevo:not(.view),.view.bm-nuevo>*{animation:none}.bm-fi{opacity:1}.bm-fi.bm-fi-ok{transition:none}}
+</style>
+<style id="bm-v780">
+/* v780 · Un punto en las pantallas que han traído algo nuevo al actualizar */
+#sidebar .sb-item.sb-nuevo>span::after,#tabbar .tb-i.sb-nuevo>span::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle;transform:translateY(-1px)}
+#sidebar .sb-item.sb-nuevo.on>span::after{background:var(--on-accent,#fff)}
 </style>
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
