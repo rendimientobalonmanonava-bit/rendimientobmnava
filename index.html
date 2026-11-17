@@ -14357,6 +14357,7 @@ function bmbIndice(){
   A('Cerrar la sesión','Minutos de cada bloque y quién entrenó',()=>{if(window.bmCierre)bmCierre();},'cerrar sesion minutos duracion convocar asistencia');
   if(!esMovil())A('Qué hay de nuevo','Las funciones nuevas del ordenador, con su «Probar»',()=>{if(window.bmNovedadesMac)bmNovedadesMac();},'novedades nuevo cambios version');
   if(!esMovil())A('Inspector del jugador','Un panel a la derecha con el estado del jugador · I o ⌥ clic',()=>{if(window.bmInspAlterna)bmInspAlterna();},'inspector panel lateral estado jugador');
+  if(!esMovil())A('Planificar la semana','Las sesiones de los siete días en una hoja, con su carga planificada',()=>{if(window.bmHojaSemana)bmHojaSemana();},'planificar semana hoja sesiones programar');
   if(!esMovil())A('Línea de tiempo','Las cinco últimas semanas bajo la barra: pulsa o arrastra para cambiar de día · L',()=>{if(window.bmTlAlterna)bmTlAlterna(true);},'linea tiempo dias semanas cambiar dia carga recuperacion');
   if(!esMovil())A('Presentar','Pantalla completa para la reunión o la tele del vestuario',()=>{if(window.bmPresentar)bmPresentar();},'presentacion pantalla completa reunion tele vestuario');
   A('Recordatorio del parte','Copia «Falta el cuestionario de wellness de hoy: …» para el grupo',()=>{if(window.bmRecordatorio)bmRecordatorio('well');},'recordatorio wellness parte whatsapp grupo faltan');
@@ -14765,6 +14766,7 @@ function bmCtxMac(x,cx,cy){
     let plan=false;try{plan=pas&&calBloquesPlan(dk).size>0;}catch(e){}
     if(plan&&window.bmCierre)it.push({t:'Cerrar la sesión…',ic:I.cita,tit:'Minutos de cada bloque y quién entrenó',f:()=>bmCierre(dk)});
     if(dk>=hoy&&window.bmHabitual)it.push({t:'Planificar el ciclo con lo habitual…',ic:I.lapiz,tit:'La sesión habitual de cada día del ciclo, para los días vacíos',f:()=>bmHabitual(dk)});
+    if(window.bmHojaSemana)it.push({t:'Planificar la semana como hoja…',ic:I.lapiz,tit:'Las sesiones de los siete días en una tabla',f:()=>bmHojaSemana(dk)});
     if(pas&&window.bmNota){const nn=notasDe(dk,null).length;it.push({t:nn?'Notas del día ('+nn+')…':'Añadir una nota…',ic:'',tit:'Sale como marca en los gráficos de ese día',f:()=>bmNota(dk)});}
     /* v762 · copiar y pegar el día */
     const nEv=((STATE.calendar||{})[dk]||[]).length;
@@ -16609,6 +16611,141 @@ document.addEventListener('mouseover',e=>{
   BMSBP.el=it;BMSBP.t=setTimeout(()=>{if(BMSBP.el===it&&it.isConnected)bmSbpPinta(it);},480);
 },{passive:true});
 ['mousedown','keydown','scroll'].forEach(t=>window.addEventListener(t,()=>{if(BMSBP.el)bmSbpQuita();},{passive:true,capture:true}));
+/* ═══ v789 · ORDENADOR · Planificar la semana como una hoja ═══
+   Daniel, 17/11/2026, propuesta 7. Programar una semana eran siete días
+   abiertos uno a uno, cada uno con su formulario. Ahora la semana entera cabe
+   en una hoja: una fila por sesión con tipo, título (o rival), hora, minutos,
+   intensidad, contacto y RPE objetivo, la carga planificada de cada fila y de
+   cada día —calculada como siempre, RPE de la intensidad × minutos (`calPlanUA`)—
+   y, al lado de cada día, su posición en el microciclo (`calMd`) con la media
+   real de esa posición en la temporada (`calRefMD`): la referencia que ya
+   enseña el microciclo. Se edita con el teclado (Tab), ⌘D duplica la fila al
+   día siguiente, y no se toca nada hasta pulsar «Guardar la semana», que se
+   deshace con ⌘Z. Una sesión que entró «sin programar» y se edita aquí pasa a
+   programada, como en el formulario de siempre. Los días conservan lo que no
+   es de la sesión (minutos, convocatoria, plan individual). El Calendario no
+   cambia: esto se abre desde su clic derecho, el menú «⋯» y la búsqueda. */
+const BMSH={lunes:null,dks:[],buf:{},sucio:false,ref:null,ps:[],guarda:false};
+const BMSH_INT=['','Baja','Media','Alta'];
+function bmShLunes(dk){const d=dkToDate(dk);return dkSumaDias(dk,-((d.getDay()+6)%7));}
+function bmShCarga(lunes){
+  try{calLoad();}catch(e){}
+  BMSH.lunes=lunes;BMSH.dks=dkRango(lunes,dkSumaDias(lunes,6));BMSH.buf={};
+  BMSH.dks.forEach(dk=>{BMSH.buf[dk]=JSON.parse(JSON.stringify((STATE.calendar||{})[dk]||[]));});
+  BMSH.sucio=false;
+  try{BMSH.ps=calPartidosDks();}catch(e){BMSH.ps=[];}
+  if(!BMSH.ref){try{const r=calRefMD();BMSH.ref={};(r.filas||[]).forEach(f=>{BMSH.ref[f.md]=f;});}catch(e){BMSH.ref={};}}
+}
+function bmHojaSemana(dk){
+  if(esMovil()||!bmEscFino())return;
+  BMSH.ref=null;bmShCarga(bmShLunes(dk||dkey(REF())));bmShPinta();
+}
+function bmShUA(e){try{return Math.round(CAL_RPE[evIntens(e)]*evDur(e));}catch(x){return 0;}}
+function bmShFila(dk,e,i){
+  const E=bmEsc,tipo=e.type||'entreno',esP=tipo==='partido';
+  const opT=Object.keys(CAL_TYPES).map(k=>'<option value="'+k+'"'+(k===tipo?' selected':'')+'>'+CAL_TYPES[k].lab+'</option>').join('')+(CAL_TYPES[tipo]?'':'<option value="'+E(tipo)+'" selected>'+E(tipo)+'</option>');
+  const it=evIntens(e),con=e.contacto!=null?e.contacto:3;
+  const rpeDef=(HREQ_RPE_INT&&HREQ_RPE_INT[it])||'';
+  return '<tr data-dk="'+dk+'" data-i="'+i+'"'+(e.sp?' class="sp"':'')+'>'
+    +'<td><select data-k="type" aria-label="Tipo">'+opT+'</select></td>'
+    +'<td><input data-k="tit" type="text" value="'+E(esP?(e.rival||''):(e.title||''))+'" placeholder="'+(esP?'Rival':'Título (opcional)')+'" aria-label="'+(esP?'Rival':'Título')+'">'+(e.sp?'<small>sin programar</small>':'')+'</td>'
+    +'<td><input data-k="time" type="time" value="'+E(e.time||'')+'" aria-label="Hora"></td>'
+    +'<td><input data-k="dur" type="number" min="0" max="300" step="5" value="'+(e.dur!=null?e.dur:evDur(e))+'" aria-label="Minutos"></td>'
+    +'<td><select data-k="intens" aria-label="Intensidad">'+[1,2,3].map(k=>'<option value="'+k+'"'+(k===it?' selected':'')+'>'+BMSH_INT[k]+'</option>').join('')+'</select></td>'
+    +'<td><select data-k="contacto" aria-label="Contacto">'+[1,2,3,4,5].map(k=>'<option value="'+k+'"'+(k===con?' selected':'')+'>'+k+'</option>').join('')+'</select></td>'
+    +'<td><input data-k="rpe" type="number" min="1" max="10" step="0.1" value="'+(e.rpe!=null&&isFinite(e.rpe)?e.rpe:'')+'" placeholder="'+String(rpeDef).replace('.',',')+'" aria-label="RPE objetivo"></td>'
+    +'<td class="n bmsh-ua">'+bmShUA(e).toLocaleString('es-ES')+'</td>'
+    +'<td><button type="button" class="bmsh-del" data-a="del" aria-label="Quitar la sesión" title="Quitar">×</button></td></tr>';
+}
+function bmShDiaCab(dk){
+  const E=bmEsc,hoy=dkey(new Date()),d=dkToDate(dk);
+  let t=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'numeric'});t=t.charAt(0).toUpperCase()+t.slice(1);
+  let md=null;try{md=calMd(dk,BMSH.ps);}catch(e){}
+  const ref=md&&BMSH.ref&&BMSH.ref[md.txt];
+  const ua=(BMSH.buf[dk]||[]).reduce((s,e)=>s+bmShUA(e),0);
+  const refTx=ref&&ref.n>=3?'media real de un '+md.txt+': '+Math.round(ref.media).toLocaleString('es-ES')+' UA':(ref&&ref.n?md.txt+': pocos días para una media':'');
+  return '<tr class="bmsh-dia'+(dk===hoy?' hoy':'')+'" data-dk="'+dk+'"><th colspan="7"><b>'+E(t)+'</b>'+(md?'<span class="bmsh-md">'+E(md.txt)+'</span>':'')+(refTx?'<em>'+E(refTx)+'</em>':'')+'</th>'
+    +'<th class="n bmsh-tot">'+(ua?ua.toLocaleString('es-ES')+' UA':'—')+'</th><th><button type="button" class="bmsh-mas" data-a="mas" aria-label="Añadir una sesión" title="Añadir una sesión">＋</button></th></tr>';
+}
+function bmShHTML(){
+  const E=bmEsc,a=dkToDate(BMSH.dks[0]),b=dkToDate(BMSH.dks[6]);
+  const tot=BMSH.dks.reduce((s,dk)=>s+(BMSH.buf[dk]||[]).reduce((t,e)=>t+bmShUA(e),0),0);
+  let filas='';
+  BMSH.dks.forEach(dk=>{filas+=bmShDiaCab(dk);const l=BMSH.buf[dk]||[];
+    if(!l.length)filas+='<tr class="bmsh-vacio" data-dk="'+dk+'"><td colspan="9">Descanso o sin programar</td></tr>';
+    l.forEach((e,i)=>{filas+=bmShFila(dk,e,i);});});
+  return '<div class="bmsh-bar"><button type="button" data-a="ant" aria-label="Semana anterior">‹</button><b>Del '+a.getDate()+' de '+CAL_MES[a.getMonth()].toLowerCase()+' al '+b.getDate()+' de '+CAL_MES[b.getMonth()].toLowerCase()+'</b><button type="button" data-a="sig" aria-label="Semana siguiente">›</button>'
+    +'<span class="bmsh-tt">Plan de la semana <b>'+tot.toLocaleString('es-ES')+' UA</b></span></div>'
+    +'<div class="bmsh-w"><table class="bmsh-t"><thead><tr><th>Tipo</th><th>Título o rival</th><th>Hora</th><th>Min</th><th>Intensidad</th><th>Contacto</th><th title="Vacío: el de la intensidad">RPE obj.</th><th class="n">Plan</th><th></th></tr></thead><tbody>'+filas+'</tbody></table></div>'
+    +'<p class="bmsh-pie">Plan = RPE de la intensidad × minutos, como en el calendario. ⌘D duplica la fila al día siguiente. Nada se guarda hasta pulsar «Guardar la semana».</p>'
+    +'<div class="bmsh-acc"><button type="button" class="btn ghost" data-a="cancela">Cancelar</button><button type="button" class="btn" data-a="guarda">Guardar la semana</button></div>';
+}
+function bmShPinta(foco){
+  const h=bmHoja({id:'semana',titulo:'Planificar la semana',clase:'bmsh',fija:true,html:bmShHTML(),alCerrar:()=>{
+    if(BMSH.guarda){BMSH.guarda=false;return;}
+    if(BMSH.sucio&&!confirm('Hay cambios sin guardar en la semana. ¿Descartarlos?'))setTimeout(()=>bmShPinta(),340);
+    else BMSH.sucio=false;}});
+  const c=h.querySelector('.bmh-cuerpo');
+  if(!c._bmsh){c._bmsh=true;
+    c.addEventListener('change',bmShCambio);c.addEventListener('input',e=>{if(e.target.matches('input[data-k="dur"],input[data-k="rpe"]'))bmShCambio(e);});
+    c.addEventListener('click',bmShClic);
+    c.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&String(e.key).toLowerCase()==='d'){const tr=e.target.closest('tr[data-i]');if(tr){e.preventDefault();e.stopPropagation();bmShDuplica(tr.dataset.dk,+tr.dataset.i);}}});}
+  if(foco){const el=c.querySelector('tr[data-dk="'+foco[0]+'"][data-i="'+foco[1]+'"] [data-k="'+(foco[2]||'type')+'"]');if(el)setTimeout(()=>{try{el.focus();}catch(x){}},30);}
+}
+function bmShRecalcula(dk){
+  const c=document.querySelector('#bmh-semana .bmh-cuerpo');if(!c)return;
+  (BMSH.buf[dk]||[]).forEach((e,i)=>{const td=c.querySelector('tr[data-dk="'+dk+'"][data-i="'+i+'"] .bmsh-ua');if(td)td.textContent=bmShUA(e).toLocaleString('es-ES');});
+  const cab=c.querySelector('tr.bmsh-dia[data-dk="'+dk+'"]');if(cab){const n=document.createElement('tbody');n.innerHTML=bmShDiaCab(dk);cab.replaceWith(n.firstChild);}
+  const tot=BMSH.dks.reduce((s,d)=>s+(BMSH.buf[d]||[]).reduce((t,e)=>t+bmShUA(e),0),0);const b=c.querySelector('.bmsh-tt b');if(b)b.textContent=tot.toLocaleString('es-ES')+' UA';
+}
+function bmShCambio(ev){
+  const el=ev.target,k=el.dataset&&el.dataset.k,tr=el.closest('tr[data-i]');if(!k||!tr)return;
+  const dk=tr.dataset.dk,i=+tr.dataset.i,e=(BMSH.buf[dk]||[])[i];if(!e)return;
+  const v=el.value;BMSH.sucio=true;delete e.sp;tr.classList.remove('sp');
+  if(k==='type'){const era=e.type;e.type=v;const T=CAL_TYPES[v];
+    if(v==='partido'&&era!=='partido'){e.rival=e.rival||'';if(T)e.intens=T.intens;}
+    if(v!=='partido'&&era==='partido'){e.rival=null;}
+    if(T&&ev.type==='change'){if(e.dur==null||(CAL_TYPES[era]&&e.dur===CAL_TYPES[era].dur))e.dur=T.dur;}
+    const n=document.createElement('tbody');n.innerHTML=bmShFila(dk,e,i);tr.replaceWith(n.firstChild);bmShRecalcula(dk);
+    const s=document.querySelector('#bmh-semana tr[data-dk="'+dk+'"][data-i="'+i+'"] [data-k="type"]');if(s)s.focus();return;}
+  if(k==='tit'){if(e.type==='partido')e.rival=v.trim();else e.title=v.trim();}
+  else if(k==='time')e.time=v;
+  else if(k==='dur')e.dur=Math.max(0,Math.min(300,+v||0));
+  else if(k==='intens')e.intens=+v||2;
+  else if(k==='contacto')e.contacto=+v||3;
+  else if(k==='rpe'){const x=parseFloat(String(v).replace(',','.'));e.rpe=isFinite(x)&&x>0?Math.max(1,Math.min(10,x)):null;}
+  bmShRecalcula(dk);
+}
+function bmShNueva(dk){const T=CAL_TYPES.entreno;return {id:bmcaId(),type:'entreno',title:'',time:'',intens:T.intens,dur:T.dur,contacto:3,rpe:null,card:null,objs:[],note:''};}
+function bmShClic(ev){
+  const b=ev.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
+  if(a==='ant'||a==='sig'){if(BMSH.sucio&&!confirm('Hay cambios sin guardar en esta semana. ¿Descartarlos?'))return;bmShCarga(dkSumaDias(BMSH.lunes,a==='sig'?7:-7));bmShPinta();return;}
+  if(a==='cancela'){if(BMSH.sucio&&!confirm('Hay cambios sin guardar en la semana. ¿Descartarlos?'))return;BMSH.sucio=false;bmHojaCierra('bmh-semana');return;}
+  if(a==='guarda'){bmShGuarda();return;}
+  const tr=b.closest('tr');if(!tr)return;const dk=tr.dataset.dk;
+  if(a==='mas'){(BMSH.buf[dk]=BMSH.buf[dk]||[]).push(bmShNueva(dk));BMSH.sucio=true;bmShPinta([dk,BMSH.buf[dk].length-1,'type']);return;}
+  if(a==='del'){const i=+tr.dataset.i;BMSH.buf[dk].splice(i,1);BMSH.sucio=true;bmShPinta();return;}
+}
+function bmShDuplica(dk,i){
+  const j=BMSH.dks.indexOf(dk);const e=(BMSH.buf[dk]||[])[i];if(!e)return;
+  if(j<0||j>=6){toast('El domingo es el último día de esta semana');return;}
+  const dst=BMSH.dks[j+1];const c=bmcaCopia(e);delete c.sp;(BMSH.buf[dst]=BMSH.buf[dst]||[]).push(c);BMSH.sucio=true;
+  bmShPinta([dst,BMSH.buf[dst].length-1,'type']);
+}
+function bmShGuarda(){
+  const dks=BMSH.dks.slice();const foto=bmcaFoto(dks);
+  try{calLoad();}catch(e){}
+  let n=0;
+  dks.forEach(dk=>{const l=(BMSH.buf[dk]||[]).map(e=>Object.assign({},e));l.forEach(e=>{if(!e.id)e.id=bmcaId();if(e.type!=='partido'){e.rival=null;}});
+    l.sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));n+=l.length;
+    if(l.length)STATE.calendar[dk]=l;else delete STATE.calendar[dk];});
+  const ok=calPersist();
+  try{renderCalendar();}catch(e){}
+  BMSH.sucio=false;BMSH.guarda=true;bmHojaCierra('bmh-semana');
+  if(ok===false){toast('No se ha podido guardar la semana');return;}
+  bmHecho('Semana guardada · '+n+(n===1?' sesión':' sesiones'),()=>bmcaRestaura(foto),'Semana deshecha');
+}
+window.bmHojaSemana=bmHojaSemana;
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -42606,6 +42743,7 @@ function bmTbMenu(e){
     {t:'Cerrar la sesión…',f:()=>{try{bmCierre();}catch(err){}}},
     {t:'Datos que faltan…',f:()=>{try{bmFaltan();}catch(err){}}},
     {t:'Planificar con lo habitual…',f:()=>{try{bmHabitual();}catch(err){}}},
+    {t:'Planificar la semana…',f:()=>{try{bmHojaSemana();}catch(err){}}},
     {t:'Añadir una nota…',f:()=>{try{bmNota();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Inspector del jugador',k:'I',f:()=>{try{bmInspAlterna();}catch(err){}}},
@@ -52910,6 +53048,43 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   #bm-sbp .sbp-f>b{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
   #bm-sbp .sbp-f>small{grid-column:1/-1;font-size:11.5px;color:var(--muted);line-height:1.35}
   @media (prefers-reduced-motion:reduce){#bm-sbp{transition:none}}
+}
+</style>
+<style id="esc-v789">
+/* v789 · ORDENADOR · Planificar la semana como una hoja. */
+@media screen and (min-width:761px) and (pointer:fine){
+  .bmsh .bmh-caja{width:min(1060px,calc(100vw - 80px))!important;max-width:none!important;max-height:88vh!important}
+  .bmsh .bmsh-bar{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+  .bmsh .bmsh-bar>button{width:28px;height:26px;border:none;border-radius:6px;background:var(--sbf-pozo,rgba(118,118,128,.12));color:var(--txt);font-size:16px;line-height:1;cursor:default}
+  .bmsh .bmsh-bar>button:hover{background:var(--sbf-hover,rgba(118,118,128,.18))}
+  .bmsh .bmsh-bar>b{font-size:14px;font-weight:600}
+  .bmsh .bmsh-tt{margin-left:auto;font-size:12.5px;color:var(--muted)}
+  .bmsh .bmsh-tt b{color:var(--txt);font-variant-numeric:tabular-nums}
+  .bmsh .bmsh-w{overflow:auto;max-height:calc(88vh - 210px);border-radius:10px;box-shadow:0 0 0 .5px var(--sbf-linea,rgba(60,60,67,.18))}
+  .bmsh .bmsh-t{width:100%;border-collapse:collapse;font-size:13px}
+  .bmsh .bmsh-t thead th{position:sticky;top:0;z-index:2;background:var(--panel);text-align:left;font-size:11px;font-weight:600;color:var(--muted);padding:7px 6px;border-bottom:.5px solid var(--sbf-linea,rgba(60,60,67,.18));white-space:nowrap}
+  .bmsh .bmsh-t td{padding:3px 4px;vertical-align:middle;border-bottom:.5px solid var(--sbf-linea,rgba(60,60,67,.12))}
+  .bmsh .bmsh-t .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .bmsh .bmsh-dia th{background:var(--panel2);text-align:left;padding:7px 8px;font-weight:500;font-size:12px;color:var(--muted);border-bottom:.5px solid var(--sbf-linea,rgba(60,60,67,.12))}
+  .bmsh .bmsh-dia th b{color:var(--txt);font-size:13px;font-weight:600;margin-right:8px}
+  .bmsh .bmsh-dia.hoy th b{color:var(--acc-seg,var(--accent))}
+  .bmsh .bmsh-md{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--sbf-pozo,rgba(118,118,128,.12));color:var(--txt);margin-right:8px}
+  .bmsh .bmsh-dia em{font-style:normal}
+  .bmsh .bmsh-tot{color:var(--txt)!important;font-weight:600!important}
+  .bmsh .bmsh-vacio td{color:var(--muted);font-size:12px;padding:7px 10px}
+  .bmsh .bmsh-t select,.bmsh .bmsh-t input{width:100%;height:28px;box-sizing:border-box;padding:0 6px;border-radius:6px;border:.5px solid var(--sbf-linea,rgba(60,60,67,.2));background:var(--panel);color:var(--txt);font:inherit;font-size:13px}
+  .bmsh .bmsh-t input[data-k="tit"]{min-width:170px}
+  .bmsh .bmsh-t input[data-k="dur"],.bmsh .bmsh-t input[data-k="rpe"]{width:64px;text-align:right}
+  .bmsh .bmsh-t input[data-k="time"]{width:96px}
+  .bmsh .bmsh-t select:focus,.bmsh .bmsh-t input:focus{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent);border-color:var(--accent)}
+  .bmsh .bmsh-t tr.sp td{background:color-mix(in srgb,var(--warn) 7%,transparent)}
+  .bmsh .bmsh-t td small{display:block;font-size:10.5px;color:var(--warn-text);margin-top:1px}
+  .bmsh .bmsh-del,.bmsh .bmsh-mas{width:26px;height:26px;border:none;border-radius:6px;background:none;color:var(--muted);font-size:16px;line-height:1;cursor:default}
+  .bmsh .bmsh-del:hover{background:var(--sbf-hover,rgba(118,118,128,.14));color:var(--txt)}
+  .bmsh .bmsh-mas{color:var(--acc-seg,var(--accent));font-weight:600}
+  .bmsh .bmsh-mas:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+  .bmsh .bmsh-pie{margin:10px 2px 0;font-size:12px;color:var(--muted)}
+  .bmsh .bmsh-acc{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
 }
 </style>
 <style id="esc-v762">
