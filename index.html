@@ -14193,6 +14193,7 @@ function bmbIndice(){
   if(!esMovil())A('Presentar','Pantalla completa para la reunión o la tele del vestuario',()=>{if(window.bmPresentar)bmPresentar();},'presentacion pantalla completa reunion tele vestuario');
   A('Recordatorio del parte','Copia «Falta el cuestionario de wellness de hoy: …» para el grupo',()=>{if(window.bmRecordatorio)bmRecordatorio('well');},'recordatorio wellness parte whatsapp grupo faltan');
   A('Datos que faltan','Días sin minutos, partidos sin minutos jugados y cuestionarios pendientes',()=>{if(window.bmFaltan)bmFaltan();},'faltan pendientes huecos completar');
+  A('Planificar con lo habitual','La sesión habitual de cada día del ciclo, para los días vacíos',()=>{if(window.bmHabitual)bmHabitual();},'planificar ciclo microciclo semana habitual rellenar plantilla');
   A('Desde tu última visita','Lo que ha entrado desde la última vez en este equipo',()=>{if(window.bmDesdeVisita)bmDesdeVisita();},'novedades cambios nuevo');
   A('Informe del jugador','Su mes: carga, recuperación, ACWR, minutos, pruebas y salud, para la reunión',()=>{if(window.bmInformeJugador)bmInformeJugador();},'informe reunion jugador mes');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
@@ -14376,8 +14377,9 @@ function bmlpMenu(x){
     const p=x.dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]),pas=x.dk<=dkey(new Date());
     tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
     h='<div class="bmh-grupo">'+fila(BMLP_IC.lapiz,'Planificar o editar el día','Sesiones, partido, datos reales','edita')
-      +(pas?fila(BMLP_IC.ojo,'Ver ese día','Cambia el día que se está viendo y abre el Resumen','ver'):'')+'</div>';
-    acc={edita:()=>calOpenDay(x.dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=x.dk;setRefDate(x.dk);go('equipo');}};
+      +(pas?fila(BMLP_IC.ojo,'Ver ese día','Cambia el día que se está viendo y abre el Resumen','ver'):'')
+      +(window.bmHabitual&&x.dk>=dkey(new Date())?fila(BMLP_IC.lapiz,'Planificar el ciclo con lo habitual','La sesión habitual de cada día vacío','hab'):'')+'</div>';
+    acc={edita:()=>calOpenDay(x.dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=x.dk;setRefDate(x.dk);go('equipo');},hab:()=>bmHabitual(x.dk)};
   }
   /* v599 · Con vista previa, como en iOS. Si algo falla al montarla, la hoja de siempre. */
   try{if(bmPrevia(x,acc))return;}catch(err){console.error('bmnava · vista previa',err);}
@@ -14453,7 +14455,8 @@ function bmPrevia(x,acc){
     let col='';try{col=calDiaCol(x.dk,i,window.__CAL_REAL||calRealMap(),mdMap,hoy,wdL);}catch(e){col='';}
     lab=wdL[i]+' '+d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase();
     tarjeta='<div class="bmp-tarjeta bmp-d" data-a="edita"><div class="bmp-d-h">'+E(lab)+'</div><div class="bmp-d-c">'+col.replace(/\sonclick="[^"]*"/,'')+'</div></div>';
-    menu=fila('edita',BMLP_IC.lapiz,'Planificar o editar el día')+(pas?fila('ver',BMLP_IC.ojo,'Ver ese día'):'');
+    menu=fila('edita',BMLP_IC.lapiz,'Planificar o editar el día')+(pas?fila('ver',BMLP_IC.ojo,'Ver ese día'):'')
+      +(window.bmHabitual&&x.dk>=dkey(new Date())?fila('hab',BMLP_IC.lapiz,'Planificar el ciclo con lo habitual'):'');
   }
   v._acc=acc;if(x.t==='j'&&!esMovil())v._acc=Object.assign({},acc,{nueva:()=>bmAbreVentana(bmUrlDe('jugador',x.n))});v.setAttribute('aria-label',lab);
   v.innerHTML='<div class="bmp-caja">'+tarjeta+'<div class="bmp-menu" role="menu">'+menu+'</div></div>';
@@ -14578,13 +14581,14 @@ function bmCtxMac(x,cx,cy){
     if(window.bmSegExtra)it=it.concat(bmSegExtra(n));
   }else{
     const dk=x.dk,hoy=dkey(new Date()),pas=dk<=hoy;
-    const acc={edita:()=>calOpenDay(dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=dk;setRefDate(dk);go('equipo');}};
+    const acc={edita:()=>calOpenDay(dk),ver:()=>{const i=document.getElementById('ref-date');if(i)i.value=dk;setRefDate(dk);go('equipo');},hab:()=>bmHabitual(dk)};
     const d=dkToDate(dk);let tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
     it.push({h:tit});
     it.push({t:'Planificar o editar el día',ic:I.lapiz,f:acc.edita});
     if(pas)it.push({t:'Ver ese día',ic:I.ojo,tit:'Cambia el día que se está viendo y abre el Resumen',f:acc.ver});
     let plan=false;try{plan=pas&&calBloquesPlan(dk).size>0;}catch(e){}
     if(plan&&window.bmCierre)it.push({t:'Cerrar la sesión…',ic:I.cita,tit:'Minutos de cada bloque y quién entrenó',f:()=>bmCierre(dk)});
+    if(dk>=hoy&&window.bmHabitual)it.push({t:'Planificar el ciclo con lo habitual…',ic:I.lapiz,tit:'La sesión habitual de cada día del ciclo, para los días vacíos',f:()=>bmHabitual(dk)});
     /* v762 · copiar y pegar el día */
     const nEv=((STATE.calendar||{})[dk]||[]).length;
     if(nEv||(BMCA&&BMCA.clip))it.push({sep:1});
@@ -14675,6 +14679,168 @@ document.addEventListener('keydown',e=>{
   if(k==='c'){const sel=window.getSelection&&String(window.getSelection());if(sel)return;e.preventDefault();bmcaCopiaDia(BMCA.hover);}
   else if(BMCA.clip){e.preventDefault();bmcaPega(BMCA.hover);}});
 window.bmcaCopiaDia=bmcaCopiaDia;window.bmcaPega=bmcaPega;
+/* ═══ v765 · Planificar el ciclo con lo habitual ═══
+   Daniel, 17/11/2026, eligió la propuesta 4. Planificar un microciclo era
+   meter a mano, día a día, casi siempre lo mismo que el anterior. Ahora, para
+   un ciclo (partido → partido), la app propone en cada día vacío la sesión
+   HABITUAL de esa posición del ciclo y se aplica de una vez.
+   · «Habitual» es lo que más se ha repetido en vuestro calendario desde el 1
+     de septiembre (`MD_REF_DESDE`, la ventana de `calRefMD`), día a día por
+     su posición (`calMd`, la única regla de MD): qué sesiones hubo, y de cada
+     una la mediana de minutos y de contacto, la intensidad más repetida y la
+     hora, el RPE objetivo, el objetivo cardíaco y el título sólo si la mayoría
+     los tenía. No hay ningún umbral nuevo.
+   · Con menos de `HAB_MIN`=3 días de referencia no se propone nada: es el
+     mínimo con el que `calRefMD` deja de atenuar una posición.
+   · No pisa nada: un día que ya tiene algo programado no se toca, ni los días
+     pasados ni el partido. Lo puesto «sin programar» sí se sustituye, porque
+     es justo el hueco que esto rellena, y la fila lo dice.
+   · Antes de aplicar se ve la propuesta entera con la carga de cada día y la
+     referencia real de esa posición, y se deshace con ⌘Z o «Deshacer». */
+const HAB={dk:null,sel:{}};
+const HAB_MIN=3;
+const habModa=(xs)=>{const c={},u={};let best=null;xs.forEach((x,i)=>{if(x==null||x==='')return;const k=String(x);c[k]=(c[k]||0)+1;u[k]=i;});
+  Object.keys(c).forEach(k=>{if(best==null||c[k]>c[best]||(c[k]===c[best]&&u[k]>u[best]))best=k;});return best==null?null:{v:best,n:c[best]};};
+function habSesion(tp,xs){
+  const n=xs.length,mitad=n/2;
+  const md=a=>{const v=plMediana(a.filter(x=>x!=null&&isFinite(x)));return v;};
+  const s={type:tp,title:'',time:''};
+  const ti=habModa(xs.map(e=>(e.title||'').trim()));if(ti&&ti.n>mitad)s.title=ti.v;
+  const ho=habModa(xs.map(e=>e.time||''));if(ho&&ho.n>mitad)s.time=ho.v;
+  const it=habModa(xs.map(e=>evIntens(e)));s.intens=it?+it.v:2;
+  const du=md(xs.map(e=>evDur(e)));s.dur=du==null?evDur({type:tp}):Math.round(du/5)*5;
+  const ct=md(xs.map(e=>evContacto(e)));s.contacto=ct==null?evContacto({type:tp}):Math.round(ct);
+  const rp=xs.filter(e=>e.rpe!=null&&isFinite(e.rpe));s.rpe=rp.length>mitad?Math.round(md(rp.map(e=>+e.rpe))*10)/10:null;
+  const ca=habModa(xs.map(e=>e.card||''));s.card=(ca&&ca.n>mitad)?+ca.v:null;
+  return s;
+}
+function habPerfiles(){
+  calLoad();
+  const ps=calPartidosDks().filter(p=>p>=MD_REF_DESDE);
+  const hoy=dkey(new Date());
+  const por={};MD_ORDEN.forEach(k=>{if(k!=='MD')por[k]=[];});
+  if(!ps.length)return {por:{},ps:0};
+  for(let t=dkToDate(MD_REF_DESDE).getTime();;t+=86400000){
+    const dk=dkey(new Date(t));if(dk>=hoy)break;
+    const m=calMd(dk,ps);if(!m||!por[m.txt])continue;
+    /* un día sin nada programado no es un día de descanso: es un día del que no sabemos */
+    const evs=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&!evEsPartido(e)&&e.type!=='evento');
+    if(!evs.length)continue;
+    por[m.txt].push({dk,evs:evs.slice().sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'))});
+  }
+  const out={};
+  Object.keys(por).forEach(md=>{
+    const L=por[md],n=L.length;if(!n){out[md]={n:0};return;}
+    const grupos={};L.forEach(d=>{const f=d.evs.map(e=>e.type).sort().join('+');(grupos[f]=grupos[f]||[]).push(d);});
+    let mejor=null;
+    Object.keys(grupos).forEach(f=>{const a=grupos[f];if(!mejor||a.length>mejor.l.length||(a.length===mejor.l.length&&a[a.length-1].dk>mejor.l[mejor.l.length-1].dk))mejor={f,l:a};});
+    const vistos={};
+    const ses=mejor.f.split('+').map(tp=>{const k=vistos[tp]||0;vistos[tp]=k+1;
+      return habSesion(tp,mejor.l.map(d=>d.evs.filter(e=>e.type===tp)[k]).filter(Boolean));});
+    ses.sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));
+    out[md]={n,nm:mejor.l.length,ses,ultimo:mejor.l[mejor.l.length-1].dk};
+  });
+  return {por:out,ps:ps.length};
+}
+const habUA=s=>Math.round(CAL_RPE[s.intens||2]*(s.dur||0));
+function habCiclo(dk){
+  calLoad();
+  const c=calMicrociclo(dk),hoy=dkey(new Date()),P=habPerfiles();
+  const ref={};try{(calRefMD().filas||[]).forEach(f=>{ref[f.md]=f;});}catch(e){}
+  const dias=c.dias.map(d=>{
+    const evs=(STATE.calendar||{})[d.dk]||[],prog=evs.filter(e=>!evSP(e)),md=d.md?d.md.txt:null;
+    let estado='prop',prop=null;
+    if(d.partido)estado='partido';
+    else if(d.dk<hoy)estado='pasado';
+    else if(prog.length)estado='hecho';
+    else if(!md||!P.por[md])estado='sinref';
+    else if(P.por[md].n<HAB_MIN)estado='pocos';
+    else prop=P.por[md];
+    return Object.assign({},d,{mdTxt:md,estado,prop,sp:evs.filter(evSP),prog,ref:md?ref[md]:null});
+  });
+  return {c,dias,P};
+}
+function habSesTxt(s){
+  const tp=calTipo(s.type).lab;
+  if(s.type==='descanso')return tp+(s.title?' · '+s.title:'');
+  return [s.title||tp,s.dur+'′',(CAL_INT[s.intens]||CAL_INT[2]).lab,'contacto '+s.contacto,s.time||''].filter(Boolean).join(' · ');
+}
+function bmHabitual(dk){
+  try{calLoad();}catch(e){}
+  const hoy=dkey(new Date());
+  dk=dk&&dk>=hoy?dk:hoy;
+  HAB.dk=dk;HAB.sel={};
+  /* si el ciclo de hoy ya está planificado, el siguiente */
+  if(!dk||dk===hoy){try{const D=habCiclo(hoy);if(!D.dias.some(d=>d.estado==='prop')&&D.c.partidoSig){const s=dkToDate(D.c.partidoSig);s.setDate(s.getDate()+1);HAB.dk=dkey(s);}}catch(e){}}
+  bmHoja({id:'hab',titulo:'Planificar con lo habitual',html:'<div class="hab" id="hab-cuerpo"></div>',clase:'bm-habh'});
+  habPinta();
+}
+function habPinta(){
+  const box=document.getElementById('hab-cuerpo');if(!box||!HAB.dk)return;
+  let D=null;try{D=habCiclo(HAB.dk);}catch(e){console.error('bmnava · lo habitual',e);}
+  if(!D){box.innerHTML='<p class="hab-nada">No se pudo preparar la propuesta.</p>';return;}
+  const hoy=dkey(new Date()),c=D.c,E=bmEsc;
+  if(!D.P.ps){box.innerHTML='<div class="bci-vacio"><b>No hay partidos en el calendario desde el 1 de septiembre</b><span>Lo habitual de cada día sale de su posición en el ciclo (MD-2, MD-1…), y sin partidos no hay ciclo. Pon los partidos y vuelve aquí.</span></div>';return;}
+  const d0=c.dias[0].dk,d1=c.dias[c.dias.length-1].dk;
+  let ev=null;if(c.partidoSig)ev=((STATE.calendar||{})[c.partidoSig]||[]).find(evEsPartido);
+  const riv=ev&&evRival(ev);
+  const tit=c.partidoSig?'Hasta el partido del '+bmciTit(c.partidoSig).toLowerCase()+(riv?' · '+riv:''):'Del '+bmciTit(d0).toLowerCase()+' al '+bmciTit(d1).toLowerCase();
+  const puedeAtras=c.partidoPrev&&c.partidoPrev>=hoy;
+  const nav='<div class="bci-nav"><button type="button" class="inf-fl" data-hab="-1" aria-label="Ciclo anterior"'+(puedeAtras?'':' disabled')+'>‹</button><b>'+E(tit)+'</b>'
+    +'<button type="button" class="inf-fl" data-hab="1" aria-label="Ciclo siguiente"'+(c.partidoSig?'':' disabled')+'>›</button></div>';
+  let avisos='';
+  if(!c.partidoSig)avisos+='<p class="hab-av">No hay próximo partido en el calendario: sin él no se sabe qué día es MD-2 o MD-1. Ponlo y vuelve aquí.</p>';
+  if(c.recortado)avisos+='<p class="hab-av">El ciclo pasa de 14 días y se ha recortado: falta meter el próximo partido.</p>';
+  let nDias=0,nSes=0,ua=0;
+  const filas=D.dias.map(d=>{
+    const on=d.estado==='prop'&&HAB.sel[d.dk]!==false;
+    if(on){nDias++;nSes+=d.prop.ses.length;ua+=d.prop.ses.reduce((a,s)=>a+habUA(s),0);}
+    const dia='<span class="hab-d"><b>'+E(bmciTit(d.dk))+'</b><em>'+E(d.mdTxt||'—')+'</em></span>';
+    let cuerpo='',chk='<span class="hab-c hab-c--no" aria-hidden="true"></span>';
+    if(d.estado==='prop'){
+      const P=d.prop,uap=P.ses.reduce((a,s)=>a+habUA(s),0);
+      chk='<button type="button" class="hab-c'+(on?' on':'')+'" data-hab-dk="'+d.dk+'" role="checkbox" aria-checked="'+(on?'true':'false')+'" aria-label="Planificar el '+E(bmciTit(d.dk))+'"></button>';
+      cuerpo='<span class="hab-s">'+P.ses.map(s=>'<i style="--c:'+calTipo(s.type).col+'">'+E(habSesTxt(s))+'</i>').join('')+'</span>'
+        +'<small>Así en '+P.nm+' de '+P.n+' '+E(d.mdTxt)+(uap?' · plan '+fmt(uap,0)+' UA':'')
+        +(d.ref&&d.ref.n?' · vuestro '+E(d.mdTxt)+' real: '+fmt(Math.round(d.ref.media),0)+' UA de media':'')
+        +(d.sp.length?' · sustituye lo puesto sin programar':'')+'</small>';
+    }else if(d.estado==='hecho')cuerpo='<span class="hab-m">Ya planificado · '+E(d.prog.map(e=>e.title||calTipo(e.type).lab).join(' + '))+'</span>';
+    else if(d.estado==='partido')cuerpo='<span class="hab-m">Partido'+(riv&&d.dk===c.partidoSig?' · '+E(riv):'')+'</span>';
+    else if(d.estado==='pasado')cuerpo='<span class="hab-m">Ya pasó</span>';
+    else cuerpo='<span class="hab-m">'+(d.mdTxt?E(d.mdTxt)+' no es un día de un ciclo de una semana: sin referencia':'Sin partido de referencia')+'</span>';
+    if(d.estado==='pocos'){const n=(D.P.por[d.mdTxt]||{}).n||0;cuerpo='<span class="hab-m">'+(n?'Solo '+n+' '+E(d.mdTxt)+' planificado'+(n===1?'':'s')+' desde septiembre: sin propuesta':'Ningún '+E(d.mdTxt)+' planificado desde septiembre')+'</span>';}
+    return '<div class="hab-r'+(d.estado==='prop'?'':' hab-r--x')+'">'+chk+dia+'<span class="hab-b">'+cuerpo+'</span></div>';
+  }).join('');
+  box.innerHTML=nav+avisos+'<div class="hab-l">'+filas+'</div>'
+    +'<p class="small muted hab-pie">Lo habitual de cada posición es lo que más se ha repetido en vuestro calendario desde el 1 de septiembre: las mismas sesiones, con la mediana de minutos y de contacto y la intensidad más repetida. Los días que ya tienen algo, los pasados y el partido no se tocan. Plan = RPE de la intensidad × minutos; la referencia real es la de «Referencias por día del ciclo».</p>'
+    +'<div class="bci-pie2"><span class="hab-tot">'+(nDias?nSes+(nSes===1?' sesión':' sesiones')+' en '+nDias+(nDias===1?' día':' días')+' · '+fmt(ua,0)+' UA':'Nada que planificar en este ciclo')+'</span>'
+    +'<button type="button" class="btn" data-hab="ok"'+(nDias?'':' disabled')+'>Planificar'+(nDias?' '+nDias+(nDias===1?' día':' días'):'')+'</button></div>';
+}
+function habAplica(){
+  let D=null;try{D=habCiclo(HAB.dk);}catch(e){}if(!D)return;
+  const dias=D.dias.filter(d=>d.estado==='prop'&&HAB.sel[d.dk]!==false);if(!dias.length)return;
+  const f=bmcaFoto(dias.map(d=>d.dk));let n=0;
+  dias.forEach(d=>{
+    const nuevos=d.prop.ses.map(s=>{const o=Object.assign({id:bmcaId()},JSON.parse(JSON.stringify(s)),{objs:[],note:''});if(o.rpe==null)delete o.rpe;if(o.card==null)delete o.card;return o;});
+    STATE.calendar[d.dk]=((STATE.calendar||{})[d.dk]||[]).filter(e=>!evSP(e)).concat(nuevos);bmcaOrdena(d.dk);n+=nuevos.length;
+  });
+  if(!calPersist()){toast('No se pudo guardar');return;}
+  try{renderCalendar();}catch(e){}
+  try{if(window.renderTeam&&document.getElementById('team-next'))renderTeam();}catch(e){}
+  bmHojaCierra('bmh-hab');
+  bmHecho('Planificado'+(dias.length===1?' 1 día':'s '+dias.length+' días')+' con lo habitual · '+n+(n===1?' sesión':' sesiones'),()=>bmcaRestaura(f),'Deshecho · el ciclo vuelve a como estaba');
+}
+document.addEventListener('click',e=>{
+  const t=e.target&&e.target.closest&&e.target.closest('#bmh-hab [data-hab],#bmh-hab [data-hab-dk]');if(!t||t.disabled)return;
+  if(t.dataset.habDk){const k=t.dataset.habDk;HAB.sel[k]=HAB.sel[k]===false;habPinta();return;}
+  const v=t.dataset.hab;
+  if(v==='ok'){habAplica();return;}
+  let D=null;try{D=habCiclo(HAB.dk);}catch(err){return;}
+  if(v==='1'&&D.c.partidoSig){const s=dkToDate(D.c.partidoSig);s.setDate(s.getDate()+1);HAB.dk=dkey(s);}
+  else if(v==='-1'&&D.c.partidoPrev)HAB.dk=D.c.partidoPrev;
+  HAB.sel={};habPinta();
+});
+window.bmHabitual=bmHabitual;window.habPerfiles=habPerfiles;window.habCiclo=habCiclo;
 
 const BMHOV={t:null,el:null,n:''};
 function bmHovQuita(){clearTimeout(BMHOV.t);BMHOV.t=null;BMHOV.el=null;const h=document.getElementById('bm-hov');if(h)h.classList.remove('on');}
@@ -40846,6 +41012,7 @@ function bmTbMenu(e){
     {t:'Desde tu última visita',f:()=>{try{bmDesdeVisita();}catch(err){}}},
     {t:'Cerrar la sesión…',f:()=>{try{bmCierre();}catch(err){}}},
     {t:'Datos que faltan…',f:()=>{try{bmFaltan();}catch(err){}}},
+    {t:'Planificar con lo habitual…',f:()=>{try{bmHabitual();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Qué hay de nuevo…',f:()=>{try{bmNovedadesMac();}catch(err){}}},
     {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
@@ -50780,6 +50947,35 @@ html.bpr-on body{overflow:hidden}
   .ij-ks{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ij-nav .inf-fl,.ij-acc .btn{min-height:44px;min-width:44px}
   .ij-nav select{min-height:44px;flex:1 1 100%;max-width:none}
+}
+</style>
+<style id="bm-v765">
+/* v765 · Planificar con lo habitual */
+.hab-av{font-size:12.5px;line-height:1.4;color:var(--warn-text);background:var(--panel2);border-radius:10px;padding:8px 12px;margin:0 0 10px}
+.hab-l{border-top:.5px solid var(--line)}
+.hab-r{display:grid;grid-template-columns:24px 126px minmax(0,1fr);align-items:start;gap:4px 12px;padding:10px 0;border-bottom:.5px solid var(--line)}
+.hab-r--x .hab-d b{color:var(--muted)}
+.hab-c{position:relative;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--muted2);background:transparent;padding:0;cursor:pointer;margin-top:1px;display:grid;place-items:center}
+.hab-c.on{background:var(--accent);border-color:var(--accent)}
+.hab-c.on::after{content:"";width:9px;height:5px;border:2px solid var(--on-accent,#fff);border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+.hab-c--no{border:0;cursor:default}
+.hab-d b{display:block;font-size:13.5px;font-weight:700;color:var(--txt);font-variant-numeric:tabular-nums}
+.hab-d em{display:block;font-style:normal;font-size:11.5px;font-weight:600;color:var(--muted)}
+.hab-b{min-width:0}
+.hab-s{display:flex;flex-direction:column;gap:3px}
+.hab-s i{font-style:normal;font-size:13.5px;color:var(--txt);padding-left:9px;border-left:3px solid var(--c,var(--accent));line-height:1.35}
+.hab-b small{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.35}
+.hab-m{font-size:13px;color:var(--muted);line-height:1.35}
+.hab-pie{margin:10px 0 0}
+.bm-habh .bci-pie2{align-items:center;justify-content:space-between;gap:12px}
+.hab-tot{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.hab-nada{color:var(--muted)}
+@media screen and (min-width:761px) and (pointer:fine){.bm-habh .bmh-caja{width:min(760px,calc(100vw - 80px))!important;max-width:none!important}}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .hab-r{grid-template-columns:30px 66px minmax(0,1fr);gap:4px 10px}
+  .hab-c{width:26px;height:26px}
+  .hab-c::before{content:"";position:absolute;inset:-9px}
+  .bm-habh .bci-pie2 .btn,.bm-habh .bci-nav .inf-fl{min-height:44px;min-width:44px}
 }
 </style>
 <style id="esc-v762">
