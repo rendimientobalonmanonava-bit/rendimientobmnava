@@ -14357,6 +14357,7 @@ function bmbIndice(){
   A('Cerrar la sesión','Minutos de cada bloque y quién entrenó',()=>{if(window.bmCierre)bmCierre();},'cerrar sesion minutos duracion convocar asistencia');
   if(!esMovil())A('Qué hay de nuevo','Las funciones nuevas del ordenador, con su «Probar»',()=>{if(window.bmNovedadesMac)bmNovedadesMac();},'novedades nuevo cambios version');
   if(!esMovil())A('Inspector del jugador','Un panel a la derecha con el estado del jugador · I o ⌥ clic',()=>{if(window.bmInspAlterna)bmInspAlterna();},'inspector panel lateral estado jugador');
+  if(!esMovil())A('Línea de tiempo','Las cinco últimas semanas bajo la barra: pulsa o arrastra para cambiar de día · L',()=>{if(window.bmTlAlterna)bmTlAlterna(true);},'linea tiempo dias semanas cambiar dia carga recuperacion');
   if(!esMovil())A('Presentar','Pantalla completa para la reunión o la tele del vestuario',()=>{if(window.bmPresentar)bmPresentar();},'presentacion pantalla completa reunion tele vestuario');
   A('Recordatorio del parte','Copia «Falta el cuestionario de wellness de hoy: …» para el grupo',()=>{if(window.bmRecordatorio)bmRecordatorio('well');},'recordatorio wellness parte whatsapp grupo faltan');
   A('Datos que faltan','Días sin minutos, partidos sin minutos jugados y cuestionarios pendientes',()=>{if(window.bmFaltan)bmFaltan();},'faltan pendientes huecos completar');
@@ -16295,6 +16296,127 @@ window.addEventListener('keydown',e=>{
   const s=window.setRefDate;if(typeof s==='function')window.setRefDate=function(){const x=s.apply(this,arguments);try{if(STATE.view==='jugadores'&&BMJT.modo==='tabla')bmJugTabla();}catch(e){}return x;};
 })();
 window.bmJtModo=bmJtModo;window.bmJugTabla=bmJugTabla;
+/* ═══ v785 · ORDENADOR · La línea de tiempo bajo la barra ═══
+   Daniel, 17/11/2026, propuesta 3: para cambiar de día hacía falta ‹ › día a
+   día o abrir el calendario, sin ver nada de los días que se iban saltando.
+   Ahora, con el botón junto a la fecha (o la tecla L), sale debajo de la barra
+   de herramientas una franja con las cinco últimas semanas: una barra por día
+   con la carga del equipo (`lbTeamDay().ua`, la del Dashboard de cargas), un
+   punto con la recuperación declarada del equipo (`teamRecSeries`, la de la
+   tira del Resumen, con su color) y los partidos marcados. Pasar el ratón
+   dice qué hubo ese día; pulsar o arrastrar cambia el día que se está viendo,
+   con la misma espera que las flechas para no repintar en cada paso. Va dentro
+   de la cabecera, así que todo lo que se pega debajo (tablas, la plantilla de
+   la ficha, el inspector) lo respeta. Se recuerda abierta en este ordenador. */
+const BMTL={on:false,dks:[],sel:null,t:null,tic:null,clave:'',rec:null,recDv:-1};
+const BMTL_DIAS=35;
+function bmTlPuede(){return !esMovil()&&bmEscFino();}
+function bmTlGuarda(){try{localStorage.setItem('bmnava-tl',BMTL.on?'1':'0');}catch(e){}}
+function bmTlBoton(){
+  if(!bmTlPuede()||document.getElementById('bm-tl-btn'))return;
+  const hoyB=document.querySelector('header .datepick .dp-today');if(!hoyB)return;
+  const b=document.createElement('button');b.type='button';b.id='bm-tl-btn';b.title='Línea de tiempo (L)';b.setAttribute('aria-label','Línea de tiempo');b.setAttribute('aria-pressed','false');
+  b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 18V12M8 18V8M12 18V11M16 18V6M20 18V13"/></svg>';
+  b.addEventListener('click',()=>bmTlAlterna());
+  hoyB.parentNode.insertBefore(b,hoyB.nextSibling);
+}
+function bmTlAlterna(on){
+  if(!bmTlPuede())return;
+  BMTL.on=on==null?!BMTL.on:!!on;bmTlGuarda();
+  const b=document.getElementById('bm-tl-btn');if(b){b.classList.toggle('on',BMTL.on);b.setAttribute('aria-pressed',BMTL.on?'true':'false');}
+  let tl=document.getElementById('bm-tl');
+  if(!BMTL.on){if(tl)tl.remove();if(BMTL.tic){clearInterval(BMTL.tic);BMTL.tic=null;}bmTlCabecera();return;}
+  if(!tl){const h=document.querySelector('header');if(!h)return;tl=document.createElement('div');tl.id='bm-tl';tl.setAttribute('role','group');tl.setAttribute('aria-label','Línea de tiempo');h.appendChild(tl);bmTlEventos(tl);}
+  bmTlPinta(true);
+  if(!BMTL.tic)BMTL.tic=setInterval(()=>{if(BMTL.on&&!window.__RD_CALC&&bmTlClave()!==BMTL.clave)bmTlPinta(false);},1500);
+  bmTlCabecera();
+}
+/* lo que se pega bajo la cabecera tiene que saber que ha crecido */
+function bmTlCabecera(){
+  /* setTimeout y no requestAnimationFrame: en segundo plano rAF no salta */
+  setTimeout(()=>{try{const h=document.querySelector('header');if(h)document.documentElement.style.setProperty('--bm-th-top',Math.round(h.getBoundingClientRect().height)+'px');bmJugLista();}catch(e){}},30);
+}
+function bmTlClave(){return [STATE.refDate?STATE.refDate.getTime():0,BM_DV,dkey(new Date()),(STATE.wellness||[]).length].join('|');}
+function bmTlDias(){
+  const hoy=dkey(new Date()),r=dkey(REF());
+  let fin=hoy;const ini0=dkSumaDias(hoy,-(BMTL_DIAS-1));
+  if(r<ini0){fin=dkSumaDias(r,Math.floor(BMTL_DIAS/2));if(fin>hoy)fin=hoy;}
+  return dkRango(dkSumaDias(fin,-(BMTL_DIAS-1)),fin);
+}
+function bmTlRec(){
+  if(BMTL.rec&&BMTL.recDv===BM_DV)return BMTL.rec;
+  const m={};try{teamRecSeries(400).forEach(x=>{m[x.dk]=x;});}catch(e){}
+  BMTL.rec=m;BMTL.recDv=BM_DV;return m;
+}
+function bmTlPinta(forzar){
+  const tl=document.getElementById('bm-tl');if(!tl)return;
+  if(!forzar&&window.__RD_CALC)return;
+  const dks=bmTlDias(),r=dkey(REF()),hoy=dkey(new Date()),rec=bmTlRec();
+  let par={};try{const cal=STATE.calendar||{};dks.forEach(dk=>{const e=(cal[dk]||[]).find(evEsPartido);if(e)par[dk]=evRival(e)||'Partido';});}catch(e){}
+  const ua=dks.map(dk=>{let u=0;try{const t=lbTeamDay(dk);u=t&&t.ua>0?t.ua:0;}catch(e){}return u;});
+  const mx=Math.max(1,...ua);
+  BMTL.dks=dks;BMTL.ua=ua;BMTL.par=par;BMTL.recM=rec;
+  const L=['D','L','M','X','J','V','S'];
+  tl.innerHTML='<div class="bmtl-info" aria-live="polite"></div><div class="bmtl-pista" tabindex="0" aria-label="Elegir día: pulsa o arrastra">'
+    +dks.map((dk,i)=>{const d=dkToDate(dk),w=d.getDay(),x=rec[dk];
+      return '<div class="bmtl-d'+(dk===hoy?' hoy':'')+(dk===r?' sel':'')+(w===1?' lun':'')+(par[dk]?' part':'')+'" data-i="'+i+'">'
+        +'<span class="bmtl-col">'+(ua[i]>0?'<i class="bmtl-b" style="height:'+Math.max(6,Math.round(ua[i]/mx*100))+'%"></i>':'<i class="bmtl-0"></i>')+'</span>'
+        +'<em class="bmtl-p'+(x?' '+x.sev:'')+'"></em>'
+        +'<span class="bmtl-l"><b>'+L[w]+'</b>'+d.getDate()+'</span></div>';}).join('')
+    +'</div><button type="button" class="bmtl-x" aria-label="Cerrar la línea de tiempo" title="Cerrar (L)">×</button>';
+  BMTL.sel=r;bmTlInfo(r);bmTlApretada();
+  BMTL.clave=bmTlClave();
+}
+function bmTlInfo(dk){
+  const tl=document.getElementById('bm-tl');if(!tl)return;const box=tl.querySelector('.bmtl-info');if(!box)return;
+  const i=BMTL.dks.indexOf(dk);
+  let t=dkToDate(dk).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'short'});t=t.charAt(0).toUpperCase()+t.slice(1);
+  const x=BMTL.recM&&BMTL.recM[dk],u=i>=0?BMTL.ua[i]:0;
+  const linea=[BMTL.par&&BMTL.par[dk]?'Partido · '+BMTL.par[dk]:'',u>0?Math.round(u).toLocaleString('es-ES')+' UA':'sin carga',x?'recuperación '+x.pct+' %':''].filter(Boolean).join(' · ');
+  box.innerHTML='<b>'+bmEsc(t)+'</b><span>'+bmEsc(linea)+'</span>';
+}
+function bmTlApretada(){
+  const p=document.querySelector('#bm-tl .bmtl-pista');if(!p||!BMTL.dks.length)return;
+  p.classList.toggle('apretada',p.clientWidth/BMTL.dks.length<26);
+}
+function bmTlIndice(p,x){const r=p.getBoundingClientRect();return Math.max(0,Math.min(BMTL.dks.length-1,Math.floor((x-r.left)/r.width*BMTL.dks.length)));}
+function bmTlElige(dk,ya){
+  const hoy=dkey(new Date());if(!dk||dk>hoy)return;
+  BMTL.sel=dk;
+  document.querySelectorAll('#bm-tl .bmtl-d').forEach(d=>d.classList.toggle('sel',BMTL.dks[+d.dataset.i]===dk));
+  bmTlInfo(dk);
+  try{const inp=document.getElementById('ref-date');if(inp)inp.value=dk;dpSyncLabel&&dpSyncLabel();}catch(e){}
+  clearTimeout(BMTL.t);
+  const aplica=()=>{if(dkey(REF())!==dk){try{REF_SIGUE_HOY=(dk===hoy);}catch(e){}setRefDate(dk);}};
+  if(ya)aplica();else BMTL.t=setTimeout(aplica,170);
+}
+function bmTlEventos(tl){
+  let pulsado=false;
+  tl.addEventListener('click',e=>{if(e.target.closest('.bmtl-x'))bmTlAlterna(false);});
+  tl.addEventListener('pointerdown',e=>{const p=e.target.closest('.bmtl-pista');if(!p||e.button!==0)return;pulsado=true;try{p.setPointerCapture(e.pointerId);}catch(x){}tl.classList.add('arrastra');bmTlElige(BMTL.dks[bmTlIndice(p,e.clientX)]);});
+  tl.addEventListener('pointermove',e=>{const p=tl.querySelector('.bmtl-pista');if(!p)return;
+    const r=p.getBoundingClientRect();if(e.clientY<r.top-4||e.clientY>r.bottom+4){if(!pulsado)bmTlInfo(BMTL.sel);return;}
+    const dk=BMTL.dks[bmTlIndice(p,e.clientX)];
+    if(pulsado)bmTlElige(dk);else{bmTlInfo(dk);tl.querySelectorAll('.bmtl-d').forEach(d=>d.classList.toggle('hov',BMTL.dks[+d.dataset.i]===dk));}});
+  const suelta=e=>{if(!pulsado)return;pulsado=false;tl.classList.remove('arrastra');bmTlElige(BMTL.sel,true);};
+  tl.addEventListener('pointerup',suelta);tl.addEventListener('pointercancel',suelta);
+  tl.addEventListener('pointerleave',()=>{if(!pulsado){bmTlInfo(BMTL.sel);tl.querySelectorAll('.bmtl-d.hov').forEach(d=>d.classList.remove('hov'));}});
+}
+/* L · mostrar u ocultar */
+document.addEventListener('keydown',e=>{
+  if(!bmTlPuede()||e.metaKey||e.ctrlKey||e.altKey||bmTecladoEscribe(e.target))return;
+  if(String(e.key).toLowerCase()!=='l')return;
+  e.preventDefault();bmTlAlterna();
+});
+window.addEventListener('resize',()=>{if(BMTL.on){bmTlApretada();bmTlCabecera();}});
+/* al cambiar de día (flechas, calendario, «Hoy»), la franja lo sigue */
+(function(){
+  const s=window.setRefDate;if(typeof s==='function')window.setRefDate=function(){const x=s.apply(this,arguments);try{if(BMTL.on)bmTlPinta(false);}catch(e){}return x;};
+  const ini=()=>{if(!bmTlPuede())return;bmTlBoton();let on=false;try{on=localStorage.getItem('bmnava-tl')==='1';}catch(e){}
+    if(on){let k=0;const t=setInterval(()=>{k++;if(k>60||!bmTlPuede()){clearInterval(t);return;}if(Object.keys(STATE.players||{}).length&&!window.__RD_CALC){clearInterval(t);bmTlAlterna(true);}},1000);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else setTimeout(ini,0);
+})();
+window.bmTlAlterna=bmTlAlterna;
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -16905,7 +17027,7 @@ function bmAtajos(){
   const ord=bmMenuOrden().slice(0,9).map((v,i)=>{const it=document.querySelector('#sidebar .sb-item[data-v="'+v+'"] span');return [k(String(i+1)),it?it.textContent.trim():v];});
   const filas=ord.concat([[k('/')+' '+k('⌘')+k('K'),'Buscar'],[k('N'),'Añadir datos'],[k('←')+' '+k('→'),'Día anterior · siguiente'],[k('H'),'Volver a hoy'],
     [k('R'),'Actualizar los datos'],[k('P'),'Presentar a pantalla completa'],[k(','),'Ajustes'],[k('T'),'Apariencia: automática, clara u oscura'],
-    [k('↑')+' '+k('↓'),'Jugador anterior · siguiente (en la ficha)'],[k('Espacio'),'Vista rápida del jugador bajo el ratón'],[k('I')+' · '+k('⌥')+' clic','Inspector del jugador'],
+    [k('↑')+' '+k('↓'),'Jugador anterior · siguiente (en la ficha)'],[k('Espacio'),'Vista rápida del jugador bajo el ratón'],[k('I')+' · '+k('⌥')+' clic','Inspector del jugador'],[k('L'),'Línea de tiempo: elegir el día'],
     [k('⌃')+k('⌘')+k('S'),'Mostrar u ocultar la barra lateral'],[k('⌘')+' clic','Abrir en otra ventana'],
     [k('?'),'Esta lista'],[k('Esc'),'Cerrar lo que esté abierto']]);
   const html='<div class="bm-atj">'+filas.map(f=>'<div class="bm-atj-f"><span class="bm-atj-k">'+f[0]+'</span><span>'+bmEsc(f[1])+'</span></div>').join('')+'</div>';
@@ -42249,6 +42371,7 @@ function bmTbMenu(e){
     {t:'Añadir una nota…',f:()=>{try{bmNota();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Inspector del jugador',k:'I',f:()=>{try{bmInspAlterna();}catch(err){}}},
+    {t:'Línea de tiempo',k:'L',f:()=>{try{bmTlAlterna();}catch(err){}}},
     {t:'Qué hay de nuevo…',f:()=>{try{bmNovedadesMac();}catch(err){}}},
     {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
     {t:'Ajustes de cálculo…',k:',',f:pulsa('#btn-settings')},
@@ -52368,7 +52491,7 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
    más el contenido le deja sitio; por debajo va encima. */
 #bm-insp{display:none}
 @media screen and (min-width:761px) and (pointer:fine){
-  #bm-insp{display:flex;flex-direction:column;position:fixed;top:62px;right:12px;bottom:12px;width:340px;z-index:60;border-radius:16px;overflow:hidden;
+  #bm-insp{display:flex;flex-direction:column;position:fixed;top:calc(var(--bm-th-top,53px) + 9px);right:12px;bottom:12px;width:340px;z-index:60;border-radius:16px;overflow:hidden;
     background:var(--sbf-bg);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);box-shadow:0 0 0 .5px var(--sbf-borde),var(--sbf-sombra);
     color:var(--txt);transform:translateX(calc(100% + 24px));opacity:0;visibility:hidden;
     transition:transform .3s cubic-bezier(.32,.72,0,1),opacity .2s ease,visibility 0s linear .3s}
@@ -52466,6 +52589,43 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   #jug-tabla .bmjt-rec i.ok{background:var(--ok)}#jug-tabla .bmjt-rec i.warn{background:var(--warn)}#jug-tabla .bmjt-rec i.bad{background:var(--bad)}
   /* sin position:absolute: dentro de la tabla con scroll lateral se escaparía y ensancharía la página */
   #jug-tabla .bm-sr{display:inline-block;width:0;height:0;overflow:hidden;vertical-align:middle}
+}
+</style>
+
+<style id="esc-v785">
+/* v785 · ORDENADOR · La línea de tiempo bajo la barra de herramientas. */
+#bm-tl,#bm-tl-btn{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #bm-tl-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;margin-left:4px;border:none;border-radius:7px;background:none;color:var(--muted);cursor:default}
+  #bm-tl-btn svg{width:17px;height:17px}
+  #bm-tl-btn:hover{background:var(--tb-hover,rgba(118,118,128,.12));color:var(--txt)}
+  #bm-tl-btn.on{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--acc-seg,var(--accent))}
+  #bm-tl-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #bm-tl{display:flex;align-items:stretch;gap:14px;padding:5px 20px 6px;border-top:.5px solid var(--sbf-linea,rgba(60,60,67,.12));user-select:none;-webkit-user-select:none}
+  #bm-tl .bmtl-info{flex:0 0 200px;display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
+  #bm-tl .bmtl-info b{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bm-tl .bmtl-info span{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bm-tl .bmtl-pista{flex:1;min-width:0;display:flex;cursor:default;outline:none;border-radius:8px}
+  #bm-tl .bmtl-pista:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+  #bm-tl .bmtl-d{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px 1px;border-radius:6px;position:relative}
+  #bm-tl .bmtl-d.lun{box-shadow:inset .5px 0 0 var(--sbf-linea,rgba(60,60,67,.18))}
+  #bm-tl .bmtl-d.hov{background:var(--sbf-hover,rgba(118,118,128,.12))}
+  #bm-tl .bmtl-d.sel{background:color-mix(in srgb,var(--accent) 15%,transparent)}
+  #bm-tl .bmtl-col{height:26px;width:100%;display:flex;align-items:flex-end;justify-content:center}
+  #bm-tl .bmtl-b{display:block;width:62%;max-width:14px;border-radius:2px 2px 1px 1px;background:var(--c-data)}
+  #bm-tl .bmtl-d.sel .bmtl-b{background:var(--accent)}
+  #bm-tl .bmtl-0{display:block;width:40%;max-width:8px;height:2px;border-radius:1px;background:var(--muted);opacity:.4}
+  #bm-tl .bmtl-p{display:block;width:6px;height:6px;border-radius:50%;background:transparent}
+  #bm-tl .bmtl-p.ok{background:var(--ok)}#bm-tl .bmtl-p.warn{background:var(--warn)}#bm-tl .bmtl-p.bad{background:var(--bad)}
+  #bm-tl .bmtl-l{display:flex;align-items:baseline;gap:1px;font-size:10.5px;line-height:1.1;white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
+  #bm-tl .bmtl-l b{font-size:10px;font-weight:500;opacity:.8}
+  #bm-tl .bmtl-d.hoy .bmtl-l{color:var(--acc-seg,var(--accent));font-weight:700}
+  #bm-tl .bmtl-d.sel .bmtl-l{color:var(--txt);font-weight:700}
+  #bm-tl .bmtl-d.part::before{content:"";position:absolute;top:0;left:50%;width:14px;height:3px;margin-left:-7px;border-radius:2px;background:var(--acc-seg,var(--accent))}
+  #bm-tl .bmtl-pista.apretada .bmtl-d:not(.lun):not(.sel):not(.hoy) .bmtl-l{visibility:hidden}
+  #bm-tl .bmtl-x{align-self:center;flex:none;width:26px;height:26px;border:none;border-radius:6px;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:default}
+  #bm-tl .bmtl-x:hover{background:var(--sbf-hover,rgba(118,118,128,.12));color:var(--txt)}
+  #bm-tl.arrastra,#bm-tl.arrastra *{cursor:ew-resize}
 }
 </style>
 
