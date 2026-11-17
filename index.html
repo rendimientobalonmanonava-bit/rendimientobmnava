@@ -14729,8 +14729,8 @@ function habPerfiles(){
   const hoy=dkey(new Date());
   const por={};MD_ORDEN.forEach(k=>{if(k!=='MD')por[k]=[];});
   if(!ps.length)return {por:{},ps:0};
-  for(let t=dkToDate(MD_REF_DESDE).getTime();;t+=86400000){
-    const dk=dkey(new Date(t));if(dk>=hoy)break;
+  for(const dk of dkRango(MD_REF_DESDE,hoy)){
+    if(dk>=hoy)break;
     const m=calMd(dk,ps);if(!m||!por[m.txt])continue;
     /* un día sin nada programado no es un día de descanso: es un día del que no sabemos */
     const evs=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&!evEsPartido(e)&&e.type!=='evento');
@@ -18425,7 +18425,7 @@ function ijDatos(n,mes){
   const y=+mes.slice(0,4),m=+mes.slice(5,7);
   const ini=mes+'-01',finMes=dkey(new Date(y,m,0)),hoy=dkey(new Date());
   const fin=finMes<hoy?finMes:hoy;if(fin<ini)return {n,p,mes,vacio:true};
-  const ds=[];for(let t=dkToDate(ini).getTime(),e=dkToDate(fin).getTime();t<=e;t+=86400000)ds.push(dkey(new Date(t)));
+  const ds=dkRango(ini,fin);
   const refEnd=new Date(dkToDate(fin).getTime()+86399000);
   const ua={},temp=[];
   try{contDailyTo(n,refEnd).forEach(d=>{const k=dkey(d.date);if(d.ua>0){if(k>=ini&&k<=fin)ua[k]=d.ua;if(k>=TEMP_INICIO&&k<=fin)temp.push(d.ua);}});}catch(e){}
@@ -21908,7 +21908,7 @@ function renderPlTemporada(name){
   const box=document.getElementById('pl-temporada');if(!box)return;
   const p=STATE.players[name];if(!p){box.innerHTML='';return;}
   const fin=dkey(REF()),ini=TEMP_INICIO;if(fin<ini){box.innerHTML='';return;}
-  const ds=[];for(let t=dkToDate(ini).getTime(),e=dkToDate(fin).getTime();t<=e;t+=86400000)ds.push(dkey(new Date(t)));
+  const ds=dkRango(ini,fin);
   const N=ds.length;if(N<7){box.innerHTML='';return;}
   const esc=bmEsc;
   let ref=REF();try{ref=refCarga();}catch(e){}
@@ -28996,6 +28996,14 @@ function buildPhysio(){
   STATE.physioEx={};
 }
 function dkToDate(dk){const a=dk.split('-').map(Number);return new Date(a[0],a[1]-1,a[2]);}
+/* v768b · Los días de un rango y sumar días, CONTANDO POR CALENDARIO. Sumar
+   86.400.000 ms falla en el cambio de hora: en otoño un día sale dos veces y
+   se pierde el último del rango; en primavera se pierde el último. Medido el
+   17/11/2026: el microciclo del 28/10 salía «25/10, 25/10, 26/10… 30/10», sin
+   el partido del 31. Todo recorrido de días va por aquí. */
+function dkSumaDias(dk,n){const d=dkToDate(dk);d.setDate(d.getDate()+n);return dkey(d);}
+function dkRango(ini,fin){const out=[];if(!ini||!fin||ini>fin)return out;const d=dkToDate(ini);for(let i=0;i<5000;i++){const k=dkey(d);if(k>fin)break;out.push(k);d.setDate(d.getDate()+1);}return out;}
+window.dkRango=dkRango;window.dkSumaDias=dkSumaDias;
 function physioEvents(name){const ex=(STATE.physioEx||{})[name]||[];const us=((STATE.physioUser||{})[name]||[]).map(e=>({...e,user:true,date:dkToDate(e.dk)}));return ex.concat(us);}
 function physioPoints(name){return physioEvents(name).filter(e=>!e.ep);}
 function physioEpisodes(name){const all=physioEvents(name).filter(e=>e.ep);const closed=new Set(all.filter(e=>e._closesEx).map(e=>e._closesEx));return all.filter(e=>!closed.has(e._id)).map(e=>({...e,fromDate:dkToDate(e.dk),toDate:e.to?dkToDate(e.to):null}));}
@@ -36493,11 +36501,10 @@ window.cgAtencion=cgAtencion;
 function cgPlanReal(dias){
   dias=dias||28;
   const hasta=dkey(REF());
-  const desde=dkey(new Date(dkToDate(hasta).getTime()-dias*86400000));
+  const desde=dkSumaDias(hasta,-dias);
   const dks=[];
   try{calLoad();
-    for(let t=dkToDate(desde).getTime();t<=dkToDate(hasta).getTime();t+=86400000){
-      const dk=dkey(new Date(t));
+    for(const dk of dkRango(desde,hasta)){
       const pl=calDayPlan(dk);
       if(pl.n&&pl.planUA>0)dks.push({dk,plan:pl.planUA});  // del equipo; cada jugador lee el suyo abajo (v748)
     }
@@ -39170,18 +39177,17 @@ function calMicrociclo(dk){
   let ant=null,sig=null;
   for(const p of ps){ if(p>=dk){sig=p;break;} }
   for(let i=ps.length-1;i>=0;i--){ if(ps[i]<dk){ant=ps[i];break;} }
-  const d0=ant?new Date(dkToDate(ant).getTime()+86400000):dkToDate(dk);
-  let d1=sig?dkToDate(sig):new Date(dkToDate(dk).getTime()+6*86400000);
+  const d0=dkToDate(ant?dkSumaDias(ant,1):dk);
+  let d1=dkToDate(sig?sig:dkSumaDias(dk,6));
   /* Un ciclo de más de catorce días no es un microciclo: es que falta meter
      partidos en el calendario. Se recorta y se dice. */
   const MAXD=14;
   let largo=Math.round((d1-d0)/86400000)+1;
   let recortado=false;
-  if(largo>MAXD){ d1=new Date(d0.getTime()+(MAXD-1)*86400000); largo=MAXD; recortado=true; }
+  if(largo>MAXD){ d1=dkToDate(dkSumaDias(dkey(d0),MAXD-1)); largo=MAXD; recortado=true; }
   const real=calRealMap();
   const dias=[];
-  for(let t=d0.getTime();t<=d1.getTime();t+=86400000){
-    const k=dkey(new Date(t));
+  for(const k of dkRango(dkey(d0),dkey(d1))){
     const pl=calDayPlan(k);
     dias.push({dk:k,md:calMd(k),plan:pl.n?calPlanUA(k):0,nPlan:pl.n,sinProg:pl.sinProg||0,
                real:real[k]!=null?real[k]:null,partido:ps.indexOf(k)>=0,hoy:k===dkey(new Date())});
@@ -39945,10 +39951,9 @@ function calRefMD(){
   if(ps.length){
     /* se recorre desde el primer partido de la ventana, menos una semana, para
        coger también los MD- que preceden al primero */
-    const ini=dkey(new Date(dkToDate(ps[0]).getTime()-7*86400000));
+    const ini=dkSumaDias(ps[0],-7);
     const d0=ini<MD_REF_DESDE?MD_REF_DESDE:ini;
-    for(let t=dkToDate(d0).getTime();t<=dkToDate(hoy).getTime();t+=86400000){
-      const dk=dkey(new Date(t));
+    for(const dk of dkRango(d0,hoy)){
       const m=calMd(dk,ps);
       if(!m)continue;
       let td=null;try{td=lbTeamDay(dk);}catch(e){}
