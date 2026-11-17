@@ -16109,6 +16109,8 @@ const BMJL={q:'',src:null};
 function bmJlAncho(){return !esMovil()&&!!window.matchMedia&&matchMedia('(min-width:1360px) and (pointer:fine)').matches;}
 function bmJlDesvio(v){
   if(v!=='jugadores'||!bmJlAncho())return;
+  /* v784 · con la tabla elegida, Jugadores es la tabla */
+  if(typeof BMJT!=='undefined'&&BMJT.modo==='tabla')return;
   const ps=STATE.players||{};if(!Object.keys(ps).length)return;
   let n=STATE.curPlayer&&ps[STATE.curPlayer]?STATE.curPlayer:null;
   if(!n){const f=document.querySelector('#players-grid .jl .jl-f');const m=f&&(f.getAttribute('onclick')||'').match(/openPlayer\('(.+)'\)/);
@@ -16133,6 +16135,7 @@ function bmJugLista(){
     c.addEventListener('click',e=>{
       const f=e.target.closest('.jl-f');
       if(f){e.preventDefault();const n=f.dataset.n;if(n&&n!==STATE.curPlayer){const y=c.scrollTop;/* v782 · por openPlayer: la foto vuela hasta la ficha */openPlayer(n);c.scrollTop=y;requestAnimationFrame(()=>{c.scrollTop=y;});setTimeout(()=>{c.scrollTop=y;},450);}return;}
+      if(e.target.closest('.bmjl-tab')){bmJtModo('tabla');return;}
       if(e.target.closest('.bmjl-fot')){const r=document.querySelector('#v-jugadores [data-fhk="fot"]');if(r)r.click();}
     });
     c.addEventListener('input',e=>{if(e.target.matches('.jl-q')){BMJL.q=e.target.value;bmJlFiltra(c);}});
@@ -16143,7 +16146,7 @@ function bmJugLista(){
   if(BMJL.src!==src||!c.firstChild){
     BMJL.src=src;
     const foco=document.activeElement&&document.activeElement.classList.contains('jl-q');
-    c.innerHTML=src.outerHTML+'<button type="button" class="bmjl-fot">Fotos de la plantilla…</button>';
+    c.innerHTML=src.outerHTML+'<button type="button" class="bmjl-fot bmjl-tab">Ver la plantilla en una tabla</button><button type="button" class="bmjl-fot">Fotos de la plantilla…</button>';
     c.querySelectorAll('.jl-f').forEach(f=>{const m=(f.getAttribute('onclick')||'').match(/openPlayer\('(.+)'\)/);
       if(m)f.dataset.n=m[1].replace(/\\'/g,"'");f.removeAttribute('onclick');});
     const q=c.querySelector('.jl-q');if(q){q.removeAttribute('oninput');q.value=BMJL.q;if(foco)q.focus();}
@@ -16154,6 +16157,144 @@ function bmJugLista(){
   if(act&&c.dataset.cur!==STATE.curPlayer){c.dataset.cur=STATE.curPlayer;
     const r=act.getBoundingClientRect(),cr=c.getBoundingClientRect();if(r.top<cr.top+60||r.bottom>cr.bottom-10)act.scrollIntoView({block:'center'});}
 }
+/* ═══ v784 · ORDENADOR · La plantilla, también en una tabla ═══
+   Daniel, 17/11/2026, propuesta 2: Jugadores con dos vistas, como el Finder —
+   las fichas de siempre (la plantilla al lado de la ficha, v696) o una tabla
+   con una fila por jugador para comparar a los dieciocho de un vistazo. Se
+   cambia con «Fichas · Tabla» arriba de Jugadores y desde la columna de la
+   plantilla; la elección se recuerda en este ordenador. La tabla es una `.tbl`
+   de las de siempre, así que se ordena pulsando la cabecera con el delegado y
+   las flechas de la v716. Ninguna cifra es nueva: estado (`effectiveStatus`,
+   con el color de la lista de Jugadores), readiness, el parte con los colores
+   de los anillos de la ficha, dolor, ACWR (`acwrClass`), carga de 7 y 14 días,
+   minutos de los tres últimos partidos (`ptMinutos`), nota TSA (`tsaTier`) y
+   la recuperación declarada de 14 días (`playerRecSeries`, la tira del
+   Resumen). Describe el día que se está viendo. ↑ ↓ recorren las filas, Intro
+   abre la ficha y la barra espaciadora el inspector (v783). «Exportar CSV»
+   la saca para una hoja de cálculo, con punto y coma y coma decimal. */
+const BMJT={modo:'fichas',sort:null};
+try{BMJT.modo=localStorage.getItem('bmnava-jugvista')==='tabla'?'tabla':'fichas';}catch(e){}
+function bmJtPuede(){return !esMovil()&&bmEscFino();}
+function bmJtModo(m){
+  BMJT.modo=m==='tabla'?'tabla':'fichas';try{localStorage.setItem('bmnava-jugvista',BMJT.modo);}catch(e){}
+  if(STATE.view!=='jugadores'){go('jugadores');return;}
+  if(BMJT.modo==='fichas'&&bmJlAncho()){bmJlDesvio('jugadores');return;}
+  bmJugTabla();
+}
+function bmJtFilas(){
+  const ps=STATE.players||{},dkR=dkey(REF());
+  let tsa={},nT=0;try{if(typeof buildTests==='function')buildTests();const rows=tsaRows();nT=rows.length;rows.forEach((r,i)=>{tsa[r.name]={t:r.t100,rank:r.rank||i+1};});}catch(e){}
+  let par=[];try{par=calPartidosDks().filter(dk=>dk<=dkR).slice(-3);}catch(e){}
+  return Object.keys(ps).sort((a,b)=>a.localeCompare(b,'es')).map(n=>{
+    const p=ps[n],w=p.last||null;
+    let st='disp';try{const ev=effectiveStatus(n,dkR);if(ev&&ev.status)st=ev.status;}catch(e){}
+    let est=null;if(st&&st!=='disp'&&st!=='partido'){const lab=(PHYSTAT[st]||{}).lab;if(lab)est=[lab,st==='baja'?'var(--bad)':(NOAV_FIS_ST.includes(st)||CARE_ST.includes(st))?'var(--warn)':'#7c9cbf'];}
+    let pd='';try{pd=posDetailOf(n)||'';}catch(e){}
+    const rd=(p.readiness!=null&&isFinite(p.readiness))?Math.round(p.readiness):null;
+    const ac=p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null;
+    const mins=par.map(dk=>ptMinutos(dk,n));const mt=mins.some(x=>x!=null)?mins.reduce((s,x)=>s+(x||0),0):null;
+    let rec=[];try{rec=playerRecSeries(p,14);}catch(e){}
+    const t=tsa[n]||{};
+    return {n,p,pos:pd||posGroup(p.pos)||p.pos||'',est,rd,w,dolor:w&&(w.dolor||w.golpe)?(w.zona||'sí')+(w.golpe?' (golpe)':''):'',ac,
+      c7:p.acwr&&p.acwr.acute?Math.round(p.acwr.acute):null,c14:p.load14?Math.round(p.load14):null,mins,mt,par,
+      tsa:t.t!=null&&isFinite(t.t)?Math.round(t.t):null,tsaC:t.rank&&nT?tsaTier(t.rank,nT):null,rec};
+  });
+}
+const BMJT_WV=[['fatiga','Fatiga'],['sueno','Sueño'],['horas_sueno','Horas'],['doms','DOMS'],['stress','Estrés'],['mood','Ánimo']];
+function bmJtWCol(k,v){if(v==null||isNaN(v))return '';return k==='horas_sueno'?(v>=7.5?'var(--ok)':v>=6.5?'var(--warn)':'var(--bad)'):(v<=2?'var(--ok)':v<=3?'var(--warn)':'var(--bad)');}
+function bmJtHTML(F){
+  const E=bmEsc,tx=c=>c?' style="color:'+colTexto(c)+'"':'',num=(v,d)=>v==null?'—':(d?fmt(v,d):Number(v).toLocaleString('es-ES'));
+  const dkR=dkey(REF()),hoy=dkey(new Date());
+  let dia=dkToDate(dkR).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});
+  if(dkR!==hoy)dia=dia.charAt(0).toUpperCase()+dia.slice(1);
+  const th='<thead><tr><th>Jugador</th><th>Estado</th><th>Readiness</th>'+BMJT_WV.map(x=>'<th>'+x[1]+'</th>').join('')
+    +'<th>Dolor</th><th>ACWR</th><th>Carga 7\u00a0d</th><th>Carga 14\u00a0d</th><th title="Minutos de los tres últimos partidos">Min. 3 partidos</th><th>TSA</th><th title="La recuperación que declara cada día, 14 días">Recuperación 14\u00a0d</th></tr></thead>';
+  const filas=F.map(x=>{
+    const cara=bmjCara(x.n,'bmjt-av');
+    const sev=x.p.sev==='ok'?'var(--ok)':x.p.sev==='warn'?'var(--warn)':x.p.sev==='bad'?'var(--bad)':'';
+    const rec=x.rec.length?'<span class="bmjt-rec" aria-label="Recuperación de los últimos 14 días">'+x.rec.map(r=>'<i class="'+r.sev+'" title="'+E(bmInspFecha(r.dk))+' · '+r.pct+' %"></i>').join('')+'</span><span class="bm-sr">'+x.rec[x.rec.length-1].pct+'</span>':'—';
+    return '<tr tabindex="0" data-n="'+E(x.n)+'"><td class="bmjt-j">'+cara+'<span><b>'+E(x.n)+'</b><small>'+E(x.pos)+'</small></span></td>'
+      +'<td>'+(x.est?'<span class="bmjt-est" style="color:'+colTinta(x.est[1])+'">'+E(x.est[0])+'</span>':'<span class="bmjt-disp">Disponible</span>')+'</td>'
+      +'<td class="n"><b'+tx(sev)+'>'+num(x.rd)+'</b></td>'
+      +BMJT_WV.map(([k])=>{const v=x.w?x.w[k]:null;return '<td class="n"'+tx(bmJtWCol(k,v))+'>'+(v==null||isNaN(v)?'—':fmt(v,1))+'</td>';}).join('')
+      +'<td class="bmjt-dol"'+(x.dolor?tx('var(--warn)'):'')+'>'+(x.dolor?E(x.dolor):'—')+'</td>'
+      +'<td class="n"'+tx(x.ac!=null?'var(--'+acwrClass(x.ac)+')':'')+'>'+(x.ac!=null?fmt(x.ac,2):'—')+'</td>'
+      +'<td class="n">'+num(x.c7)+'</td><td class="n">'+num(x.c14)+'</td>'
+      +'<td class="n" title="'+E(x.par.map((dk,i)=>bmInspFecha(dk)+': '+(x.mins[i]!=null?x.mins[i]+"'":'—')).join(' · '))+'">'+(x.mt!=null?x.mt+"'":'—')+'</td>'
+      +'<td class="n"'+tx(x.tsaC?'var(--'+x.tsaC+')':'')+'>'+num(x.tsa)+'</td><td>'+rec+'</td></tr>';
+  }).join('');
+  return '<h2>La plantilla en una tabla <span class="r"><button type="button" class="btn ghost bmjt-csv">Exportar CSV</button></span></h2>'
+    +'<p class="bmjt-sub">'+(dkR===hoy?'Hoy, ':'')+E(dia)+' · parte en escala 1–5 · pulsa una cabecera para ordenar, una fila para abrir la ficha, la barra espaciadora para el inspector</p>'
+    +'<div class="wrap-x bmjt-w"><table class="tbl bmjt">'+th+'<tbody>'+filas+'</tbody></table></div>';
+}
+function bmJtSeg(v){
+  if(!bmJtPuede())return;
+  /* la fila de controles de la pantalla, no la del panel de fotos, que va antes y también es .ctrlrow */
+  const row=v.querySelector(':scope>.ctrlrow');if(!row)return;
+  let s=row.querySelector('.bmjt-seg');
+  if(!s){s=document.createElement('div');s.className='bmjt-seg';s.setAttribute('role','group');s.setAttribute('aria-label','Ver la plantilla como');
+    s.innerHTML='<button type="button" data-m="fichas">Fichas</button><button type="button" data-m="tabla">Tabla</button>';
+    s.addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(b)bmJtModo(b.dataset.m);});
+    row.insertBefore(s,row.firstChild);}
+  s.querySelectorAll('[data-m]').forEach(b=>{const on=b.dataset.m===BMJT.modo;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');});
+}
+function bmJugTabla(){
+  const v=document.getElementById('v-jugadores');if(!v)return;
+  const on=bmJtPuede()&&BMJT.modo==='tabla';
+  v.classList.toggle('bm-jt',on);bmJtSeg(v);
+  let box=document.getElementById('jug-tabla');
+  if(!on){if(box)box.remove();return;}
+  if(window.__RD_CALC)return;
+  if(!box){box=document.createElement('div');box.id='jug-tabla';box.className='panel';const g=document.getElementById('players-grid');if(!g)return;g.parentNode.insertBefore(box,g.nextSibling);
+    box.addEventListener('click',e=>{
+      if(e.target.closest('.bmjt-csv')){bmJtCSV();return;}
+      const th=e.target.closest('thead th');if(th){setTimeout(()=>{const t=box.querySelector('table');if(t&&t.dataset.sortCol!=null)BMJT.sort={c:+t.dataset.sortCol,d:t.dataset.sortDir};},0);return;}
+      const tr=e.target.closest('tbody tr[data-n]');if(tr)openPlayer(tr.dataset.n);
+    });}
+  const foco=document.activeElement&&box.contains(document.activeElement)&&document.activeElement.dataset?document.activeElement.dataset.n:null;
+  const sx=box.querySelector('.bmjt-w')?box.querySelector('.bmjt-w').scrollLeft:0;
+  box.innerHTML=bmJtHTML(bmJtFilas());
+  const w=box.querySelector('.bmjt-w');if(w)w.scrollLeft=sx;
+  if(BMJT.sort){const t=box.querySelector('table'),h=t&&t.tHead.rows[0].cells[BMJT.sort.c];
+    if(h){h.click();if(BMJT.sort&&BMJT.sort.d==='-1')h.click();}}
+  if(foco){const r=[...box.querySelectorAll('tbody tr[data-n]')].find(x=>x.dataset.n===foco);if(r)r.focus({preventScroll:true});}
+  BMJT.clave=[STATE.refDate?STATE.refDate.getTime():0,BM_DV,dkey(new Date())].join('|');
+  bmJtFiltra();
+}
+/* el buscador de la pantalla (v681) filtra también la tabla */
+function bmJtFiltra(){
+  const t=document.querySelector('#jug-tabla tbody');if(!t)return;
+  const q=jlNorm(String((typeof BMJ!=='undefined'&&BMJ.q)||'').trim());
+  t.querySelectorAll('tr[data-n]').forEach(r=>{r.hidden=!!q&&jlNorm(r.textContent).indexOf(q)<0;});
+}
+function bmJtCSV(){
+  const F=bmJtFilas(),dkR=dkey(REF());
+  const c=v=>{v=v==null?'':String(v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const d=(v,k)=>v==null||!isFinite(v)?'':(k?Number(v).toFixed(k):String(v)).replace('.',',');
+  const cab=['Jugador','Puesto','Estado','Readiness'].concat(BMJT_WV.map(x=>x[1]),['Dolor','ACWR','Carga 7 d (UA)','Carga 14 d (UA)','Minutos 3 últimos partidos','TSA','Recuperación hoy (%)']);
+  const lin=F.map(x=>[x.n,x.pos,x.est?x.est[0]:'Disponible',d(x.rd)].concat(BMJT_WV.map(([k])=>d(x.w?x.w[k]:null,1)),
+    [x.dolor||'',d(x.ac,2),d(x.c7),d(x.c14),d(x.mt),d(x.tsa),x.rec.length?d(x.rec[x.rec.length-1].pct):'']).map(c).join(';'));
+  const txt='﻿'+[cab.map(c).join(';')].concat(lin).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download='plantilla-'+dkR+'.csv';
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},400);
+  try{toast('Tabla exportada · plantilla-'+dkR+'.csv');}catch(e){}
+}
+/* el teclado en la tabla: va antes que los atajos de la app (← → siguen cambiando de día) */
+window.addEventListener('keydown',e=>{
+  const a=document.activeElement;if(!a||!a.matches||!a.matches('#jug-tabla tbody tr[data-n]'))return;
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const k=e.key;
+  if(k==='ArrowDown'||k==='ArrowUp'){e.preventDefault();e.stopPropagation();const s=k==='ArrowDown'?a.nextElementSibling:a.previousElementSibling;if(s)s.focus();return;}
+  if(k==='Enter'){e.preventDefault();e.stopPropagation();openPlayer(a.dataset.n);return;}
+  if(k===' '){e.preventDefault();e.stopPropagation();if(window.bmInspAlterna){if(BMIN.on&&BMIN.n===a.dataset.n)bmInspCierra();else bmInspAbre(a.dataset.n);}return;}
+},true);
+/* se pinta con la pantalla de Jugadores, y al cambiar de día si está a la vista */
+(function(){
+  const r=window.renderPlayersGrid;if(typeof r==='function')window.renderPlayersGrid=function(){const x=r.apply(this,arguments);try{bmJugTabla();}catch(e){console.error('bmnava · tabla de la plantilla',e);}return x;};
+  const je=window.bmJugEsc;if(typeof je==='function')window.bmJugEsc=function(){const x=je.apply(this,arguments);try{bmJtFiltra();}catch(e){}return x;};
+  const s=window.setRefDate;if(typeof s==='function')window.setRefDate=function(){const x=s.apply(this,arguments);try{if(STATE.view==='jugadores'&&BMJT.modo==='tabla')bmJugTabla();}catch(e){}return x;};
+})();
+window.bmJtModo=bmJtModo;window.bmJugTabla=bmJugTabla;
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -52285,6 +52426,46 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   #bm-insp .bmin-acc button:hover{background:var(--sbf-hover)}
   #bm-insp .bmin-acc button.pri{background:var(--accent);color:var(--on-accent);box-shadow:none}
   #bm-insp .bmin-acc button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+}
+</style>
+
+<style id="esc-v784">
+/* v784 · ORDENADOR · La plantilla en una tabla. Es una `.tbl` de las de
+   siempre: sólo se le añade la columna del jugador fija a la izquierda, las
+   cifras alineadas y la tira de recuperación. */
+.bmjt-seg,#jug-tabla{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #v-jugadores .bmjt-seg{display:inline-flex;margin-right:auto;padding:2px;border-radius:9px;background:var(--sbf-pozo);gap:2px}
+  #v-jugadores .bmjt-seg button{appearance:none;border:none;background:none;font:inherit;font-size:13px;font-weight:500;color:var(--txt);height:26px;padding:0 14px;border-radius:7px;cursor:default}
+  #v-jugadores .bmjt-seg button.on{background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.12),0 0 0 .5px var(--sbf-borde)}
+  #v-jugadores .bmjt-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #v-jugadores.bm-jt #players-grid,#v-jugadores.bm-jt .jug-sort{display:none!important}
+  /* la pantalla es una columna con `order` (v681): la tabla va donde van las fichas */
+  #jug-tabla{display:block;order:2}
+  #jug-tabla .bmjt-sub{margin:-4px 0 12px;font-size:12.5px;color:var(--muted)}
+  #jug-tabla .bmjt td{padding:7px 8px;vertical-align:middle;white-space:nowrap}
+  #jug-tabla .bmjt th{padding:9px 8px;white-space:normal;line-height:1.25;vertical-align:bottom;min-width:44px}
+  #jug-tabla .bmjt td.n,#jug-tabla .bmjt th:not(:first-child):not(:nth-child(2)):not(:nth-child(10)):not(:last-child){text-align:right}
+  #jug-tabla .bmjt td.n{font-variant-numeric:tabular-nums}
+  #jug-tabla .bmjt td.n b{font-weight:700}
+  #jug-tabla .bmjt tr>:first-child{position:sticky;left:0;background:var(--panel);z-index:2}
+  #jug-tabla .bmjt thead tr>:first-child{z-index:4}
+  #jug-tabla .bmjt tbody tr:hover>td:first-child,#jug-tabla .bmjt tbody tr:focus>td:first-child{background:var(--panel2)}
+  #jug-tabla .bmjt tbody tr:focus{outline:none;background:var(--panel2)}
+  #jug-tabla .bmjt tbody tr:focus-visible>td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+  #jug-tabla .bmjt-j{display:flex;align-items:center;gap:10px;min-width:200px}
+  #jug-tabla .bmjt-av{width:30px;height:30px;flex:none;font-size:11px}
+  #jug-tabla .bmjt-j span{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+  #jug-tabla .bmjt-j b{font-weight:600;font-size:13.5px}
+  #jug-tabla .bmjt-j small{font-size:11.5px;color:var(--muted)}
+  #jug-tabla .bmjt-est{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,currentColor 13%,transparent)}
+  #jug-tabla .bmjt-disp{font-size:12px;color:var(--muted)}
+  #jug-tabla .bmjt-dol{max-width:150px;overflow:hidden;text-overflow:ellipsis;font-size:12.5px}
+  #jug-tabla .bmjt-rec{display:inline-flex;gap:2px;vertical-align:middle}
+  #jug-tabla .bmjt-rec i{width:7px;height:16px;border-radius:2px;background:var(--hair)}
+  #jug-tabla .bmjt-rec i.ok{background:var(--ok)}#jug-tabla .bmjt-rec i.warn{background:var(--warn)}#jug-tabla .bmjt-rec i.bad{background:var(--bad)}
+  /* sin position:absolute: dentro de la tabla con scroll lateral se escaparía y ensancharía la página */
+  #jug-tabla .bm-sr{display:inline-block;width:0;height:0;overflow:hidden;vertical-align:middle}
 }
 </style>
 
