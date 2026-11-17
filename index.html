@@ -14578,6 +14578,11 @@ function bmCtxMac(x,cx,cy){
     if(pas)it.push({t:'Ver ese día',ic:I.ojo,tit:'Cambia el día que se está viendo y abre el Resumen',f:acc.ver});
     let plan=false;try{plan=pas&&calBloquesPlan(dk).size>0;}catch(e){}
     if(plan&&window.bmCierre)it.push({t:'Cerrar la sesión…',ic:I.cita,tit:'Minutos de cada bloque y quién entrenó',f:()=>bmCierre(dk)});
+    /* v762 · copiar y pegar el día */
+    const nEv=((STATE.calendar||{})[dk]||[]).length;
+    if(nEv||(BMCA&&BMCA.clip))it.push({sep:1});
+    if(nEv)it.push({t:'Copiar el día',ic:'',k:'⌘C',f:()=>bmcaCopiaDia(dk)});
+    if(BMCA&&BMCA.clip&&BMCA.clip.dk!==dk)it.push({t:'Pegar aquí '+(BMCA.clip.evs.length===1?'1 sesión':BMCA.clip.evs.length+' sesiones'),ic:'',k:'⌘V',f:()=>bmcaPega(dk)});
     it.push({sep:1});
     it.push({t:'Vista rápida',ic:'',f:()=>bmPrevia(x,acc)});
   }
@@ -14607,6 +14612,63 @@ function bmCtxMac(x,cx,cy){
   };
 })();
 window.bmMenuMac=bmMenuMac;window.bmMenuMacCierra=bmMenuMacCierra;window.bmCtxMac=bmCtxMac;
+/* ═══ v762 · ORDENADOR · Arrastrar sesiones en el Calendario ═══
+   Mover una sesión de día era borrarla y crearla otra vez. Ahora, en el mes:
+   se arrastra su etiqueta a otro día para moverla (con ⌥, para copiarla), y
+   con el ratón sobre un día ⌘C copia sus sesiones y ⌘V las pega en otro; el
+   clic derecho del día ofrece lo mismo. Todo se deshace con ⌘Z.
+   El Calendario se ve igual: sólo se añade el gesto. La sesión que llega a
+   otro día nace con un `id` nuevo: con el suyo, la tumba que deja al salir del
+   día de origen (§2.3.1) podría retirarla después. Lo que es del DÍA y no de
+   la sesión —minutos, convocatoria, plan individual— se queda en su día. */
+const BMCA={src:null,hover:null,clip:null};
+const bmcaId=()=>'cev_'+Date.now()+'_'+Math.round(Math.random()*99999);
+const bmcaCopia=e=>Object.assign(JSON.parse(JSON.stringify(e)),{id:bmcaId()});
+function bmcaOrdena(dk){(STATE.calendar[dk]||[]).sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));}
+function bmcaFoto(dks){const o={};dks.forEach(dk=>{o[dk]=JSON.parse(JSON.stringify((STATE.calendar||{})[dk]||[]));});return o;}
+/* deshacer: los días vuelven como estaban, con id nuevos (los viejos tienen tumba) */
+function bmcaRestaura(f){Object.keys(f).forEach(dk=>{const l=f[dk].map(bmcaCopia);if(l.length)STATE.calendar[dk]=l;else delete STATE.calendar[dk];});calPersist();try{renderCalendar();}catch(e){}}
+function bmcaTxt(dk){return calDkLabel(dk);}
+function bmcaMueve(src,id,dst,copia){
+  calLoad();if(!src||!dst||src===dst)return;
+  const l=STATE.calendar[src]||[];const i=l.findIndex(e=>e&&e.id===id);if(i<0)return;
+  const f=bmcaFoto([src,dst]);const ev=l[i];
+  if(!copia){l.splice(i,1);if(!l.length)delete STATE.calendar[src];}
+  (STATE.calendar[dst]=STATE.calendar[dst]||[]).push(bmcaCopia(ev));bmcaOrdena(dst);
+  calPersist();try{renderCalendar();}catch(e){}
+  const lab=(ev.title||calTipo(ev.type).lab);
+  toast((copia?'Copiada «'+lab+'» al ':'«'+lab+'» pasa al ')+bmcaTxt(dst),{fn:()=>bmcaRestaura(f),deshecho:'Deshecho · '+lab+(copia?' ya no está copiada':' vuelve al '+bmcaTxt(src))});
+}
+function bmcaCopiaDia(dk){calLoad();const l=((STATE.calendar||{})[dk]||[]);if(!l.length){toast('Ese día no tiene sesiones');return;}
+  BMCA.clip={dk,evs:JSON.parse(JSON.stringify(l))};toast('Copiadas '+l.length+(l.length===1?' sesión':' sesiones')+' del '+bmcaTxt(dk)+' · ⌘V sobre otro día para pegarlas');}
+function bmcaPega(dk){calLoad();const c=BMCA.clip;if(!c||!c.evs.length||!dk)return;
+  const f=bmcaFoto([dk]);(STATE.calendar[dk]=STATE.calendar[dk]||[]).push(...c.evs.map(bmcaCopia));bmcaOrdena(dk);
+  calPersist();try{renderCalendar();}catch(e){}
+  toast('Pegadas '+c.evs.length+(c.evs.length===1?' sesión':' sesiones')+' en el '+bmcaTxt(dk),{fn:()=>bmcaRestaura(f),deshecho:'Deshecho · el '+bmcaTxt(dk)+' vuelve a como estaba'});}
+const bmcaOk=()=>!esMovil()&&typeof bmEscFino==='function'&&bmEscFino();
+document.addEventListener('mouseover',e=>{if(!bmcaOk()||!e.target||!e.target.closest)return;
+  const ch=e.target.closest('#v-cal .cal-cell .cal-chip[data-ev]');if(ch&&!ch.draggable){ch.draggable=true;ch.title='Arrastra para mover · con ⌥ para copiar';}
+  const c=e.target.closest('#v-cal .cal-cell[data-dk]');BMCA.hover=c?c.dataset.dk:null;});
+document.addEventListener('dragstart',e=>{const ch=e.target&&e.target.closest&&e.target.closest('#v-cal .cal-chip[data-ev]');if(!ch||!bmcaOk())return;
+  const cell=ch.closest('.cal-cell[data-dk]');if(!cell)return;BMCA.src={dk:cell.dataset.dk,id:ch.dataset.ev};
+  try{e.dataTransfer.setData('text/plain',ch.textContent.trim());e.dataTransfer.effectAllowed='copyMove';}catch(_){}
+  document.body.classList.add('bm-cal-arrastra');});
+document.addEventListener('dragend',()=>{BMCA.src=null;document.body.classList.remove('bm-cal-arrastra');document.querySelectorAll('.bm-cal-drop').forEach(x=>x.classList.remove('bm-cal-drop'));});
+document.addEventListener('dragover',e=>{if(!BMCA.src)return;const c=e.target&&e.target.closest&&e.target.closest('#v-cal .cal-cell[data-dk]');if(!c)return;
+  e.preventDefault();try{e.dataTransfer.dropEffect=e.altKey?'copy':'move';}catch(_){}
+  document.querySelectorAll('.bm-cal-drop').forEach(x=>{if(x!==c)x.classList.remove('bm-cal-drop');});if(c.dataset.dk!==BMCA.src.dk)c.classList.add('bm-cal-drop');});
+document.addEventListener('drop',e=>{if(!BMCA.src)return;const c=e.target&&e.target.closest&&e.target.closest('#v-cal .cal-cell[data-dk]');
+  document.querySelectorAll('.bm-cal-drop').forEach(x=>x.classList.remove('bm-cal-drop'));if(!c)return;
+  e.preventDefault();e.stopPropagation();const src=BMCA.src;BMCA.src=null;document.body.classList.remove('bm-cal-arrastra');
+  bmcaMueve(src.dk,src.id,c.dataset.dk,e.altKey);},true);
+document.addEventListener('keydown',e=>{
+  if(!bmcaOk()||!(e.metaKey||e.ctrlKey)||e.altKey||e.shiftKey)return;const k=String(e.key).toLowerCase();if(k!=='c'&&k!=='v')return;
+  const v=document.getElementById('v-cal');if(!v||!v.classList.contains('on')||!BMCA.hover)return;
+  const x=e.target,tag=(x&&x.tagName||'').toLowerCase();if(tag==='input'||tag==='textarea'||tag==='select'||(x&&x.isContentEditable))return;
+  if(k==='c'){const sel=window.getSelection&&String(window.getSelection());if(sel)return;e.preventDefault();bmcaCopiaDia(BMCA.hover);}
+  else if(BMCA.clip){e.preventDefault();bmcaPega(BMCA.hover);}});
+window.bmcaCopiaDia=bmcaCopiaDia;window.bmcaPega=bmcaPega;
+
 const BMHOV={t:null,el:null,n:''};
 function bmHovQuita(){clearTimeout(BMHOV.t);BMHOV.t=null;BMHOV.el=null;const h=document.getElementById('bm-hov');if(h)h.classList.remove('on');}
 document.addEventListener('mouseover',e=>{
@@ -39822,7 +39884,7 @@ function renderCalendar(){
     const matchEv=hasMatch?(evs.find(e=>e.type==='partido')||{}):null;
     /* v241 · una sesión sin programar se pinta en trazo discontinuo y sin duración:
        está puesta en el calendario, pero su volumen no lo ha decidido nadie. */
-    const chips=evs.slice(0,3).map(e=>{const t=calTipo(e.type),sp=evSP(e),du=sp?0:evDur(e);return `<div class="cal-chip${sp?' sp':''}" style="--c:${t.col}"><span class="cal-chip-dot" style="background:${t.col}"></span><span class="cal-chip-tx">${e.title||t.lab}</span>${du?`<span class="cal-chip-dur">${du}′</span>`:''}</div>`;}).join('')+(evs.length>3?`<div class="cal-more">+${evs.length-3} más</div>`:'');
+    const chips=evs.slice(0,3).map(e=>{const t=calTipo(e.type),sp=evSP(e),du=sp?0:evDur(e);return `<div class="cal-chip${sp?' sp':''}" data-ev="${String(e.id||'').replace(/"/g,'')}" style="--c:${t.col}"><span class="cal-chip-dot" style="background:${t.col}"></span><span class="cal-chip-tx">${e.title||t.lab}</span>${du?`<span class="cal-chip-dur">${du}′</span>`:''}</div>`;}).join('')+(evs.length>3?`<div class="cal-more">+${evs.length-3} más</div>`:'');
     /* v398 · Un día planificado, con cuestionarios respondidos y SIN minutos no
        tiene carga calculable, y hasta ahora se quedaba mudo: la casilla no
        enseñaba nada y parecía que el % «no salía en todos». Ahora lo dice y
@@ -50670,6 +50732,14 @@ html.bpr-on body{overflow:hidden}
   .ij-ks{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ij-nav .inf-fl,.ij-acc .btn{min-height:44px;min-width:44px}
   .ij-nav select{min-height:44px;flex:1 1 100%;max-width:none}
+}
+</style>
+<style id="esc-v762">
+/* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
+@media screen and (min-width:761px) and (pointer:fine){
+  #v-cal .cal-chip[draggable="true"]{cursor:grab}
+  #v-cal .cal-cell.bm-cal-drop{outline:2px solid var(--accent);outline-offset:-2px;background:color-mix(in srgb,var(--accent) 8%,transparent)}
+  body.bm-cal-arrastra #v-cal .cal-cell{transition:none}
 }
 </style>
 <style id="bm-v745">
