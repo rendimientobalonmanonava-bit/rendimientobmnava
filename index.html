@@ -21602,9 +21602,10 @@ function teamReadinessSerieAsync(n){
     }
     /* v769 · el día que se eligió mientras la serie recorría fechas */
     if(window.__RD_REFPEND){const x=window.__RD_REFPEND;window.__RD_REFPEND=null;try{setRefDate(x[0],x[1]);}catch(e){}}
-    RD_SERIE_CACHE={clave,datos:out};
+    const _hu=(()=>{try{return rdHuella(dks);}catch(e){return null;}})();
+    RD_SERIE_CACHE={clave,datos:out,huella:_hu,dv:BM_DV};
     /* v772 · y en este aparato, para la próxima vez que se abra */
-    try{if(out.length)localStorage.setItem(RDS_K,JSON.stringify({clave,huella:rdHuella(dks),datos:out}));}catch(e){}
+    try{if(out.length)localStorage.setItem(RDS_K,JSON.stringify({clave,huella:_hu,datos:out}));}catch(e){}
     /* Lo que quiso pintarse durante el recorrido se saltó el turno para no
        salir con la fecha prestada. Ahora, con la fecha ya devuelta y la serie
        en la caché, se le da ese turno. La caché evita que este repintado
@@ -21625,10 +21626,17 @@ function teamReadinessSerieCache(n){
   n=n||14;
   const dks=[...new Set((STATE.wellness||[]).map(w=>w.dk).filter(Boolean))].sort().slice(-n);
   const clave=(STATE.wellness||[]).length+'|'+rpeReales()+'|'+dks.join(',');
-  if(RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave)return RD_SERIE_CACHE.datos;
+  /* v772b · la de memoria también comprueba la huella, pero sólo si la versión
+     de los datos ha cambiado desde la última vez: cambiar unos minutos o una
+     convocatoria dejaba la serie con los valores viejos hasta recargar */
+  if(RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave){
+    if(RD_SERIE_CACHE.dv===BM_DV||RD_SERIE_CACHE.huella==null)return RD_SERIE_CACHE.datos;
+    if(dks.length&&rdHuella(dks)===RD_SERIE_CACHE.huella){RD_SERIE_CACHE.dv=BM_DV;return RD_SERIE_CACHE.datos;}
+    RD_SERIE_CACHE=null;return null;
+  }
   /* v772 · la que se calculó en una visita anterior, si los datos son los mismos */
   try{if(!dks.length)return null;const g=JSON.parse(localStorage.getItem(RDS_K)||'null');
-    if(g&&g.clave===clave&&g.huella===rdHuella(dks)&&Array.isArray(g.datos)){RD_SERIE_CACHE={clave,datos:g.datos};return g.datos;}}catch(e){}
+    if(g&&g.clave===clave&&g.huella===rdHuella(dks)&&Array.isArray(g.datos)){RD_SERIE_CACHE={clave,datos:g.datos,huella:g.huella,dv:BM_DV};return g.datos;}}catch(e){}
   return null;
 }
 /* ═══ v772 · El arranque no traba los primeros toques ═══
