@@ -19439,7 +19439,7 @@ const CMP_COL=['var(--accent)','var(--cmp-b)'];
    las cifras REDONDEADAS que se ven: 1.200 contra 1.150 no puede dar +51. */
 function cmpTablaDatos(A,B,filas){
   const esc=bmEsc;
-  const cab='<thead><tr><th></th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+esc(cvCorto(A))+'</th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[1]+'"></i>'+esc(cvCorto(B))+'</th><th>Diferencia</th></tr></thead>';
+  const cab='<thead><tr><th></th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+esc(A)+'</th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[1]+'"></i>'+esc(B)+'</th><th>Diferencia</th></tr></thead>';
   const red=(v,p)=>v==null||!isFinite(v)?v:Math.round(v*Math.pow(10,p))/Math.pow(10,p);
   return '<table class="cmp-t cmp-dat">'+cab+'<tbody>'+filas.map(f=>{let [lab,a,b,fm,mej,pr,fd]=f;const F=fm||(v=>fmt(v,0));pr=pr||0;a=red(a,pr);b=red(b,pr);const FD=fd||F;
     const ok=a!=null&&b!=null&&isFinite(a)&&isFinite(b);const d=ok?red(a-b,pr):null;
@@ -19448,11 +19448,12 @@ function cmpTablaDatos(A,B,filas){
     const dt=ok?(Math.abs(d)<1e-9?'igual':(d>0?'+':'−')+FD(Math.abs(d))):'—';
     return '<tr><th>'+lab+'</th>'+td(a,0)+td(b,1)+'<td class="cmp-dif">'+dt+'</td></tr>';}).join('')+'</tbody></table>';
 }
-function cmpLeyenda(A,B){return '<span class="cmp-ley"><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+bmEsc(cvCorto(A))+'<i class="cmp-pt cmp-pt-b" style="--cmp-c:'+CMP_COL[1]+'"></i>'+bmEsc(cvCorto(B))+'</span>';}
+/* v802 · reciben ya el rótulo de cada lado: un jugador o una media */
+function cmpLeyenda(A,B){return '<span class="cmp-ley"><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+bmEsc(A)+'<i class="cmp-pt cmp-pt-b" style="--cmp-c:'+CMP_COL[1]+'"></i>'+bmEsc(B)+'</span>';}
 function bmComparar(a,b){
   const ns=Object.keys(STATE.players||{}).sort((x,y)=>x.localeCompare(y,'es'));if(!ns.length)return;
   a=a&&STATE.players[a]?a:(STATE.curPlayer&&STATE.players[STATE.curPlayer]?STATE.curPlayer:ns[0]);
-  if(!b||!STATE.players[b]||b===a){const pa=(STATE.players[a]||{}).pos;b=ns.find(n=>n!==a&&(STATE.players[n]||{}).pos===pa)||ns.find(n=>n!==a);}
+  if(!b||(!cmpEsRef(b)&&!STATE.players[b])||b===a){const pa=(STATE.players[a]||{}).pos;b=ns.find(n=>n!==a&&(STATE.players[n]||{}).pos===pa)||ns.find(n=>n!==a);}
   CMP.a=a;CMP.b=b;
   bmHoja({id:'cmp',titulo:'Comparar jugadores',html:'<div class="cmp" id="cmp-cuerpo"></div>',clase:'bm-cmph'});
   cmpPinta();
@@ -19468,108 +19469,197 @@ function cmpSerie(vals,dks,max,opt){
     serie.forEach((v,i)=>{if(v==null||isNaN(v))return;if(opt.puntos)g+='<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="2.4" fill="'+CMP_COL[si]+'"/>';});});
   return '<svg class="cmp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+bmEsc(opt.lab||'')+'">'+g+'</svg>';
 }
+/* v802 · COMPARAR CON LA MEDIA DE SU PUESTO O DEL EQUIPO. Daniel, 17/11/2026,
+   eligió la propuesta 3: «una referencia objetiva para decidir». El segundo
+   lado de la comparación puede ser, además de otro jugador, la media de su
+   puesto o la del equipo. **Ni un cálculo nuevo, y la media es la del equipo
+   de siempre**: cada día, la de los que ENTRENARON CON EL GRUPO ese día
+   (`lbEntrenaConGrupo`, la población de `lbTeamDay`: fuera los de baja,
+   enfermos, en readaptación o con la selección); el readiness y el ACWR
+   medios, sin los que están con la selección (`conLaSeleccion`, la regla de
+   la v500). **Sin contarle a él**: compararle con una media que le incluye
+   es compararle en parte consigo mismo. Las cifras de debajo de cada gráfico
+   salen de la serie diaria de la media, igual que las de un jugador salen de
+   la suya. Hacen falta 2 compañeros para que haya media; con un solo portero
+   más, «Media de su puesto» no se ofrece —sería comparar con él—. En las
+   pruebas, la media de los compañeros que tienen esa prueba esta temporada,
+   y sólo si son 3 o más (el mínimo de `calRefMD`). */
+const CMP_MIN=2,CMP_MIN_PR=3;
+function cmpEsRef(k){return k==='__pos'||k==='__eq';}
+function cmpMiembros(k,A){
+  const ps=STATE.players||{},pos=(ps[A]||{}).pos;
+  return Object.keys(ps).filter(n=>n!==A&&(k==='__eq'||ps[n].pos===pos)).sort((x,y)=>x.localeCompare(y,'es'));
+}
+function cmpPuestoLab(A){const p=(STATE.players[A]||{}).pos;const g=(typeof JL_GR!=='undefined'?JL_GR:[]).find(x=>x[0]===p);return g?g[1].toLowerCase():'su puesto';}
+function cmpNom(k,A){if(!cmpEsRef(k))return cvCorto(k);return k==='__eq'?'Media del equipo':'Media de '+cmpPuestoLab(A);}
+/* Lo que se compara de cada lado, igual para un jugador que para una media. */
+function cmpEntidad(k,A,ref,dks,dr){
+  const ps=STATE.players||{},dk=dkey(REF());
+  const mapaUA=n=>{const m={};try{contDailyTo(n,ref).forEach(d=>{m[dkey(d.date)]=d.ua||0;});}catch(e){}return m;};
+  const mapaRec=n=>{const m={};try{playerRecSeries(ps[n],60).forEach(x=>{if(isFinite(x.pct))m[x.dk]=x.pct;});}catch(e){}return m;};
+  const media=a=>{const v=a.filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((x,y)=>x+y,0)/v.length:null;};
+  if(!cmpEsRef(k)){
+    const p=ps[k]||{};const mu=mapaUA(k),mr=mapaRec(k);
+    let e=null;try{e=effectiveStatus(k,dk);}catch(_){}const st=(e&&e.status)||'disp',S=PHYSTAT[st];
+    return {k,ref:false,lab:cvCorto(k),p,
+      est:{lab:S?S.lab:'Disponible',col:S?S.c:'var(--ok)'},
+      rd:p.readiness!=null&&!isNaN(p.readiness)?p.readiness:null,
+      ac:p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null,
+      car:dks.map(d=>mu[d]!=null?mu[d]:null),rec:dr.map(d=>mr[d]!=null?mr[d]:null),miembros:null};
+  }
+  const M=cmpMiembros(k,A);
+  /* De cada compañero, sólo los días con registro y carga calculable (`dailyAgg`):
+     un día sin cuestionario no es un día de 0 UA, y contarlo hundía la media. */
+  const mapaReg=n=>{const m={};try{(dailyAgg(n)||[]).forEach(d=>{if(+d.ua>0)m[d.dk]=+d.ua;});}catch(e){}return m;};
+  const mus={},mrs={};M.forEach(n=>{mus[n]=mapaReg(n);mrs[n]=mapaRec(n);});
+  const conG=(n,d)=>{try{return window.lbEntrenaConGrupo?lbEntrenaConGrupo(n,d):true;}catch(e){return true;}};
+  const sinSel=(n,d)=>{try{return !conLaSeleccion(n,d);}catch(e){return true;}};
+  const car=dks.map(d=>{const v=M.filter(n=>mus[n][d]!=null&&conG(n,d)).map(n=>mus[n][d]);return v.length?media(v):null;});
+  const rec=dr.map(d=>{const v=M.filter(n=>mrs[n][d]!=null&&sinSel(n,d)).map(n=>mrs[n][d]);return v.length?media(v):null;});
+  const hoyM=M.filter(n=>sinSel(n,dk));
+  let disp=0;M.forEach(n=>{let e=null;try{e=effectiveStatus(n,dk);}catch(_){}if(!(e&&NOAV_ST.includes(e.status)))disp++;});
+  return {k,ref:true,lab:cmpNom(k,A),p:{},miembros:M,
+    est:{lab:disp+' de '+M.length+' disponibles',col:''},
+    rd:media(hoyM.map(n=>{const p=ps[n];return p&&p.readiness!=null&&!isNaN(p.readiness)?p.readiness:null;})),
+    ac:media(hoyM.map(n=>{const p=ps[n];return p&&p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null;})),
+    car,rec};
+}
 function cmpPinta(){
   const box=document.getElementById('cmp-cuerpo');if(!box)return;
-  const esc=bmEsc,A=CMP.a,B=CMP.b,P=[STATE.players[A]||{},STATE.players[B]||{}];
+  const esc=bmEsc,A=CMP.a;
+  /* «Media de su puesto» sólo con dos compañeros o más; si no, la del equipo */
+  if(CMP.b==='__pos'&&cmpMiembros('__pos',A).length<CMP_MIN)CMP.b='__eq';
+  const B=CMP.b,REFB=cmpEsRef(B);
   const ns=Object.keys(STATE.players||{}).sort((x,y)=>x.localeCompare(y,'es'));
   const foto=n=>{const r=(window.photoFor&&photoFor(n))||(STATE.players[n]&&STATE.players[n].avatar)||window.__AVATAR__||'';return r?'<img src="'+r+'" alt="">':'<i>'+esc(String(n).charAt(0))+'</i>';};
-  const sel=(k,v)=>'<select class="cmp-sel" data-cmp="'+k+'">'+ns.map(n=>'<option'+(n===v?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>';
-  const dk=dkey(REF());
-  const est=n=>{let e=null;try{e=effectiveStatus(n,dk);}catch(_){}const st=(e&&e.status)||'disp',S=PHYSTAT[st];return {lab:S?S.lab:'Disponible',col:S?S.c:'var(--ok)'};};
-  const rows=[];
+  const nPos=cmpMiembros('__pos',A).length;
+  const selA='<select class="cmp-sel" data-cmp="a">'+ns.map(n=>'<option'+(n===A?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>';
+  const selB='<select class="cmp-sel" data-cmp="b"><optgroup label="Referencias">'
+    +'<option value="__pos"'+(B==='__pos'?' selected':'')+(nPos<CMP_MIN?' disabled':'')+'>Media '+esc('de '+cmpPuestoLab(A))+(nPos<CMP_MIN?' (no hay con quién)':'')+'</option>'
+    +'<option value="__eq"'+(B==='__eq'?' selected':'')+'>Media del equipo</option></optgroup><optgroup label="Jugadores">'
+    +ns.map(n=>'<option'+(n===B?' selected':'')+'>'+esc(n)+'</option>').join('')+'</optgroup></select>';
   let ref=REF();try{ref=refCarga();}catch(e){}
-  const serie=n=>{let c=[];try{c=contDailyTo(n,ref).slice(-28);}catch(e){}return c;};
-  const SA=serie(A),SB=serie(B);
-  const sum=(c,k)=>c.slice(-k).reduce((x,d)=>x+(d.ua||0),0);
+  /* los 28 días de los dos gráficos: los de la carga, del ACWR; los de la
+     recuperación, los últimos 28 con parte de cualquiera de los dos lados */
+  const SA=(()=>{let c=[];try{c=contDailyTo(A,ref).slice(-28);}catch(e){}return c;})();
+  const dks=SA.length?SA.map(d=>dkey(d.date)):dkRango(dkSumaDias(dkey(ref),-27),dkey(ref));
+  const recDks=n=>{try{return playerRecSeries(STATE.players[n],60).map(x=>x.dk);}catch(e){return [];}};
+  const ladoB=REFB?cmpMiembros(B,A):[B];
+  const dr=[...new Set(recDks(A).concat(...ladoB.map(recDks)))].filter(d=>d<=dkey(REF())).sort().slice(-28);
+  const EA=cmpEntidad(A,A,ref,dks,dr),EB=cmpEntidad(B,A,ref,dks,dr);
+  const LA=EA.lab,LB=EB.lab;
   let tsa={};try{buildTests();tsaRows().forEach(r=>{tsa[r.name]=r;});}catch(e){}
+  const tsaDe=E=>{if(!E.ref)return tsa[E.k]&&tsa[E.k].t100!=null?+tsa[E.k].t100:null;const v=E.miembros.map(n=>tsa[n]&&tsa[n].t100!=null?+tsa[n].t100:null).filter(x=>x!=null);return v.length>=CMP_MIN?v.reduce((x,y)=>x+y,0)/v.length:null;};
   const cel=(v,col)=>'<td><b'+(col?' style="color:'+col+'"':'')+'>'+v+'</b></td>';
-  const fila=(lab,va,vb,ca,cb)=>'<tr><th>'+lab+'</th>'+cel(va,ca)+cel(vb,cb)+'</tr>';
-  const rd=p=>p.readiness!=null&&!isNaN(p.readiness)?Math.round(p.readiness):null;
-  const ac=p=>p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null;
   const acCol=v=>v==null?'':(acwrClass(v)==='ok'?'var(--ok-text)':'var(--warn-text)');
-  const eA=est(A),eB=est(B);
-  /* La diferencia A − B de cada cifra, en su unidad; el estado no tiene. */
+  /* La diferencia A − B de cada cifra, en su unidad y sobre lo redondeado; el estado no tiene. */
   const dif=(a,b,f,p)=>{p=p||0;const k=Math.pow(10,p);if(a==null||b==null||!isFinite(a)||!isFinite(b))return '—';const d=Math.round(a*k)/k-Math.round(b*k)/k;const dd=Math.round(d*k)/k;return Math.abs(dd)<1e-9?'igual':(dd>0?'+':'−')+f(Math.abs(dd));};
   const filaD=(lab,va,vb,ca,cb,d)=>'<tr><th>'+lab+'</th>'+cel(va,ca)+cel(vb,cb)+'<td class="cmp-dif">'+d+'</td></tr>';
-  const ua=v=>Math.round(v).toLocaleString('es-ES')+' UA';
-  const tA7=sum(SA,7),tB7=sum(SB,7),tA28=sum(SA,28),tB28=sum(SB,28);
-  const tsaA=tsa[A]&&tsa[A].t100!=null?+tsa[A].t100:null,tsaB=tsa[B]&&tsa[B].t100!=null?+tsa[B].t100:null;
-  const tabla='<table class="cmp-t cmp-cab-t"><thead><tr><th></th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+esc(cvCorto(A))+'</th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[1]+'"></i>'+esc(cvCorto(B))+'</th><th>Diferencia</th></tr></thead><tbody>'
-    +filaD('Estado hoy',esc(eA.lab),esc(eB.lab),colTinta(eA.col),colTinta(eB.col),'')
-    +filaD('Readiness',rd(P[0])!=null?rd(P[0]):'—',rd(P[1])!=null?rd(P[1]):'—',rd(P[0])!=null?colTexto('var(--'+recSev(rd(P[0]))+')'):'',rd(P[1])!=null?colTexto('var(--'+recSev(rd(P[1]))+')'):'',dif(rd(P[0]),rd(P[1]),v=>String(Math.round(v))))
-    +filaD('ACWR',ac(P[0])!=null?fmt(ac(P[0]),2):'—',ac(P[1])!=null?fmt(ac(P[1]),2):'—',acCol(ac(P[0])),acCol(ac(P[1])),dif(ac(P[0]),ac(P[1]),v=>fmt(v,2),2))
+  const n0=v=>Math.round(v).toLocaleString('es-ES');
+  const ua=v=>n0(v)+' UA';
+  const sumU=(c,k)=>c.slice(-k).reduce((x,v)=>x+(v||0),0);
+  const rdR=E=>E.rd!=null?Math.round(E.rd):null;
+  const tA7=sumU(EA.car,7),tB7=sumU(EB.car,7),tA28=sumU(EA.car,28),tB28=sumU(EB.car,28);
+  const tsaA=tsaDe(EA),tsaB=tsaDe(EB);
+  const th=(i,L)=>'<th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[i]+'"></i>'+esc(L)+'</th>';
+  const tabla='<table class="cmp-t cmp-cab-t"><thead><tr><th></th>'+th(0,LA)+th(1,LB)+'<th>Diferencia</th></tr></thead><tbody>'
+    +filaD('Estado hoy',esc(EA.est.lab),esc(EB.est.lab),EA.est.col?colTinta(EA.est.col):'',EB.est.col?colTinta(EB.est.col):'','')
+    +filaD('Readiness',rdR(EA)!=null?rdR(EA):'—',rdR(EB)!=null?rdR(EB):'—',rdR(EA)!=null?colTexto('var(--'+recSev(rdR(EA))+')'):'',rdR(EB)!=null?colTexto('var(--'+recSev(rdR(EB))+')'):'',dif(rdR(EA),rdR(EB),v=>String(Math.round(v))))
+    +filaD('ACWR',EA.ac!=null?fmt(EA.ac,2):'—',EB.ac!=null?fmt(EB.ac,2):'—',acCol(EA.ac),acCol(EB.ac),dif(EA.ac,EB.ac,v=>fmt(v,2),2))
     +filaD('Carga 7 días',ua(tA7),ua(tB7),'','',dif(tA7,tB7,ua))
     +filaD('Carga 28 días',ua(tA28),ua(tB28),'','',dif(tA28,tB28,ua))
-    +filaD('Nota TSA',tsaA!=null?tsaA:'—',tsaB!=null?tsaB:'—','','',dif(tsaA,tsaB,v=>String(Math.round(v))))
+    +filaD('Nota TSA',tsaA!=null?Math.round(tsaA):'—',tsaB!=null?Math.round(tsaB):'—','','',dif(tsaA,tsaB,v=>String(Math.round(v))))
     +'</tbody></table>';
-  /* carga diaria, alineada por día */
-  const dks=[...new Set(SA.map(d=>dkey(d.date)).concat(SB.map(d=>dkey(d.date))))].sort().slice(-28);
-  const porDia=(c)=>{const m={};c.forEach(d=>{m[dkey(d.date)]=d.ua||0;});return dks.map(k=>m[k]!=null?m[k]:null);};
-  const cA=porDia(SA),cB=porDia(SB);const maxC=Math.max(100,...cA.concat(cB).filter(v=>v!=null));
-  const n0=v=>Math.round(v).toLocaleString('es-ES');
-  const dCar=c=>{const v=c.filter(x=>x!=null&&x>0);const tot=v.reduce((x,y)=>x+y,0);let mx=null,mxDk='';c.forEach((x,i)=>{if(x!=null&&x>0&&(mx==null||x>mx)){mx=x;mxDk=dks[i];}});
-    return {tot,dias:v.length,media:v.length?tot/v.length:null,mx,mxDk};};
+  /* carga diaria */
+  const cA=EA.car,cB=EB.car;const maxC=Math.max(100,...cA.concat(cB).filter(v=>v!=null));
+  const dCar=c=>{const v=c.filter(x=>x!=null&&x>0);const tot=v.reduce((x,y)=>x+y,0);let mx=null;c.forEach(x=>{if(x!=null&&x>0&&(mx==null||x>mx))mx=x;});
+    return {tot,dias:v.length,media:v.length?tot/v.length:null,mx};};
   const KA=dCar(cA),KB=dCar(cB);
-  const datosCarga=cmpTablaDatos(A,B,[
+  const datosCarga=cmpTablaDatos(LA,LB,[
     ['Carga total · 28 días',KA.tot,KB.tot,v=>n0(v)+' UA'],
     ['Días con carga',KA.dias,KB.dias,v=>n0(v)],
     ['Media de un día entrenado',KA.media,KB.media,v=>n0(v)+' UA'],
     ['Día más alto',KA.mx,KB.mx,v=>n0(v)+' UA']]);
   const paso=maxC>2000?500:maxC>1000?250:100;const topC=Math.ceil(maxC/paso)*paso;
-  /* recuperación declarada */
-  const rA=playerRecSeries(P[0],40),rB=playerRecSeries(P[1],40);
-  const dr=[...new Set(rA.map(x=>x.dk).concat(rB.map(x=>x.dk)))].sort().slice(-28);
-  const rm=s=>{const m={};s.forEach(x=>{m[x.dk]=x.pct;});return dr.map(k=>m[k]!=null?m[k]:null);};
-  /* Las cifras de la recuperación, sobre los mismos 28 días del gráfico; los
-     días en ámbar o rojo con `recSev`, el corte del readiness (75 · 55). */
-  const dRec=s=>{const v=rm(s).filter(x=>x!=null&&isFinite(x));if(!v.length)return {};const ult=v[v.length-1];
+  /* recuperación declarada · los días en ámbar o rojo con `recSev`, el corte del readiness (75 · 55) */
+  const dRec=s=>{const v=s.filter(x=>x!=null&&isFinite(x));if(!v.length)return {};const ult=v[v.length-1];
     return {media:v.reduce((x,y)=>x+y,0)/v.length,ult,min:Math.min(...v),malos:v.filter(x=>recSev(x)!=='ok').length,n:v.length};};
-  const QA=dRec(rA),QB=dRec(rB);
-  const datosRec=dr.length?cmpTablaDatos(A,B,[
+  const QA=dRec(EA.rec),QB=dRec(EB.rec);
+  const datosRec=dr.length?cmpTablaDatos(LA,LB,[
     ['Media · 28 días',QA.media,QB.media,v=>n0(v)+' %','alto',0,v=>n0(v)+' pts'],
     ['Último parte',QA.ult,QB.ult,v=>n0(v)+' %','alto',0,v=>n0(v)+' pts'],
     ['El más bajo',QA.min,QB.min,v=>n0(v)+' %','alto',0,v=>n0(v)+' pts'],
     ['Días en ámbar o rojo (menos de 75 %)',QA.malos,QB.malos,v=>n0(v),'bajo'],
-    ['Partes',QA.n,QB.n,v=>n0(v)]]):'';
-  /* radar de capacidades */
+    ['Días con parte',QA.n,QB.n,v=>n0(v)]]):'';
+  /* radar de capacidades · la media es, eje a eje, la de los compañeros con valoración en ese eje */
   let radar='';
-  try{const pa=window.refPuesto?refPuesto(A):null,pb=window.refPuesto?refPuesto(B):null;
-    const ca=pa?capPerfil(A,pa):null,cb=pb?capPerfil(B,pb):null;
+  try{const pa=window.refPuesto?refPuesto(A):null;
+    const ca=pa?capPerfil(A,pa):null;
+    let cb=null,pb=null,nB={};
+    if(!REFB){pb=window.refPuesto?refPuesto(B):null;cb=pb?capPerfil(B,pb):null;}
+    else{const acc={};EB.miembros.forEach(n=>{const pn=window.refPuesto?refPuesto(n):null;const c=pn?capPerfil(n,pn):null;(c||[]).forEach(o=>{(acc[o.g]=acc[o.g]||[]).push(o.v);});});
+      cb=Object.keys(acc).filter(g=>acc[g].length>=CMP_MIN).map(g=>{nB[g]=acc[g].length;return {g,v:acc[g].reduce((x,y)=>x+y,0)/acc[g].length};});}
     if(ca&&cb&&ca.length>=3&&cb.length>=3){
       const labs=CAP_GRUPOS.map(g=>g.g).filter(l=>ca.some(o=>o.g===l)||cb.some(o=>o.g===l));
       const v=c=>labs.map(l=>{const o=c.find(x=>x.g===l);return o?+o.v.toFixed(2):null;});
       const va=v(ca),vb=v(cb);
       radar='<div class="cmp-radar">'+plRadarSVG(labs,[{col:CMP_COL[0],vals:va,gro:2.4,puntos:true},{col:CMP_COL[1],vals:vb,gro:2.4,puntos:true,guion:true}])+'</div>'
-        +cmpTablaDatos(A,B,labs.map((l,i)=>[esc(l),va[i],vb[i],x=>fmt(x,1),'alto',1]))
+        +cmpTablaDatos(LA,LB,labs.map((l,i)=>[esc(l),va[i],vb[i],x=>fmt(x,1),'alto',1]))
         +'<p class="cmp-pie">Nivel de cada capacidad en la escala del baremo de su puesto: 0 rojo · 1 ámbar · 2 verde · 3 listón Champions. En verde, quien está más arriba.</p>'
-        +'<p class="cmp-pie">Cada forma, contra el baremo de su puesto'+(pa!==pb?' — <b>son de puestos distintos</b>, así que el mismo nivel no es la misma marca':'')+'. El borde dorado es el listón Champions.</p>';}
-    else radar='<p class="cmp-pie">Sin valoraciones suficientes de los dos para el radar.</p>';}catch(e){radar='';}
-  /* pruebas que tienen los dos */
-  const tA=(STATE.tests||{})[A]||{},tB=(STATE.tests||{})[B]||{};
+        +'<p class="cmp-pie">Cada forma, contra el baremo de su puesto'+(!REFB&&pa!==pb?' — <b>son de puestos distintos</b>, así que el mismo nivel no es la misma marca':'')+(REFB&&B==='__eq'?' — la media del equipo mezcla puestos: cada jugador cuenta con su nivel en el baremo del suyo':'')+'. El borde dorado es el listón Champions.</p>';}
+    else radar='<p class="cmp-pie">Sin valoraciones suficientes de los dos lados para el radar.</p>';}catch(e){radar='';}
+  /* pruebas */
+  const tA=(STATE.tests||{})[A]||{};
+  const vig=t=>typeof tempVigente!=='function'||tempVigente(t.k);
+  const val=(n,k)=>{const v=((STATE.tests||{})[n]||{})[k];return v!=null&&!isNaN(v)?+v:null;};
+  const pr=TESTS.filter(t=>tA[t.k]!=null&&!isNaN(tA[t.k])&&vig(t)).map(t=>{
+    if(!REFB){const b=val(B,t.k);return b==null?null:{t,a:+tA[t.k],b,n:1};}
+    const vs=EB.miembros.map(n=>val(n,t.k)).filter(x=>x!=null);
+    return vs.length>=CMP_MIN_PR?{t,a:+tA[t.k],b:vs.reduce((x,y)=>x+y,0)/vs.length,n:vs.length}:null;}).filter(Boolean);
   const NEU=(typeof VHF_NEUTRAL!=='undefined'&&VHF_NEUTRAL)||new Set(['peso','talla']);
   const esNeu=k=>NEU.has?NEU.has(k):(Array.isArray(NEU)?NEU.indexOf(k)>=0:false);
-  const pr=TESTS.filter(t=>tA[t.k]!=null&&tB[t.k]!=null&&!isNaN(tA[t.k])&&!isNaN(tB[t.k])&&(typeof tempVigente!=='function'||tempVigente(t.k)));
   const dec=v=>Math.abs(v)<10?2:Math.abs(v)<100?1:0;
-  const pruebas=pr.length?'<table class="cmp-t cmp-pr"><thead><tr><th>Prueba</th><th>'+esc(A.split(' ')[0])+'</th><th>'+esc(B.split(' ')[0])+'</th><th>Diferencia</th></tr></thead><tbody>'
-    +pr.map(t=>{const a=+tA[t.k],b=+tB[t.k],d=a-b;const neu=esNeu(t.k);const gana=neu||d===0?null:((t.lowerBetter?d<0:d>0)?0:1);
+  const pruebas=pr.length?'<table class="cmp-t cmp-pr"><thead><tr><th>Prueba</th><th>'+esc(LA)+'</th><th>'+esc(LB)+'</th><th>Diferencia</th></tr></thead><tbody>'
+    +pr.map(o=>{const t=o.t,dc=Math.max(dec(o.a),dec(o.b)),k=Math.pow(10,dc),a=Math.round(o.a*k)/k,b=Math.round(o.b*k)/k,d=Math.round((a-b)*k)/k;
+      const neu=esNeu(t.k);const gana=neu||d===0?null:((t.lowerBetter?d<0:d>0)?0:1);
       const u=t.unit?' '+t.unit:'';
-      return '<tr><th>'+esc(t.name)+'</th><td'+(gana===0?' class="cmp-gana"':'')+'>'+fmt(a,dec(a))+u+'</td><td'+(gana===1?' class="cmp-gana"':'')+'>'+fmt(b,dec(b))+u+'</td><td class="cmp-dif">'+(d>0?'+':d<0?'−':'')+fmt(Math.abs(d),dec(d))+u+'</td></tr>';}).join('')
-    +'</tbody></table><p class="cmp-pie">'+(()=>{let ga=0,gb=0;pr.forEach(t=>{if(esNeu(t.k))return;const d=+tA[t.k]-(+tB[t.k]);if(!d)return;((t.lowerBetter?d<0:d>0)?ga++:gb++);});
-      return '<b>Mejor marca: '+esc(cvCorto(A))+' en '+ga+', '+esc(cvCorto(B))+' en '+gb+'</b> de '+pr.filter(t=>!esNeu(t.k)).length+' pruebas. ';})()
-    +'Sólo las pruebas de esta temporada que tienen los dos. En verde, la mejor marca de cada prueba (peso y talla no tienen lado bueno).</p>'
-    :'<p class="cmp-pie">No hay pruebas de esta temporada que tengan los dos.</p>';
-  const cab=i=>{const n=i?B:A;return '<div class="cmp-j" style="--cmp-c:'+CMP_COL[i]+'"><span class="cmp-av">'+foto(n)+'</span><div>'+sel(i?'b':'a',n)+'<small>'+esc((P[i].pos||'—')+(typeof posDetailOf==='function'&&posDetailOf(n)?' · '+posDetailOf(n):''))+'</small></div></div>';};
-  box.innerHTML='<div class="cmp-cab">'+cab(0)+'<button type="button" class="cmp-swap" data-cmp="swap" title="Cambiar el orden" aria-label="Cambiar el orden">⇄</button>'+cab(1)+'</div>'
-    +'<section class="cmp-sec">'+tabla+'</section>'
-    +'<section class="cmp-sec"><h3>Carga diaria · últimas 4 semanas <span>UA</span>'+cmpLeyenda(A,B)+'</h3>'+cmpSerie([cA,cB],dks,topC,{lab:'Carga diaria de los dos'})+datosCarga+'</section>'
-    +'<section class="cmp-sec"><h3>Recuperación declarada <span>% · wellness</span>'+cmpLeyenda(A,B)+'</h3>'+(dr.length?cmpSerie([rm(rA),rm(rB)],dr,100,{u:'',puntos:true,lab:'Recuperación de los dos'})+datosRec:'<p class="cmp-pie">Sin partes de wellness.</p>')+'</section>'
-    +'<section class="cmp-sec"><h3>Capacidades'+cmpLeyenda(A,B)+'</h3>'+radar+'</section>'
+      return '<tr><th>'+esc(t.name)+(REFB?' <small class="cmp-n">'+o.n+'</small>':'')+'</th><td'+(gana===0?' class="cmp-gana"':'')+'>'+fmt(a,dc)+u+'</td><td'+(gana===1?' class="cmp-gana"':'')+'>'+fmt(b,dc)+u+'</td><td class="cmp-dif">'+(d>0?'+':d<0?'−':'')+fmt(Math.abs(d),dc)+u+'</td></tr>';}).join('')
+    +'</tbody></table><p class="cmp-pie">'+(()=>{let ga=0,gb=0;pr.forEach(o=>{if(esNeu(o.t.k))return;const dc=Math.max(dec(o.a),dec(o.b)),k=Math.pow(10,dc),d=Math.round(o.a*k)/k-Math.round(o.b*k)/k;if(Math.abs(d)<1e-9)return;((o.t.lowerBetter?d<0:d>0)?ga++:gb++);});
+      const tot=pr.filter(o=>!esNeu(o.t.k)).length;
+      return REFB?'<b>'+esc(LA)+' está por encima de la media en '+ga+' de '+tot+' pruebas.</b> ':'<b>Mejor marca: '+esc(LA)+' en '+ga+', '+esc(LB)+' en '+gb+'</b> de '+tot+' pruebas. ';})()
+    +(REFB?'La media es la de los compañeros que tienen esa prueba esta temporada (el número gris, cuántos), sólo con '+CMP_MIN_PR+' o más.':'Sólo las pruebas de esta temporada que tienen los dos.')+' En verde, el mejor lado de cada prueba (peso y talla no tienen lado bueno).</p>'
+    :'<p class="cmp-pie">'+(REFB?'No hay pruebas de esta temporada que tengan él y al menos '+CMP_MIN_PR+' compañeros.':'No hay pruebas de esta temporada que tengan los dos.')+'</p>';
+  /* cabecera */
+  const pieRef=REFB?(()=>{const M=EB.miembros;return M.length+' jugadores, sin contar a '+cvCorto(A);})():'';
+  const cabA='<div class="cmp-j" style="--cmp-c:'+CMP_COL[0]+'"><span class="cmp-av">'+foto(A)+'</span><div>'+selA+'<small>'+esc(((STATE.players[A]||{}).pos||'—')+(typeof posDetailOf==='function'&&posDetailOf(A)?' · '+posDetailOf(A):''))+'</small></div></div>';
+  const cabB=REFB
+    ?'<div class="cmp-j cmp-j-ref" style="--cmp-c:'+CMP_COL[1]+'"><span class="cmp-av cmp-av-ref" aria-hidden="true"></span><div>'+selB+'<small>'+esc(pieRef)+'</small></div></div>'
+    :'<div class="cmp-j" style="--cmp-c:'+CMP_COL[1]+'"><span class="cmp-av">'+foto(B)+'</span><div>'+selB+'<small>'+esc(((STATE.players[B]||{}).pos||'—')+(typeof posDetailOf==='function'&&posDetailOf(B)?' · '+posDetailOf(B):''))+'</small></div></div>';
+  /* contra quién: tres botones a la vista, para no tener que descubrir la media dentro del desplegable */
+  const modo=B==='__pos'?'pos':B==='__eq'?'eq':'jug';
+  const seg='<div class="cmp-con" role="group" aria-label="Comparar con"><span>Comparar con</span>'
+    +'<button type="button" data-cmp="con-jug"'+(modo==='jug'?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>Otro jugador</button>'
+    +'<button type="button" data-cmp="con-pos"'+(modo==='pos'?' class="on" aria-pressed="true"':' aria-pressed="false"')+(nPos<CMP_MIN?' disabled title="Sólo hay otro jugador en su puesto"':'')+'>Media de '+esc(cmpPuestoLab(A))+'</button>'
+    +'<button type="button" data-cmp="con-eq"'+(modo==='eq'?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>Media del equipo</button></div>';
+  const notaRef=REFB?'<p class="cmp-pie cmp-pie-ref">La media es, cada día, la de los compañeros que entrenaron con el grupo y tienen carga ese día (fuera los de baja, enfermos, en readaptación o con la selección; un día sin cuestionario no cuenta como cero); el readiness y el ACWR, la de hoy sin los que están con la selección. No le cuenta a él.</p>':'';
+  box.innerHTML=seg+'<div class="cmp-cab">'+cabA+'<button type="button" class="cmp-swap" data-cmp="swap" title="'+(REFB?'Con una media no se puede cambiar el orden':'Cambiar el orden')+'" aria-label="Cambiar el orden"'+(REFB?' disabled':'')+'>⇄</button>'+cabB+'</div>'
+    +'<section class="cmp-sec">'+tabla+notaRef+'</section>'
+    +'<section class="cmp-sec"><h3>Carga diaria · últimas 4 semanas <span>UA</span>'+cmpLeyenda(LA,LB)+'</h3>'+cmpSerie([cA,cB],dks,topC,{lab:'Carga diaria de los dos lados'})+datosCarga+'</section>'
+    +'<section class="cmp-sec"><h3>Recuperación declarada <span>% · wellness</span>'+cmpLeyenda(LA,LB)+'</h3>'+(dr.length?cmpSerie([EA.rec,EB.rec],dr,100,{u:'',puntos:true,lab:'Recuperación de los dos lados'})+datosRec:'<p class="cmp-pie">Sin partes de wellness.</p>')+'</section>'
+    +'<section class="cmp-sec"><h3>Capacidades'+cmpLeyenda(LA,LB)+'</h3>'+radar+'</section>'
     +'<section class="cmp-sec"><h3>Pruebas físicas</h3>'+pruebas+'</section>';
 }
 document.addEventListener('change',e=>{const s=e.target&&e.target.closest&&e.target.closest('#bmh-cmp [data-cmp]');if(!s)return;
-  if(s.dataset.cmp==='a')CMP.a=s.value;else if(s.dataset.cmp==='b')CMP.b=s.value;cmpPinta();});
-document.addEventListener('click',e=>{const s=e.target&&e.target.closest&&e.target.closest('#bmh-cmp [data-cmp="swap"]');if(!s)return;
-  const t=CMP.a;CMP.a=CMP.b;CMP.b=t;cmpPinta();});
+  if(s.dataset.cmp==='a'){CMP.a=s.value;if(CMP.b===CMP.a){const ns=Object.keys(STATE.players||{}).sort();CMP.b=ns.find(n=>n!==CMP.a)||CMP.b;}}
+  else if(s.dataset.cmp==='b')CMP.b=s.value;cmpPinta();});
+document.addEventListener('click',e=>{const s=e.target&&e.target.closest&&e.target.closest('#bmh-cmp [data-cmp]');if(!s||s.tagName==='SELECT'||s.disabled)return;
+  const c=s.dataset.cmp;
+  if(c==='swap'){if(cmpEsRef(CMP.b))return;const t=CMP.a;CMP.a=CMP.b;CMP.b=t;}
+  else if(c==='con-pos'||c==='con-eq'){if(!cmpEsRef(CMP.b))CMP.bJug=CMP.b;CMP.b=c==='con-pos'?'__pos':'__eq';}
+  else if(c==='con-jug'){if(!cmpEsRef(CMP.b))return;const ps=STATE.players||{},ns=Object.keys(ps).sort((x,y)=>x.localeCompare(y,'es')),pa=(ps[CMP.a]||{}).pos;
+    CMP.b=(CMP.bJug&&CMP.bJug!==CMP.a&&ps[CMP.bJug])?CMP.bJug:(ns.find(n=>n!==CMP.a&&(ps[n]||{}).pos===pa)||ns.find(n=>n!==CMP.a));}
+  else return;
+  cmpPinta();});
 window.bmComparar=bmComparar;
 /* v742 · INFORME DE LA SEMANA. Daniel, 16/11/2026, eligió la propuesta 4. Lo
    que pasó en una semana estaba repartido en seis pantallas. Aquí, la semana
@@ -52907,6 +52997,18 @@ html[data-theme="dark"]{--cmp-b:#cf5aa8}
 .cmp-cab-t td:nth-child(2) b,.cmp-cab-t td:nth-child(3) b{font-weight:600}
 .cmp-dat thead th,.cmp-cab-t thead th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--txt)}
 .cmp-dat thead th:last-child,.cmp-cab-t thead th:last-child{color:var(--muted);font-weight:500}
+/* v802 · contra quién: otro jugador, la media de su puesto o la del equipo */
+.cmp-con{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.cmp-con span{font-size:12px;color:var(--muted);margin-right:4px}
+.cmp-con button{font:inherit;font-size:13px;font-weight:500;border:none;border-radius:8px;padding:5px 11px;min-height:30px;background:var(--panel2);color:var(--txt);cursor:var(--cur-mano,pointer)}
+.cmp-con button.on{background:var(--accent);color:var(--on-accent)}
+.cmp-con button:disabled{opacity:1;color:var(--muted);cursor:default}
+.cmp-swap:disabled{color:var(--muted);cursor:default}
+.cmp-av-ref{display:flex;align-items:center;justify-content:center}
+.cmp-av-ref::before{content:"";width:24px;height:24px;background:var(--cmp-c);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E") center/contain no-repeat}
+.cmp-n{font-size:11px;color:var(--muted);font-weight:500;margin-left:2px}
+.cmp-pie-ref{margin-top:4px}
+@media(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.cmp-con button{min-height:44px}}
 /* las columnas de todas las tablas de la hoja caen en el mismo sitio: se leen de arriba abajo */
 @media screen and (min-width:761px) and (pointer:fine){
   .cmp-dat,.cmp-cab-t,.cmp-pr{table-layout:fixed}
