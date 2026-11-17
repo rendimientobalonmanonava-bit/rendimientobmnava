@@ -11412,7 +11412,10 @@ function dpSyncLabel(){const lab=document.getElementById('dp-label');if(!lab)ret
    reanuda. Sin esto, o te arrastra a hoy mientras revisas el martes pasado, o
    te deja clavado en un día viejo: las dos cosas molestan. */
 let REF_SIGUE_HOY=true;
-function setRefDate(v,auto){if(!v)return;if(!auto)REF_SIGUE_HOY=(v===dkey(new Date()));const a=v.split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);HR_SES_LOCK=false;buildPlayers();renderTeam();renderAlerts();renderDayCtx();if(document.getElementById('v-jugador').classList.contains('on')&&STATE.curPlayer)fichaRepinta();if(document.getElementById('v-carga').classList.contains('on'))renderLoad();if(document.getElementById('v-hr').classList.contains('on'))renderHR();dpSyncLabel();writeHash();}
+/* v769 · Con la serie de 14 días recorriendo fechas, STATE.refDate es prestado
+   y al terminar se devuelve el que había AL EMPEZAR: un día elegido en medio se
+   perdía. Se apunta y se aplica cuando la serie acaba. */
+function setRefDate(v,auto){if(!v)return;try{const _i=document.getElementById('ref-date');if(_i&&_i.value!==v)_i.value=v;}catch(e){}if(window.__RD_CALC){window.__RD_REFPEND=[v,auto];return;}if(!auto)REF_SIGUE_HOY=(v===dkey(new Date()));const a=v.split('-').map(Number);STATE.refDate=new Date(a[0],a[1]-1,a[2],23,59,59);HR_SES_LOCK=false;buildPlayers();renderTeam();renderAlerts();renderDayCtx();if(document.getElementById('v-jugador').classList.contains('on')&&STATE.curPlayer)fichaRepinta();if(document.getElementById('v-carga').classList.contains('on'))renderLoad();if(document.getElementById('v-hr').classList.contains('on'))renderHR();dpSyncLabel();writeHash();}
 /* v388 · Iba a inp.max —la última jornada con datos—, no al día de hoy. */
 function goToday(){const hoy=dkey(new Date());const inp=document.getElementById('ref-date');if(inp)inp.value=hoy;REF_SIGUE_HOY=true;setRefDate(hoy,true);}
 /* ---- Calendario propio (liquid glass) ---- */
@@ -11441,7 +11444,17 @@ function dpRender(){const pop=document.getElementById('dp-pop');if(!pop||!DP_YM)
   +'<div class="dp-grid dp-dow"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>'
   +'<div class="dp-grid dp-days">'+cells+'</div>'
   +'<div class="dp-foot"><button type="button" class="dp-foot-btn" onclick="goToday();dpClose()">Ir a hoy</button></div>';}
-function stepDay(delta){const inp=document.getElementById('ref-date');const cur=inp.value||dkey(REF());const a=cur.split('-').map(Number);const d=new Date(a[0],a[1]-1,a[2]);d.setDate(d.getDate()+delta);const nv=dkey(d);if(inp.min&&nv<inp.min)return;if(inp.max&&nv>inp.max)return;inp.value=nv;setRefDate(nv);}
+/* v769 · La fecha cambia en el acto y el cálculo espera a que se deje de
+   pulsar: tres toques seguidos eran tres recálculos de 130–350 ms. Un día que
+   ya está calculado (`bmpcHay`) se pone sin esperar, salvo que sea un toque
+   seguido de otro: entonces también espera y sólo se pinta el último. */
+let STEP_T=null;
+function stepDay(delta){const inp=document.getElementById('ref-date');const cur=inp.value||dkey(REF());const a=cur.split('-').map(Number);const d=new Date(a[0],a[1]-1,a[2]);d.setDate(d.getDate()+delta);const nv=dkey(d);if(inp.min&&nv<inp.min)return;if(inp.max&&nv>inp.max)return;inp.value=nv;
+  const seguido=!!STEP_T||(Date.now()-(window.__STEP_U||0))<260;window.__STEP_U=Date.now();
+  clearTimeout(STEP_T);STEP_T=null;
+  if(!seguido&&bmpcHay(nv)){setRefDate(nv);return;}
+  try{dpSyncLabel();}catch(e){}try{document.documentElement.classList.add('bm-dia-esp');}catch(e){}
+  STEP_T=setTimeout(()=>{STEP_T=null;try{document.documentElement.classList.remove('bm-dia-esp');}catch(e){}if(inp.value===nv)setRefDate(nv);},170);}
 function renderDayCtx(){const el=document.getElementById('day-ctx');if(!el)return;
   /* v388 · La serie de readiness del equipo recorre los últimos catorce días
      moviendo STATE.refDate y devolviéndolo al final (`window.__RD_CALC`). Si la
@@ -11510,7 +11523,33 @@ function teamByType(winDays){const since=REF();const lim=new Date(since);lim.set
 function lastDate(){let mx=null;STATE.rpe.concat(STATE.wellness).forEach(x=>{if(!mx||x.date>mx)mx=x.date;});return mx||new Date();}
 
 function priorLoadContext(name,ref){const cont=contDailyTo(name,ref);if(cont.length<2)return null;const yUA=cont[cont.length-2].ua||0;const nz=cont.map(d=>d.ua).filter(v=>v>0);if(nz.length<CONFIG.loadContext.minDays)return null;const typ=mean(nz);if(!(typ>0))return null;const ratio=yUA/typ;const C=CONFIG.loadContext;let level,mod;if(yUA<=0){level='descanso';mod=C.modRest;}else if(ratio>=C.highRatio){level='alta';mod=C.modHigh;}else if(ratio<=C.lowRatio){level='baja';mod=C.modLow;}else{level='normal';mod=1;}return{yUA,typ,ratio,level,mod};}
+/* ═══ v769 · La versión de los datos y el cálculo de cada día, recordado ═══
+   Daniel, 17/11/2026 (propuesta 1): cambiar de día bloqueaba la app de 130 a
+   350 ms en el motor de Safari, y 190 ms eran `buildPlayers`, que recalcula a
+   los 18 jugadores aunque ese día ya se hubiera visto.
+   · `BM_DV` es la versión de los datos: sube con CUALQUIER escritura de un
+     almacén de datos (`bmnava_…` que no esté en `SY_LOCAL_ONLY`, que son
+     preferencias de pantalla) y con cada `renderAll`, que es por donde entra lo
+     que llega de las hojas. Subir de más no hace daño: sólo se recalcula.
+   · `buildPlayers` recuerda su resultado —jugadores y alertas— por la fecha
+     EXACTA de referencia (la serie de 14 días usa la medianoche y la barra las
+     23:59:59, y dan cosas distintas), la versión de los datos, el día de hoy y
+     los ajustes de cálculo. Con cualquiera distinto, calcula como siempre. */
+let BM_DV=0;
+(function(){try{
+  const S=Storage.prototype,si=S.setItem,ri=S.removeItem;
+  const dato=k=>typeof k==='string'&&k.indexOf('bmnava_')===0&&!(typeof SY_LOCAL_ONLY!=='undefined'&&SY_LOCAL_ONLY.some(x=>k===x||k.indexOf(x)===0));
+  S.setItem=function(k){if(dato(k))BM_DV++;return si.apply(this,arguments);};
+  S.removeItem=function(k){if(dato(k))BM_DV++;return ri.apply(this,arguments);};
+}catch(e){}})();
+const BMPC=new Map();
+function bmpcClave(){let c='';try{c=JSON.stringify([CONFIG.z,CONFIG.load,CONFIG.wellnessVars]);}catch(e){}
+  return REF().getTime()+'|'+BM_DV+'|'+dkey(new Date())+'|'+(STATE.wellness||[]).length+'|'+(STATE.rpe||[]).length+'|'+c.length+':'+c.slice(-60);}
+function bmpcHay(dk){const a=String(dk).split('-').map(Number);const t=new Date(a[0],a[1]-1,a[2],23,59,59).getTime();const pre=t+'|'+BM_DV+'|';for(const k of BMPC.keys())if(k.indexOf(pre)===0)return true;return false;}
+window.bmpcHay=bmpcHay;
 function buildPlayers(){
+  const _ck=bmpcClave();const _c=BMPC.get(_ck);
+  if(_c){STATE.players=_c.p;STATE.alerts=_c.a;return;}
   try{if(typeof sessDurApply==='function')sessDurApply();}catch(e){}
   try{filterToSquad();}catch(e){}
   const ref=REF(),refk=dkey(ref);
@@ -11658,6 +11697,9 @@ function buildPlayers(){
     players[name]=p;
   });
   STATE.players=players;buildAlerts();
+  /* v769 · se guarda con la clave de DESPUÉS de calcular: `sessDurApply` puede
+     haber añadido registros y la siguiente llamada ya los ve */
+  try{BMPC.set(bmpcClave(),{p:STATE.players,a:STATE.alerts});while(BMPC.size>24)BMPC.delete(BMPC.keys().next().value);}catch(e){}
 }
 function buildAlerts(){const A=[];for(const name in STATE.players){const p=STATE.players[name];if(p.last&&!p.stale){for(const key in p.z){const z=p.z[key];if(!z.alertSev)continue;A.push({name,pos:p.pos,type:z.cfg.label+(p.loadCtx&&p.loadCtx.applied?(p.loadCtx.mod<1?' · esperado por carga':' · sin carga previa'):''),sev:z.alertSev,val:fmt(z.val,0),z:z.z,rel:z.rel,mdx:p.mdx,date:p.last.dk,mod:"Wellness"});}if(p.last.dolor)A.push({name,pos:p.pos,type:(p.last.golpe?"Dolor por golpe":"Dolor muscular")+(p.last.zona?" ("+bmEsc(p.last.zona)+")":""),sev:p.last.golpe?"bad":"warn",val:"—",z:NaN,rel:true,mdx:p.mdx,date:p.last.dk,mod:"Wellness"});}if(p.acwr&&p.acwr.rel&&!isNaN(p.acwr.ratio)){if(p.acwr.ratio>=CONFIG.load.acwrRedHi)A.push({name,pos:p.pos,type:"ACWR muy alto",sev:"bad",val:fmt(p.acwr.ratio,2),z:NaN,rel:true,mdx:p.mdx,date:p.last?p.last.dk:"",mod:"Carga"});else if(p.acwr.ratio>=CONFIG.load.acwrYellowHi)A.push({name,pos:p.pos,type:"ACWR elevado",sev:"warn",val:fmt(p.acwr.ratio,2),z:NaN,rel:true,mdx:p.mdx,date:p.last?p.last.dk:"",mod:"Carga"});}}
 for(const nm in STATE.players){const pp=STATE.players[nm];let cr=null;try{cr=loadCorridorRow(pp);}catch(e){}
@@ -21401,6 +21443,8 @@ function teamReadinessSerieAsync(n){
       window.__RD_CALC=false;
       RD_SERIE_PROM=null;
     }
+    /* v769 · el día que se eligió mientras la serie recorría fechas */
+    if(window.__RD_REFPEND){const x=window.__RD_REFPEND;window.__RD_REFPEND=null;try{setRefDate(x[0],x[1]);}catch(e){}}
     RD_SERIE_CACHE={clave,datos:out};
     /* Lo que quiso pintarse durante el recorrido se saltó el turno para no
        salir con la fecha prestada. Ahora, con la fecha ya devuelta y la serie
@@ -33372,6 +33416,7 @@ function renderAll(){
      día que mira el usuario. Quien pinte aquí en medio pinta otro día. Se anota
      y se repinta al terminar el recorrido. */
   if(window.__RD_CALC){window.__RD_PEND=true;return;}
+  BM_DV++;   /* v769 · lo que entra de las hojas pasa por aquí */
   applyHist();
   if(!REF_AUTO_HECHO&&!STATE.refDate){
     /* v388 · Abría en el último día con cuestionarios. Si hoy nadie había
@@ -51532,6 +51577,11 @@ html.bpr-on body{overflow:hidden}
 #pl-vuelta>.plv+.plv{margin-top:var(--gap,18px)}
 .plv-dash{background:none!important;border-top:1.5px dashed var(--txt);height:0!important;opacity:.6;align-self:center}
 .plv-fase{background:none!important;border-left:1px dashed var(--txt);width:0!important;opacity:.5}
+</style>
+<style id="bm-v769">
+/* v769 · Mientras el día espera a que se deje de pulsar, lo de debajo se atenúa: el toque se ve en el acto */
+html.bm-dia-esp main{opacity:.72;transition:opacity .12s ease-out}
+@media (prefers-reduced-motion:reduce){html.bm-dia-esp main{transition:none}}
 </style>
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
