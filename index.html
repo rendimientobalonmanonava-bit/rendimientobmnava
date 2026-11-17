@@ -20857,6 +20857,51 @@ const bmNotasPlugin={id:'bmNotas',
       ctx.setLineDash([]);ctx.globalAlpha=.9;ctx.beginPath();ctx.arc(x,A.top+4,4,0,Math.PI*2);ctx.fill();ctx.restore();});
   }catch(e){}}
 };
+/* ═══ v786 · ORDENADOR · El cursor compartido entre gráficos ═══
+   Daniel, 17/11/2026, propuesta 4. En Cargas, Pulsómetros o la ficha hay
+   varios gráficos de días uno debajo de otro y, para saber qué pasó el mismo
+   día en todos, había que ir de uno a otro buscando la fecha. Ahora, al pasar
+   el ratón por un día en uno, los demás gráficos de días de la pantalla marcan
+   ese mismo día con su raya y su valor. Un gráfico «es de días» con la misma
+   regla que las notas (`bmnDks`, v767), así que no se cruzan semanas con días.
+   Fuera el Resumen, el Calendario y los documentos, igual que las notas. */
+const BMCUR={dk:null,src:null};
+function bmCurAplica(){
+  let inst=[];try{inst=Object.values(Chart.instances||{});}catch(e){return;}
+  inst.forEach(c=>{
+    if(c===BMCUR.src)return;
+    const cv=c.canvas;if(!cv||!cv.isConnected||!cv.closest||cv.closest(NOTAS_FUERA)||!cv.closest('.view.on,#bm-insp'))return;
+    let i=-1;if(BMCUR.dk){const dks=bmnDks(c);if(dks)i=dks.indexOf(BMCUR.dk);}
+    if(i<0){if(c.$bmcur!=null){c.$bmcur=null;try{c.setActiveElements([]);if(c.tooltip)c.tooltip.setActiveElements([],{x:0,y:0});c.update('none');}catch(e){}}return;}
+    if(c.$bmcur===i)return;c.$bmcur=i;
+    try{
+      const act=c.data.datasets.map((d,di)=>({datasetIndex:di,index:i})).filter(a=>c.isDatasetVisible(a.datasetIndex)&&c.getDatasetMeta(a.datasetIndex).data[i]);
+      c.setActiveElements(act);
+      const r=cv.getBoundingClientRect(),vis=r.bottom>0&&r.top<innerHeight;
+      if(c.tooltip){const el=act[0]&&c.getDatasetMeta(act[0].datasetIndex).data[i];c.tooltip.setActiveElements(vis?act:[],{x:el?el.x:0,y:el?el.y:0});}
+      c.update('none');
+    }catch(e){}
+  });
+}
+const bmCursorPlugin={id:'bmCursor',
+  afterEvent(ch,args){
+    if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino()))return;
+    const e=args&&args.event;if(!e)return;
+    const cv=ch.canvas;if(!cv||!cv.closest||cv.closest(NOTAS_FUERA))return;
+    if(e.type==='mouseout'){if(BMCUR.src===ch){BMCUR.dk=null;BMCUR.src=null;bmCurAplica();}return;}
+    if(e.type!=='mousemove')return;
+    const dks=bmnDks(ch),xs=ch.scales&&ch.scales.x,A=ch.chartArea;
+    let dk=null;
+    if(dks&&xs&&A&&e.x>=A.left&&e.x<=A.right&&e.y>=A.top&&e.y<=A.bottom){const i=Math.max(0,Math.min(dks.length-1,Math.round(xs.getValueForPixel(e.x))));dk=dks[i]||null;}
+    if(dk!==BMCUR.dk||(dk&&BMCUR.src!==ch)){BMCUR.dk=dk;BMCUR.src=dk?ch:null;bmCurAplica();}
+  },
+  afterDatasetsDraw(ch){
+    if(ch.$bmcur==null||ch===BMCUR.src||ch.$bmMac)return; /* con la raya de la v755 ya se dibuja al activar */
+    try{const xs=ch.scales.x,A=ch.chartArea;if(!xs||!A)return;const x=Math.round(xs.getPixelForValue(ch.$bmcur))+.5;if(x<A.left||x>A.right)return;
+      const osc=document.documentElement.getAttribute('data-theme')==='dark',ctx=ch.ctx;
+      ctx.save();ctx.strokeStyle=osc?'rgba(255,255,255,.32)':'rgba(0,0,0,.22)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,A.top);ctx.lineTo(x,A.bottom);ctx.stroke();ctx.restore();}catch(e){}
+  }
+};
 /* ═══ v778 · Gráficos que se transforman en vez de volver a crecer ═══
    Daniel, 17/11/2026 (propuesta 3). 14 de los 18 gráficos se redibujaban desde
    cero con la animación por defecto de Chart.js (1 s) cada vez que se
@@ -22709,6 +22754,7 @@ function buildChartTheme(){
     if(!Chart.registry.plugins.get('bmMacGraf'))Chart.register(bmMacGrafPlugin);
     if(!Chart.registry.plugins.get('bmNotas'))Chart.register(bmNotasPlugin);
     if(!Chart.registry.plugins.get('bmMorph'))Chart.register(bmMorphPlugin);
+    if(!Chart.registry.plugins.get('bmCursor'))Chart.register(bmCursorPlugin);
   }
 }
 buildChartTheme();
