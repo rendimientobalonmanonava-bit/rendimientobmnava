@@ -19421,8 +19421,34 @@ function cvCorto(n){const t=String(n).split(' ');const rep=Object.keys(STATE.pla
    vigentes de esta temporada con su `lowerBetter`. Peso y talla no tienen
    lado bueno (`VHF_NEUTRAL`) y no se marcan. Los dos colores son de
    identidad (acción y verde azulado), no de semáforo. */
+/* v801 · Daniel, 17/11/2026: «no puede ser que un color sea el azul oscuro y
+   el otro un azul clarito, porque no se diferencia bien». El segundo jugador
+   pasa del verde azulado (`--te-aer`) a un magenta propio, `--cmp-b`, declarado
+   en los dos temas. Elegido con el validador de paletas (separación para
+   daltónicos y para visión normal): contra el azul de acción da ΔE 9,8 y 30 en
+   claro, y se separa también del rojo de alertas (15,6), que en el radar está
+   en los anillos del baremo. Y cada gráfico lleva DEBAJO sus cifras, una
+   columna por jugador y la diferencia, para que la comparación no dependa de
+   mirar dos líneas: «apóyalas con datos para verlo de una manera más objetiva». */
 const CMP={a:null,b:null};
-const CMP_COL=['var(--accent)','var(--te-aer)'];
+const CMP_COL=['var(--accent)','var(--cmp-b)'];
+/* Una tabla de comparación: [rótulo, valor A, valor B, formato, mejor,
+   decimales, formato de la diferencia], con la diferencia A − B en la unidad
+   de la cifra. `mejor` sólo donde la app sabe qué lado es el bueno ('alto' o
+   'bajo'); la carga no lo tiene y va sin marca. La diferencia se calcula sobre
+   las cifras REDONDEADAS que se ven: 1.200 contra 1.150 no puede dar +51. */
+function cmpTablaDatos(A,B,filas){
+  const esc=bmEsc;
+  const cab='<thead><tr><th></th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+esc(cvCorto(A))+'</th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[1]+'"></i>'+esc(cvCorto(B))+'</th><th>Diferencia</th></tr></thead>';
+  const red=(v,p)=>v==null||!isFinite(v)?v:Math.round(v*Math.pow(10,p))/Math.pow(10,p);
+  return '<table class="cmp-t cmp-dat">'+cab+'<tbody>'+filas.map(f=>{let [lab,a,b,fm,mej,pr,fd]=f;const F=fm||(v=>fmt(v,0));pr=pr||0;a=red(a,pr);b=red(b,pr);const FD=fd||F;
+    const ok=a!=null&&b!=null&&isFinite(a)&&isFinite(b);const d=ok?red(a-b,pr):null;
+    const gana=ok&&mej&&Math.abs(d)>1e-9?((mej==='alto'?d>0:d<0)?0:1):null;
+    const td=(v,i)=>'<td'+(gana===i?' class="cmp-gana"':'')+'>'+(v!=null&&isFinite(v)?F(v):'—')+'</td>';
+    const dt=ok?(Math.abs(d)<1e-9?'igual':(d>0?'+':'−')+FD(Math.abs(d))):'—';
+    return '<tr><th>'+lab+'</th>'+td(a,0)+td(b,1)+'<td class="cmp-dif">'+dt+'</td></tr>';}).join('')+'</tbody></table>';
+}
+function cmpLeyenda(A,B){return '<span class="cmp-ley"><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+bmEsc(cvCorto(A))+'<i class="cmp-pt cmp-pt-b" style="--cmp-c:'+CMP_COL[1]+'"></i>'+bmEsc(cvCorto(B))+'</span>';}
 function bmComparar(a,b){
   const ns=Object.keys(STATE.players||{}).sort((x,y)=>x.localeCompare(y,'es'));if(!ns.length)return;
   a=a&&STATE.players[a]?a:(STATE.curPlayer&&STATE.players[STATE.curPlayer]?STATE.curPlayer:ns[0]);
@@ -19462,23 +19488,49 @@ function cmpPinta(){
   const ac=p=>p.acwr&&!isNaN(p.acwr.ratio)?p.acwr.ratio:null;
   const acCol=v=>v==null?'':(acwrClass(v)==='ok'?'var(--ok-text)':'var(--warn-text)');
   const eA=est(A),eB=est(B);
-  const tabla='<table class="cmp-t"><tbody>'
-    +fila('Estado hoy',esc(eA.lab),esc(eB.lab),colTinta(eA.col),colTinta(eB.col))
-    +fila('Readiness',rd(P[0])!=null?rd(P[0]):'—',rd(P[1])!=null?rd(P[1]):'—',rd(P[0])!=null?colTexto('var(--'+recSev(rd(P[0]))+')'):'',rd(P[1])!=null?colTexto('var(--'+recSev(rd(P[1]))+')'):'')
-    +fila('ACWR',ac(P[0])!=null?fmt(ac(P[0]),2):'—',ac(P[1])!=null?fmt(ac(P[1]),2):'—',acCol(ac(P[0])),acCol(ac(P[1])))
-    +fila('Carga 7 días',Math.round(sum(SA,7)).toLocaleString('es-ES')+' UA',Math.round(sum(SB,7)).toLocaleString('es-ES')+' UA')
-    +fila('Carga 28 días',Math.round(sum(SA,28)).toLocaleString('es-ES')+' UA',Math.round(sum(SB,28)).toLocaleString('es-ES')+' UA')
-    +fila('Nota TSA',tsa[A]&&tsa[A].t100!=null?tsa[A].t100:'—',tsa[B]&&tsa[B].t100!=null?tsa[B].t100:'—')
+  /* La diferencia A − B de cada cifra, en su unidad; el estado no tiene. */
+  const dif=(a,b,f,p)=>{p=p||0;const k=Math.pow(10,p);if(a==null||b==null||!isFinite(a)||!isFinite(b))return '—';const d=Math.round(a*k)/k-Math.round(b*k)/k;const dd=Math.round(d*k)/k;return Math.abs(dd)<1e-9?'igual':(dd>0?'+':'−')+f(Math.abs(dd));};
+  const filaD=(lab,va,vb,ca,cb,d)=>'<tr><th>'+lab+'</th>'+cel(va,ca)+cel(vb,cb)+'<td class="cmp-dif">'+d+'</td></tr>';
+  const ua=v=>Math.round(v).toLocaleString('es-ES')+' UA';
+  const tA7=sum(SA,7),tB7=sum(SB,7),tA28=sum(SA,28),tB28=sum(SB,28);
+  const tsaA=tsa[A]&&tsa[A].t100!=null?+tsa[A].t100:null,tsaB=tsa[B]&&tsa[B].t100!=null?+tsa[B].t100:null;
+  const tabla='<table class="cmp-t cmp-cab-t"><thead><tr><th></th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+esc(cvCorto(A))+'</th><th><i class="cmp-pt" style="--cmp-c:'+CMP_COL[1]+'"></i>'+esc(cvCorto(B))+'</th><th>Diferencia</th></tr></thead><tbody>'
+    +filaD('Estado hoy',esc(eA.lab),esc(eB.lab),colTinta(eA.col),colTinta(eB.col),'')
+    +filaD('Readiness',rd(P[0])!=null?rd(P[0]):'—',rd(P[1])!=null?rd(P[1]):'—',rd(P[0])!=null?colTexto('var(--'+recSev(rd(P[0]))+')'):'',rd(P[1])!=null?colTexto('var(--'+recSev(rd(P[1]))+')'):'',dif(rd(P[0]),rd(P[1]),v=>String(Math.round(v))))
+    +filaD('ACWR',ac(P[0])!=null?fmt(ac(P[0]),2):'—',ac(P[1])!=null?fmt(ac(P[1]),2):'—',acCol(ac(P[0])),acCol(ac(P[1])),dif(ac(P[0]),ac(P[1]),v=>fmt(v,2),2))
+    +filaD('Carga 7 días',ua(tA7),ua(tB7),'','',dif(tA7,tB7,ua))
+    +filaD('Carga 28 días',ua(tA28),ua(tB28),'','',dif(tA28,tB28,ua))
+    +filaD('Nota TSA',tsaA!=null?tsaA:'—',tsaB!=null?tsaB:'—','','',dif(tsaA,tsaB,v=>String(Math.round(v))))
     +'</tbody></table>';
   /* carga diaria, alineada por día */
   const dks=[...new Set(SA.map(d=>dkey(d.date)).concat(SB.map(d=>dkey(d.date))))].sort().slice(-28);
   const porDia=(c)=>{const m={};c.forEach(d=>{m[dkey(d.date)]=d.ua||0;});return dks.map(k=>m[k]!=null?m[k]:null);};
   const cA=porDia(SA),cB=porDia(SB);const maxC=Math.max(100,...cA.concat(cB).filter(v=>v!=null));
+  const n0=v=>Math.round(v).toLocaleString('es-ES');
+  const dCar=c=>{const v=c.filter(x=>x!=null&&x>0);const tot=v.reduce((x,y)=>x+y,0);let mx=null,mxDk='';c.forEach((x,i)=>{if(x!=null&&x>0&&(mx==null||x>mx)){mx=x;mxDk=dks[i];}});
+    return {tot,dias:v.length,media:v.length?tot/v.length:null,mx,mxDk};};
+  const KA=dCar(cA),KB=dCar(cB);
+  const datosCarga=cmpTablaDatos(A,B,[
+    ['Carga total · 28 días',KA.tot,KB.tot,v=>n0(v)+' UA'],
+    ['Días con carga',KA.dias,KB.dias,v=>n0(v)],
+    ['Media de un día entrenado',KA.media,KB.media,v=>n0(v)+' UA'],
+    ['Día más alto',KA.mx,KB.mx,v=>n0(v)+' UA']]);
   const paso=maxC>2000?500:maxC>1000?250:100;const topC=Math.ceil(maxC/paso)*paso;
   /* recuperación declarada */
   const rA=playerRecSeries(P[0],40),rB=playerRecSeries(P[1],40);
   const dr=[...new Set(rA.map(x=>x.dk).concat(rB.map(x=>x.dk)))].sort().slice(-28);
   const rm=s=>{const m={};s.forEach(x=>{m[x.dk]=x.pct;});return dr.map(k=>m[k]!=null?m[k]:null);};
+  /* Las cifras de la recuperación, sobre los mismos 28 días del gráfico; los
+     días en ámbar o rojo con `recSev`, el corte del readiness (75 · 55). */
+  const dRec=s=>{const v=rm(s).filter(x=>x!=null&&isFinite(x));if(!v.length)return {};const ult=v[v.length-1];
+    return {media:v.reduce((x,y)=>x+y,0)/v.length,ult,min:Math.min(...v),malos:v.filter(x=>recSev(x)!=='ok').length,n:v.length};};
+  const QA=dRec(rA),QB=dRec(rB);
+  const datosRec=dr.length?cmpTablaDatos(A,B,[
+    ['Media · 28 días',QA.media,QB.media,v=>n0(v)+' %','alto',0,v=>n0(v)+' pts'],
+    ['Último parte',QA.ult,QB.ult,v=>n0(v)+' %','alto',0,v=>n0(v)+' pts'],
+    ['El más bajo',QA.min,QB.min,v=>n0(v)+' %','alto',0,v=>n0(v)+' pts'],
+    ['Días en ámbar o rojo (menos de 75 %)',QA.malos,QB.malos,v=>n0(v),'bajo'],
+    ['Partes',QA.n,QB.n,v=>n0(v)]]):'';
   /* radar de capacidades */
   let radar='';
   try{const pa=window.refPuesto?refPuesto(A):null,pb=window.refPuesto?refPuesto(B):null;
@@ -19486,7 +19538,10 @@ function cmpPinta(){
     if(ca&&cb&&ca.length>=3&&cb.length>=3){
       const labs=CAP_GRUPOS.map(g=>g.g).filter(l=>ca.some(o=>o.g===l)||cb.some(o=>o.g===l));
       const v=c=>labs.map(l=>{const o=c.find(x=>x.g===l);return o?+o.v.toFixed(2):null;});
-      radar='<div class="cmp-radar">'+plRadarSVG(labs,[{col:CMP_COL[0],vals:v(ca),gro:2.4,puntos:true},{col:CMP_COL[1],vals:v(cb),gro:2.4,puntos:true,guion:true}])+'</div>'
+      const va=v(ca),vb=v(cb);
+      radar='<div class="cmp-radar">'+plRadarSVG(labs,[{col:CMP_COL[0],vals:va,gro:2.4,puntos:true},{col:CMP_COL[1],vals:vb,gro:2.4,puntos:true,guion:true}])+'</div>'
+        +cmpTablaDatos(A,B,labs.map((l,i)=>[esc(l),va[i],vb[i],x=>fmt(x,1),'alto',1]))
+        +'<p class="cmp-pie">Nivel de cada capacidad en la escala del baremo de su puesto: 0 rojo · 1 ámbar · 2 verde · 3 listón Champions. En verde, quien está más arriba.</p>'
         +'<p class="cmp-pie">Cada forma, contra el baremo de su puesto'+(pa!==pb?' — <b>son de puestos distintos</b>, así que el mismo nivel no es la misma marca':'')+'. El borde dorado es el listón Champions.</p>';}
     else radar='<p class="cmp-pie">Sin valoraciones suficientes de los dos para el radar.</p>';}catch(e){radar='';}
   /* pruebas que tienen los dos */
@@ -19499,14 +19554,16 @@ function cmpPinta(){
     +pr.map(t=>{const a=+tA[t.k],b=+tB[t.k],d=a-b;const neu=esNeu(t.k);const gana=neu||d===0?null:((t.lowerBetter?d<0:d>0)?0:1);
       const u=t.unit?' '+t.unit:'';
       return '<tr><th>'+esc(t.name)+'</th><td'+(gana===0?' class="cmp-gana"':'')+'>'+fmt(a,dec(a))+u+'</td><td'+(gana===1?' class="cmp-gana"':'')+'>'+fmt(b,dec(b))+u+'</td><td class="cmp-dif">'+(d>0?'+':d<0?'−':'')+fmt(Math.abs(d),dec(d))+u+'</td></tr>';}).join('')
-    +'</tbody></table><p class="cmp-pie">Sólo las pruebas de esta temporada que tienen los dos. En verde, la mejor marca de cada prueba (peso y talla no tienen lado bueno).</p>'
+    +'</tbody></table><p class="cmp-pie">'+(()=>{let ga=0,gb=0;pr.forEach(t=>{if(esNeu(t.k))return;const d=+tA[t.k]-(+tB[t.k]);if(!d)return;((t.lowerBetter?d<0:d>0)?ga++:gb++);});
+      return '<b>Mejor marca: '+esc(cvCorto(A))+' en '+ga+', '+esc(cvCorto(B))+' en '+gb+'</b> de '+pr.filter(t=>!esNeu(t.k)).length+' pruebas. ';})()
+    +'Sólo las pruebas de esta temporada que tienen los dos. En verde, la mejor marca de cada prueba (peso y talla no tienen lado bueno).</p>'
     :'<p class="cmp-pie">No hay pruebas de esta temporada que tengan los dos.</p>';
   const cab=i=>{const n=i?B:A;return '<div class="cmp-j" style="--cmp-c:'+CMP_COL[i]+'"><span class="cmp-av">'+foto(n)+'</span><div>'+sel(i?'b':'a',n)+'<small>'+esc((P[i].pos||'—')+(typeof posDetailOf==='function'&&posDetailOf(n)?' · '+posDetailOf(n):''))+'</small></div></div>';};
   box.innerHTML='<div class="cmp-cab">'+cab(0)+'<button type="button" class="cmp-swap" data-cmp="swap" title="Cambiar el orden" aria-label="Cambiar el orden">⇄</button>'+cab(1)+'</div>'
     +'<section class="cmp-sec">'+tabla+'</section>'
-    +'<section class="cmp-sec"><h3>Carga diaria · últimas 4 semanas <span>UA</span></h3>'+cmpSerie([cA,cB],dks,topC,{lab:'Carga diaria de los dos'})+'</section>'
-    +'<section class="cmp-sec"><h3>Recuperación declarada <span>% · wellness</span></h3>'+(dr.length?cmpSerie([rm(rA),rm(rB)],dr,100,{u:'',puntos:true,lab:'Recuperación de los dos'}):'<p class="cmp-pie">Sin partes de wellness.</p>')+'</section>'
-    +'<section class="cmp-sec"><h3>Capacidades</h3>'+radar+'</section>'
+    +'<section class="cmp-sec"><h3>Carga diaria · últimas 4 semanas <span>UA</span>'+cmpLeyenda(A,B)+'</h3>'+cmpSerie([cA,cB],dks,topC,{lab:'Carga diaria de los dos'})+datosCarga+'</section>'
+    +'<section class="cmp-sec"><h3>Recuperación declarada <span>% · wellness</span>'+cmpLeyenda(A,B)+'</h3>'+(dr.length?cmpSerie([rm(rA),rm(rB)],dr,100,{u:'',puntos:true,lab:'Recuperación de los dos'})+datosRec:'<p class="cmp-pie">Sin partes de wellness.</p>')+'</section>'
+    +'<section class="cmp-sec"><h3>Capacidades'+cmpLeyenda(A,B)+'</h3>'+radar+'</section>'
     +'<section class="cmp-sec"><h3>Pruebas físicas</h3>'+pruebas+'</section>';
 }
 document.addEventListener('change',e=>{const s=e.target&&e.target.closest&&e.target.closest('#bmh-cmp [data-cmp]');if(!s)return;
@@ -52837,7 +52894,24 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .cmp-t thead th{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;text-align:right}
 .cmp-t thead th:first-child{text-align:left}
 .cmp-t:not(.cmp-pr) td:nth-child(2) b{color:var(--txt)}
-.cmp-pr td.cmp-gana{color:var(--ok-text);font-weight:700}
+.cmp-pr td.cmp-gana,.cmp-dat td.cmp-gana{color:var(--ok-text);font-weight:700}
+/* v801 · el segundo jugador, en magenta: se distingue del azul de acción también con daltonismo */
+:root{--cmp-b:#b8338a}
+html[data-theme="dark"]{--cmp-b:#cf5aa8}
+.cmp-pt{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--cmp-c);margin-right:6px;vertical-align:1px}
+.cmp-ley{float:right;font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--txt);display:inline-flex;align-items:center}
+.cmp-ley .cmp-pt-b{margin-left:14px}
+.cmp-dat{margin-top:8px;font-size:13px}
+.cmp-dat th,.cmp-dat td{padding:5px 4px}
+.cmp-t thead th .cmp-pt{margin-right:5px}
+.cmp-cab-t td:nth-child(2) b,.cmp-cab-t td:nth-child(3) b{font-weight:600}
+.cmp-dat thead th,.cmp-cab-t thead th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--txt)}
+.cmp-dat thead th:last-child,.cmp-cab-t thead th:last-child{color:var(--muted);font-weight:500}
+/* las columnas de todas las tablas de la hoja caen en el mismo sitio: se leen de arriba abajo */
+@media screen and (min-width:761px) and (pointer:fine){
+  .cmp-dat,.cmp-cab-t,.cmp-pr{table-layout:fixed}
+  .cmp-dat thead th:first-child,.cmp-cab-t thead th:first-child,.cmp-pr thead th:first-child{width:37%}
+}
 .cmp-dif{color:var(--muted)}
 .cmp-svg{width:100%;height:auto;display:block}
 .cmp-radar{display:flex;justify-content:center}
