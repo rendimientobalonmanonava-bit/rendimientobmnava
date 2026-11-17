@@ -19577,6 +19577,43 @@ function bmEstadoEstable(){
     return false;}
   return true;
 }
+/* ═══ v781 · Las filas que se van, se van deslizando ═══
+   Daniel, 17/11/2026 (propuesta 6). Al marcar «Visto», «Ya pasó», cobrar a
+   alguien entero o borrar una nota, la lista se repintaba de golpe: lo de
+   debajo saltaba a su sitio. `bmLista(contenedor, piezas, pintar)` mide dónde
+   está cada pieza ANTES de repintar y, después: las que siguen se mueven desde
+   su sitio anterior al nuevo (0,28 s, la curva de Apple) y las que se han ido
+   se desvanecen donde estaban, con una copia que se borra al acabar. Las
+   piezas se reconocen por una clave (el nombre del jugador, el texto de la
+   fila). Con «reducir movimiento», se repinta sin más. */
+function bmQuieto(){try{return matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){return false;}}
+function bmTxt(el){return el?(el.textContent||'').replace(/\s+/g,' ').trim().slice(0,60):'';}
+function bmLista(cont,piezas,pintar){
+  const C=()=>typeof cont==='function'?cont():document.querySelector(cont);
+  const c0=C();if(!c0||bmQuieto()){pintar();return;}
+  const antes=piezas.map(p=>{const m=new Map();c0.querySelectorAll(p.sel).forEach(el=>{const k=p.key(el);if(!k||m.has(k))return;const r=el.getBoundingClientRect();if(r.height)m.set(k,{r,html:el.outerHTML});});return m;});
+  pintar();
+  const c=C();if(!c)return;
+  const cr=c.getBoundingClientRect();let rel=false;const idos=[];
+  const dentro=r=>idos.some(q=>r.left>=q.left-1&&r.right<=q.right+1&&r.top>=q.top-1&&r.bottom<=q.bottom+1);
+  piezas.forEach((p,i)=>{
+    const ahora=new Set();
+    c.querySelectorAll(p.sel).forEach(el=>{const k=p.key(el);if(!k)return;ahora.add(k);const a=antes[i].get(k);if(!a||p.flip===false)return;
+      const r=el.getBoundingClientRect();const dx=a.r.left-r.left,dy=a.r.top-r.top;if(Math.abs(dx)<.5&&Math.abs(dy)<.5)return;
+      try{el.animate([{transform:'translate('+dx+'px,'+dy+'px)'},{transform:'none'}],{duration:280,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}});
+    antes[i].forEach((a,k)=>{if(ahora.has(k))return;
+      if(dentro(a.r))return;idos.push(a.r);   /* lo de dentro de algo que ya se va, no se duplica */
+      const t=document.createElement('template');t.innerHTML=a.html;const g=t.content.firstElementChild;if(!g)return;
+      if(!rel&&getComputedStyle(c).position==='static'){c.style.position='relative';rel=true;}
+      g.removeAttribute('id');g.setAttribute('aria-hidden','true');g.classList.add('bm-fantasma');
+      Object.assign(g.style,{position:'absolute',left:(a.r.left-cr.left-c.clientLeft)+'px',top:(a.r.top-cr.top-c.clientTop)+'px',width:a.r.width+'px',height:a.r.height+'px',margin:'0',pointerEvents:'none',zIndex:'2',boxSizing:'border-box'});
+      c.appendChild(g);
+      try{const an=g.animate([{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.96)'}],{duration:230,easing:'ease-out',fill:'forwards'});an.onfinish=()=>g.remove();}catch(e){g.remove();}
+      setTimeout(()=>{try{g.remove();}catch(e){}},600);});
+  });
+  if(rel)setTimeout(()=>{try{c.style.position='';}catch(e){}},650);
+}
+window.bmLista=bmLista;
 /* ═══ v775 · Que nada aparezca de golpe ═══
    Daniel, 17/11/2026 (propuesta 7). Medido con el registro de desplazamientos
    del navegador: al recorrer pantallas casi no hay saltos (0–0,012) y todas
@@ -20457,7 +20494,8 @@ function bmnAnade(){
 }
 function bmnBorra(id){
   const L=notasLoad(),i=L.findIndex(x=>x&&x.id===id);if(i<0)return;
-  const n=L[i];L.splice(i,1);notasPersist();bmnRefresca();
+  const n=L[i];L.splice(i,1);notasPersist();
+  bmLista('#bnt-cuerpo .bnt-l',[{sel:'.bnt-r',key:el=>bmTxt(el)}],()=>bmnRefresca());
   bmHecho('Nota borrada',()=>{notasLoad().push(Object.assign({},n,{id:'nt_'+Date.now()+'_'+Math.round(Math.random()*99999),upd:Date.now()}));notasPersist();bmnRefresca();},'Deshecho · la nota vuelve');
 }
 document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-notas [data-bnt],#bmh-notas [data-bnt-x]');if(!b||b.disabled)return;
@@ -25910,7 +25948,8 @@ function nutCobrar(j,sel){
   const t=nutRedondea(cs.reduce((a,c)=>a+(+c.importe||0),0));
   const det=cs.slice().sort((a,b)=>String(a.mes).localeCompare(String(b.mes)))
     .map(c=>'· '+nutMesLab(c.mes)+' · '+NUT_LAB(c.concepto)+' · '+nutEur(c.importe)).join('\n');
-  nutHojaCobro(j,cs,'¿Lo ha pagado?\n\n'+j+'\n'+det+'\n\nTotal: '+nutEur(t),()=>{nutMarcar(cs,true);nutPersist();renderNutri();});
+  nutHojaCobro(j,cs,'¿Lo ha pagado?\n\n'+j+'\n'+det+'\n\nTotal: '+nutEur(t),()=>{nutMarcar(cs,true);nutPersist();
+    bmLista('#v-nutri .nuc-grid',[{sel:'.nuc-c',key:el=>bmTxt(el.querySelector('.nuc-n'))}],()=>renderNutri());});
 }
 /* Deshacer un apunte ya cobrado, desde la misma tarjeta. */
 function nutDescobrar(j,sel){
@@ -30577,7 +30616,8 @@ document.addEventListener('click',e=>{
   if(op==='uno'){const a=(STATE.alerts||[]).find(x=>x.name===nm&&alvClave(x)===decodeURIComponent(b.dataset.k||''));if(a){alvMarca([a]);deshaz([a]);}}
   else if(op==='todo'){const xs=(STATE.alerts||[]).filter(x=>x.name===nm&&!alvVista(x));alvMarca(xs);deshaz(xs);}
   else if(op==='deshacer'){alvQuita([decodeURIComponent(b.dataset.k||'')]);}
-  renderAlerts();
+  /* v781 · la tarjeta o la fila que se va, se va deslizando */
+  bmLista('#v-alertas .alert-grid',[{sel:'.acard',key:el=>bmTxt(el.querySelector('.acard-name'))},{sel:'.arow',key:el=>{const c=el.closest('.acard');return bmTxt(c&&c.querySelector('.acard-name'))+'|'+bmTxt(el);},flip:false}],()=>renderAlerts());
 },true);
 function bdAlertas(){/* v739 · el número cuenta sólo las que no se han visto */const all=alvNuevas();try{bmInsignia();}catch(e){}
   const bad=all.filter(a=>a.sev==='bad').length,warn=all.filter(a=>a.sev==='warn').length;
@@ -31566,7 +31606,8 @@ window.ojoResolver=function(name,id){
   try{toast(String(name).split(' ')[0]+' · aviso retirado · queda en su historial',{accion:'Deshacer',deshecho:String(name).split(' ')[0]+' · el aviso vuelve a Ojo hoy',fn:()=>{
     ojoLoad();const x=(STATE.medLog[name]||[]).find(y=>y&&y.id===id);if(!x)return;
     x.vis=false;delete x.visDk;ojoPersist();ojoRepintar(name);}});}catch(err){}
-  ojoRepintar(name);
+  /* v781 · el aviso que se retira, se va deslizando */
+  bmLista(()=>{const x=document.querySelector('.view.on .ojo-c');return x&&x.parentElement;},[{sel:'.ojo-c',key:el=>bmTxt(el)}],()=>ojoRepintar(name));
 };
 function ojoRepintar(name){
   try{if(typeof renderFisio==='function'&&document.getElementById('estado-fisio'))renderFisio();}catch(e){}
