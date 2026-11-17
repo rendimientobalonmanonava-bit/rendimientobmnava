@@ -6802,6 +6802,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
          escriben en ellos; lo que se ve es el panel de problemas. -->
     <div class="plt-pane" id="plt-medico">
       <div id="pl-problemas" class="panel"></div>
+      <!-- v768 · El camino de vuelta: sólo con un episodio abierto o con el alta hace menos de 21 días -->
+      <div id="pl-vuelta"></div>
       <!-- v478 · Dónde le duele: el mapa corporal que ya existía para el
            EQUIPO en Fisioterapia · Análisis, ahora de este jugador. Mismo
            `bodyMapSVG`, misma cuenta y las mismas clases. -->
@@ -22019,6 +22021,148 @@ function renderPlTemporada(name){
   try{const gr=box.querySelector('.pltp-gr');if(gr&&gr.scrollWidth>gr.clientWidth)gr.scrollLeft=gr.scrollWidth;}catch(e){}
 }
 
+/* ═══ v768 · El camino de vuelta tras una lesión ═══
+   Daniel, 17/11/2026, eligió la propuesta 8. La tarjeta del episodio (v749)
+   da los números de la vuelta —días, % de la carga del equipo, ACWR,
+   criterios—, pero no su EVOLUCIÓN. Aquí, en la pestaña Médico de la ficha,
+   un gráfico por episodio desde tres semanas antes del inicio hasta el día
+   que se mira: su carga de cada día contra SU normal de antes de la lesión,
+   el ACWR sobre su banda, la recuperación declarada, el periodo de baja
+   sombreado y las fases marcadas. Ni un cálculo nuevo:
+   · la carga es `contDailyTo`; su normal de antes, la mediana de sus días con
+     carga en las 3 semanas previas (`PLV_PRE`=21, la ventana crónica del
+     ACWR 7:21); un día sin cuestionario no cuenta como cero (`calRefMD`);
+   · «últimos 7 días» es la mediana de sus días con carga de esa semana contra
+     esa normal, en neutro: la app no tiene listón de cuánto es suficiente;
+   · el ACWR es el de la ficha (`acwrToDate`, sólo donde es fiable) con el
+     color de `acwrClass`; la recuperación, `recPct` con su `recSev`;
+   · sale con el episodio abierto y hasta 21 días después del alta, que es lo
+     que tarda la ventana crónica en dejar de contener días de baja.
+   El readiness no se dibuja día a día: la app lo calcula para el día que se
+   mira y no tiene serie por jugador; fabricarla obligaría a tomar prestado el
+   día (§2.1). El pie lo dice. */
+const PLV_PRE=21;
+function plvDias(a,b){return Math.round((dkToDate(b)-dkToDate(a))/864e5);}
+function plvSuma(dk,n){const d=dkToDate(dk);d.setDate(d.getDate()+n);return dkey(d);}
+function plvFin(e){return e.altaDk||e.closeDk||e.competitiveDischargeReal||null;}
+function plvEpisodios(name){
+  try{medDbLoad();}catch(e){}
+  const ref=dkey(REF());
+  return ((STATE.med&&STATE.med.inj)||[]).filter(e=>{
+    if(!e||e.name!==name||e.mergedInto||!e.dk||e.dk>ref)return false;
+    const f=plvFin(e);
+    if(!f)return !!e.open;
+    return plvDias(f,ref)<=PLV_PRE;
+  }).sort((a,b)=>String(b.dk).localeCompare(String(a.dk))).slice(0,2);
+}
+function plvHTML(name,e,k){
+  const esc=bmEsc,p=STATE.players[name];if(!p)return '';
+  const fin=dkey(REF()),ini=plvSuma(e.dk,-PLV_PRE);
+  const ds=dkRango(ini,fin);
+  const N=ds.length;if(N<8)return '';
+  let ref=REF();try{ref=refCarga();}catch(x){}
+  const ua={};try{contDailyTo(name,ref).forEach(d=>{const kk=dkey(d.date);if(kk>=ini&&kk<=fin&&d.ua>0)ua[kk]=d.ua;});}catch(x){}
+  const ac={};ds.forEach(dk=>{if(dk>dkey(ref))return;try{const r=acwrToDate(name,new Date(dkToDate(dk).getTime()+86399000));if(r&&r.rel&&isFinite(r.ratio))ac[dk]=r.ratio;}catch(x){}});
+  const rec={};(p.w||[]).forEach(w=>{if(w&&w.dk>=ini&&w.dk<=fin){try{const v=recPct(twVal(w));if(v!=null&&!isNaN(v))rec[w.dk]=v;}catch(x){}}});
+  const ff=plvFin(e),finEp=ff&&ff<=fin?ff:fin;
+  const pre=plMediana(ds.filter(dk=>dk<e.dk&&ua[dk]).map(dk=>ua[dk]));
+  const u7=ds.slice(-7).filter(dk=>ua[dk]).map(dk=>ua[dk]);
+  const med7=plMediana(u7);
+  const recPre=plMediana(ds.filter(dk=>dk<e.dk&&rec[dk]!=null).map(dk=>rec[dk]));
+  const recU=plMediana(ds.slice(-7).filter(dk=>rec[dk]!=null).map(dk=>rec[dk]));
+  const acHoy=ac[dkey(ref)]!=null?ac[dkey(ref)]:null;
+  const fd=dk=>{const q=dk.split('-');return (+q[2])+'/'+(+q[1]);};
+  /* geometría */
+  const W=1000,pl=104,pr=8,iw=W-pl-pr,bw=iw/N,X=i=>pl+i*bw;
+  const yF=14,yC=30,hC=104,yA=yC+hC+16,hA=50,yR=yA+hA+14,hR=12,H=yR+hR+24;
+  const maxU=Math.max(1,(pre||0)*1.25,...Object.values(ua));
+  const YC=v=>yC+hC-Math.min(1,v/maxU)*hC;
+  const ACMAX=2,YA=v=>yA+hA-(Math.max(0,Math.min(ACMAX,v))/ACMAX)*hA;
+  const lo=(CONFIG.load&&CONFIG.load.acwrYellowLo)||0.8,hi=(CONFIG.load&&CONFIG.load.acwrYellowHi)||1.3;
+  const i0=Math.max(0,ds.indexOf(e.dk)),i1=Math.max(i0,ds.indexOf(finEp)<0?N-1:ds.indexOf(finEp));
+  const st=PHYSTAT[e.status]||null,cE=(st&&st.c)||'var(--bad)';
+  let g='';
+  /* el periodo de baja, de arriba abajo, en el color de su estado (como en «Su temporada») */
+  g+='<rect x="'+X(i0).toFixed(1)+'" y="'+(yC-4)+'" width="'+((i1-i0+1)*bw).toFixed(1)+'" height="'+(yR+hR-yC+4)+'" fill="'+cE+'" opacity=".10"/>';
+  g+='<line x1="'+X(i0).toFixed(1)+'" y1="'+(yF-4)+'" x2="'+X(i0).toFixed(1)+'" y2="'+(yR+hR)+'" stroke="'+cE+'" stroke-width="1.4"/>';
+  if(ff&&ff<=fin)g+='<line x1="'+(X(i1)+bw).toFixed(1)+'" y1="'+(yF-4)+'" x2="'+(X(i1)+bw).toFixed(1)+'" y2="'+(yR+hR)+'" stroke="var(--ok)" stroke-width="1.4"/>'
+    +'<text x="'+(X(i1)+bw+4).toFixed(1)+'" y="'+(yF+4)+'" font-size="10.5" font-weight="700" fill="var(--ok-text)">Alta</text>';
+  /* fases */
+  (e.phases||[]).forEach((f,i)=>{if(!f||!f.startDk||f.startDk<ds[0]||f.startDk>fin)return;const j=ds.indexOf(f.startDk);if(j<0)return;const x=X(j);
+    if(j!==i0)g+='<line x1="'+x.toFixed(1)+'" y1="'+(yF-2)+'" x2="'+x.toFixed(1)+'" y2="'+(yC+hC)+'" stroke="var(--txt)" stroke-width="1" stroke-dasharray="2 3" opacity=".35"/>';
+    g+='<text x="'+(x+3).toFixed(1)+'" y="'+(yF+4)+'" font-size="10" font-weight="700" fill="var(--muted)">F'+(i+1)+'</text>';});
+  /* meses */
+  const MESL=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  ds.forEach((dk,i)=>{if(dk.slice(8)==='01')g+='<text x="'+(X(i)+3).toFixed(1)+'" y="'+(H-3)+'" font-size="11" fill="var(--muted)">'+MESL[+dk.slice(5,7)-1]+'</text>';});
+  g+='<text x="'+X(i0).toFixed(1)+'" y="'+(H-3)+'" text-anchor="middle" font-size="11" font-weight="700" fill="'+colTinta(cE)+'">'+fd(e.dk)+'</text>';
+  /* carga diaria */
+  ds.forEach((dk,i)=>{const v=ua[dk];if(!v)return;const y=YC(v);g+='<rect x="'+(X(i)+bw*.14).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,bw*.72).toFixed(1)+'" height="'+(yC+hC-y).toFixed(1)+'" rx="'+Math.min(3,bw*.3).toFixed(1)+'" fill="var(--c-data,var(--accent))"/>';});
+  if(pre){const y=YC(pre);g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="var(--txt)" stroke-width="1.2" stroke-dasharray="5 4" opacity=".6"/>';}
+  /* ACWR */
+  g+='<rect x="'+pl+'" y="'+YA(hi).toFixed(1)+'" width="'+iw+'" height="'+(YA(lo)-YA(hi)).toFixed(1)+'" fill="var(--ok)" opacity=".10"/>'
+    +'<text x="'+(pl-6)+'" y="'+(YA(hi)+3.5).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="var(--muted)">'+String(hi).replace('.',',')+'</text>'
+    +'<text x="'+(pl-6)+'" y="'+(YA(lo)+3.5).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="var(--muted)">'+String(lo).replace('.',',')+'</text>';
+  let d='',ab=false;ds.forEach((dk,i)=>{const v=ac[dk];if(v==null){ab=false;return;}d+=(ab?'L':'M')+(X(i)+bw/2).toFixed(1)+','+YA(v).toFixed(1);ab=true;});
+  if(d)g+='<path d="'+d+'" fill="none" stroke="var(--muted2)" stroke-width="1.6" stroke-linejoin="round"/>';
+  ds.forEach((dk,i)=>{const v=ac[dk];if(v==null)return;const c=acwrClass(v);if(c==='ok')return;g+='<circle cx="'+(X(i)+bw/2).toFixed(1)+'" cy="'+YA(v).toFixed(1)+'" r="2.6" fill="var(--'+c+')"/>';});
+  /* recuperación */
+  ds.forEach((dk,i)=>{const v=rec[dk];g+='<rect x="'+(X(i)+0.3).toFixed(2)+'" y="'+yR+'" width="'+Math.max(0.6,bw-0.6).toFixed(2)+'" height="'+hR+'" rx="1" fill="'+(v!=null?'var(--'+recSev(v)+')':'var(--hair)')+'"'+(v!=null?'':' opacity=".55"')+'/>';});
+  const rot=(y,t)=>'<text x="0" y="'+y+'" font-size="10.5" font-weight="700" fill="var(--muted)" letter-spacing=".4">'+t+'</text>';
+  g+=rot(yC+hC/2+4,'CARGA DEL DÍA')+rot(yA+hA/2+4,'ACWR')+rot(yR+hR-1,'RECUPERACIÓN');
+  g+='<line class="plv-cur" x1="0" y1="'+(yC-4)+'" x2="0" y2="'+(yR+hR)+'" stroke="var(--txt)" stroke-width="1" opacity="0"/>';
+  /* cifras */
+  const kk=(v,l,col)=>'<div class="pltp-k"><b'+(col?' style="color:'+col+'"':'')+'>'+v+'</b><small>'+l+'</small></div>';
+  const pct=(pre&&med7)?Math.round(med7/pre*100):null;
+  const diasEp=plvDias(e.dk,finEp)+1;
+  const ks='<div class="pltp-ks">'
+    +kk(diasEp,(ff&&ff<=fin?'días de baja · alta el '+fd(ff):'días desde el '+fd(e.dk)))
+    +kk(pre?Math.round(pre).toLocaleString('es-ES'):'—',pre?'UA, su día normal antes de la lesión':'sin carga en las 3 semanas previas')
+    +kk(pct!=null?pct+' %':'—',pct!=null?'de esa normal · últimos 7 días ('+u7.length+(u7.length===1?' día':' días')+' con carga)':'sin carga en los últimos 7 días')
+    +kk(acHoy!=null?fmt(acHoy,2):'—','ACWR hoy',acHoy!=null?colTexto('var(--'+acwrClass(acHoy)+')'):'')
+    +kk(recU!=null?Math.round(recU)+' %':'—','recuperación · 7 días'+(recPre!=null?' (antes '+Math.round(recPre)+' %)':''),recU!=null?colTexto('var(--'+recSev(recU)+')'):'')
+    +'</div>';
+  const tit=esc(e.title||'Episodio')+(e.zona?' · '+esc(e.zona):'');
+  const ley='<div class="pltp-ley"><span><i class="pltp-sw" style="background:var(--c-data,var(--accent))"></i>Carga del día</span><span><i class="pltp-sw plv-dash"></i>Su normal antes'+(pre?' · '+Math.round(pre).toLocaleString('es-ES')+' UA':'')+'</span>'
+    +'<span><i class="pltp-sw" style="background:var(--ok);opacity:.35"></i>Banda del ACWR</span><span><i class="pltp-sw" style="background:'+cE+';opacity:.3"></i>Periodo de baja</span><span><i class="pltp-sw plv-fase"></i>Fases</span></div>';
+  return '<div class="panel pltp plv" data-plv="'+k+'"><h2>El camino de vuelta <span class="r muted">'+tit+(st?' · '+esc(st.lab):'')+'</span></h2>'+ks
+    +'<div class="pltp-lee" aria-live="polite">Pasa por el gráfico para ver cada día.</div>'
+    +'<div class="pltp-gr"><svg class="pltp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="El camino de vuelta: carga diaria contra su normal, ACWR y recuperación desde tres semanas antes">'+g+'</svg></div>'+ley
+    +'<p class="pltp-nota">Su normal antes: la mediana de sus días con carga en las tres semanas previas, la ventana crónica del ACWR; un día sin cuestionario no cuenta como cero. El % va sin color: la app no tiene listón de cuánto es suficiente. El readiness no se dibuja día a día porque la app lo calcula para el día que se mira y no guarda una serie por jugador.</p></div>';
+}
+function renderPlVuelta(name){
+  const box=document.getElementById('pl-vuelta');if(!box)return;
+  /* con la serie de readiness recorriendo los días, REF() es prestado (§2.1):
+     se espera a `fichaRepinta`, que vuelve a pintar la ficha al terminar */
+  if(window.__RD_CALC)return;
+  let eps=[];try{eps=plvEpisodios(name);}catch(e){}
+  if(!eps.length){box.innerHTML='';return;}
+  box.innerHTML=eps.map((e,i)=>{try{return plvHTML(name,e,i);}catch(err){console.error('bmnava · camino de vuelta',err);return '';}}).join('');
+  /* la lectura de cada día */
+  box.querySelectorAll('.plv').forEach((pn,k)=>{
+    const e=eps[k];const svg=pn.querySelector('.pltp-svg'),lee=pn.querySelector('.pltp-lee'),cur=pn.querySelector('.plv-cur');if(!svg||!e)return;
+    const fin=dkey(REF()),ini=plvSuma(e.dk,-PLV_PRE);const ds=dkRango(ini,fin);
+    const N=ds.length,W=1000,pl=104,pr=8,bw=(W-pl-pr)/N;
+    let ref=REF();try{ref=refCarga();}catch(x){}
+    const ua={};try{contDailyTo(name,ref).forEach(d=>{const kk=dkey(d.date);if(d.ua>0)ua[kk]=d.ua;});}catch(x){}
+    const p=STATE.players[name]||{};const rec={};(p.w||[]).forEach(w=>{if(w&&w.dk){try{rec[w.dk]=recPct(twVal(w));}catch(x){}}});
+    const WD=['dom','lun','mar','mié','jue','vie','sáb'];
+    const lectura=i=>{const dk=ds[i];if(!dk)return;const dd=dkToDate(dk);const t=['<b>'+WD[dd.getDay()]+' '+(+dk.slice(8))+'/'+(+dk.slice(5,7))+'</b>'];
+      t.push(ua[dk]?Math.round(ua[dk]).toLocaleString('es-ES')+' UA':'sin carga');
+      let a=null;try{const r=acwrToDate(name,new Date(dkToDate(dk).getTime()+86399000));if(r&&r.rel&&isFinite(r.ratio))a=r.ratio;}catch(x){}
+      t.push(a!=null?'ACWR <b style="color:'+colTexto('var(--'+acwrClass(a)+')')+'">'+fmt(a,2)+'</b>':'ACWR —');
+      const r=rec[dk];t.push(r!=null&&!isNaN(r)?'recuperación <b style="color:'+colTexto('var(--'+recSev(r)+')')+'">'+Math.round(r)+' %</b>':'sin parte');
+      try{const ev=effectiveStatus(name,dk);const s=ev&&ev.status&&PHYSTAT[ev.status];if(s&&ev.status!=='disp')t.push('<b style="color:'+colTinta(s.c)+'">'+bmEsc(s.lab)+'</b>');}catch(x){}
+      try{const ns=notasDe(dk,name);if(ns.length)t.push('<b>✎ '+ns.map(n=>bmEsc(n.txt)).join(' · ')+'</b>');}catch(x){}
+      lee.innerHTML=t.join(' · ');const cx=pl+i*bw+bw/2;cur.setAttribute('x1',cx);cur.setAttribute('x2',cx);cur.setAttribute('opacity','.35');};
+    const aIdx=ev=>{const r=svg.getBoundingClientRect();const pt=(ev.touches&&ev.touches[0])||ev;const x=(pt.clientX-r.left)/r.width*W;return Math.floor((x-pl)/bw);};
+    const mueve=ev=>{const i=aIdx(ev);if(i<0||i>=N)return;lectura(i);};
+    svg.addEventListener('mousemove',mueve);svg.addEventListener('touchstart',mueve,{passive:true});svg.addEventListener('touchmove',mueve,{passive:true});
+    svg.addEventListener('mouseleave',()=>{cur.setAttribute('opacity','0');});
+    try{const gr=pn.querySelector('.pltp-gr');if(gr&&gr.scrollWidth>gr.clientWidth)gr.scrollLeft=gr.scrollWidth;}catch(x){}
+  });
+}
+window.renderPlVuelta=renderPlVuelta;
+
 function renderPlayer(name){
   const p=STATE.players[name];if(!p)return;
   const ring=p.readiness!=null?`conic-gradient(var(--${p.sev}) ${p.readiness*3.6}deg, var(--line) 0)`:`var(--line)`;
@@ -22081,6 +22225,7 @@ function renderPlayer(name){
   try{renderPlRegistro(name);}catch(e){console.error('registro ficha',e);}
   try{renderPlResumen(name);}catch(e){console.error('resumen ficha',e);}
   try{renderPlDolor(name);}catch(e){console.error('donde le duele',e);}
+  try{renderPlVuelta(name);}catch(e){console.error('camino de vuelta',e);}
   try{renderPlRespuesta(name);}catch(e){console.error('respuesta a la carga',e);}
   try{renderPlMicroJug(name);}catch(e){console.error('microciclo jugador',e);}
   try{renderPlZonaCalor(name);}catch(e){console.error('mapa de zonas',e);}
@@ -51376,6 +51521,12 @@ html.bpr-on body{overflow:hidden}
   .bnt-fr .btn,.bnt-s,.bm-nth .bci-nav .inf-fl{min-height:44px}
   .bm-nth .bci-nav .inf-fl{min-width:44px}
 }
+</style>
+<style id="bm-v768">
+/* v768 · El camino de vuelta · reutiliza las piezas de «Su temporada» (.pltp-*) */
+#pl-vuelta>.plv+.plv{margin-top:var(--gap,18px)}
+.plv-dash{background:none!important;border-top:1.5px dashed var(--txt);height:0!important;opacity:.6;align-self:center}
+.plv-fase{background:none!important;border-left:1px dashed var(--txt);width:0!important;opacity:.5}
 </style>
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
