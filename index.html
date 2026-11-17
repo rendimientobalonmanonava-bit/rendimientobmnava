@@ -11577,6 +11577,33 @@ function bmpcClave(){let c='';try{c=JSON.stringify([CONFIG.z,CONFIG.load,CONFIG.
   return REF().getTime()+'|'+BM_DV+'|'+dkey(new Date())+'|'+(STATE.wellness||[]).length+'|'+rpeReales()+'|'+c.length+':'+c.slice(-60);}
 function bmpcHay(dk){const a=String(dk).split('-').map(Number);const t=new Date(a[0],a[1]-1,a[2],23,59,59).getTime();const pre=t+'|'+BM_DV+'|';for(const k of BMPC.keys())if(k.indexOf(pre)===0)return true;return false;}
 window.bmpcHay=bmpcHay;
+/* ═══ v777 · Los cálculos del equipo, recordados ═══
+   Daniel, 17/11/2026 (propuesta 2). Medido en Chrome: cambiar de día estando
+   en Cargas costaba 300 ms y 193 eran `weekly()`, llamada 36 veces (dos por
+   jugador); entrar en el Calendario llamaba 2.700 veces a `lbTeamDay` (55 ms).
+   Las dos recuerdan ahora su resultado mientras no cambie la versión de los
+   datos (`BM_DV`, v769) ni el día de hoy. `lbTeamDay` no mira la fecha de
+   referencia (§2.1) y `weekly` la lleva en la clave.
+   **Se devuelve el MISMO objeto**, así que nadie puede modificarlo: revisadas
+   las 16 llamadas a `weekly` y las 8 a `lbTeamDay` el 17/11/2026, todas leen,
+   filtran o copian antes de reordenar. `contDailyTo` se queda sin recordar, por
+   la razón escrita en §4.1.2. */
+const BMMEMO={dv:-1,hoy:'',w:new Map(),t:new Map()};
+function bmMemoAlDia(){const h=dkey(new Date());if(BMMEMO.dv!==BM_DV||BMMEMO.hoy!==h){BMMEMO.dv=BM_DV;BMMEMO.hoy=h;BMMEMO.w.clear();BMMEMO.t.clear();}}
+(function(){
+  const _w=weekly;
+  window.weekly=function(name,field,ref){
+    if(window.__RD_CALC&&!ref)return _w.apply(this,arguments);
+    bmMemoAlDia();const k=name+'|'+(field||'ua')+'|'+(ref?+ref:'-');
+    if(BMMEMO.w.has(k))return BMMEMO.w.get(k);
+    const r=_w.apply(this,arguments);if(BMMEMO.w.size>600)BMMEMO.w.clear();BMMEMO.w.set(k,r);return r;};
+})();
+function bmMemoLbTeamDay(){
+  const _t=window.lbTeamDay;if(typeof _t!=='function'||_t.__memo)return;
+  const w=function(dk){bmMemoAlDia();if(BMMEMO.t.has(dk))return BMMEMO.t.get(dk);const r=_t.apply(this,arguments);if(BMMEMO.t.size>800)BMMEMO.t.clear();BMMEMO.t.set(dk,r);return r;};
+  w.__memo=true;window.lbTeamDay=w;
+}
+bmMemoLbTeamDay();
 function buildPlayers(){
   const _ck=bmpcClave();const _c=BMPC.get(_ck);
   if(_c){STATE.players=_c.p;STATE.alerts=_c.a;return;}
