@@ -19519,6 +19519,42 @@ function bmEstadoEstable(){
     return false;}
   return true;
 }
+/* ═══ v775 · Que nada aparezca de golpe ═══
+   Daniel, 17/11/2026 (propuesta 7). Medido con el registro de desplazamientos
+   del navegador: al recorrer pantallas casi no hay saltos (0–0,012) y todas
+   las fotos tienen su tamaño reservado, pero al ABRIR la app el Resumen del
+   móvil saltaba 1,22 (bueno es menos de 0,1): la tira de la semana y la
+   cápsula «Hoy» se insertan cuando el estado se estabiliza y empujaban todo
+   157 px hacia abajo. Tres cosas:
+   · su sitio se reserva desde el arranque (`bm-res-sem`, `bm-res-hoy`, de la
+     misma altura) y el hueco se quita en el mismo instante en que entra lo de
+     verdad;
+   · lo que entra nuevo lo hace con un fundido corto (`bm-nuevo`), y el primer
+     pintado con datos también;
+   · una foto que todavía está cargando entra con un fundido en vez de
+     aparecer de golpe (sólo si no estaba ya en la caché, y nunca en un
+     documento que se exporta). */
+function bmResQuita(v,k,nuevo){try{const r=v.querySelector(':scope>.bm-res-'+k);if(r)r.remove();if(nuevo){nuevo.classList.add('bm-nuevo');setTimeout(()=>nuevo.classList.remove('bm-nuevo'),420);}}catch(e){}}
+function bmResPon(){
+  try{if(!esMovil())return;const v=document.getElementById('v-equipo');if(!v)return;const ph=v.querySelector(':scope>.pagehead');if(!ph)return;
+    ['hoy','sem'].forEach(k=>{if(v.querySelector(':scope>.bm-'+k)||v.querySelector(':scope>.bm-res-'+k))return;const r=document.createElement('div');r.className='bm-res-'+k;r.setAttribute('aria-hidden','true');v.insertBefore(r,ph.nextSibling);});
+    setTimeout(()=>{v.querySelectorAll(':scope>[class^="bm-res-"]').forEach(x=>x.remove());},9000);
+  }catch(e){}
+}
+const BMFI_SEL='img';
+function bmFotoEntra(img){
+  if(!img||img.complete||img.dataset.bmfi||img.closest(BMG_DOC+',.cvd-host,.cj-doc,.inf-doc'))return;
+  img.dataset.bmfi='1';img.classList.add('bm-fi');
+  const ok=()=>{img.classList.add('bm-fi-ok');setTimeout(()=>img.classList.remove('bm-fi','bm-fi-ok'),320);};
+  img.addEventListener('load',ok,{once:true});img.addEventListener('error',ok,{once:true});
+  setTimeout(()=>{if(img.classList.contains('bm-fi')&&!img.classList.contains('bm-fi-ok'))ok();},2500);
+}
+function bmFotosInit(){
+  try{new MutationObserver(ms=>{ms.forEach(m=>m.addedNodes&&m.addedNodes.forEach(n=>{if(n.nodeType!==1)return;if(n.tagName==='IMG')bmFotoEntra(n);else if(n.querySelectorAll){const l=n.querySelectorAll('img');for(let i=0;i<l.length&&i<80;i++)bmFotoEntra(l[i]);}}));})
+    .observe(document.body,{childList:true,subtree:true});}catch(e){}
+  bmResPon();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmFotosInit);else setTimeout(bmFotosInit,0);
 function bmSemana(){
   const v=document.getElementById('v-equipo');if(!v)return;
   if(!bmEstadoEstable())return;
@@ -19530,6 +19566,7 @@ function bmSemana(){
   if(!el){
     el=document.createElement('section');el.className='bm-sem';
     const ph=v.querySelector(':scope>.pagehead');if(ph&&ph.nextSibling)v.insertBefore(el,ph.nextSibling);else v.prepend(el);
+    bmResQuita(v,'sem',el);
     el.addEventListener('click',e=>{
       const b=e.target.closest('.bms-dia');
       if(b){if(b.disabled||b.dataset.dk===dkey(REF()))return;el.dataset.dir='';try{bmVibra();}catch(_){}dpPick(b.dataset.dk);return;}
@@ -19616,7 +19653,8 @@ function bmHoy(){
   if(!el){el=document.createElement('button');el.type='button';el.className='bm-hoy';
     el.addEventListener('click',()=>{try{bmVibra();}catch(_){}bmHoyFalta();});
     const ref=v.querySelector(':scope>.bm-sem')||v.querySelector(':scope>.pagehead');
-    if(ref&&ref.nextSibling)v.insertBefore(el,ref.nextSibling);else v.appendChild(el);}
+    if(ref&&ref.nextSibling)v.insertBefore(el,ref.nextSibling);else v.appendChild(el);
+    bmResQuita(v,'hoy',el);}
   el.dataset.k=k;
   const esc=bmEsc;
   el.setAttribute('aria-label',cuando+': '+tit+(det.length?', '+det.join(', '):'')+(inten?', intensidad '+String(inten.lab).toLowerCase():'')+'. Wellness: '+nW+' de '+tot+(D.sesion?'. RPE: '+nR+' de '+tot:'')+'. Abre quién falta');
@@ -33571,6 +33609,8 @@ function renderAll(){
      y se repinta al terminar el recorrido. */
   if(window.__RD_CALC){window.__RD_PEND=true;return;}
   BM_DV++;   /* v769 · lo que entra de las hojas pasa por aquí */
+  /* v775 · el primer pintado con datos entra con un fundido */
+  try{if(!window.__BM_DATOS_VISTOS&&(STATE.wellness||[]).length){window.__BM_DATOS_VISTOS=true;const vv=document.querySelector('main .view.on');if(vv){vv.classList.add('bm-nuevo');setTimeout(()=>vv.classList.remove('bm-nuevo'),460);}}}catch(e){}
   applyHist();
   if(!REF_AUTO_HECHO&&!STATE.refDate){
     /* v388 · Abría en el último día con cuestionarios. Si hoy nadie había
@@ -51769,6 +51809,19 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   html[data-theme="dark"] :is(.btn,.iconbtn,.seg button,.bmh-btn,.bm-acc-b):active:not(:disabled){filter:brightness(1.2)}
 }
 @media (prefers-reduced-motion:reduce){.bm-suelta{transition:opacity .12s linear!important}.bm-tq.bm-pulsa{transform:none!important}}
+</style>
+<style id="bm-v775">
+/* v775 · Que nada aparezca de golpe */
+@keyframes bmEntra{from{opacity:0}to{opacity:1}}
+.bm-nuevo:not(.view),.view.bm-nuevo>*{animation:bmEntra .26s ease-out both}
+.bm-fi{opacity:0}
+.bm-fi.bm-fi-ok{opacity:1;transition:opacity .26s ease-out}
+.bm-res-sem,.bm-res-hoy{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-equipo>.bm-res-sem{order:1;display:block;height:102px;margin:-4px 0 -2px}
+  #v-equipo>.bm-res-hoy{order:1;display:block;height:82px;border-radius:16px;background:var(--panel);opacity:.55}
+}
+@media (prefers-reduced-motion:reduce){.bm-nuevo:not(.view),.view.bm-nuevo>*{animation:none}.bm-fi{opacity:1}.bm-fi.bm-fi-ok{transition:none}}
 </style>
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
