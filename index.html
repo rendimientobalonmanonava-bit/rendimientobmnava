@@ -16273,7 +16273,7 @@ function bmJugLista(){
   if(BMJL.src!==src||!c.firstChild){
     BMJL.src=src;
     const foco=document.activeElement&&document.activeElement.classList.contains('jl-q');
-    c.innerHTML=src.outerHTML+'<button type="button" class="bmjl-fot bmjl-tab">Ver la plantilla en una tabla</button><button type="button" class="bmjl-fot">Fotos de la plantilla…</button>';
+    c.innerHTML=src.outerHTML+(BMJT_RETIRADA?'':'<button type="button" class="bmjl-fot bmjl-tab">Ver la plantilla en una tabla</button>')+'<button type="button" class="bmjl-fot">Fotos de la plantilla…</button>';
     c.querySelectorAll('.jl-f').forEach(f=>{const m=(f.getAttribute('onclick')||'').match(/openPlayer\('(.+)'\)/);
       if(m)f.dataset.n=m[1].replace(/\\'/g,"'");f.removeAttribute('onclick');});
     const q=c.querySelector('.jl-q');if(q){q.removeAttribute('oninput');q.value=BMJL.q;if(foco)q.focus();}
@@ -16299,9 +16299,16 @@ function bmJugLista(){
    Resumen). Describe el día que se está viendo. ↑ ↓ recorren las filas, Intro
    abre la ficha y la barra espaciadora el inspector (v783). «Exportar CSV»
    la saca para una hoja de cálculo, con punto y coma y coma decimal. */
+/* v800 · RETIRADA. Daniel, 17/11/2026: «lo de la plantilla en una tabla está
+   bien, pero me gusta más cómo está distribuido con las fichas… o que la
+   quites o que la replantees totalmente». Se quita de la vista: no se ofrece
+   «Fichas · Tabla» ni el botón de la columna de la plantilla, y aunque este
+   ordenador la tuviera elegida, Jugadores abre en fichas. **No se ha borrado
+   nada**: para devolverla, `BMJT_RETIRADA=false` y el botón de `bmJugLista`. */
+const BMJT_RETIRADA=true;
 const BMJT={modo:'fichas',sort:null};
-try{BMJT.modo=localStorage.getItem('bmnava-jugvista')==='tabla'?'tabla':'fichas';}catch(e){}
-function bmJtPuede(){return !esMovil()&&bmEscFino();}
+try{if(!BMJT_RETIRADA)BMJT.modo=localStorage.getItem('bmnava-jugvista')==='tabla'?'tabla':'fichas';}catch(e){}
+function bmJtPuede(){return !BMJT_RETIRADA&&!esMovil()&&bmEscFino();}
 function bmJtModo(m){
   BMJT.modo=m==='tabla'?'tabla':'fichas';try{localStorage.setItem('bmnava-jugvista',BMJT.modo);}catch(e){}
   if(STATE.view!=='jugadores'){go('jugadores');return;}
@@ -17147,6 +17154,11 @@ window.addEventListener('resize',()=>{clearTimeout(BMMAIL.t);BMMAIL.t=setTimeout
    El readiness queda fuera A PROPÓSITO: no hay serie diaria por jugador, y
    fabricarla obligaría a tomar prestado el día (§2.1). Se marca con
    `data-hist="tipo|jugador"`: lo que se añada mañana con esa marca lo hereda. */
+/* v800 · RETIRADA. Daniel, 17/11/2026: «no me convence la parte de la historia
+   de cada cifra». El globo deja de salir y la cifra deja de resaltarse al pasar
+   el ratón; las marcas `data-hist` y `bmHiHTML` se quedan. Para devolverlo,
+   `BMHI_RETIRADA=false` y la regla de resaltado de `esc-v796`. */
+const BMHI_RETIRADA=true;
 const BMHI={t:null,el:null};
 function bmHiHTML(tipo,n){
   const E=bmEsc,p=(STATE.players||{})[n];if(!p)return '';
@@ -17175,7 +17187,7 @@ function bmHiHTML(tipo,n){
 }
 function bmHiQuita(){clearTimeout(BMHI.t);BMHI.t=null;BMHI.el=null;const c=document.getElementById('bm-hi');if(c)c.classList.remove('on');}
 document.addEventListener('mouseover',e=>{
-  if(esMovil()||!e.target||!e.target.closest)return;
+  if(BMHI_RETIRADA||esMovil()||!e.target||!e.target.closest)return;
   const el=e.target.closest('[data-hist]');
   if(el===BMHI.el)return;
   bmHiQuita();if(!el)return;
@@ -22027,12 +22039,10 @@ function bmNovedadesMac(){
     ['carga','El mapa de la plantilla','Cargas › Plantilla: los dieciocho, día a día, con su carga, quién estuvo fuera y los partidos.',()=>cargasTab('mapa')],
     ['alertas','Alertas como Mail','La lista de jugadores a la izquierda y, a la derecha, cada alerta con su cifra y sus últimos días.',()=>go('alertas')],
     ['carga','Los partidos, en los gráficos','Cada día de partido lleva su franja y el rival en los gráficos de días.',()=>cargasTab('resumen')],
-    ['jugadores','La historia de cada cifra','Deja el ratón sobre un ACWR, una carga o un valor del parte y verás sus últimos 28 días.',()=>bmJtModo('tabla')],
     ['equipo','Lo que registra el equipo','Cuando alguien apunta algo, el aviso dice qué ha entrado y dónde.',null],
     ['cal','Dos pantallas a la vez','Con la ventana ancha, el botón de dos columnas fija una segunda pantalla a la derecha.',()=>{try{bmSpFija('cal');}catch(e){}}],
     ['Hoy, antes'],
     ['jugadores','El inspector del jugador','⌥ + clic sobre cualquier jugador, o la tecla I: su estado del día en un panel a la derecha, sin salir de donde estás.',()=>{const n=STATE.curPlayer||Object.keys(STATE.players||{}).sort()[0];bmInspAbre(n);}],
-    ['jugadores','La plantilla en una tabla','Fichas o tabla: una fila por jugador con su parte, carga, ACWR y TSA, que se ordena y se exporta.',()=>bmJtModo('tabla')],
     ['equipo','La línea de tiempo','Botón junto a la fecha o tecla L: las cinco últimas semanas bajo la barra; arrastra para cambiar de día.',()=>bmTlAlterna(true)],
     ['carga','El cursor compartido','Pasa el ratón por un día en un gráfico y los demás gráficos de la pantalla marcan ese mismo día.',()=>go('carga')],
     ['carga','Ampliar un bloque','El botón de arriba a la derecha, doble clic en el título o ⌘↩: el gráfico o la tabla a toda la ventana.',()=>go('carga')],
@@ -53815,7 +53825,8 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
 #bm-hi{display:none}
 @media screen and (min-width:761px) and (pointer:fine){
   [data-hist]{cursor:default}
-  #jug-tabla td[data-hist]:hover,#bm-insp [data-hist]:hover{background:color-mix(in srgb,var(--accent) 9%,transparent);border-radius:6px}
+  /* v800 · el resaltado al pasar el ratón se retira con el globo:
+     #jug-tabla td[data-hist]:hover,#bm-insp [data-hist]:hover{background:color-mix(in srgb,var(--accent) 9%,transparent);border-radius:6px} */
   #bm-hi{display:block;position:fixed;z-index:96;width:340px;padding:11px 13px 10px;border-radius:12px;pointer-events:none;
     background:var(--sbf-bg);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);
     box-shadow:0 0 0 .5px var(--sbf-borde),0 12px 32px -8px rgba(0,0,0,.3);color:var(--txt);opacity:0;transform:translateY(3px);transition:opacity .14s ease,transform .14s ease}
