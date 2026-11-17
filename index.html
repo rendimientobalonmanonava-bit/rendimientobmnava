@@ -13889,7 +13889,30 @@ const SB_ICONS={
  fisio:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14h18"/><path d="M3 14v-1.5A1.5 1.5 0 0 1 4.5 11H9"/><path d="M5 14v5"/><path d="M19 14v5"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>',
  _:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>'
 };
-function sbBtn(v,l){return `<button class="sb-item" data-v="${v}" title="${l} · ⌘-clic para abrirlo en otra ventana" onclick="go('${v}');sbToggleMobile(false)">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`;}
+/* ═══ v771 · Primero se ve el toque, después se pinta ═══
+   Daniel, 17/11/2026 (propuesta 3). Al tocar un destino de la barra inferior o
+   del menú lateral, la pestaña marcada y la animación esperaban a que acabara
+   el pintado (100–180 ms en el motor de Safari en una primera visita), y
+   parecía que el toque no había entrado. Ahora, si la pantalla TIENE que
+   pintarse (`bmVaAPintar`, con la clave de la v770), la pestaña se marca y lo
+   de debajo se atenúa en el mismo toque, y el cambio de pantalla va en el
+   fotograma siguiente. Si no tiene que pintarse, ya es inmediato y no se
+   espera nada. Sólo los destinos de navegación: `go()` sigue siendo síncrono
+   para todo lo demás, que cuenta con ello. */
+const BMIR_FN={cal:'renderCalendar',carga:'renderLoad',hr:'renderHR',tests:'renderTests',jugadores:'renderPlayersGrid',nutri:'renderNutri',
+  dispo:'renderAvail',parte:'renderParte',fisio:'renderFisio',medico:'renderMedico'};
+function bmVaAPintar(v){const fn=BMIR_FN[v];if(!fn||typeof bmrpClave!=='function')return false;
+  try{const el=document.getElementById(BMRP_F[fn]);return !(el&&el.childElementCount&&BMRP.k[fn]&&BMRP.k[fn]===bmrpClave(fn));}catch(e){return false;}}
+function bmTrasPintar(fn){let h=false;const f=()=>{if(h)return;h=true;try{fn();}catch(e){console.error('bmnava · navegar',e);}};
+  try{requestAnimationFrame(()=>setTimeout(f,0));}catch(e){}setTimeout(f,90);}
+function bmIr(v,fn){
+  if(!bmVaAPintar(v)){fn();return;}
+  try{sbMark(v);}catch(e){}
+  const h=document.documentElement;h.classList.add('bm-yendo');
+  bmTrasPintar(()=>{try{fn();}finally{h.classList.remove('bm-yendo');}});
+}
+window.bmIr=bmIr;
+function sbBtn(v,l){return `<button class="sb-item" data-v="${v}" title="${l} · ⌘-clic para abrirlo en otra ventana" onclick="bmIr('${v}',()=>go('${v}'));sbToggleMobile(false)">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`;}
 function buildSidebar(){const sb=document.getElementById('sb-nav');if(!sb)return;
   let h='';NAV.forEach(g=>{if(g.v){h+=sbBtn(g.v,g.label);}else{h+=`<div class="sb-glab">${g.label}</div>`;g.items.forEach(([v,l])=>h+=sbBtn(v,l));}});
   sb.innerHTML=h;
@@ -14046,7 +14069,7 @@ function tbGo(v){try{bmVibra();}catch(e){}const abierta=document.body.classList.
   /* en la ficha de un jugador, «Jugadores» vuelve a la lista */
   const ya=window.__TB_ON===v&&!(v==='jugadores'&&STATE.view==='jugador');
   if(ya&&!abierta){window.scrollTo({top:0,behavior:'smooth'});return;}
-  if(!ya){window.__BM_TAB=true;try{go(v);}finally{window.__BM_TAB=false;}}}
+  if(!ya)bmIr(v,()=>{window.__BM_TAB=true;try{go(v);}finally{window.__BM_TAB=false;}});}
 /* Lo que no es uno de los cuatro destinos se alcanza desde «Más», así que es
    «Más» la que queda marcada. */
 /* v533 · El pliegue del análisis de la última sesión en el Resumen del móvil.
@@ -51638,6 +51661,11 @@ html.bpr-on body{overflow:hidden}
 /* v769 · Mientras el día espera a que se deje de pulsar, lo de debajo se atenúa: el toque se ve en el acto */
 html.bm-dia-esp main{opacity:.72;transition:opacity .12s ease-out}
 @media (prefers-reduced-motion:reduce){html.bm-dia-esp main{transition:none}}
+</style>
+<style id="bm-v771">
+/* v771 · Mientras la pantalla nueva se prepara, la de ahora se atenúa: el toque se ve en el acto */
+html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
+@media (prefers-reduced-motion:reduce){html.bm-yendo main{transition:none}}
 </style>
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
