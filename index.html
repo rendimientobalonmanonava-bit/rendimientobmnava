@@ -13912,6 +13912,46 @@ function bmIr(v,fn){
   bmTrasPintar(()=>{try{fn();}finally{h.classList.remove('bm-yendo');}});
 }
 window.bmIr=bmIr;
+/* ═══ v773 · Una respuesta al toque que siempre se vea ═══
+   Daniel, 17/11/2026 (propuesta 5). En el móvil lo pulsado se apagaba al 60 %
+   sólo mientras el dedo estaba encima (`:active`, v561), sin transición: en un
+   toque rápido casi no se veía y al soltar se encendía de golpe. Como en iOS:
+   · se marca al tocar (`bm-pulsa`), salvo que el dedo empiece a desplazarse,
+     para no parpadear al hacer scroll; un toque más rápido que eso se marca
+     al soltar;
+   · dura al menos `BMPU_MIN` ms aunque el toque sea rapidísimo y al soltar se
+     desvanece (`bm-suelta`);
+   · tres formas: las FILAS de una lista se resaltan con el gris de celda, las
+     TARJETAS (`bm-tq`) se hunden y lo demás se apaga.
+   Lo dibuja el CSS de `bm-v773`; la regla vieja de `:active` se desactiva con
+   `bm-pulsa-on`. Sólo con el dedo: el ratón tiene su propia respuesta. */
+const BMPU={el:null,x:0,y:0,t:0,mov:false,tm:null};
+const BMPU_MIN=110;
+const BMPU_SEL='[onclick],button,summary,a[href],[role="button"],[data-sw],.bm-tq,.bm-pr,.jl-f,.bmj-c';
+function bmpuQuita(el,suave){if(!el)return;el.classList.remove('bm-pulsa');if(!suave)return;el.classList.add('bm-suelta');setTimeout(()=>el.classList.remove('bm-suelta'),230);}
+function bmpuInit(){
+  if(!(typeof esMovil==='function'&&esMovil()))return;
+  document.documentElement.classList.add('bm-pulsa-on');
+  document.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse')return;
+    const t=e.target&&e.target.closest&&e.target.closest(BMPU_SEL);
+    if(!t||t.disabled||t.closest('input,select,textarea,'+BMG_DOC))return;
+    if(BMPU.el&&BMPU.el!==t)bmpuQuita(BMPU.el,false);
+    BMPU.el=t;BMPU.x=e.clientX;BMPU.y=e.clientY;BMPU.t=0;BMPU.mov=false;
+    clearTimeout(BMPU.tm);BMPU.tm=setTimeout(()=>{if(BMPU.el===t&&!BMPU.mov){t.classList.add('bm-pulsa');BMPU.t=Date.now();}},45);
+  },{passive:true,capture:true});
+  document.addEventListener('pointermove',e=>{
+    if(!BMPU.el||BMPU.mov)return;
+    if(Math.abs(e.clientX-BMPU.x)>8||Math.abs(e.clientY-BMPU.y)>8){BMPU.mov=true;clearTimeout(BMPU.tm);bmpuQuita(BMPU.el,false);BMPU.el=null;}
+  },{passive:true,capture:true});
+  const fin=e=>{const t=BMPU.el;if(!t)return;BMPU.el=null;clearTimeout(BMPU.tm);
+    if(e.type==='pointercancel'||BMPU.mov){bmpuQuita(t,false);return;}
+    if(!BMPU.t){t.classList.add('bm-pulsa');BMPU.t=Date.now();}
+    const queda=Math.max(0,BMPU_MIN-(Date.now()-BMPU.t));setTimeout(()=>bmpuQuita(t,true),queda);};
+  document.addEventListener('pointerup',fin,{passive:true,capture:true});
+  document.addEventListener('pointercancel',fin,{passive:true,capture:true});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmpuInit);else setTimeout(bmpuInit,0);
 function sbBtn(v,l){return `<button class="sb-item" data-v="${v}" title="${l} · ⌘-clic para abrirlo en otra ventana" onclick="bmIr('${v}',()=>go('${v}'));sbToggleMobile(false)">${SB_ICONS[v]||SB_ICONS._}<span>${l}</span></button>`;}
 function buildSidebar(){const sb=document.getElementById('sb-nav');if(!sb)return;
   let h='';NAV.forEach(g=>{if(g.v){h+=sbBtn(g.v,g.label);}else{h+=`<div class="sb-glab">${g.label}</div>`;g.items.forEach(([v,l])=>h+=sbBtn(v,l));}});
@@ -47098,7 +47138,7 @@ html[data-theme="dark"]{--seg-carril:rgba(118,118,128,.28);--seg-on:#636366;--se
    `:has`, pulsar un botón dentro de una tarjeta pulsable apagaba las dos. */
 @media(hover:none) and (max-width:760px),(hover:none) and (max-height:500px) and (orientation:landscape) and (pointer:coarse){
   :is([onclick],button,summary,a[href]){-webkit-tap-highlight-color:transparent}
-  :is([onclick],button,summary,a[href]):active:not(:has(:is([onclick],button,summary,a[href],input,select,textarea):active)){opacity:.6}
+  html:not(.bm-pulsa-on) :is([onclick],button,summary,a[href]):active:not(:has(:is([onclick],button,summary,a[href],input,select,textarea):active)){opacity:.6}
 }
 </style>
 <style id="movil-v562">
@@ -51700,6 +51740,22 @@ html.bm-dia-esp main{opacity:.72;transition:opacity .12s ease-out}
 /* v771 · Mientras la pantalla nueva se prepara, la de ahora se atenúa: el toque se ve en el acto */
 html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
 @media (prefers-reduced-motion:reduce){html.bm-yendo main{transition:none}}
+</style>
+<style id="bm-v773">
+/* v773 · La respuesta al toque. En el móvil: lo pulsado se apaga, las filas se resaltan con el gris de celda y las tarjetas se hunden; al soltar se desvanece. */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-pulsa{opacity:.55!important;transition:none!important}
+  .bm-suelta{transition:opacity .2s ease-out,background-color .2s ease-out,transform .22s cubic-bezier(.32,.72,0,1)!important}
+  :is(.bmh-fila,.bmj-c,.bmp-f,.bm-pr,.jl-f,.bmt-it,.bmt-li,.bfa-r,.bci-r,.hab-r,.bnt-r,.cg-d14,.ath-row,#sidebar .sb-item,.nuc-c-h,.bmb-r,.bms-r).bm-pulsa{opacity:1!important;background-color:var(--seg-carril,rgba(118,118,128,.16))!important}
+  .bm-tq.bm-pulsa{opacity:1!important;transform:scale(.97)!important}
+  :is(.tb-i,.btn).bm-pulsa{opacity:.6!important}
+}
+/* En el ordenador, como en macOS: el botón se oscurece mientras se mantiene el clic (en oscuro, se aclara) */
+@media screen and (min-width:761px) and (pointer:fine){
+  :is(.btn,.iconbtn,.seg button,.bmh-btn,.bm-acc-b):active:not(:disabled){filter:brightness(.9)}
+  html[data-theme="dark"] :is(.btn,.iconbtn,.seg button,.bmh-btn,.bm-acc-b):active:not(:disabled){filter:brightness(1.2)}
+}
+@media (prefers-reduced-motion:reduce){.bm-suelta{transition:opacity .12s linear!important}.bm-tq.bm-pulsa{transform:none!important}}
 </style>
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
