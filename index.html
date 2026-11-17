@@ -14356,6 +14356,7 @@ function bmbIndice(){
   A('Informe de la semana','La semana cerrada en una hoja que se exporta',()=>{if(window.bmInformeSemana)bmInformeSemana();},'resumen semanal informe');
   A('Cerrar la sesión','Minutos de cada bloque y quién entrenó',()=>{if(window.bmCierre)bmCierre();},'cerrar sesion minutos duracion convocar asistencia');
   if(!esMovil())A('Qué hay de nuevo','Las funciones nuevas del ordenador, con su «Probar»',()=>{if(window.bmNovedadesMac)bmNovedadesMac();},'novedades nuevo cambios version');
+  if(!esMovil())A('Inspector del jugador','Un panel a la derecha con el estado del jugador · I o ⌥ clic',()=>{if(window.bmInspAlterna)bmInspAlterna();},'inspector panel lateral estado jugador');
   if(!esMovil())A('Presentar','Pantalla completa para la reunión o la tele del vestuario',()=>{if(window.bmPresentar)bmPresentar();},'presentacion pantalla completa reunion tele vestuario');
   A('Recordatorio del parte','Copia «Falta el cuestionario de wellness de hoy: …» para el grupo',()=>{if(window.bmRecordatorio)bmRecordatorio('well');},'recordatorio wellness parte whatsapp grupo faltan');
   A('Datos que faltan','Días sin minutos, partidos sin minutos jugados y cuestionarios pendientes',()=>{if(window.bmFaltan)bmFaltan();},'faltan pendientes huecos completar');
@@ -14742,6 +14743,7 @@ function bmCtxMac(x,cx,cy){
     it.push({t:'Ver la ficha',ic:I.ficha,f:acc.ficha});
     it.push({t:'Abrir en una ventana nueva',ic:'',k:'⌘ clic',f:()=>bmAbreVentana(bmUrlDe('jugador',n))});
     it.push({t:'Vista rápida',ic:'',k:'Espacio',f:()=>bmPrevia(x,acc)});
+    if(window.bmInspAbre)it.push({t:'Ver en el inspector',ic:'',k:'⌥ clic',f:()=>bmInspAbre(n)});
     if(window.bmComparar)it.push({t:'Comparar con…',ic:'',f:acc.cmp});
     if(window.bmInformeJugador)it.push({t:'Informe del mes',ic:'',f:()=>bmInformeJugador(n)});
     if(window.bmCarta)it.push({t:'Carta del jugador',ic:'',f:()=>bmCarta(n)});
@@ -16448,6 +16450,179 @@ function bmBotonLateral(){
   b.addEventListener('click',()=>{try{sbToggle();}catch(e){}});hub.insertBefore(b,hub.firstChild);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmBotonLateral);else bmBotonLateral();
+/* ═══ v783 · ORDENADOR · El inspector del jugador ═══
+   Daniel, 17/11/2026, eligió la propuesta 1 de la tanda del ordenador: «como el
+   inspector del Finder o de Keynote». Un panel a la derecha con el estado de un
+   jugador el día que se está viendo, sin salir de la pantalla en la que se
+   está: se abre con ⌥ + clic sobre cualquier jugador, con la tecla I (el
+   jugador bajo el ratón, o el último que se miró) y desde su clic derecho, y se
+   cierra con su aspa, con I o con Esc. ⌥⌘I no se usa: Safari y Chrome lo
+   reservan para sus herramientas de desarrollo. NO calcula nada: readiness y su
+   desglose (`p.factors`, el mismo de «¿De dónde viene el readiness?», que se
+   saca a `rdFactoresHTML` para que no haya dos copias), ACWR con `acwrClass`,
+   la carga de 14 días contra SU normal (`plNormal`, el de la ficha), el parte
+   con los colores de los anillos de la ficha (≤2 · ≤3 · >3 y 7,5 · 6,5 h),
+   el dolor, los episodios abiertos, el último tratamiento (`medUltimoTrat`),
+   «Ojo hoy» y sus notas. Con la ventana de 1.280 px o más el contenido deja
+   sitio al panel; por debajo, el panel va encima. Sólo con ratón o trackpad. */
+const BMIN={n:null,on:false,clave:'',t:null};
+function bmInspGuarda(){try{localStorage.setItem('bmnava-insp',JSON.stringify({n:BMIN.n,on:BMIN.on}));}catch(e){}}
+function bmInspPuede(){return !esMovil()&&bmEscFino();}
+function bmInspAbre(n){
+  if(!bmInspPuede()||!n||!(STATE.players||{})[n])return;
+  BMIN.n=n;BMIN.on=true;BMIN.clave='';bmInspGuarda();
+  let a=document.getElementById('bm-insp');
+  if(!a){a=document.createElement('aside');a.id='bm-insp';a.setAttribute('aria-label','Inspector del jugador');document.body.appendChild(a);
+    a.addEventListener('click',bmInspClic);
+    a.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();bmInspCierra();}});}
+  bmInspPinta(true);
+  document.body.classList.add('bm-insp-on');
+  if(!BMIN.t)BMIN.t=setInterval(bmInspTic,1200);
+}
+function bmInspCierra(){
+  BMIN.on=false;bmInspGuarda();document.body.classList.remove('bm-insp-on');
+  if(BMIN.t){clearInterval(BMIN.t);BMIN.t=null;}
+}
+function bmInspAlterna(n){
+  if(BMIN.on&&(!n||n===BMIN.n)){bmInspCierra();return;}
+  let m=n||BMIN.n||STATE.curPlayer;
+  if(!m||!(STATE.players||{})[m]){const l=bmfLista();m=l[0];}
+  bmInspAbre(m);
+}
+function bmInspClave(){
+  let th='';try{th=document.documentElement.dataset.theme||'';}catch(e){}
+  return [BMIN.n,STATE.refDate?STATE.refDate.getTime():0,BM_DV,dkey(new Date()),th,Object.keys(STATE.players||{}).length].join('|');
+}
+function bmInspTic(){
+  if(!BMIN.on||window.__RD_CALC)return;
+  try{if(typeof bmEstadoEstable==='function'&&!bmEstadoEstable())return;}catch(e){}
+  if(bmInspClave()!==BMIN.clave)bmInspPinta(false);
+}
+function bmInspClic(e){
+  const b=e.target.closest('[data-ia]');if(!b)return;
+  const n=BMIN.n,a=b.dataset.ia,hoy=dkey(new Date());
+  if(a==='cierra'){bmInspCierra();return;}
+  if(a==='prev'||a==='sig'){const l=bmfLista();const i=l.indexOf(n);const j=(i+(a==='sig'?1:-1)+l.length)%l.length;bmInspAbre(l[j]);return;}
+  const f={ficha:()=>openPlayer(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),
+    nota:()=>bmNota(dkey(REF()),n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n)}[a];
+  if(f){try{f();}catch(err){console.error('bmnava · inspector',err);}}
+}
+function bmInspFecha(dk){const q=String(dk||'').split('-');return q.length===3?(+q[2])+'/'+(+q[1]):'';}
+function bmInspSpark(n){
+  let N=null;try{N=plNormal(n);}catch(e){}
+  if(!N||!N.serie||!N.serie.length)return '<p class="bmin-nada">Sin carga registrada.</p>';
+  const s=N.serie.slice(-14),W=300,H=54,bw=W/s.length;
+  const mx=Math.max(1,...s.map(x=>x.ua||0),N.hi||0);
+  const y=v=>H-2-(v/mx)*(H-6);
+  let h='<svg class="bmin-sp" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">';
+  if(N.hay&&N.lo!=null&&N.hi!=null)h+='<rect class="bmin-sp-band" x="0" y="'+y(N.hi).toFixed(1)+'" width="'+W+'" height="'+Math.max(1,y(N.lo)-y(N.hi)).toFixed(1)+'"/>';
+  const ult=s.length-1;
+  s.forEach((x,i)=>{
+    if(x.ua>0){const yy=y(x.ua);h+='<rect class="bmin-sp-b'+(i===ult?' hoy':'')+'" x="'+(i*bw+bw*.18).toFixed(1)+'" y="'+yy.toFixed(1)+'" width="'+(bw*.64).toFixed(1)+'" height="'+Math.max(1,H-2-yy).toFixed(1)+'" rx="1.5"/>';}
+    else h+='<rect class="bmin-sp-0" x="'+(i*bw+bw*.38).toFixed(1)+'" y="'+(H-3)+'" width="'+(bw*.24).toFixed(1)+'" height="1.5"/>';
+  });
+  if(N.hay&&N.med!=null)h+='<line class="bmin-sp-med" x1="0" x2="'+W+'" y1="'+y(N.med).toFixed(1)+'" y2="'+y(N.med).toFixed(1)+'" vector-effect="non-scaling-stroke"/>';
+  h+='</svg>';
+  const ini=s[0]&&s[0].dk,fin=s[ult]&&s[ult].dk;
+  return h+'<div class="bmin-sp-pie"><span>'+bmInspFecha(ini)+'</span><span>'+(N.hay?'su normal '+Math.round(N.med).toLocaleString('es-ES')+' UA · banda de sus días':'menos de '+N.min+' días con carga: sin normal')+'</span><span>'+bmInspFecha(fin)+'</span></div>';
+}
+function bmInspHTML(n){
+  const E=bmEsc,p=STATE.players[n]||{},dkR=dkey(REF()),hoy=dkey(new Date());
+  const tx=c=>' style="color:'+colTexto(c)+'"';
+  const sec=(t,h,extra)=>'<section class="bmin-sec"><h3>'+t+(extra?'<span>'+extra+'</span>':'')+'</h3>'+h+'</section>';
+  const cif=(et,v,c,sub)=>'<div class="bmin-cif"><em>'+et+'</em><b'+(c?tx(c):'')+'>'+v+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
+  /* quién */
+  let est='Disponible',estC='var(--ok)';
+  try{const ev=effectiveStatus(n,dkR);if(ev&&ev.status&&ev.status!=='disp'){est=((typeof PHYSTAT!=='undefined'&&PHYSTAT[ev.status])||{}).lab||ev.status;
+    estC=(typeof NOAV_FIS_ST!=='undefined'&&NOAV_FIS_ST.indexOf(ev.status)>=0)?'var(--bad)':'var(--warn)';}}catch(e){}
+  let pos='';try{pos=posDetailOf(n)||posGroup(p.pos)||p.pos||'';}catch(e){pos=p.pos||'';}
+  let dor='';try{const inf=(STATE.info||{})[n]||{};dor=inf.dorsal||inf.num||'';}catch(e){}
+  const rd=(p.readiness!=null&&isFinite(p.readiness))?Math.round(p.readiness):null;
+  const sevC=p.sev==='ok'?'var(--ok)':p.sev==='warn'?'var(--warn)':p.sev==='bad'?'var(--bad)':'var(--muted)';
+  const d=dkToDate(dkR);let dia=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});dia=dia.charAt(0).toUpperCase()+dia.slice(1);
+  let h='<div class="bmin-bar"><button type="button" data-ia="prev" title="Jugador anterior" aria-label="Jugador anterior">‹</button><button type="button" data-ia="sig" title="Jugador siguiente" aria-label="Jugador siguiente">›</button>'
+    +'<span class="bmin-tit">Inspector</span><button type="button" class="bmin-x" data-ia="cierra" title="Cerrar (I)" aria-label="Cerrar el inspector">×</button></div>';
+  h+='<div class="bmin-cuerpo">';
+  h+='<div class="bmin-quien" data-ia="ficha" title="Abrir su ficha">'+bmjCara(n,'bmin-av')
+    +'<div><b>'+E(n)+'</b><span>'+E([pos,dor?('Dorsal '+dor):''].filter(Boolean).join(' · '))+'</span><i'+tx(estC)+'>'+E(est)+'</i></div></div>';
+  h+='<p class="bmin-dia">'+(dkR===hoy?'Hoy · ':'')+E(dia)+'</p>';
+  /* readiness */
+  const w=p.last||null;
+  const parteDe=w&&w.dk&&w.dk!==dkR?'parte del '+bmInspFecha(w.dk):'';
+  let rh='<div class="bmin-rd"><b'+(rd!=null?tx(sevC):'')+'>'+(rd!=null?rd:'—')+'</b><span>'+(rd!=null?(p.sev==='ok'?'Óptimo':p.sev==='warn'?'Moderado':'Bajo'):'Sin readiness')+(parteDe?'<br>'+E(parteDe):'')+'</span></div>';
+  try{if(p.factors)rh+='<div class="bmin-fac">'+rdFactoresHTML(p,4)+'</div>';}catch(e){}
+  h+=sec('Readiness',rh);
+  /* carga */
+  const ac=p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null;
+  const c7=p.acwr&&p.acwr.acute?Math.round(p.acwr.acute):null,c14=p.load14?Math.round(p.load14):null;
+  const ch='<div class="bmin-cifs">'+cif('ACWR',ac!=null?ac.toFixed(2).replace('.',','):'—',ac!=null?'var(--'+acwrClass(ac)+')':'',ac!=null?'banda 0,8–1,3':'sin dato fiable')
+    +cif('Carga 7 días',c7!=null?c7.toLocaleString('es-ES'):'—','','UA')+cif('Carga 14 días',c14!=null?c14.toLocaleString('es-ES'):'—','','UA')+'</div>'+bmInspSpark(n);
+  h+=sec('Carga',ch,'14 días');
+  /* wellness */
+  if(w){
+    const lb=v=>v==null||isNaN(v)?['—','']:[fmt(v,1),v<=2?'var(--ok)':v<=3?'var(--warn)':'var(--bad)'];
+    const hs=v=>v==null||isNaN(v)?['—','']:[fmt(v,1)+' h',v>=7.5?'var(--ok)':v>=6.5?'var(--warn)':'var(--bad)'];
+    const M=[['fatiga','Fatiga',lb],['sueno','Sueño',lb],['horas_sueno','Horas',hs],['doms','DOMS',lb],['stress','Estrés',lb],['mood','Ánimo',lb]];
+    let wh='<div class="bmin-well">'+M.map(([k,l,f])=>{const o=f(w[k]);return '<div><em>'+l+'</em><b'+(o[1]?tx(o[1]):'')+'>'+o[0]+'</b></div>';}).join('')+'</div>';
+    if(w.dolor)wh+='<p class="bmin-dolor"'+tx('var(--warn)')+'>Dolor'+(w.zona?': '+E(w.zona):'')+(w.golpe?' · por golpe':'')+'</p>';
+    h+=sec('Wellness',wh,'escala 1–5'+(parteDe?' · '+E(parteDe):''));
+  }else h+=sec('Wellness','<p class="bmin-nada">Sin parte de ese día.</p>');
+  /* médico y fisio */
+  let mh='';
+  try{medDbLoad();const ab=((STATE.med||{}).inj||[]).filter(e=>e&&e.name===n&&e.open&&!e.mergedInto);
+    ab.forEach(e=>{let dias='';try{if(e.dk)dias=Math.max(0,dkRango(e.dk,dkR).length-1)+' días';}catch(x){}
+      mh+='<div class="bmin-l"><span'+tx('var(--warn)')+'>'+E(e.title||e.zona||'Episodio abierto')+'</span><small>'+E([e.dk?'desde el '+bmInspFecha(e.dk):'',dias].filter(Boolean).join(' · '))+'</small></div>';});}catch(e){}
+  try{ojoAbiertos().filter(x=>x.name===n).forEach(x=>{mh+='<div class="bmin-l"><span'+tx('var(--warn)')+'>Ojo hoy'+(x.e.zona?': '+E(x.e.zona):'')+'</span><small>'+E([x.e.dk?bmInspFecha(x.e.dk):'',x.e.nota||''].filter(Boolean).join(' · '))+'</small></div>';});}catch(e){}
+  try{const t=medUltimoTrat(n);if(t)mh+='<div class="bmin-l"><span>Último tratamiento</span><small>'+E([bmInspFecha(t.dk),t.tipo||'',t.dur?t.dur+"'":''].filter(Boolean).join(' · '))+'</small></div>';}catch(e){}
+  h+=sec('Médico y fisioterapia',mh||'<p class="bmin-nada">Nada abierto.</p>');
+  /* notas */
+  try{const des=dkSumaDias(dkR,-6);const ns=notasLoad().filter(x=>x&&x.jugador===n&&x.dk>=des&&x.dk<=dkR).sort((a,b)=>String(b.dk).localeCompare(String(a.dk))).slice(0,3);
+    if(ns.length)h+=sec('Notas',ns.map(x=>'<div class="bmin-l"><span>'+E(x.txt||'')+'</span><small>'+bmInspFecha(x.dk)+(x.quien?' · '+E(x.quien):'')+'</small></div>').join(''),'7 días');}catch(e){}
+  h+='</div>';
+  /* acciones: las mismas del clic derecho */
+  const B=(k,t,pri)=>'<button type="button" class="'+(pri?'pri':'')+'" data-ia="'+k+'">'+t+'</button>';
+  h+='<div class="bmin-acc">'+B('ficha','Abrir ficha',1)+(window.openHeroForm?B('parte','Parte'):'')+(window.ojoMarcar?B('ojo','Ojo hoy'):'')
+    +(window.openFisioReg?B('trat','Fisio'):'')+(window.bmNota?B('nota','Nota'):'')+(window.bmComparar?B('cmp','Comparar'):'')+'</div>';
+  return h;
+}
+function bmInspPinta(forzar){
+  const a=document.getElementById('bm-insp');if(!a||!BMIN.n)return;
+  if(!forzar&&(window.__RD_CALC))return;
+  if(!(STATE.players||{})[BMIN.n]){a.innerHTML='<div class="bmin-bar"><span class="bmin-tit">Inspector</span><button type="button" class="bmin-x" data-ia="cierra" aria-label="Cerrar el inspector">×</button></div><p class="bmin-nada" style="padding:16px">Cargando…</p>';return;}
+  const c=a.querySelector('.bmin-cuerpo'),y=c?c.scrollTop:0,mismo=a.dataset.n===BMIN.n;
+  a.innerHTML=bmInspHTML(BMIN.n);a.dataset.n=BMIN.n;
+  if(mismo){const c2=a.querySelector('.bmin-cuerpo');if(c2)c2.scrollTop=y;}
+  BMIN.clave=bmInspClave();
+}
+/* ⌥ + clic sobre un jugador */
+document.addEventListener('click',e=>{
+  if(!e.altKey||e.metaKey||e.ctrlKey||!bmInspPuede()||!e.target||!e.target.closest)return;
+  if(e.target.closest('input,textarea,select,'+BMG_DOC+',#bm-insp'))return;
+  const c=e.target.closest(BMLP_SEL+',#bm-jl [data-n]');if(!c)return;
+  const x=c.matches('#bm-jl [data-n]')?((STATE.players||{})[c.dataset.n]?{t:'j',n:c.dataset.n}:null):bmlpDe(c);
+  if(!x||x.t!=='j')return;
+  e.preventDefault();e.stopPropagation();bmInspAbre(x.n);
+},true);
+/* I · el jugador bajo el ratón, o el último */
+document.addEventListener('keydown',e=>{
+  if(!bmInspPuede()||e.metaKey||e.ctrlKey||e.altKey||bmTecladoEscribe(e.target))return;
+  if(e.key==='Escape'&&BMIN.on){let ab=false;try{ab=bmCapaAbierta();}catch(x){}
+    if(!ab&&!document.getElementById('bm-mm')&&!document.getElementById('bm-spot')&&!document.querySelector('.info-overlay.on,#bm-pres'))bmInspCierra();return;}
+  if(String(e.key).toLowerCase()!=='i')return;
+  e.preventDefault();
+  let n=null;const el=BMQL.el;
+  if(el&&el.isConnected){const x=el.dataset&&el.dataset.n?{t:'j',n:el.dataset.n}:bmlpDe(el);if(x&&x.t==='j')n=x.n;}
+  if(!n&&STATE.view==='jugador')n=STATE.curPlayer;
+  if(n&&BMIN.on&&n!==BMIN.n){bmInspAbre(n);return;}
+  bmInspAlterna(n);
+});
+/* si estaba abierto al cerrar la app, vuelve a abrirse con su jugador */
+(function(){let g=null;try{g=JSON.parse(localStorage.getItem('bmnava-insp')||'null');}catch(e){}
+  if(!g||!g.on||!g.n)return;BMIN.n=g.n;
+  let k=0;const t=setInterval(()=>{k++;if(k>60){clearInterval(t);return;}
+    if(!bmInspPuede()){clearInterval(t);return;}
+    if((STATE.players||{})[g.n]&&!window.__RD_CALC){clearInterval(t);bmInspAbre(g.n);}},1000);})();
+window.bmInspAbre=bmInspAbre;window.bmInspCierra=bmInspCierra;window.bmInspAlterna=bmInspAlterna;
 /* v715 · ORDENADOR · Arrastrar y soltar. Daniel, 16/11/2026. Los siete sitios
    donde se suben archivos iban con botón. Ahora se puede soltar el archivo
    sobre la ventana: el JSON de BuilderPro se importa en Gimnasio; una copia de
@@ -16589,7 +16764,7 @@ function bmAtajos(){
   const ord=bmMenuOrden().slice(0,9).map((v,i)=>{const it=document.querySelector('#sidebar .sb-item[data-v="'+v+'"] span');return [k(String(i+1)),it?it.textContent.trim():v];});
   const filas=ord.concat([[k('/')+' '+k('⌘')+k('K'),'Buscar'],[k('N'),'Añadir datos'],[k('←')+' '+k('→'),'Día anterior · siguiente'],[k('H'),'Volver a hoy'],
     [k('R'),'Actualizar los datos'],[k('P'),'Presentar a pantalla completa'],[k(','),'Ajustes'],[k('T'),'Apariencia: automática, clara u oscura'],
-    [k('↑')+' '+k('↓'),'Jugador anterior · siguiente (en la ficha)'],[k('Espacio'),'Vista rápida del jugador bajo el ratón'],
+    [k('↑')+' '+k('↓'),'Jugador anterior · siguiente (en la ficha)'],[k('Espacio'),'Vista rápida del jugador bajo el ratón'],[k('I')+' · '+k('⌥')+' clic','Inspector del jugador'],
     [k('⌃')+k('⌘')+k('S'),'Mostrar u ocultar la barra lateral'],[k('⌘')+' clic','Abrir en otra ventana'],
     [k('?'),'Esta lista'],[k('Esc'),'Cerrar lo que esté abierto']]);
   const html='<div class="bm-atj">'+filas.map(f=>'<div class="bm-atj-f"><span class="bm-atj-k">'+f[0]+'</span><span>'+bmEsc(f[1])+'</span></div>').join('')+'</div>';
@@ -22560,11 +22735,13 @@ function renderPlVuelta(name){
 }
 window.renderPlVuelta=renderPlVuelta;
 
+/* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
+function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
 function renderPlayer(name){
   const p=STATE.players[name];if(!p)return;
   const ring=p.readiness!=null?`conic-gradient(var(--${p.sev}) ${p.readiness*3.6}deg, var(--line) 0)`:`var(--line)`;
   const zc=Object.keys(CONFIG.wellnessVars).map(k=>{const z=p.z[k];if(!z)return"";const sev=isNaN(z.val)?"na":(z.alertSev?z.alertSev:"ok");return`<div class="zc ${z.rel?'':'lowrel'}"><div class="l">${CONFIG.wellnessVars[k].label}</div><div class="v">${fmt(z.val,k==='horas_sueno'?1:0)}</div><div class="z" style="color:${colTexto('var(--'+(sev)+')')}">z ${fmt(z.z,2)}${z.rel?'':' ·n<14'}</div></div>`;}).join('');
-  const factors=p.factors.length?p.factors.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';
+  const factors=rdFactoresHTML(p);
   const wk=weekly(name,'ua',REF()).slice(-4).reverse();
   const acwrSev=p.acwr&&!isNaN(p.acwr.ratio)?(p.acwr.ratio>=1.5?'bad':p.acwr.ratio>=1.3||p.acwr.ratio<0.8?'warn':'ok'):'na';
   const okc='var(--ok)',wc='var(--warn)',bc='var(--bad)';
@@ -41930,6 +42107,7 @@ function bmTbMenu(e){
     {t:'Planificar con lo habitual…',f:()=>{try{bmHabitual();}catch(err){}}},
     {t:'Añadir una nota…',f:()=>{try{bmNota();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
+    {t:'Inspector del jugador',k:'I',f:()=>{try{bmInspAlterna();}catch(err){}}},
     {t:'Qué hay de nuevo…',f:()=>{try{bmNovedadesMac();}catch(err){}}},
     {t:'Imprimir o guardar en PDF…',k:'⌘P',f:()=>window.print()},
     {t:'Ajustes de cálculo…',k:',',f:pulsa('#btn-settings')},
@@ -52043,6 +52221,73 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   ::view-transition-group(bm-foto){animation-duration:.4s}
 }
 </style>
+<style id="esc-v783">
+/* v783 · ORDENADOR · El inspector del jugador, a la derecha, con la misma
+   superficie flotante que la barra lateral (v722). Con 1.280 px de ventana o
+   más el contenido le deja sitio; por debajo va encima. */
+#bm-insp{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #bm-insp{display:flex;flex-direction:column;position:fixed;top:62px;right:12px;bottom:12px;width:340px;z-index:60;border-radius:16px;overflow:hidden;
+    background:var(--sbf-bg);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);box-shadow:0 0 0 .5px var(--sbf-borde),var(--sbf-sombra);
+    color:var(--txt);transform:translateX(calc(100% + 24px));opacity:0;visibility:hidden;
+    transition:transform .3s cubic-bezier(.32,.72,0,1),opacity .2s ease,visibility 0s linear .3s}
+  body.bm-insp-on #bm-insp{transform:none;opacity:1;visibility:visible;transition:transform .3s cubic-bezier(.32,.72,0,1),opacity .2s ease}
+  @media (min-width:1280px){html body.bm-insp-on main{padding-right:376px!important;transition:padding-right .3s cubic-bezier(.32,.72,0,1)}}
+  @media (prefers-reduced-motion:reduce){#bm-insp,body.bm-insp-on #bm-insp{transition:none}}
+  #bm-insp .bmin-bar{display:flex;align-items:center;gap:4px;padding:8px 10px;border-bottom:.5px solid var(--sbf-linea);flex:none}
+  #bm-insp .bmin-bar button{appearance:none;border:none;background:none;color:var(--muted);font:inherit;font-size:18px;line-height:1;width:28px;height:26px;border-radius:6px;cursor:default}
+  #bm-insp .bmin-bar button:hover{background:var(--sbf-hover);color:var(--txt)}
+  #bm-insp .bmin-bar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #bm-insp .bmin-tit{flex:1;text-align:center;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0}
+  #bm-insp .bmin-cuerpo{flex:1;overflow:auto;padding:14px 16px 8px;overscroll-behavior:contain}
+  #bm-insp .bmin-quien{display:flex;align-items:center;gap:12px;cursor:default;border-radius:12px;padding:2px}
+  #bm-insp .bmin-quien:hover b{text-decoration:underline;text-underline-offset:3px}
+  #bm-insp .bmin-av{width:56px;height:56px;flex:none;font-size:18px}
+  #bm-insp .bmin-quien>div{display:flex;flex-direction:column;min-width:0;gap:2px}
+  #bm-insp .bmin-quien b{font-size:17px;font-weight:700;line-height:1.2}
+  #bm-insp .bmin-quien span{font-size:12px;color:var(--muted)}
+  #bm-insp .bmin-quien i{font-style:normal;font-size:12px;font-weight:600}
+  #bm-insp .bmin-dia{margin:10px 0 2px;font-size:12px;color:var(--muted)}
+  #bm-insp .bmin-sec{padding:12px 0;border-top:.5px solid var(--sbf-linea)}
+  #bm-insp .bmin-sec:first-of-type{border-top:none}
+  #bm-insp .bmin-sec h3{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  #bm-insp .bmin-sec h3 span{font-weight:500;letter-spacing:0;text-transform:none}
+  #bm-insp .bmin-rd{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  #bm-insp .bmin-rd b{font-size:34px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  #bm-insp .bmin-rd span{font-size:12px;color:var(--muted);line-height:1.35}
+  #bm-insp .bmin-fac .factor{font-size:12px;margin:0;padding:3px 0;border:none!important;gap:8px;min-height:0}
+  #bm-insp .bmin-fac .factor .mono{font-size:11.5px}
+  #bm-insp .bmin-fac .factor>span:first-child{flex:0 0 104px!important}
+  #bm-insp .bmin-cifs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  #bm-insp .bmin-cif{display:flex;flex-direction:column;gap:1px;min-width:0}
+  #bm-insp .bmin-cif em,#bm-insp .bmin-well em{font-style:normal;font-size:11px;color:var(--muted)}
+  #bm-insp .bmin-cif b{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+  #bm-insp .bmin-cif small{font-size:11px;color:var(--muted)}
+  #bm-insp .bmin-sp{display:block;width:100%;height:54px}
+  #bm-insp .bmin-sp-band{fill:var(--muted);opacity:.14}
+  #bm-insp .bmin-sp-b{fill:var(--c-data)}
+  #bm-insp .bmin-sp-b.hoy{fill:var(--accent)}
+  #bm-insp .bmin-sp-0{fill:var(--muted);opacity:.45}
+  #bm-insp .bmin-sp-med{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;fill:none}
+  #bm-insp .bmin-sp-pie{display:flex;justify-content:space-between;gap:6px;font-size:11px;color:var(--muted);margin-top:3px}
+  #bm-insp .bmin-sp-pie span:nth-child(2){text-align:center;flex:1}
+  #bm-insp .bmin-well{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 8px}
+  #bm-insp .bmin-well>div{display:flex;flex-direction:column;gap:1px;padding:7px 9px;border-radius:9px;background:var(--sbf-pozo)}
+  #bm-insp .bmin-well b{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+  #bm-insp .bmin-dolor{margin:8px 0 0;font-size:12.5px;font-weight:600}
+  #bm-insp .bmin-l{display:flex;flex-direction:column;gap:1px;padding:5px 0}
+  #bm-insp .bmin-l span{font-size:13px;font-weight:500;overflow-wrap:anywhere}
+  #bm-insp .bmin-l small{font-size:11.5px;color:var(--muted)}
+  #bm-insp .bmin-nada{margin:0;font-size:12.5px;color:var(--muted)}
+  #bm-insp .bmin-acc{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px 12px;border-top:.5px solid var(--sbf-linea);flex:none}
+  #bm-insp .bmin-acc button{appearance:none;font:inherit;font-size:12.5px;font-weight:500;height:26px;padding:0 10px;border-radius:6px;cursor:default;
+    border:none;background:var(--sbf-pozo);color:var(--txt);box-shadow:none}
+  #bm-insp .bmin-acc button:hover{background:var(--sbf-hover)}
+  #bm-insp .bmin-acc button.pri{background:var(--accent);color:var(--on-accent);box-shadow:none}
+  #bm-insp .bmin-acc button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+}
+</style>
+
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
 @media screen and (min-width:761px) and (pointer:fine){
