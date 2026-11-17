@@ -7300,7 +7300,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
   <section class="view" id="v-tests">
     <div class="ctrlrow" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div><h2 style="margin:0">Perfil físico · z-scores y TSA <span class="tag" id="tests-badge">datos de ejemplo</span></h2><div class="small muted">Estandarización dentro de la plantilla (Turner 2019) · condición, fuerza y explosividad</div></div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0"><span class="tag">Jugador</span><select id="tests-player" onchange="tsaModo('jugador');renderTestsProfile()" style="max-width:190px;min-width:0"></select><button class="btn" onclick="openFicha(document.getElementById('tests-player').value)">Ficha / exportar</button></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0"><span class="tag">Jugador</span><select id="tests-player" onchange="tsaModo('jugador');renderTestsProfile()" style="max-width:190px;min-width:0"></select><button class="btn" onclick="openFicha(document.getElementById('tests-player').value)">Ficha / exportar</button><button class="btn ghost" onclick="bmCarta(document.getElementById('tests-player').value)">Carta del jugador</button></div>
     </div>
 
     <!-- v358 · La vista era una sola página larguísima con el equipo arriba y el
@@ -14196,6 +14196,7 @@ function bmbIndice(){
   A('Planificar con lo habitual','La sesión habitual de cada día del ciclo, para los días vacíos',()=>{if(window.bmHabitual)bmHabitual();},'planificar ciclo microciclo semana habitual rellenar plantilla');
   A('Desde tu última visita','Lo que ha entrado desde la última vez en este equipo',()=>{if(window.bmDesdeVisita)bmDesdeVisita();},'novedades cambios nuevo');
   A('Informe del jugador','Su mes: carga, recuperación, ACWR, minutos, pruebas y salud, para la reunión',()=>{if(window.bmInformeJugador)bmInformeJugador();},'informe reunion jugador mes');
+  A('Carta del jugador','Su nota física, sus capacidades y lo que ha mejorado, en una imagen para dársela',()=>{if(window.bmCarta)bmCarta();},'carta tarjeta jugador nota fisica imagen motivacion');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
   document.querySelectorAll('#add-menu .add-item').forEach(b=>{const t=b.querySelector('b'),sm=b.querySelector('small');if(!t)return;
     A(t.textContent.trim(),sm?sm.textContent.trim():'',()=>b.click(),'añadir');});
@@ -14372,7 +14373,7 @@ function bmlpMenu(x){
         +(window.openFisioReg?fila(BMLP_IC.trat,'Registrar en fisioterapia','Tratamiento, vendaje o parte','trat'):'')
         +(window.openHeroForm?fila(BMLP_IC.cita,'Cita o documento médico','','cita'):'')
       +'</div>';
-    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),carta:()=>bmCarta(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
   }else{
     const p=x.dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]),pas=x.dk<=dkey(new Date());
     tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
@@ -14442,6 +14443,7 @@ function bmPrevia(x,acc){
     menu=fila('ficha',BMLP_IC.ficha,'Ver la ficha')
       +(window.bmComparar?fila('cmp',BMLP_IC.ficha,'Comparar con…'):'')
       +(window.bmInformeJugador?fila('inf',BMLP_IC.parte,'Informe del mes'):'')
+      +(window.bmCarta?fila('carta',BMLP_IC.ficha,'Carta del jugador'):'')
       +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
       +(window.ojoMarcar?fila('ojo',BMLP_IC.ojo,'Ojo hoy'):'')
       +(window.openFisioReg?fila('trat',BMLP_IC.trat,'Registrar en fisioterapia'):'')
@@ -14566,13 +14568,14 @@ function bmCtxMac(x,cx,cy){
   const I=BMLP_IC;let it=[];
   if(x.t==='j'){
     const n=x.n;
-    const acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    const acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),carta:()=>bmCarta(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
     it.push({h:n});
     it.push({t:'Ver la ficha',ic:I.ficha,f:acc.ficha});
     it.push({t:'Abrir en una ventana nueva',ic:'',k:'⌘ clic',f:()=>bmAbreVentana(bmUrlDe('jugador',n))});
     it.push({t:'Vista rápida',ic:'',k:'Espacio',f:()=>bmPrevia(x,acc)});
     if(window.bmComparar)it.push({t:'Comparar con…',ic:'',f:acc.cmp});
     if(window.bmInformeJugador)it.push({t:'Informe del mes',ic:'',f:()=>bmInformeJugador(n)});
+    if(window.bmCarta)it.push({t:'Carta del jugador',ic:'',f:()=>bmCarta(n)});
     it.push({sep:1});
     if(window.openHeroForm)it.push({t:'Parte del día',ic:I.parte,tit:'Dolor, tratamiento o incidencia',f:acc.parte});
     if(window.ojoMarcar)it.push({t:'Ojo hoy',ic:I.ojo,tit:'Avisar de que hay que valorarlo',f:acc.ojo});
@@ -18518,6 +18521,141 @@ document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.targ
   if(v==='-1'||v==='1'){const y=+IJ.mes.slice(0,4),m=+IJ.mes.slice(5,7)-1+(+v);const d=new Date(y,m,1);IJ.mes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');ijPinta();}});
 document.addEventListener('change',e=>{const t=e.target;if(!t||!t.matches||!t.matches('#bmh-ijug [data-ij="n"]'))return;IJ.n=t.value;ijPinta();});
 window.bmInformeJugador=bmInformeJugador;
+
+/* ═══ v766 · La carta del jugador ═══
+   Daniel, 17/11/2026, eligió la propuesta 6: una pieza para dársela al jugador
+   o colgarla, que motive. La ficha exportable sigue siendo el documento entero;
+   esto es lo que un jugador mira en diez segundos.
+   · Diseño propio, de la familia de la ficha exportable: el mismo grafito con
+     el brillo granate del club (`.fhead2`), y como es una imagen que se manda,
+     sus colores están fijados y no viran con el tema.
+   · Nada se calcula aquí: la nota sale de `tsaRows`; las tres
+     capacidades, de `capNivelBaremo` contra el baremo de SU puesto (la barra es
+     la media de `refNivelCont`, el nivel continuo del radar, y la palabra es
+     `capNivelDe`, la del semáforo); «desde julio» es `tsaDelta`, que se calla
+     si las dos valoraciones no cubren las tres capacidades (regla de la v491).
+     No lleva su puesto en la plantilla: es una pieza para motivar y un «18.º
+     de 18» juega en contra; la comparación con el resto ya está en Perfil físico.
+   · Las tres mejoras son las pruebas que más ha subido entre su primera y su
+     última valoración real de la temporada, ordenadas por cuántas desviaciones
+     típicas del grupo han subido (la unidad de `tsaProgresoZ`) y escritas en la
+     unidad de cada prueba, nunca en %. Sólo entran las que superan el cambio
+     mínimo que merece la pena (SWC = 0,2 DT, el de Perfil físico › Análisis):
+     un +0,01 no es una mejora. Peso y talla no entran: no tienen lado bueno. */
+const CJ={n:null};
+const CJ_ORD=['Condición','Fuerza','Explosividad'];
+const CJ_NIV=[{c:'#ff6a5f',t:'Rojo'},{c:'#ffb224',t:'Ámbar'},{c:'#30d47f',t:'Verde'},{c:'#f0d98a',t:'Champions'}];
+function cjMejoras(n,st){
+  const f=tsaFotosReales(n);if(f.length<2)return [];
+  const neu=['peso','talla'],out=[];
+  TESTS.forEach(t=>{
+    if(!tsaEnNota(t)||neu.indexOf(t.k)>=0)return;
+    try{if(!fichaVigente(t.k))return;if(typeof tempVigente==='function'&&!tempVigente(t.k))return;}catch(e){}
+    let a=null,ad=null,b=null,bd=null;
+    for(let i=0;i<f.length;i++){const v=f[i].vals&&f[i].vals[t.k];if(v!=null&&isFinite(v)){a=+v;ad=f[i].date;break;}}
+    for(let j=f.length-1;j>=0;j--){const v=f[j].vals&&f[j].vals[t.k];if(v!=null&&isFinite(v)){b=+v;bd=f[j].date;break;}}
+    if(a==null||b==null||ad===bd)return;
+    const sd=st[t.k]&&st[t.k].s;if(!(sd>0))return;
+    const d=b-a,z=(t.lowerBetter?-d:d)/sd;
+    /* sólo lo que supera el cambio mínimo que merece la pena: SWC = 0,2 DT de
+       la plantilla, el mismo de Perfil físico › Análisis (`reliabilityRows`) */
+    if(z>=0.2)out.push({t,a,b,d,z});
+  });
+  return out.sort((x,y)=>y.z-x.z).slice(0,3);
+}
+function cjDatos(n){
+  const st=testStats(),rows=tsaRows(),r=rows.find(x=>x.name===n)||{};
+  const pl=(STATE.players||{})[n]||{};
+  let pos='';try{pos=posDetailOf(n)||posGroup(pl.pos)||'';}catch(e){pos=pl.pos||'';}
+  const cb=capNivelBaremo(n);
+  const caps=CJ_ORD.map(c=>{const arr=cb&&cb.cats&&cb.cats[c];if(!arr||!arr.length)return {c,lv:null};
+    const cs=arr.map(o=>refNivelCont(o.t.k,o.v,cb.puesto)).filter(v=>v!=null);
+    return {c,lv:capNivelDe(cb.cats,c).lv,v:cs.length?mean(cs):null,n:arr.length,champ:arr.filter(o=>o.lv===3).length};});
+  const f=tsaFotosReales(n);
+  const dl=tsaDelta(n,st);
+  return {n,pl,pos,nota:r.t100!=null?r.t100:null,
+    puesto:cb&&cb.puesto,caps,champ:caps.reduce((a,x)=>a+(x.champ||0),0),
+    julio:dl&&dl.julio&&!dl.julio.parcial?dl.julio.d:null,
+    mejoras:cjMejoras(n,st),ultima:f.length?f[f.length-1].date:null,
+    dor:(typeof dorsal==='function'?dorsal(n):'')||((STATE.info||{})[n]||{}).dorsal||'',
+    foto:(()=>{const u=pl.avatar||photoFor(n)||'';try{return phGrande(u);}catch(e){return u;}})()};
+}
+function cjHTML(D){
+  const E=bmEsc,f2=v=>fmt(Math.abs(v),Math.abs(v)<10?2:1).replace(/,?0+$/,'').replace(/,$/,'');
+  const tem=TEMP_INICIO.slice(2,4)+'/'+String(+TEMP_INICIO.slice(2,4)+1).padStart(2,'0');
+  const ddmmaa=dk=>{const p=String(dk).split('-');return +p[2]+'/'+(+p[1])+'/'+p[0];};
+  const caps=D.caps.map(x=>{
+    if(x.lv==null)return '<div class="cj-cap cj-cap--x"><span>'+E(x.c)+'</span><i class="cj-bar"><i></i></i><em>sin prueba</em></div>';
+    const N=CJ_NIV[x.lv],w=Math.max(4,Math.min(100,(x.v!=null?x.v:x.lv+.5)/3*100));
+    return '<div class="cj-cap"><span>'+E(x.c)+'</span><i class="cj-bar"><b style="width:'+w.toFixed(1)+'%;background:'+N.c+'"></b><s style="left:33.33%"></s><s style="left:66.67%"></s></i>'
+      +'<em style="color:'+N.c+'">'+(x.lv===3?'★ ':'')+N.t+'</em></div>';
+  }).join('');
+  const mej=D.mejoras.length?D.mejoras.map(m=>{const u=m.t.unit?' '+m.t.unit:'';
+      return '<div class="cj-m"><b>▲</b><span>'+E(m.t.name)+'</span><em>'+(m.d>0?'+':'−')+f2(m.d)+E(u)+'</em></div>';}).join('')
+    :'<p class="cj-nada">'+(D.ultima?'Todavía ninguna prueba ha subido más que el cambio mínimo desde su primera valoración de la temporada.':'Sin dos valoraciones esta temporada con las que comparar.')+'</p>';
+  const ini=String(D.n).split(/\s+/).map(w=>w[0]).slice(0,2).join('');
+  return '<div class="cj-doc">'
+    +'<div class="cj-cab">'+(D.dor!==''?'<div class="cj-dor">'+E(D.dor)+'</div>':'')
+      +(D.foto?'<img class="cj-ph" src="'+E(D.foto)+'" alt="">':'<div class="cj-ini">'+E(ini)+'</div>')
+      +'<div class="cj-top">'+(window.__LOGO_CLUB__?'<span class="cj-logo"><img src="'+window.__LOGO_CLUB__+'" alt=""></span>':'<span></span>')+'<span class="cj-tem">Temporada '+tem+'</span></div>'
+      +'<div class="cj-nota"><b>'+(D.nota!=null?D.nota:'—')+'</b><span>Nota física</span>'
+      +(D.nota==null?'<em>Sin valoración esta temporada</em>':'')
+      +(D.champ?'<em class="cj-ch">★ '+D.champ+(D.champ===1?' prueba':' pruebas')+' en nivel Champions</em>':'')+'</div></div>'
+    +'<div class="cj-cu"><div class="cj-id"><b>'+E(D.n)+'</b><span>'+E([D.pos,D.dor!==''?'Dorsal '+D.dor:''].filter(Boolean).join(' · '))+'</span></div>'
+    +'<div class="cj-sec"><h4>Capacidades'+(D.puesto?' · baremo de '+E(D.puesto):'')+'</h4>'+caps+'</div>'
+    +'<div class="cj-sec"><h4>Desde julio'+(D.julio!=null?'<em class="'+(D.julio>=0?'cj-up':'cj-dn')+'">'+(D.julio>0?'+':D.julio<0?'−':'')+Math.abs(D.julio)+' puntos de nota</em>':'')+'</h4>'+mej+'</div>'
+    +'<div class="cj-pie"><span>BM Nava · Perfil físico'+(D.ultima?' · valoración del '+ddmmaa(D.ultima):'')+'</span>'+(window.__LOGO_HP__?'<span class="cj-hp"><img src="'+window.__LOGO_HP__+'" alt=""></span>':'')+'</div>'
+    +'</div></div>';
+}
+function bmCarta(n){
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  n=(n&&(STATE.players||{})[n])?n:(STATE.curPlayer&&(STATE.players||{})[STATE.curPlayer]?STATE.curPlayer:noms[0]);if(!n)return;
+  CJ.n=n;
+  bmHoja({id:'carta',titulo:'Carta del jugador',clase:'cj-hoja',html:'<div class="cj" id="cj-cuerpo"></div>'});
+  cjPinta();
+}
+function cjPinta(){
+  const box=document.getElementById('cj-cuerpo');if(!box)return;
+  let D=null;try{D=cjDatos(CJ.n);}catch(e){console.error('bmnava · carta',e);}
+  if(!D){box.innerHTML='<p class="ij-nada">No se pudo preparar la carta.</p>';return;}
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  box.innerHTML='<div class="ij-nav cj-nav"><button type="button" class="inf-fl" data-cj="-1" aria-label="Jugador anterior">‹</button>'
+      +'<select data-cj="n" aria-label="Jugador">'+noms.map(x=>'<option'+(x===CJ.n?' selected':'')+'>'+bmEsc(x)+'</option>').join('')+'</select>'
+      +'<button type="button" class="inf-fl" data-cj="1" aria-label="Jugador siguiente">›</button></div>'
+    +'<div class="cj-vista"><div class="cj-esc">'+cjHTML(D)+'</div></div>'
+    +'<div class="ij-acc cj-acc">'+(!esMovil()?'<button type="button" class="btn ghost" data-cj="lote">Exportar las '+noms.length+'</button>':'')
+    +'<button type="button" class="btn" data-cj="png">Exportar imagen</button></div>';
+  cjAjusta();
+}
+function cjAjusta(){
+  const v=document.querySelector('#cj-cuerpo .cj-vista'),e=v&&v.querySelector('.cj-esc'),d=e&&e.firstElementChild;if(!d)return;
+  const s=Math.min(1,(v.clientWidth||600)/600);
+  e.style.transform=s<1?'scale('+s+')':'';v.style.height=Math.ceil(d.offsetHeight*s)+'px';
+}
+function cjExporta(n,lote){
+  let D=null;try{D=cjDatos(n);}catch(e){}if(!D)return Promise.resolve();
+  const host=document.createElement('div');host.className='cvd-host';
+  host.innerHTML=cjHTML(D).replace('class="cj-doc"','class="cj-doc" id="cj-doc"');
+  document.body.appendChild(host);
+  const fin=()=>{try{host.remove();}catch(e){}};
+  const nom=String(D.n).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_');
+  const imgs=[...host.querySelectorAll('img')].map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r;setTimeout(r,3000);}));
+  return Promise.all(imgs).then(()=>Promise.resolve(exportNodePNG('cj-doc','carta_'+nom+'.png',{bg:'transparent'}))).then(fin,fin);
+}
+async function cjLote(){
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  if(!bmPregunta('Se descargan '+noms.length+' imágenes, una por jugador. ¿Seguimos?',()=>cjLote()))return;
+  window.__EXP_LOTE=true;
+  try{for(let i=0;i<noms.length;i++){toast('Exportando '+(i+1)+' de '+noms.length+'…');await cjExporta(noms[i],true);await new Promise(r=>setTimeout(r,250));}}
+  finally{window.__EXP_LOTE=false;}
+  toast('Cartas exportadas · '+noms.length);
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-carta [data-cj]');if(!b||b.disabled||b.tagName==='SELECT')return;
+  const v=b.dataset.cj;if(v==='png'){cjExporta(CJ.n);return;}if(v==='lote'){cjLote();return;}
+  const noms=Object.keys(STATE.players||{}).sort((a,c)=>a.localeCompare(c,'es'));let i=noms.indexOf(CJ.n)+(+v);if(i<0)i=noms.length-1;if(i>=noms.length)i=0;CJ.n=noms[i];cjPinta();});
+document.addEventListener('change',e=>{const t=e.target;if(!t||!t.matches||!t.matches('#bmh-carta [data-cj="n"]'))return;CJ.n=t.value;cjPinta();});
+window.addEventListener('resize',()=>{if(document.querySelector('#bmh-carta.on'))cjAjusta();});
+window.bmCarta=bmCarta;
 
 /* v743 · DESDE TU ÚLTIMA VISITA. Daniel, 16/11/2026, eligió la propuesta 5.
    Virginia, Carlos y Daniel trabajan sobre los mismos datos en equipos
@@ -42589,6 +42727,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
        +'<button class="btn phero-add" onclick="openReunion(\''+q2(name)+'\')">+ Reunión</button>'
        +'<button class="btn ghost phero-cmp" onclick="bmComparar(\''+q2(name)+'\')">Comparar con…</button>'
        +'<button class="btn ghost phero-cmp" onclick="bmInformeJugador(\''+q2(name)+'\')">Informe del mes</button>'
+       +'<button class="btn ghost phero-cmp" onclick="bmCarta(\''+q2(name)+'\')">Carta del jugador</button>'
      +'</div>'
    +'</div>';
  };
@@ -50976,6 +51115,68 @@ html.bpr-on body{overflow:hidden}
   .hab-c{width:26px;height:26px}
   .hab-c::before{content:"";position:absolute;inset:-9px}
   .bm-habh .bci-pie2 .btn,.bm-habh .bci-nav .inf-fl{min-height:44px;min-width:44px}
+}
+</style>
+<style id="bm-v766">
+/* v766 · La carta del jugador. Es una imagen que se manda: sus colores están
+   fijados y no viran con el tema. La familia es la de la ficha exportable
+   (`.fhead2`): grafito con el brillo granate del club. Los cuatro niveles van
+   en sus tonos para fondo oscuro, y el dorado sólo para Champions (§2.3).
+   La foto se corta limpia contra el panel de abajo y no se funde: html2canvas
+   no pinta los degradados igual que el navegador (los repite como mosaico y
+   mide distinto el radial), y un fundido dejaba una raya y un corte. Por lo
+   mismo los rótulos van sin espaciado entre letras: con él, html2canvas dejaba
+   un hueco detrás de cada «I» («CAPACI DADES»). */
+.cj-doc{--ft:1;--fmin:0px;position:relative;width:600px;min-height:912px;display:flex;flex-direction:column;box-sizing:border-box;border-radius:28px;overflow:hidden;color:#fff;text-align:left;background:#121318;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Inter,system-ui,sans-serif}
+.cj-cab{position:relative;flex:none;height:452px;box-sizing:border-box;padding:26px 30px 0;overflow:hidden;border-bottom:1px solid rgba(255,255,255,.1);
+  background:radial-gradient(circle at 88% 8%,rgba(150,18,36,.78) 0%,rgba(150,18,36,.28) 38%,rgba(150,18,36,0) 70%),linear-gradient(180deg,#272931 0%,#1a1b21 100%);background-repeat:no-repeat}
+.cj-top{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:3}
+.cj-logo{background:#fff;border-radius:10px;padding:5px 9px;display:inline-flex}
+.cj-logo img{height:30px;width:auto;display:block}
+.cj-tem{font-size:12px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:rgba(255,255,255,.72)}
+.cj-dor{position:absolute;right:28px;top:58px;font-size:230px;font-weight:900;line-height:1;letter-spacing:-.05em;color:rgba(255,255,255,.07);z-index:0}
+.cj-ph{position:absolute;right:-12px;bottom:0;height:396px;width:auto;z-index:1}
+.cj-ini{position:absolute;right:64px;bottom:60px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:84px;font-weight:800;color:rgba(255,255,255,.5);z-index:1}
+.cj-nota{position:absolute;left:30px;top:100px;z-index:3;display:flex;flex-direction:column;gap:2px;max-width:240px}
+.cj-nota b{font-size:104px;font-weight:800;letter-spacing:-.05em;line-height:.92}
+.cj-nota span{font-size:13px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:rgba(255,255,255,.72);margin:8px 0 10px}
+.cj-nota em{font-style:normal;font-size:14px;font-weight:600;color:#fff;line-height:1.45}
+.cj-nota em.cj-ch{color:#f0d98a;margin-top:8px}
+.cj-cu{flex:1;display:flex;flex-direction:column;padding:22px 30px 22px}
+.cj-id b{display:block;font-size:34px;font-weight:800;letter-spacing:-.025em;line-height:1.05}
+.cj-id span{display:block;font-size:15px;color:rgba(255,255,255,.72);margin-top:6px}
+.cj-sec{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.12)}
+.cj-sec h4{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:rgba(255,255,255,.62);display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.cj-sec h4 em{font-style:normal;font-size:15px;letter-spacing:0;text-transform:none;font-weight:700}
+.cj-up{color:#30d47f}.cj-dn{color:rgba(255,255,255,.72)}
+.cj-cap{display:grid;grid-template-columns:118px minmax(0,1fr) 108px;align-items:center;gap:14px;padding:6px 0}
+.cj-cap>span{font-size:16px;font-weight:600}
+.cj-cap>em{font-style:normal;font-size:14px;font-weight:700;text-align:right}
+.cj-cap--x>em{color:rgba(255,255,255,.5);font-weight:500}
+.cj-bar{position:relative;display:block;height:10px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
+.cj-bar b{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
+.cj-bar s{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#121318}
+.cj-m{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:baseline;gap:10px;padding:6px 0;font-size:16px}
+.cj-m b{color:#30d47f;font-size:12px}
+.cj-m span{font-weight:600}
+.cj-m em{font-style:normal;font-weight:700;color:#30d47f;font-variant-numeric:tabular-nums}
+.cj-nada{margin:0;font-size:14px;color:rgba(255,255,255,.62);line-height:1.4}
+.cj-pie{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;padding-top:22px;font-size:12px;color:rgba(255,255,255,.55)}
+.cj-hp{background:#fff;border-radius:8px;padding:4px 7px;display:inline-flex}
+.cj-hp img{height:18px;width:auto;display:block}
+/* la hoja */
+.cj-nav{justify-content:center}
+.cj-nav select{font:inherit;font-size:13.5px;max-width:260px}
+.cj-vista{width:100%;max-width:600px;margin:0 auto;overflow:hidden}
+.cj-esc{transform-origin:0 0;width:600px}
+.cj-acc{gap:8px}
+@media screen and (min-width:761px) and (pointer:fine){.cj-hoja .bmh-caja{width:min(680px,calc(100vw - 80px))!important;max-width:none!important}}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .cj-nav .inf-fl,.cj-acc .btn{min-height:44px;min-width:44px}
+  .cj-nav select{min-height:44px;flex:1;max-width:none}
+  .cj-nav{flex-wrap:nowrap}
+  .cj-nav .bm-jsel{flex:1 1 auto;min-width:0;width:auto;margin:0}
 }
 </style>
 <style id="esc-v762">
