@@ -14187,6 +14187,7 @@ function bmbIndice(){
   A('Recordatorio del parte','Copia «Falta el cuestionario de wellness de hoy: …» para el grupo',()=>{if(window.bmRecordatorio)bmRecordatorio('well');},'recordatorio wellness parte whatsapp grupo faltan');
   A('Datos que faltan','Días sin minutos, partidos sin minutos jugados y cuestionarios pendientes',()=>{if(window.bmFaltan)bmFaltan();},'faltan pendientes huecos completar');
   A('Desde tu última visita','Lo que ha entrado desde la última vez en este equipo',()=>{if(window.bmDesdeVisita)bmDesdeVisita();},'novedades cambios nuevo');
+  A('Informe del jugador','Su mes: carga, recuperación, ACWR, minutos, pruebas y salud, para la reunión',()=>{if(window.bmInformeJugador)bmInformeJugador();},'informe reunion jugador mes');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
   document.querySelectorAll('#add-menu .add-item').forEach(b=>{const t=b.querySelector('b'),sm=b.querySelector('small');if(!t)return;
     A(t.textContent.trim(),sm?sm.textContent.trim():'',()=>b.click(),'añadir');});
@@ -14363,7 +14364,7 @@ function bmlpMenu(x){
         +(window.openFisioReg?fila(BMLP_IC.trat,'Registrar en fisioterapia','Tratamiento, vendaje o parte','trat'):'')
         +(window.openHeroForm?fila(BMLP_IC.cita,'Cita o documento médico','','cita'):'')
       +'</div>';
-    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
   }else{
     const p=x.dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]),pas=x.dk<=dkey(new Date());
     tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
@@ -14431,6 +14432,7 @@ function bmPrevia(x,acc){
     const n=x.n;tarjeta=bmPreviaJ(n);
     menu=fila('ficha',BMLP_IC.ficha,'Ver la ficha')
       +(window.bmComparar?fila('cmp',BMLP_IC.ficha,'Comparar con…'):'')
+      +(window.bmInformeJugador?fila('inf',BMLP_IC.parte,'Informe del mes'):'')
       +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
       +(window.ojoMarcar?fila('ojo',BMLP_IC.ojo,'Ojo hoy'):'')
       +(window.openFisioReg?fila('trat',BMLP_IC.trat,'Registrar en fisioterapia'):'')
@@ -14554,12 +14556,13 @@ function bmCtxMac(x,cx,cy){
   const I=BMLP_IC;let it=[];
   if(x.t==='j'){
     const n=x.n;
-    const acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    const acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
     it.push({h:n});
     it.push({t:'Ver la ficha',ic:I.ficha,f:acc.ficha});
     it.push({t:'Abrir en una ventana nueva',ic:'',k:'⌘ clic',f:()=>bmAbreVentana(bmUrlDe('jugador',n))});
     it.push({t:'Vista rápida',ic:'',k:'Espacio',f:()=>bmPrevia(x,acc)});
     if(window.bmComparar)it.push({t:'Comparar con…',ic:'',f:acc.cmp});
+    if(window.bmInformeJugador)it.push({t:'Informe del mes',ic:'',f:()=>bmInformeJugador(n)});
     it.push({sep:1});
     if(window.openHeroForm)it.push({t:'Parte del día',ic:I.parte,tit:'Dolor, tratamiento o incidencia',f:acc.parte});
     if(window.ojoMarcar)it.push({t:'Ojo hoy',ic:I.ojo,tit:'Avisar de que hay que valorarlo',f:acc.ojo});
@@ -18153,6 +18156,126 @@ document.addEventListener('click',e=>{
 });
 function bmRecLab(){return esMovil()?'Enviar recordatorio':'Copiar recordatorio';}
 window.bmRecordatorio=bmRecordatorio;window.bmRecTexto=bmRecTexto;
+/* ═══ v761 · Informe del jugador para la reunión ═══
+   La ficha exportable es del perfil físico; de carga y bienestar no había
+   nada que enseñarle al jugador. Una lámina por jugador y mes. No calcula
+   nada: la carga es la de siempre (`contDailyTo`, `weekly`), «su normal» es la
+   mediana de sus propios días y semanas con carga de esta temporada (la regla
+   de `plNormal`: un día sin carga no es un día de 0 UA), el ACWR es el de la
+   ficha (`acwrToDate`, sólo donde es fiable), la recuperación es la que
+   declaró (`recPct(twVal(w))`), el estado de cada día sale de
+   `effectiveStatus`, los minutos de `ptMinutos` y las pruebas del histórico
+   REAL (no las instantáneas que fabrica `buildTestHist`). El salto semanal se
+   marca con el listón de siempre (`CONFIG.load.weekJump`). */
+const IJ={n:null,mes:null};
+const IJ_MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function ijDatos(n,mes){
+  const p=(STATE.players||{})[n];if(!p)return null;
+  const y=+mes.slice(0,4),m=+mes.slice(5,7);
+  const ini=mes+'-01',finMes=dkey(new Date(y,m,0)),hoy=dkey(new Date());
+  const fin=finMes<hoy?finMes:hoy;if(fin<ini)return {n,p,mes,vacio:true};
+  const ds=[];for(let t=dkToDate(ini).getTime(),e=dkToDate(fin).getTime();t<=e;t+=86400000)ds.push(dkey(new Date(t)));
+  const refEnd=new Date(dkToDate(fin).getTime()+86399000);
+  const ua={},temp=[];
+  try{contDailyTo(n,refEnd).forEach(d=>{const k=dkey(d.date);if(d.ua>0){if(k>=ini&&k<=fin)ua[k]=d.ua;if(k>=TEMP_INICIO&&k<=fin)temp.push(d.ua);}});}catch(e){}
+  const dias=Object.keys(ua).length,carga=Object.values(ua).reduce((a,b)=>a+b,0);
+  const normalDia=plMediana(temp);
+  let wk=[];try{wk=weekly(n,'ua',refEnd);}catch(e){}
+  const wkMes=wk.filter(w=>{const fw=dkey(new Date(dkToDate(w.week).getTime()+6*86400000));return w.week<=fin&&fw>=ini;});
+  const normalSem=plMediana(wk.filter(w=>w.week>=weekKey(dkToDate(TEMP_INICIO))&&!w.parcial&&w.ua>0).map(w=>w.ua));
+  /* sin carga calculable el ratio sale 0: eso no es un ACWR bajo, es no saberlo (regla de `lesCarga`) */
+  let acwr=null;try{const r=acwrToDate(n,refEnd);if(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0)acwr=r.ratio;}catch(e){}
+  let fuera=0,molestia=0;const estados={};
+  ds.forEach(dk=>{let e=null;try{e=effectiveStatus(n,dk);}catch(_){}const st=e&&e.status;if(!st)return;
+    if(NOAV_ST.includes(st)){fuera++;estados[st]=(estados[st]||0)+1;}else if(CARE_ST.includes(st)){molestia++;estados[st]=(estados[st]||0)+1;}});
+  let fueraBanda=0;ds.forEach(dk=>{try{const r=acwrToDate(n,new Date(dkToDate(dk).getTime()+86399000));if(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0&&acwrClass(r.ratio)!=='ok')fueraBanda++;}catch(e){}});
+  const rec=(p.w||[]).filter(w=>w&&w.dk>=ini&&w.dk<=fin).map(w=>{try{return recPct(twVal(w));}catch(e){return null;}}).filter(v=>v!=null&&isFinite(v));
+  const recMedia=rec.length?rec.reduce((a,b)=>a+b,0)/rec.length:null;
+  const partidos=[];try{calPartidosDks().filter(dk=>dk>=ini&&dk<=fin).forEach(dk=>{const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};partidos.push({dk,riv:evRival(ev)||'Partido',min:ptMinutos(dk,n)});});}catch(e){}
+  const minutos=partidos.reduce((a,x)=>a+(x.min||0),0);
+  const pruebas=[];const H=((STATE.testHist||{})[n]||[]).filter(sn=>sn&&sn.real===true);
+  H.forEach(sn=>{if(sn.date<ini||sn.date>fin)return;Object.keys(sn.vals||{}).forEach(k=>{const def=testDefByK(k);if(!def)return;
+    let prev=null;H.forEach(o=>{if(o.date<sn.date&&o.vals&&o.vals[k]!=null)prev=o.vals[k];});
+    pruebas.push({dk:sn.date,k,def,v:sn.vals[k],prev});});});
+  const salud=((STATE.med&&STATE.med.inj)||[]).filter(e=>e&&e.name===n&&e.dk<=fin&&(e.open||!e.closeDk||e.closeDk>=ini)).map(e=>({tit:e.title||'Episodio',zona:[e.zona,e.lado==='I'?'izq.':e.lado==='D'?'der.':''].filter(Boolean).join(' '),dk:e.dk,cierre:e.open?null:e.closeDk,open:!!e.open}));
+  return {n,p,mes,ini,fin,ds,dias,carga,normalDia,wkMes,normalSem,acwr,fueraBanda,fuera,molestia,estados,recMedia,nRec:rec.length,partidos,minutos,pruebas,salud,parcial:fin<finMes};
+}
+function ijTitMes(mes){return IJ_MES[+mes.slice(5,7)-1]+' de '+mes.slice(0,4);}
+function ijHTML(D,doc){
+  const E=bmEsc,f0=v=>Math.round(v).toLocaleString('es'),ddmm=dk=>+dk.slice(8,10)+'/'+(+dk.slice(5,7));
+  if(D.vacio)return '<p class="ij-nada">Ese mes todavía no ha empezado.</p>';
+  const col=v=>colTexto(v);
+  const k=(et,val,sub,c)=>'<div class="ij-k"><em>'+et+'</em><b'+(c?' style="color:'+col(c)+'"':'')+'>'+val+'</b><span>'+sub+'</span></div>';
+  const mediaDia=D.dias?D.carga/D.dias:null;
+  const rsev=D.recMedia!=null?recSev(D.recMedia):null;
+  const kp=k('Días con carga',D.dias,'de '+D.ds.length+' días'+(D.parcial?' hasta hoy':''),'')
+    +k('Carga del mes',D.carga?f0(D.carga)+' UA':'—',mediaDia!=null?'media '+f0(mediaDia)+' UA por día'+(D.normalDia!=null?' · su normal '+f0(D.normalDia):''):'sin carga calculable','')
+    +k('Recuperación',D.recMedia!=null?Math.round(D.recMedia)+' %':'—',D.nRec?D.nRec+(D.nRec===1?' parte':' partes'):'sin partes',rsev?'var(--'+rsev+')':'')
+    +k('ACWR al cierre',D.acwr!=null?fmt(D.acwr,2):'—',D.fueraBanda?D.fueraBanda+(D.fueraBanda===1?' día':' días')+' fuera de 0,8–1,3':'siempre en banda',D.acwr!=null?'var(--'+acwrClass(D.acwr)+')':'')
+    +k('Minutos jugados',D.partidos.length?D.minutos+'′':'—',D.partidos.length?D.partidos.length+(D.partidos.length===1?' partido':' partidos'):'sin partidos','')
+    +k('Disponibilidad',D.fuera||D.molestia?(D.fuera+D.molestia)+(D.fuera+D.molestia===1?' día':' días'):'Todos',D.fuera||D.molestia?D.fuera+' fuera · '+D.molestia+' con molestia':'sin días fuera ni con molestia',D.fuera?'var(--bad)':(D.molestia?'var(--warn)':'var(--ok)'));
+  /* semanas */
+  const WJ=((CONFIG.load&&CONFIG.load.weekJump)||0.15)*100;
+  let sem='';
+  if(D.wkMes.length){
+    const W=640,Hh=150,pl=8,pr=8,top=22,bot=26,ih=Hh-top-bot;const tope=Math.max(1,D.normalSem||0,...D.wkMes.map(w=>w.ua||0))*1.1;
+    const bw=(W-pl-pr)/D.wkMes.length;let g='';
+    D.wkMes.forEach((w,i)=>{const h=Math.max(1.5,(w.ua||0)/tope*ih),x=pl+i*bw+bw*.18,wd=bw*.64,y=top+ih-h;const salto=!w.parcial&&isFinite(w.delta)&&w.delta>WJ;
+      g+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+wd.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="4" fill="'+(salto?'var(--warn)':'var(--c-data,var(--accent))')+'"'+(w.parcial?' opacity=".5"':'')+'/>'
+        +'<text x="'+(x+wd/2).toFixed(1)+'" y="'+(y-6).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="700" fill="var(--txt)">'+f0(w.ua||0)+(salto?' · +'+Math.round(w.delta)+'%':'')+'</text>'
+        +'<text x="'+(x+wd/2).toFixed(1)+'" y="'+(Hh-8)+'" text-anchor="middle" font-size="11" fill="var(--muted)">'+ddmm(w.week)+(w.parcial?(D.parcial?' (en curso)':' (hasta '+ddmm(D.fin)+')'):'')+'</text>';});
+    if(D.normalSem){const yN=top+ih-D.normalSem/tope*ih;g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+yN.toFixed(1)+'" y2="'+yN.toFixed(1)+'" stroke="var(--txt)" stroke-width="1" stroke-dasharray="4 4" opacity=".55"/>'
+      +'<text x="'+(W-pr)+'" y="'+(yN-5).toFixed(1)+'" text-anchor="end" font-size="11" fill="var(--muted)">su semana normal · '+f0(D.normalSem)+' UA</text>';}
+    sem='<section class="ij-s"><h3>Su carga, semana a semana</h3><svg class="ij-svg" viewBox="0 0 '+W+' '+Hh+'" role="img" aria-label="Carga semanal del mes">'+g+'</svg>'
+      +'<p class="ij-pie">Las semanas en ámbar suben más de un '+Math.round(WJ)+' % sobre la anterior. La raya es su semana normal: la mediana de sus semanas de esta temporada.</p></section>';
+  }
+  const par=D.partidos.length?'<section class="ij-s"><h3>Partidos</h3>'+D.partidos.map(x=>'<div class="ij-f"><span>'+ddmm(x.dk)+'</span><b>'+E(x.riv)+'</b><em>'+(x.min!=null?x.min+'′':'sin minutos apuntados')+'</em></div>').join('')+'</section>':'';
+  const neu=['peso','talla'];
+  const pru=D.pruebas.length?'<section class="ij-s"><h3>Pruebas físicas</h3>'+D.pruebas.map(x=>{const u=x.def.unit?' '+x.def.unit:'';let dl='';
+      if(x.prev!=null){const d=x.v-x.prev;const mejor=x.def.lowerBetter?d<0:d>0;const c=Math.abs(d)<1e-9||neu.indexOf(x.k)>=0?'var(--muted)':(mejor?'var(--ok-text)':'var(--warn-text)');
+        dl='<em style="color:'+c+'">'+(d>0?'▲ +':d<0?'▼ −':'= ')+fmt(Math.abs(d),2)+'</em>';}
+      return '<div class="ij-f"><span>'+ddmm(x.dk)+'</span><b>'+E(x.def.name)+'</b><strong>'+fmt(x.v,2)+E(u)+'</strong>'+dl+'</div>';}).join('')+'</section>':'';
+  const sal=D.salud.length?'<section class="ij-s"><h3>Salud</h3>'+D.salud.map(x=>'<div class="ij-f"><span>'+ddmm(x.dk)+'</span><b>'+E(x.tit)+(x.zona?' · '+E(x.zona):'')+'</b><em>'+(x.open?'abierto':'alta '+ddmm(x.cierre))+'</em></div>').join('')+'</section>':'';
+  return '<div class="ij-ks">'+kp+'</div>'+sem+'<div class="ij-dos">'+par+pru+sal+'</div>'
+    +'<p class="ij-pie">Carga = RPE × minutos. Su día normal: la mediana de sus días con carga de esta temporada; un día sin cuestionario no cuenta como cero.</p>';
+}
+function ijCab(D,conMes){
+  const p=D.p,f=p.avatar||photoFor(D.n)||'';let pos='';try{pos=posDetailOf(D.n)||posGroup(p.pos)||'';}catch(e){pos=p.pos||'';}
+  return '<div class="ij-cab">'+(f?'<img src="'+bmEsc(f)+'" alt="">':'')+'<div><b>'+bmEsc(D.n)+'</b><span>'+bmEsc(pos)+'</span></div>'+(conMes?'<em>'+bmEsc(ijTitMes(D.mes))+'</em>':'')+'</div>';
+}
+function bmInformeJugador(n,mes){
+  n=n||STATE.curPlayer||Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'))[0];if(!n)return;
+  IJ.n=n;IJ.mes=mes||dkey(new Date()).slice(0,7);
+  bmHoja({id:'ijug',titulo:'Informe del jugador',clase:'ij-hoja',html:'<div class="ij" id="ij-cuerpo"></div>'});
+  ijPinta();
+}
+function ijPinta(){
+  const box=document.getElementById('ij-cuerpo');if(!box)return;
+  let D=null;try{D=ijDatos(IJ.n,IJ.mes);}catch(e){console.error('bmnava · informe del jugador',e);}
+  if(!D){box.innerHTML='<p class="ij-nada">No se pudo preparar el informe.</p>';return;}
+  const cur=dkey(new Date()).slice(0,7),min=TEMP_INICIO.slice(0,7);
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  box.innerHTML='<div class="ij-nav"><select data-ij="n" aria-label="Jugador">'+noms.map(x=>'<option'+(x===IJ.n?' selected':'')+'>'+bmEsc(x)+'</option>').join('')+'</select>'
+      +'<button type="button" class="inf-fl" data-ij="-1" aria-label="Mes anterior"'+(IJ.mes<=min?' disabled':'')+'>‹</button><b>'+bmEsc(ijTitMes(IJ.mes))+'</b>'
+      +'<button type="button" class="inf-fl" data-ij="1" aria-label="Mes siguiente"'+(IJ.mes>=cur?' disabled':'')+'>›</button></div>'
+    +ijCab(D)+ijHTML(D,false)
+    +'<div class="ij-acc"><button type="button" class="btn" data-ij="png">Exportar imagen</button></div>';
+}
+function ijPNG(){
+  let D=null;try{D=ijDatos(IJ.n,IJ.mes);}catch(e){}if(!D)return;
+  const host=document.createElement('div');host.className='cvd-host';
+  host.innerHTML='<div class="inf-doc ij-doc" id="ij-doc"><div class="cvd-h">'+(window.__LOGO_CLUB__?'<img src="'+window.__LOGO_CLUB__+'" alt="">':'')
+    +'<div><small>Informe del jugador</small><b>'+bmEsc(D.n)+'</b><span>'+bmEsc(ijTitMes(D.mes))+' · BM Nava · Control de cargas</span></div></div>'+ijCab(D,true)+ijHTML(D,true)+'</div>';
+  document.body.appendChild(host);
+  const fin=()=>{try{host.remove();}catch(e){}};
+  const nom=String(D.n).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_');
+  try{Promise.resolve(exportNodePNG('ij-doc','informe_'+nom+'_'+D.mes+'.png')).then(fin,fin);}catch(e){fin();}
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-ijug [data-ij]');if(!b||b.disabled||b.tagName==='SELECT')return;
+  const v=b.dataset.ij;if(v==='png'){ijPNG();return;}
+  if(v==='-1'||v==='1'){const y=+IJ.mes.slice(0,4),m=+IJ.mes.slice(5,7)-1+(+v);const d=new Date(y,m,1);IJ.mes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');ijPinta();}});
+document.addEventListener('change',e=>{const t=e.target;if(!t||!t.matches||!t.matches('#bmh-ijug [data-ij="n"]'))return;IJ.n=t.value;ijPinta();});
+window.bmInformeJugador=bmInformeJugador;
 
 /* v743 · DESDE TU ÚLTIMA VISITA. Daniel, 16/11/2026, eligió la propuesta 5.
    Virginia, Carlos y Daniel trabajan sobre los mismos datos en equipos
@@ -42188,6 +42311,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
        +'<button class="btn phero-add" onclick="openQuickTest(\''+q2(name)+'\')">+ Valoración</button>'
        +'<button class="btn phero-add" onclick="openReunion(\''+q2(name)+'\')">+ Reunión</button>'
        +'<button class="btn ghost phero-cmp" onclick="bmComparar(\''+q2(name)+'\')">Comparar con…</button>'
+       +'<button class="btn ghost phero-cmp" onclick="bmInformeJugador(\''+q2(name)+'\')">Informe del mes</button>'
      +'</div>'
    +'</div>';
  };
@@ -50510,6 +50634,42 @@ html.bpr-on body{overflow:hidden}
   .bst-res{grid-column:1/-1}
   .bst-ints button{min-width:44px;height:44px}
   .bst-pie .btn{min-height:44px}
+}
+</style>
+<style id="bm-v761">
+/* v761 · Informe del jugador para la reunión */
+.ij-nav{display:flex;align-items:center;gap:10px;margin:0 0 14px;flex-wrap:wrap}
+.ij-nav select{font:inherit;font-size:13.5px;max-width:240px}
+.ij-nav b{font-size:15px;font-weight:700;min-width:150px;text-align:center}
+.ij-cab{display:flex;align-items:center;gap:14px;margin:0 0 14px}
+.ij-cab img{width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:top;background:var(--panel2)}
+.ij-cab b{display:block;font-size:20px;font-weight:700;color:var(--txt)}
+.ij-cab span{display:block;font-size:13px;color:var(--muted)}
+.ij-cab em{margin-left:auto;font-style:normal;font-weight:600;color:var(--muted);font-size:13px}
+.ij-ks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px}
+.ij-k{background:var(--panel2);border-radius:12px;padding:10px 12px;min-width:0}
+.ij-k em{display:block;font-style:normal;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ij-k b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--txt);font-variant-numeric:tabular-nums;line-height:1.2}
+.ij-k span{display:block;font-size:12px;color:var(--muted);line-height:1.3}
+.ij-s{margin:0 0 14px}
+.ij-s h3{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
+.ij-svg{width:100%;height:auto;display:block}
+.ij-dos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 18px}
+.ij-f{display:flex;align-items:baseline;gap:8px;padding:5px 0;border-top:.5px solid var(--hair,var(--line));font-size:13px}
+.ij-f span{flex:none;width:42px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ij-f b{flex:1;min-width:0;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ij-f strong{font-variant-numeric:tabular-nums}
+.ij-f em{font-style:normal;font-weight:600;color:var(--muted);white-space:nowrap}
+.ij-pie{font-size:11.5px;color:var(--muted);margin:6px 0 0;line-height:1.4}
+.ij-nada{color:var(--muted)}
+.ij-acc{display:flex;justify-content:flex-end;margin-top:12px}
+.ij-doc{width:900px}
+.ij-doc .ij-ks{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media screen and (min-width:761px) and (pointer:fine){.ij-hoja .bmh-caja{width:min(860px,calc(100vw - 80px))!important;max-width:none!important}}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .ij-ks{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ij-nav .inf-fl,.ij-acc .btn{min-height:44px;min-width:44px}
+  .ij-nav select{min-height:44px;flex:1 1 100%;max-width:none}
 }
 </style>
 <style id="bm-v745">
