@@ -16526,6 +16526,89 @@ document.addEventListener('keydown',e=>{
 /* si la pantalla cambia con un bloque ampliado, se cierra antes */
 (function(){const g=window.go;if(typeof g==='function')window.go=function(){try{if(BMAMP.el)bmAmpCierra();}catch(e){}BMAMP.hov=null;try{bmAmpBotonPon(null);}catch(e){}return g.apply(this,arguments);};})();
 window.bmAmpAbre=bmAmpAbre;window.bmAmpCierra=bmAmpCierra;
+/* ═══ v788 · ORDENADOR · Lo que hay en cada sección, antes de entrar ═══
+   Daniel, 17/11/2026, propuesta 6. Con el ratón quieto medio segundo sobre una
+   sección de la barra lateral sale al lado una tarjeta con lo que hay dentro
+   hoy —quién está fuera, qué toca, cuánto se debe—, como la vista previa de
+   Safari al pasar por un enlace: a veces basta con eso y no hace falta
+   entrar. Cada cifra sale de lo que la app ya calcula: el estado del día
+   (`effectiveStatus`, el de los contadores del menú), el ACWR (`acwrClass`),
+   los episodios, «Ojo hoy», el parte, los cobros, las alertas sin ver
+   (`alvNuevas`) y la última sesión de Polar. No se pinta nada que no esté. */
+const BMSBP={t:null,v:null,el:null};
+function bmSbpPuede(){return !esMovil()&&bmEscFino();}
+function bmSbpDatos(v){
+  const E=bmEsc,hoy=dkey(new Date()),ps=STATE.players||{},ns=Object.keys(ps).sort((a,b)=>a.localeCompare(b,'es'));
+  const nom=n=>{try{return cvCorto(n);}catch(e){return n;}};
+  const est=n=>{try{const ev=effectiveStatus(n,dkEstado());return ev&&ev.status&&ev.status!=='disp'&&ev.status!=='partido'?ev.status:null;}catch(e){return null;}};
+  const lista=(xs,max)=>{max=max||6;return xs.length?xs.slice(0,max).map(E).join(', ')+(xs.length>max?' y '+(xs.length-max)+' más':''):'';};
+  const F=[];/* [rótulo, valor, color, detalle] */
+  const fr=(l,v,c,d)=>F.push([l,v,c||'',d||'']);
+  if(v==='equipo'){
+    const r=ns.filter(n=>ps[n].sev==='bad');fr('Readiness bajo',r.length,r.length?'var(--bad)':'var(--ok)',lista(r.map(nom)));
+    const al=alvNuevas(),rb=al.filter(a=>a.sev==='bad').length;fr('Alertas sin ver',al.length,rb?'var(--bad)':al.length?'var(--warn)':'',rb?rb+' rojas':'');
+  }else if(v==='cal'){
+    const evs=((STATE.calendar||{})[hoy]||[]).filter(e=>e&&!e.sp);
+    fr('Hoy',evs.length?evs.length+(evs.length===1?' sesión':' sesiones'):'Descanso','',evs.map(e=>[(e.time||'').trim(),(e.title||((CAL_TYPES[e.type]||{}).lab)||'Sesión')].filter(Boolean).join(' ')).join(' · '));
+    try{const sig=calPartidosDks().find(x=>x>=hoy);if(sig){const e=((STATE.calendar||{})[sig]||[]).find(evEsPartido)||{};const f=Math.round((dkToDate(sig)-dkToDate(hoy))/864e5);
+      fr('Próximo partido',f===0?'hoy':f===1?'mañana':'en '+f+' días','',(evRival(e)||'Partido')+' · '+bmInspFecha(sig)+((e.time||'').trim()?' · '+e.time.trim():''));}}catch(e){}
+  }else if(v==='carga'){
+    const fu=ns.filter(n=>{const a=ps[n].acwr;return a&&a.rel&&isFinite(a.ratio)&&a.ratio>0&&acwrClass(a.ratio)!=='ok';});
+    const al=fu.filter(n=>ps[n].acwr.ratio>1.3),ba=fu.filter(n=>ps[n].acwr.ratio<0.8);
+    fr('ACWR por encima de 1,3',al.length,al.length?'var(--warn)':'',lista(al.map(n=>nom(n)+' '+fmt(ps[n].acwr.ratio,2))));
+    fr('ACWR por debajo de 0,8',ba.length,'',lista(ba.map(n=>nom(n)+' '+fmt(ps[n].acwr.ratio,2))));
+  }else if(v==='hr'){
+    const hr=(STATE.hr||[]).filter(x=>x&&x.dk);if(hr.length){const u=hr.reduce((m,x)=>x.dk>m?x.dk:m,'');const de=hr.filter(x=>x.dk===u);
+      const ses=[...new Set(de.map(x=>x.session).filter(Boolean))];
+      const np=new Set(de.map(x=>x.name)).size,vieja=typeof TEMP_INICIO!=='undefined'&&u<TEMP_INICIO;
+      fr('Última sesión',bmInspFecha(u)+(vieja?'/'+u.slice(0,4):''),'',[ses.join(' · '),np+(np===1?' pulsómetro':' pulsómetros')].filter(Boolean).join(' · '));}
+  }else if(v==='dispo'){
+    const fu=ns.filter(n=>NOAV_ST.includes(est(n))),mo=ns.filter(n=>CARE_ST.includes(est(n)));
+    fr('Fuera',fu.length,fu.length?'var(--bad)':'var(--ok)',lista(fu.map(n=>nom(n)+' ('+((PHYSTAT[est(n)]||{}).lab||est(n))+')'),5));
+    fr('Con molestia',mo.length,mo.length?'var(--warn)':'',lista(mo.map(nom)));
+  }else if(v==='medico'){
+    let ab=[];try{medDbLoad();ab=((STATE.med||{}).inj||[]).filter(e=>e&&e.open&&!e.mergedInto);}catch(e){}
+    fr('Episodios abiertos',ab.length,ab.length?'var(--warn)':'',lista(ab.map(e=>nom(e.name)+(e.title?': '+e.title:'')),4));
+  }else if(v==='parte'){
+    const con=ns.filter(n=>ps[n].last&&ps[n].last.dk===hoy),sin=ns.filter(n=>!(ps[n].last&&ps[n].last.dk===hoy));
+    fr('Parte de hoy',con.length+' de '+ns.length,'',sin.length?'Faltan: '+lista(sin.map(nom)):'Han respondido todos');
+    const dol=ns.filter(n=>ps[n].last&&ps[n].last.dk===hoy&&ps[n].last.dolor);if(dol.length)fr('Con dolor',dol.length,'var(--warn)',lista(dol.map(n=>nom(n)+(ps[n].last.zona?' ('+ps[n].last.zona+')':'')),4));
+  }else if(v==='fisio'){
+    let oj=[];try{oj=ojoAbiertos();}catch(e){}fr('Ojo hoy',oj.length,oj.length?'var(--warn)':'',lista(oj.map(x=>nom(x.name))));
+    let tr=0;try{tr=((STATE.med||{}).treat||[]).filter(x=>x&&x.dk===hoy).length;}catch(e){}fr('Tratamientos hoy',tr);
+    let vd=0;try{vd=vendDia(hoy).reduce((s,r)=>s+(+r.n||0),0);}catch(e){}fr('Vendajes hoy',vd);
+  }else if(v==='nutri'){
+    try{const N=nutLoad(),pend=(N.cobros||[]).filter(x=>!x.pagado&&(+x.importe||0)>0);const tot=pend.reduce((s,x)=>s+(+x.importe||0),0);
+      fr('Pendiente de cobrar',typeof nutEur==='function'?nutEur(tot):tot.toFixed(2).replace('.',',')+' €',pend.length?'var(--warn)':'',new Set(pend.map(x=>x.jugador)).size+' personas');}catch(e){}
+  }else if(v==='jugadores'){
+    const c={ok:0,warn:0,bad:0};ns.forEach(n=>{if(c[ps[n].sev]!=null)c[ps[n].sev]++;});
+    fr('Readiness','','',c.ok+' en verde · '+c.warn+' en ámbar · '+c.bad+' en rojo');
+  }else if(v==='alertas'){
+    const al=alvNuevas(),rb=al.filter(a=>a.sev==='bad');
+    fr('Sin ver',al.length,rb.length?'var(--bad)':al.length?'var(--warn)':'',rb.length?rb.length+' rojas: '+lista([...new Set(rb.map(a=>nom(a.name)))],5):'');
+  }else return null;
+  return F.length?F:null;
+}
+function bmSbpQuita(){clearTimeout(BMSBP.t);BMSBP.t=null;BMSBP.v=null;BMSBP.el=null;const c=document.getElementById('bm-sbp');if(c)c.classList.remove('on');}
+function bmSbpPinta(it){
+  const v=it.dataset.v;let F=null;try{F=bmSbpDatos(v);}catch(e){console.error('bmnava · vista previa del menú',e);}
+  if(!F){bmSbpQuita();return;}
+  let c=document.getElementById('bm-sbp');if(!c){c=document.createElement('div');c.id='bm-sbp';c.setAttribute('aria-hidden','true');document.body.appendChild(c);}
+  const E=bmEsc,tit=(it.querySelector('span')||it).textContent.trim();
+  c.innerHTML='<b class="sbp-t">'+E(tit)+'</b>'+F.map(([l,v,col,d])=>'<div class="sbp-f"><span>'+E(l)+'</span>'+(v!==''?'<b'+(col?' style="color:'+colTexto(col)+'"':'')+'>'+E(String(v))+'</b>':'')+(d?'<small>'+E(d)+'</small>':'')+'</div>').join('');
+  const r=it.getBoundingClientRect(),sb=document.getElementById('sidebar').getBoundingClientRect();
+  c.style.left=Math.round(sb.right+10)+'px';
+  c.classList.add('on');
+  const H=c.offsetHeight;c.style.top=Math.round(Math.max(12,Math.min(innerHeight-H-12,r.top+r.height/2-22)))+'px';
+}
+document.addEventListener('mouseover',e=>{
+  if(!bmSbpPuede()||!e.target||!e.target.closest)return;
+  const it=e.target.closest('#sidebar .sb-item[data-v]');
+  if(it===BMSBP.el)return;
+  bmSbpQuita();if(!it||document.getElementById('bm-mm'))return;
+  BMSBP.el=it;BMSBP.t=setTimeout(()=>{if(BMSBP.el===it&&it.isConnected)bmSbpPinta(it);},480);
+},{passive:true});
+['mousedown','keydown','scroll'].forEach(t=>window.addEventListener(t,()=>{if(BMSBP.el)bmSbpQuita();},{passive:true,capture:true}));
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -52812,6 +52895,23 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
 }
 </style>
 
+<style id="esc-v788">
+/* v788 · ORDENADOR · La vista previa de cada sección del menú. */
+#bm-sbp{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #bm-sbp{display:block;position:fixed;z-index:72;width:268px;padding:12px 14px;border-radius:12px;pointer-events:none;
+    background:var(--sbf-bg);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);
+    box-shadow:0 0 0 .5px var(--sbf-borde),0 12px 32px -8px rgba(0,0,0,.28);color:var(--txt);opacity:0;transform:translateX(-4px);transition:opacity .15s ease,transform .15s ease}
+  #bm-sbp.on{opacity:1;transform:none}
+  #bm-sbp .sbp-t{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+  #bm-sbp .sbp-f{display:grid;grid-template-columns:1fr auto;gap:1px 10px;padding:6px 0;border-top:.5px solid var(--sbf-linea)}
+  #bm-sbp .sbp-f:first-of-type{border-top:none;padding-top:0}
+  #bm-sbp .sbp-f>span{font-size:13px;font-weight:500}
+  #bm-sbp .sbp-f>b{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+  #bm-sbp .sbp-f>small{grid-column:1/-1;font-size:11.5px;color:var(--muted);line-height:1.35}
+  @media (prefers-reduced-motion:reduce){#bm-sbp{transition:none}}
+}
+</style>
 <style id="esc-v762">
 /* v762 · ORDENADOR · Arrastrar sesiones en el Calendario */
 @media screen and (min-width:761px) and (pointer:fine){
