@@ -16885,7 +16885,16 @@ window.bmHojaSemana=bmHojaSemana;
    no es calculable. Los días fuera van rayados con el color de su estado
    (`effectiveStatus`, el mismo de la lista de Jugadores) y la molestia con un
    punto ámbar. Los partidos y hoy van marcados en la cabecera. Pasar el ratón
-   dice el día; un clic abre su inspector (v783). Sólo en el ordenador. */
+   dice el día; un clic abre su inspector (v783). Sólo en el ordenador.
+   v799 · Daniel, 17/11/2026: «en tonos azules pierde bastante; tendríamos que
+   irnos a nuestros propios semáforos». Elegido por él entre dos maquetas: el
+   color es el NIVEL de esa carga con los cortes con los que la app ya clasifica
+   la carga de una sesión (`nivelUA`: BAJA <600 · MEDIA 600–900 · ALTA >900 UA)
+   y los colores de `LV`, el mismo semáforo del Calendario y del Dashboard: ni
+   un umbral ni un color nuevos. Son tres tonos y no cuatro porque la app no
+   tiene un cuarto corte de carga diaria. Encima, la cifra de UA dentro de la
+   casilla cuando cabe (14 y 28 días) y, arriba, la fila de la media del equipo
+   (`lbTeamDay().ua`, la carga del equipo del Dashboard) con el mismo color. */
 const BMMP={sel:null};
 function bmMpColEst(st){return st==='baja'?'var(--bad)':(NOAV_FIS_ST.includes(st)||CARE_ST.includes(st))?'var(--warn)':'#7c9cbf';}
 function bmMpDatos(){
@@ -16897,18 +16906,47 @@ function bmMpDatos(){
   /* por puestos, como la lista de Jugadores */
   const GR=(typeof JL_GR!=='undefined'?JL_GR:[]).concat([['_','Sin puesto']]);
   const grupos=GR.map(([k,t])=>({t,ns:Object.keys(ps).filter(n=>{const p=ps[n].pos;return k==='_'?!GR.some(g=>g[0]===p&&g[0]!=='_'):p===k;}).sort((a,b)=>a.localeCompare(b,'es'))})).filter(g=>g.ns.length);
-  const filas={},vals=[];
+  const filas={};
   Object.keys(ps).forEach(n=>{
     const m={};try{(dailyAgg(n)||[]).forEach(d=>{if(d.dk>=ini&&d.dk<=fin)m[d.dk]=+d.ua||0;});}catch(e){}
     const est={};dks.forEach(dk=>{try{const ev=effectiveStatus(n,dk);if(ev&&ev.status&&ev.status!=='disp'&&ev.status!=='partido')est[dk]=ev.status;}catch(e){}});
-    Object.values(m).forEach(v=>{if(v>0)vals.push(v);});
     const tot=Object.values(m).reduce((s,v)=>s+v,0),dias=Object.values(m).filter(v=>v>0).length;
     filas[n]={m,est,tot,dias};
   });
-  vals.sort((a,b)=>a-b);
-  const tope=vals.length?vals[Math.min(vals.length-1,Math.floor(vals.length*.95))]:1;
-  return {dks,par,grupos,filas,tope:Math.max(1,tope),hoy,fin};
+  /* La media del equipo de cada día: la misma cifra que la tabla del Dashboard
+     y la línea de tiempo (v785). Un día sin nadie del grupo no tiene media. */
+  const eq={m:{},n:{}};
+  dks.forEach(dk=>{try{const t=window.lbTeamDay&&lbTeamDay(dk);if(t){eq.m[dk]=+t.ua||0;eq.n[dk]=t.n;}}catch(e){}});
+  eq.tot=Object.values(eq.m).reduce((s,v)=>s+v,0);eq.dias=Object.values(eq.m).filter(v=>v>0).length;
+  return {dks,par,grupos,filas,eq,hoy,fin};
 }
+const BMMP_NIV=['Baja','Media','Alta'];
+function bmMpCelda(v,dk,D){
+  const w=dkToDate(dk).getDay(),cls=['bmmp-c'];
+  if(w===1)cls.push('lun');if(D.par[dk])cls.push('par');if(dk===D.hoy)cls.push('hoy');
+  let txt='';
+  if(v>0){cls.push('v','n'+nivelUA(v));txt='<b>'+Math.round(v)+'</b>';}
+  else if(v===0)cls.push('m0');
+  return {cls,txt};
+}
+/* La cifra sólo entra si la casilla mide lo bastante: con 14 y 28 días a lo
+   ancho cabe; con 8 semanas o la temporada, no, y entonces sólo queda el color. */
+function bmMpCifras(){
+  const r=document.querySelector('#carga-mapa .bmmp-r');if(!r)return;
+  r.classList.remove('bmmp-num');
+  const c=r.querySelector('.bmmp-c');if(r.classList.contains('bmmp-s')||!c)return;
+  const cw=c.getBoundingClientRect().width;if(cw<20)return;
+  /* Se prueba con la cifra más ancha de la ventana: si no cabe con un margen,
+     no se escribe ninguna (a medias se leería como dato que falta). */
+  const ancha=()=>{let mx=0;r.querySelectorAll('.bmmp-c>b').forEach(x=>{if(x.textContent.length>=4){const g=document.createRange();g.selectNodeContents(x);mx=Math.max(mx,g.getBoundingClientRect().width);}});
+    if(!mx){const x=r.querySelector('.bmmp-c>b');if(x){const g=document.createRange();g.selectNodeContents(x);mx=g.getBoundingClientRect().width;}}return mx;};
+  r.classList.remove('bmmp-nums');r.classList.add('bmmp-num');
+  if(ancha()<=cw-4)return;
+  /* Un paso más apretado —10 px, el suelo de letra del ordenador— antes de renunciar. */
+  r.classList.add('bmmp-nums');
+  if(ancha()>cw-3)r.classList.remove('bmmp-num','bmmp-nums');
+}
+let BMMP_RZ=0;window.addEventListener('resize',()=>{clearTimeout(BMMP_RZ);BMMP_RZ=setTimeout(bmMpCifras,120);},{passive:true});
 function renderMapaPlantilla(){
   const box=document.getElementById('carga-mapa');if(!box)return;
   if(window.__RD_CALC)return;
@@ -16919,39 +16957,43 @@ function renderMapaPlantilla(){
     const cls=['bmmp-h'];if(w===1)cls.push('lun');if(dk===D.hoy)cls.push('hoy');if(D.par[dk])cls.push('par');
     const lab=ancho==='s'?(w===1?String(d.getDate()):''):'<b>'+L[w]+'</b>'+d.getDate();
     return '<div class="'+cls.join(' ')+'" title="'+E(bmInspFecha(dk)+(D.par[dk]?' · Partido · '+D.par[dk]:''))+'">'+lab+'</div>';}).join('')+'<div class="bmmp-tot bmmp-esq">Carga · días</div>';
-  let filas='';const orden=[];
+  /* La fila del equipo, arriba y separada: es la referencia de todas las demás. */
+  let filas='<div class="bmmp-nom bmmp-eqn"><i class="bmmp-eqi" aria-hidden="true"></i><span>Media del equipo</span></div>'
+    +D.dks.map(dk=>{const v=D.eq.m[dk],k=bmMpCelda(v,dk,D);k.cls.push('eq');
+      return '<div class="'+k.cls.join(' ')+'" data-eq="1" data-dk="'+dk+'">'+k.txt+'</div>';}).join('')
+    +'<div class="bmmp-tot"><b>'+(D.eq.tot?Math.round(D.eq.tot).toLocaleString('es-ES'):'—')+'</b><small>'+D.eq.dias+' d</small></div>';
+  const orden=[];
   D.grupos.forEach(g=>{
     filas+='<div class="bmmp-g">'+E(g.t)+'</div>';
     g.ns.forEach(n=>{const F=D.filas[n],pi=orden.length;orden.push(n);
       filas+='<div class="bmmp-nom" data-n="'+E(n)+'" title="Abrir su ficha">'+bmjCara(n,'bmmp-av')+'<span>'+E(cvCorto(n))+'</span></div>';
-      filas+=D.dks.map(dk=>{const v=F.m[dk],st=F.est[dk],w=dkToDate(dk).getDay();
-        const cls=['bmmp-c'];if(w===1)cls.push('lun');if(D.par[dk])cls.push('par');if(dk===D.hoy)cls.push('hoy');
-        let sty='';
-        if(v>0){const a=Math.min(1,v/D.tope);sty+='--a:'+(0.12+a*0.88).toFixed(3)+';';cls.push('v');}
-        else if(v===0)cls.push('m0');
-        if(st){if(NOAV_ST.includes(st)){cls.push('fu');sty+='--ec:'+bmMpColEst(st)+';';}else cls.push('mo');}
-        return '<div class="'+cls.join(' ')+'" data-p="'+pi+'" data-dk="'+dk+'"'+(sty?' style="'+sty+'"':'')+'></div>';}).join('');
+      filas+=D.dks.map(dk=>{const v=F.m[dk],st=F.est[dk],k=bmMpCelda(v,dk,D);let sty='';
+        if(st){if(NOAV_ST.includes(st)){k.cls.push('fu');sty+='--ec:'+bmMpColEst(st)+';';}else k.cls.push('mo');}
+        return '<div class="'+k.cls.join(' ')+'" data-p="'+pi+'" data-dk="'+dk+'"'+(sty?' style="'+sty+'"':'')+'>'+k.txt+'</div>';}).join('');
       filas+='<div class="bmmp-tot"><b>'+(F.tot?Math.round(F.tot).toLocaleString('es-ES'):'—')+'</b><small>'+F.dias+' d</small></div>';
     });
   });
   const desde=dkToDate(D.dks[0]),hasta=dkToDate(D.fin);
   box.innerHTML='<div class="panel bmmp"><h2>La plantilla, día a día <span class="r">del '+desde.getDate()+'/'+(desde.getMonth()+1)+' al '+hasta.getDate()+'/'+(hasta.getMonth()+1)+'</span></h2>'
-    +'<div class="bmmp-ley"><span><i class="bmmp-esc"></i>Carga del día · de 0 a '+Math.round(D.tope).toLocaleString('es-ES')+' UA o más</span>'
+    +'<div class="bmmp-ley"><span class="bmmp-ley-n" title="Los cortes con los que la app clasifica la carga de una sesión">Carga del día<i class="bmmp-lc n0"></i>Baja · menos de 600 UA<i class="bmmp-lc n1"></i>Media · 600–900<i class="bmmp-lc n2"></i>Alta · más de 900</span>'
     +'<span><i class="bmmp-lc m0"></i>Con cuestionario y sin minutos</span><span><i class="bmmp-lc fu" style="--ec:var(--bad)"></i>Fuera (el color de su estado)</span>'
     +'<span><i class="bmmp-lc mo"></i>Con molestia</span><span><i class="bmmp-lc par"></i>Partido</span><span class="bmmp-vac"><i class="bmmp-lc"></i>Sin cuestionario</span></div>'
     +'<div class="bmmp-w"><div class="bmmp-r bmmp-'+ancho+'" style="--n:'+N+'">'+cab+filas+'</div></div>'
     +'<p class="bmmp-pie">Pasa el ratón por una casilla para ver el día; un clic abre su inspector y un clic en el nombre, su ficha. La ventana se cambia arriba (14 d · 28 d · 8 sem · Temporada).</p></div>';
   BMMP.D=D;BMMP.orden=orden;
+  bmMpCifras();
   const w=box.querySelector('.bmmp-w');if(w)w.scrollLeft=w.scrollWidth;
 }
 function bmMpTip(c,x,y){
   let t=document.getElementById('bmmp-tip');if(!t){t=document.createElement('div');t.id='bmmp-tip';t.setAttribute('aria-hidden','true');document.body.appendChild(t);}
   if(!c){t.classList.remove('on');return;}
   const D=BMMP.D;if(!D)return;
-  const nom=(BMMP.orden||[])[+c.dataset.p],dk=c.dataset.dk;if(!nom||!dk)return;
-  const F=D.filas[nom],v=F.m[dk],st=F.est[dk];
+  const eq=!!c.dataset.eq,dk=c.dataset.dk;
+  const nom=eq?'Media del equipo':(BMMP.orden||[])[+c.dataset.p];if(!nom||!dk)return;
+  const F=eq?D.eq:D.filas[nom],v=F.m[dk],st=eq?null:F.est[dk];
   let d=dkToDate(dk).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'short'});d=d.charAt(0).toUpperCase()+d.slice(1);
-  const l=[v>0?Math.round(v).toLocaleString('es-ES')+' UA':v===0?'Cuestionario sin minutos':'Sin cuestionario'];
+  const l=[v>0?Math.round(v).toLocaleString('es-ES')+' UA · carga '+BMMP_NIV[nivelUA(v)].toLowerCase():v===0?'Cuestionario sin minutos':(eq?'Sin carga del equipo':'Sin cuestionario')];
+  if(eq&&D.eq.n[dk])l.push('sobre '+D.eq.n[dk]+' jugadores');
   if(st)l.push((PHYSTAT[st]||{}).lab||st);if(D.par[dk])l.push('Partido · '+D.par[dk]);
   t.innerHTML='<b>'+bmEsc(nom)+'</b><span>'+bmEsc(d)+'</span><em>'+bmEsc(l.join(' · '))+'</em>';
   t.classList.add('on');const W=t.offsetWidth,H=t.offsetHeight;
@@ -35640,6 +35682,13 @@ const SESSPEC=[
  {key:'z54',label:'% Tiempo en Z4+Z5',cap:28,bands:[[0,8],[8,18],[18,24],[24,99]],ticks:['0','8','18','24']}
 ];
 const LV=[['BAJA','var(--ok)'],['MEDIA','var(--warn)'],['ALTA','var(--bad)']];
+/* v799 · Los cortes de la CARGA de una sesión, en un solo sitio: BAJA por
+   debajo de 600 UA, MEDIA de 600 a 900 y ALTA por encima. Los usa el criterio
+   de carga de `classifySession` y, desde la v799, el color del mapa de la
+   plantilla (Cargas › Plantilla): escritos dos veces, al primer ajuste uno se
+   quedaría atrás y el mapa pintaría «alta» una carga que la sesión llama media. */
+const NIV_UA=[600,900];
+function nivelUA(v){return v<NIV_UA[0]?0:(v<=NIV_UA[1]?1:2);}
 
 /* ═══════════════ v401 · Umbrales propios del BM Nava ═══════════════
    Instrucción permanente de Daniel (15/10/2026): «los umbrales de sesiones
@@ -36125,7 +36174,7 @@ function classifySession(rows,key,dk){
      hace el modelo con cualquier criterio que falte. */
   const sinPulso=!(rows&&rows.length)||!rows.some(r=>(r.z||[]).some(x=>x>0));
   const meta=sessMeta(key,dk);
-  const lvUA=meta&&meta.ua!=null?(meta.ua<600?0:meta.ua<=900?1:2):null;
+  const lvUA=meta&&meta.ua!=null?nivelUA(meta.ua):null;
   const lvC=meta&&meta.contacto!=null?(meta.contacto<2?0:meta.contacto<=3.5?1:2):null;
   const lvR=meta&&meta.rpe!=null?(meta.rpe<6.3?0:meta.rpe<=7.5?1:2):null;
   const confirms=[];if(lvUA===zoneLevel)confirms.push('UA');if(lvC===zoneLevel)confirms.push('contacto');if(lvR===zoneLevel)confirms.push('RPE');
@@ -53667,7 +53716,7 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   .bmmp h2 .r{font-weight:500;color:var(--muted);font-size:13px}
   .bmmp-ley{display:flex;flex-wrap:wrap;gap:6px 16px;margin:2px 0 14px;font-size:12px;color:var(--muted)}
   .bmmp-ley span{display:inline-flex;align-items:center;gap:6px}
-  .bmmp-esc{display:inline-block;width:64px;height:10px;border-radius:3px;background:linear-gradient(90deg,color-mix(in srgb,var(--c-data) 12%,transparent),var(--c-data))}
+  .bmmp-ley-n{gap:6px}.bmmp-ley-n .bmmp-lc{margin-left:6px}
   .bmmp-lc{display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--panel2);box-shadow:inset 0 0 0 .5px var(--line)}
   .bmmp-w{overflow-x:auto;padding-bottom:4px}
   .bmmp-r{display:grid;grid-template-columns:150px repeat(var(--n),minmax(var(--cw,26px),1fr)) 84px;gap:2px;align-items:stretch;min-width:min-content}
@@ -53684,7 +53733,19 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   .bmmp-av{width:24px;height:24px;flex:none;font-size:9px}
   .bmmp-c{height:24px;border-radius:4px;background:var(--panel2);position:relative;cursor:default}
   .bmmp-r.bmmp-s .bmmp-c{border-radius:2px}
-  .bmmp-c.v{background:color-mix(in srgb,var(--c-data) calc(var(--a) * 100%),var(--panel2))}
+  /* v799 · El color es el nivel de la carga (`nivelUA`) con los colores de `LV`.
+     Mezclado al 80 % con el fondo de la casilla para que la cifra, en tinta
+     oscura, pase de 4,5:1 sobre los tres tonos y en los dos temas. */
+  .bmmp-c.v,.bmmp-lc.n0,.bmmp-lc.n1,.bmmp-lc.n2{background:color-mix(in srgb,var(--mpc) 80%,var(--panel2))}
+  .bmmp-c.n0,.bmmp-lc.n0{--mpc:var(--ok)}.bmmp-c.n1,.bmmp-lc.n1{--mpc:var(--warn)}.bmmp-c.n2,.bmmp-lc.n2{--mpc:var(--bad)}
+  .bmmp-c>b{display:none}
+  .bmmp-r.bmmp-num .bmmp-c>b{display:flex;position:absolute;inset:0;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#0d1117;pointer-events:none}
+  .bmmp-r.bmmp-nums .bmmp-c>b{font-size:10px;letter-spacing:-.05em}
+  /* La fila del equipo: separada de la plantilla y con su nombre en negrita. */
+  .bmmp-eqn span{font-weight:650}
+  .bmmp-eqi{width:24px;height:24px;flex:none;border-radius:50%;background:var(--panel2);box-shadow:inset 0 0 0 .5px var(--line);position:relative}
+  .bmmp-eqi::before{content:"";position:absolute;inset:5px;background:var(--muted);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E") center/contain no-repeat}
+  .bmmp-eqn,.bmmp-c.eq,.bmmp-c.eq+.bmmp-tot{margin-top:6px}
   .bmmp-c.m0::after,.bmmp-lc.m0::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;border-radius:50%;background:var(--muted)}
   .bmmp-lc.m0{position:relative}
   .bmmp-c.fu,.bmmp-lc.fu{background-image:repeating-linear-gradient(135deg,var(--ec) 0 2px,transparent 2px 6px)!important;box-shadow:inset 0 0 0 1px var(--ec)}
