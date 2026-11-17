@@ -16329,10 +16329,10 @@ function bmJtHTML(F){
     return '<tr tabindex="0" data-n="'+E(x.n)+'"><td class="bmjt-j">'+cara+'<span><b>'+E(x.n)+'</b><small>'+E(x.pos)+'</small></span></td>'
       +'<td>'+(x.est?'<span class="bmjt-est" style="color:'+colTinta(x.est[1])+'">'+E(x.est[0])+'</span>':'<span class="bmjt-disp">Disponible</span>')+'</td>'
       +'<td class="n"><b'+tx(sev)+'>'+num(x.rd)+'</b></td>'
-      +BMJT_WV.map(([k])=>{const v=x.w?x.w[k]:null;return '<td class="n"'+tx(bmJtWCol(k,v))+'>'+(v==null||isNaN(v)?'—':fmt(v,1))+'</td>';}).join('')
+      +BMJT_WV.map(([k])=>{const v=x.w?x.w[k]:null;return '<td class="n" data-hist="'+k+'|'+E(x.n)+'"'+tx(bmJtWCol(k,v))+'>'+(v==null||isNaN(v)?'—':fmt(v,1))+'</td>';}).join('')
       +'<td class="bmjt-dol"'+(x.dolor?tx('var(--warn)'):'')+'>'+(x.dolor?E(x.dolor):'—')+'</td>'
-      +'<td class="n"'+tx(x.ac!=null?'var(--'+acwrClass(x.ac)+')':'')+'>'+(x.ac!=null?fmt(x.ac,2):'—')+'</td>'
-      +'<td class="n">'+num(x.c7)+'</td><td class="n">'+num(x.c14)+'</td>'
+      +'<td class="n" data-hist="acwr|'+E(x.n)+'"'+tx(x.ac!=null?'var(--'+acwrClass(x.ac)+')':'')+'>'+(x.ac!=null?fmt(x.ac,2):'—')+'</td>'
+      +'<td class="n" data-hist="carga|'+E(x.n)+'">'+num(x.c7)+'</td><td class="n" data-hist="carga|'+E(x.n)+'">'+num(x.c14)+'</td>'
       +'<td class="n" title="'+E(x.par.map((dk,i)=>bmInspFecha(dk)+': '+(x.mins[i]!=null?x.mins[i]+"'":'—')).join(' · '))+'">'+(x.mt!=null?x.mt+"'":'—')+'</td>'
       +'<td class="n"'+tx(x.tsaC?'var(--'+x.tsaC+')':'')+'>'+num(x.tsa)+'</td><td>'+rec+'</td></tr>';
   }).join('');
@@ -17082,6 +17082,60 @@ document.addEventListener('keydown',e=>{
 },true);
 (function(){const r=window.renderAlerts;if(typeof r==='function')window.renderAlerts=function(){const x=r.apply(this,arguments);try{bmalPinta();}catch(e){console.error('bmnava · alertas como Mail',e);}return x;};})();
 window.addEventListener('resize',()=>{clearTimeout(BMMAIL.t);BMMAIL.t=setTimeout(()=>{try{if(document.getElementById('v-alertas').classList.contains('on'))bmalPinta();}catch(e){}},200);});
+/* ═══ v796 · ORDENADOR · Cada cifra, con su historia al pasar el ratón ═══
+   Daniel, 17/11/2026, propuesta 5. En la tabla de la plantilla (v784) y en el
+   inspector (v783), dejar el ratón sobre un ACWR, una carga o un valor del
+   parte abre un globo con sus últimos 28 días: el ACWR sobre su banda
+   (`acwrToDate`, el de la ficha), la carga de cada día (`dailyAgg`) o el
+   parte de cada día con los colores de los anillos de la ficha y su mediana.
+   El readiness queda fuera A PROPÓSITO: no hay serie diaria por jugador, y
+   fabricarla obligaría a tomar prestado el día (§2.1). Se marca con
+   `data-hist="tipo|jugador"`: lo que se añada mañana con esa marca lo hereda. */
+const BMHI={t:null,el:null};
+function bmHiHTML(tipo,n){
+  const E=bmEsc,p=(STATE.players||{})[n];if(!p)return '';
+  const corto=(()=>{try{return cvCorto(n);}catch(e){return n;}})();
+  let tit='',g='',pie='';
+  if(tipo==='acwr'){
+    const hoy=REF(),vals=[];for(let i=27;i>=0;i--){const d=new Date(hoy);d.setDate(d.getDate()-i);let r=null;try{r=acwrToDate(n,d);}catch(e){}vals.push(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0?r.ratio:null);}
+    const ok=vals.filter(v=>v!=null);if(!ok.length)return '';
+    tit='ACWR de '+corto;g=bmalLinea(vals,[0.8,1.3],Math.max(2,...ok));
+    pie='28 días · la franja es la banda 0,8–1,3 · hoy '+fmt(ok[ok.length-1],2)+' · máx. '+fmt(Math.max(...ok),2);
+  }else if(tipo==='carga'){
+    const fin=dkey(REF()),ini=dkSumaDias(fin,-27),m={};try{(dailyAgg(n)||[]).forEach(d=>{if(d.dk>=ini&&d.dk<=fin)m[d.dk]=+d.ua||0;});}catch(e){}
+    const dks=dkRango(ini,fin),vals=dks.map(dk=>m[dk]>0?m[dk]:null),ok=vals.filter(v=>v!=null);if(!ok.length)return '';
+    const med=bmalMed(ok);
+    tit='Carga de cada día · '+corto;g=bmalBarras(vals,vals.map((v,i)=>i===vals.length-1?'var(--accent)':''),med,{});
+    pie='28 días · '+ok.length+' con carga · su mediana '+Math.round(med).toLocaleString('es-ES')+' UA (la raya) · un día sin cuestionario va vacío';
+  }else if(CONFIG.wellnessVars[tipo]){
+    const ws=(p.w||[]).filter(w=>w.dk<=dkey(REF())).slice(-28),hrs=tipo==='horas_sueno';
+    const vals=ws.map(w=>w[tipo]!=null&&!isNaN(w[tipo])?+w[tipo]:null),ok=vals.filter(v=>v!=null);if(!ok.length)return '';
+    const col=x=>x==null?'':hrs?(x>=7.5?'var(--ok)':x>=6.5?'var(--warn)':'var(--bad)'):(x<=2?'var(--ok)':x<=3?'var(--warn)':'var(--bad)');
+    const med=bmalMed((p.w||[]).map(w=>w[tipo]!=null&&!isNaN(w[tipo])?+w[tipo]:null));
+    tit=CONFIG.wellnessVars[tipo].label+' · '+corto;g=bmalBarras(vals,vals.map(col),med,{max:hrs?9:5});
+    pie='Sus últimos '+ws.length+' partes · la raya es su mediana ('+fmt(med,hrs?1:0)+(hrs?' h':'')+')'+(hrs?'':' · 1 es lo mejor');
+  }else return '';
+  return '<b class="bmhi-t">'+E(tit)+'</b>'+g+'<small class="bmhi-p">'+E(pie)+'</small>';
+}
+function bmHiQuita(){clearTimeout(BMHI.t);BMHI.t=null;BMHI.el=null;const c=document.getElementById('bm-hi');if(c)c.classList.remove('on');}
+document.addEventListener('mouseover',e=>{
+  if(esMovil()||!e.target||!e.target.closest)return;
+  const el=e.target.closest('[data-hist]');
+  if(el===BMHI.el)return;
+  bmHiQuita();if(!el)return;
+  BMHI.el=el;BMHI.t=setTimeout(()=>{
+    if(BMHI.el!==el||!el.isConnected)return;
+    const [tipo,n]=String(el.dataset.hist).split('|');let h='';try{h=bmHiHTML(tipo,n);}catch(err){console.error('bmnava · historia de la cifra',err);}
+    if(!h)return;
+    let c=document.getElementById('bm-hi');if(!c){c=document.createElement('div');c.id='bm-hi';c.setAttribute('aria-hidden','true');document.body.appendChild(c);}
+    c.innerHTML=h;c.classList.add('on');
+    const r=el.getBoundingClientRect(),W=c.offsetWidth,H=c.offsetHeight;
+    let L=r.left+r.width/2-W/2;L=Math.max(10,Math.min(innerWidth-W-10,L));
+    let T=r.top-H-8;if(T<10)T=r.bottom+8;
+    c.style.left=Math.round(L)+'px';c.style.top=Math.round(T)+'px';
+  },380);
+},{passive:true});
+['scroll','mousedown','keydown'].forEach(t=>window.addEventListener(t,bmHiQuita,{passive:true,capture:true}));
 /* v708 · ORDENADOR · La barra lateral, con otro punto de vista. Daniel,
    15/11/2026: «corrige la banda lateral, no me convence … el logo de Handball
    Performance mal puesto» y, preguntado, «la clara de ahora, pero dale otro
@@ -17458,7 +17512,7 @@ function bmInspHTML(n){
   const E=bmEsc,p=STATE.players[n]||{},dkR=dkey(REF()),hoy=dkey(new Date());
   const tx=c=>' style="color:'+colTexto(c)+'"';
   const sec=(t,h,extra)=>'<section class="bmin-sec"><h3>'+t+(extra?'<span>'+extra+'</span>':'')+'</h3>'+h+'</section>';
-  const cif=(et,v,c,sub)=>'<div class="bmin-cif"><em>'+et+'</em><b'+(c?tx(c):'')+'>'+v+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
+  const cif=(et,v,c,sub,hist)=>'<div class="bmin-cif"'+(hist?' data-hist="'+hist+'|'+E(n)+'"':'')+'><em>'+et+'</em><b'+(c?tx(c):'')+'>'+v+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
   /* quién */
   let est='Disponible',estC='var(--ok)';
   try{const ev=effectiveStatus(n,dkR);if(ev&&ev.status&&ev.status!=='disp'){est=((typeof PHYSTAT!=='undefined'&&PHYSTAT[ev.status])||{}).lab||ev.status;
@@ -17483,15 +17537,15 @@ function bmInspHTML(n){
   /* carga */
   const ac=p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null;
   const c7=p.acwr&&p.acwr.acute?Math.round(p.acwr.acute):null,c14=p.load14?Math.round(p.load14):null;
-  const ch='<div class="bmin-cifs">'+cif('ACWR',ac!=null?ac.toFixed(2).replace('.',','):'—',ac!=null?'var(--'+acwrClass(ac)+')':'',ac!=null?'banda 0,8–1,3':'sin dato fiable')
-    +cif('Carga 7 días',c7!=null?c7.toLocaleString('es-ES'):'—','','UA')+cif('Carga 14 días',c14!=null?c14.toLocaleString('es-ES'):'—','','UA')+'</div>'+bmInspSpark(n);
+  const ch='<div class="bmin-cifs">'+cif('ACWR',ac!=null?ac.toFixed(2).replace('.',','):'—',ac!=null?'var(--'+acwrClass(ac)+')':'',ac!=null?'banda 0,8–1,3':'sin dato fiable','acwr')
+    +cif('Carga 7 días',c7!=null?c7.toLocaleString('es-ES'):'—','','UA','carga')+cif('Carga 14 días',c14!=null?c14.toLocaleString('es-ES'):'—','','UA','carga')+'</div>'+bmInspSpark(n);
   h+=sec('Carga',ch,'14 días');
   /* wellness */
   if(w){
     const lb=v=>v==null||isNaN(v)?['—','']:[fmt(v,1),v<=2?'var(--ok)':v<=3?'var(--warn)':'var(--bad)'];
     const hs=v=>v==null||isNaN(v)?['—','']:[fmt(v,1)+' h',v>=7.5?'var(--ok)':v>=6.5?'var(--warn)':'var(--bad)'];
     const M=[['fatiga','Fatiga',lb],['sueno','Sueño',lb],['horas_sueno','Horas',hs],['doms','DOMS',lb],['stress','Estrés',lb],['mood','Ánimo',lb]];
-    let wh='<div class="bmin-well">'+M.map(([k,l,f])=>{const o=f(w[k]);return '<div><em>'+l+'</em><b'+(o[1]?tx(o[1]):'')+'>'+o[0]+'</b></div>';}).join('')+'</div>';
+    let wh='<div class="bmin-well">'+M.map(([k,l,f])=>{const o=f(w[k]);return '<div data-hist="'+k+'|'+E(n)+'"><em>'+l+'</em><b'+(o[1]?tx(o[1]):'')+'>'+o[0]+'</b></div>';}).join('')+'</div>';
     if(w.dolor)wh+='<p class="bmin-dolor"'+tx('var(--warn)')+'>Dolor'+(w.zona?': '+E(w.zona):'')+(w.golpe?' · por golpe':'')+'</p>';
     h+=sec('Wellness',wh,'escala 1–5'+(parteDe?' · '+E(parteDe):''));
   }else h+=sec('Wellness','<p class="bmin-nada">Sin parte de ese día.</p>');
@@ -53572,6 +53626,21 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   .bmal-pie{margin:4px 0 0;font-size:11.5px;color:var(--muted)}
   .bmal-acc1{margin:6px 0 0}
   .bmal-nada{color:var(--muted);font-size:13px}
+}
+</style>
+<style id="esc-v796">
+/* v796 · ORDENADOR · El globo con la historia de una cifra. */
+#bm-hi{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  [data-hist]{cursor:default}
+  #jug-tabla td[data-hist]:hover,#bm-insp [data-hist]:hover{background:color-mix(in srgb,var(--accent) 9%,transparent);border-radius:6px}
+  #bm-hi{display:block;position:fixed;z-index:96;width:340px;padding:11px 13px 10px;border-radius:12px;pointer-events:none;
+    background:var(--sbf-bg);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);
+    box-shadow:0 0 0 .5px var(--sbf-borde),0 12px 32px -8px rgba(0,0,0,.3);color:var(--txt);opacity:0;transform:translateY(3px);transition:opacity .14s ease,transform .14s ease}
+  #bm-hi.on{opacity:1;transform:none}
+  #bm-hi .bmhi-t{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
+  #bm-hi .bmal-g{max-width:none}
+  #bm-hi .bmhi-p{display:block;margin-top:5px;font-size:11px;color:var(--muted);line-height:1.35}
 }
 </style>
 <style id="esc-v762">
