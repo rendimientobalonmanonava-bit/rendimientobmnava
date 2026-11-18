@@ -7256,6 +7256,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
         <div id="ev-rtp-body"></div>
       </div>
       <div id="avail-body"></div>
+      <!-- v825 · participación de la temporada, por jugador -->
+      <div id="dispo-part"></div>
       <div class="panel" id="dispo-alertas" style="margin-top:22px"><h2>Alertas activas</h2><div id="alerts-body-dispo"></div></div>
     </div>
     <!-- v294 · La agenda de Virginia: lo que trata, cuándo, y lo que viene. -->
@@ -17123,6 +17125,72 @@ document.addEventListener('click',e=>{
 });
 window.addEventListener('scroll',()=>{if(BMMP.sel){BMMP.sel=null;bmMpTip(null);}},{passive:true,capture:true});
 window.renderMapaPlantilla=renderMapaPlantilla;
+
+/* ═══ v825 · PARTICIPACIÓN DE LA TEMPORADA ═══
+   Daniel, 18/11/2026, propuesta 5 de la tanda de XPS, WIMU y Catapult: las
+   estadísticas de asistencia de XPS, con su estado «modificado». Es la
+   pregunta de disponibilidad y selección (misión 2) que estaba repartida
+   entre el informe de temporada y cada ficha.
+   **Qué es un día de entrenamiento del equipo**: un día con entreno o fuerza
+   programado en el calendario o, si no hay nada programado, uno con 3
+   cuestionarios o más (el mínimo de `lbBias` para que haya equipo). Los
+   partidos, aparte. **Qué hizo cada uno ese día**, por este orden: con la
+   selección; fuera por lo físico (`NOAV_FIS_ST`); fuera por otro motivo (el
+   resto de `NOAV_ST`); entrenamiento modificado o readaptación; entrenó (tiene
+   cuestionario o estaba convocado, que es lo que imputa carga); y si no hay
+   nada de eso, «sin registro»: no sabemos si entrenó, y se dice en vez de
+   contarlo como falta. Los colores son los de cada estado en `PHYSTAT`.
+   Los minutos de partido son los apuntados a cada jugador ese día (no el
+   minutaje del equipo, que se le pondría a quien no jugó). */
+const PART_CAT=[['ent','Entrenó','disp'],['mod','Modificado o readaptación','modif'],['fis','Fuera · físico','noentto'],['sel','Con la selección','seleccion'],['otro','Fuera · otro motivo','cita'],['sin','Sin registro',null]];
+let PART={k:null,v:null};
+function partDatos(){
+  const refk=dkey(REF()),k=BM_DV+'|'+refk+'|'+Object.keys(STATE.players||{}).length;
+  if(PART.k===k&&PART.v)return PART.v;
+  try{calLoad();}catch(e){}
+  const cal=STATE.calendar||{},rec={},realN={};
+  (STATE.rpe||[]).forEach(x=>{if(!x||!x.dk||x.dk<TEMP_INICIO||x.dk>refk)return;rec[x.name+'\u0000'+x.dk]=1;if(!x.bloqueConvocado&&!x.sinRegistro)realN[x.dk]=(realN[x.dk]||0)+1;});
+  let ps=[];try{ps=calPartidosDks();}catch(e){}
+  const par=ps.filter(d=>d>=TEMP_INICIO&&d<=refk),parS=new Set(par);
+  const dias=dkRango(TEMP_INICIO,refk).filter(dk=>{if(parS.has(dk))return false;
+    if((cal[dk]||[]).some(e=>e&&!evSP(e)&&(e.type==='entreno'||e.type==='fuerza')))return true;
+    return (realN[dk]||0)>=3;});
+  let sd={};try{sd=sessDurGet()||{};}catch(e){}
+  const J=Object.keys(STATE.players||{}).map(n=>{const c={ent:0,mod:0,fis:0,sel:0,otro:0,sin:0};
+    dias.forEach(dk=>{let st=null;try{const ev=effectiveStatus(n,dk);st=ev&&ev.status;}catch(e){}
+      if(st==='seleccion')c.sel++;else if(NOAV_FIS_ST.includes(st))c.fis++;else if(NOAV_ST.includes(st))c.otro++;
+      else if(st==='modif'||st==='readapt')c.mod++;else if(rec[n+'\u0000'+dk])c.ent++;else c.sin++;});
+    let pj=0,min=0;par.forEach(dk=>{const v=+((sd[dk]||{})[n+'::pista']);if(v>0){pj++;min+=v;}});
+    const D=dias.length;
+    return {n,c,D,pct:D?Math.round((c.ent+c.mod)/D*100):null,pj,min};});
+  PART={k,v:{dias:dias.length,partidos:par.length,J}};return PART.v;
+}
+function renderDispoPart(){
+  const box=document.getElementById('dispo-part');if(!box)return;
+  const v=document.getElementById('v-estado');if(!v||!v.classList.contains('on'))return;
+  const P=partDatos(),E=bmEsc;
+  if(!P.dias){box.innerHTML='';return;}
+  const col=k=>{const st=(PART_CAT.find(x=>x[0]===k)||[])[2];return st?((PHYSTAT[st]||{}).c||'var(--muted)'):null;};
+  const J=P.J.slice().sort((a,b)=>(b.pct||0)-(a.pct||0)||a.n.localeCompare(b.n,'es'));
+  const pcs=J.map(j=>j.pct).filter(x=>x!=null).sort((a,b)=>a-b),med=pcs.length?pcs[Math.floor((pcs.length-1)/2)]:null;
+  const fila=j=>{const seg=PART_CAT.filter(([k])=>j.c[k]>0).map(([k,l])=>{const w=(j.c[k]/j.D*100).toFixed(2),c=col(k);
+      return '<i class="dpt-s'+(c?'':' sin')+'" style="width:'+w+'%'+(c?';background:'+c:'')+'" title="'+E(l+': '+j.c[k]+' de '+j.D+' días')+'"></i>';}).join('');
+    const det=PART_CAT.filter(([k])=>k!=='ent'&&j.c[k]>0).map(([k,l])=>l.toLowerCase().replace(' o readaptación','')+' '+j.c[k]).join(' · ');
+    return '<div class="dpt-f"><button type="button" class="dpt-n" data-dpn="'+E(j.n)+'" title="Abrir su ficha">'+bmjCara(j.n,'bmmp-av')+'<span>'+E(cvCorto(j.n))+'</span></button>'
+      +'<div class="dpt-b" role="img" aria-label="'+E(cvCorto(j.n)+': entrenó '+j.c.ent+' de '+j.D+' días'+(det?'; '+det:''))+'">'+seg+'</div>'
+      +'<div class="dpt-v"><b>'+(j.pct==null?'—':j.pct+' %')+'</b><small>'+(j.c.ent+j.c.mod)+' de '+j.D+(det?'<span class="dpt-det"> · '+E(det)+'</span>':'')+'</small></div>'
+      +(det?'<div class="dpt-d">'+E(det.charAt(0).toUpperCase()+det.slice(1))+'</div>':'')
+      +'<div class="dpt-p"><b>'+j.pj+'</b><small>'+(j.pj===1?'partido':'partidos')+(j.min?' · '+Math.round(j.min)+'′':'')+'</small></div></div>';};
+  const ley=PART_CAT.map(([k,l])=>{const c=col(k);return '<span><i class="dpt-lc'+(c?'':' sin')+'"'+(c?' style="background:'+c+'"':'')+'></i>'+l+'</span>';}).join('');
+  box.innerHTML='<div class="panel dpt"><h2>Participación de la temporada <span class="r">'+P.dias+' días de entrenamiento del equipo y '+P.partidos+(P.partidos===1?' partido':' partidos')+' desde el 1 de julio</span></h2>'
+    +(med!=null?'<p class="dpt-res">La mitad de la plantilla ha entrenado el <b>'+med+' %</b> de los días o más.</p>':'')
+    +'<div class="dpt-ley">'+ley+'</div>'
+    +'<div class="dpt-h"><span>Jugador</span><span>Cada día de entrenamiento del equipo</span><span>Entrenó</span><span>Partidos</span></div>'
+    +J.map(fila).join('')
+    +'<p class="dpt-pie">Un día de entrenamiento del equipo es uno con entreno o fuerza en el calendario o, si no hay nada programado, con 3 cuestionarios o más. «Entrenó» cuenta el entrenamiento modificado y la readaptación, y quien tiene cuestionario o estaba convocado. «Sin registro» es un día sin cuestionario, sin convocatoria y sin estado: no sabemos si entrenó, así que no se cuenta como falta. Los minutos de partido son los apuntados a cada jugador.</p></div>';
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#dispo-part [data-dpn]');if(b)openPlayer(b.dataset.dpn);});
+window.renderDispoPart=renderDispoPart;window.partDatos=partDatos;
 
 /* ═══ v824 · CARGAS › TEMPORADA · EL CICLO, SEMANA A SEMANA ═══
    Daniel, 18/11/2026, propuesta 4 de la tanda de XPS, WIMU y Catapult: el
@@ -32818,7 +32886,8 @@ window.dispExportParte=function(){
   try{exportNodePNG('avail-body','parte_disponibilidad_'+dkey(new Date())+'.png');}
   catch(e){if(window.toast)toast('No se ha podido exportar.');}
 };
-function renderAvail(){
+function renderAvail(){try{setTimeout(()=>{try{renderDispoPart();}catch(e){console.error('bmnava · participación',e);}},0);}catch(e){}
+
   /* v209 · Los paneles de evolución y retornos se reubican debajo de «Atención
      hoy»: lo primero que se ve son los jugadores y su disponibilidad, y el
      contexto histórico viene después. Van fuera de avail-body —que se regenera
@@ -54714,6 +54783,40 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .c-sin{fill:color-mix(in srgb,var(--muted2) 30%,var(--panel));background:color-mix(in srgb,var(--muted2) 30%,var(--panel))}
 .ctc-pie{font-size:var(--fs-sm);color:var(--muted);margin:10px 0 0;line-height:1.45}
 #carga-temporada>div+div{margin-top:var(--gap,18px)}
+</style>
+<style id="bm-v825">
+/* v825 · participación de la temporada */
+#dispo-part:not(:empty){margin-top:22px}
+.panel.dpt{display:block}
+.dpt-res{font-size:var(--fs-body);color:var(--muted);margin:6px 0 8px}
+.dpt-res b{color:var(--txt);font-weight:600}
+.dpt-ley{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:var(--fs-sm);color:var(--muted);margin:0 0 10px}
+.dpt-ley span{display:inline-flex;align-items:center;gap:6px}
+.dpt-lc{display:inline-block;width:12px;height:12px;border-radius:3px}
+.dpt-lc.sin{background:var(--seg-carril);box-shadow:inset 0 0 0 .5px var(--hair)}
+.dpt-s.sin{background:transparent}
+.dpt-h,.dpt-f{display:grid;grid-template-columns:170px minmax(0,1fr) 270px 120px;column-gap:16px;align-items:center}
+.dpt-h{font-size:var(--fs-xs);font-weight:600;color:var(--muted);padding:0 0 6px;border-bottom:.5px solid var(--hair)}
+.dpt-h span:nth-child(n+3){text-align:right}
+.dpt-f{min-height:44px;padding:4px 0;border-bottom:.5px solid var(--hair)}
+.dpt-n{all:unset;display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer}
+.dpt-n span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.dpt-n:hover span{color:var(--acc-seg,var(--accent))}
+.dpt-n:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.dpt-b{display:flex;gap:2px;height:14px;border-radius:7px;overflow:hidden;background:var(--seg-carril)}
+.dpt-s{display:block;height:100%;min-width:2px}
+.dpt-v,.dpt-p{text-align:right;min-width:0}
+.dpt-v b,.dpt-p b{font-size:var(--fs-body);font-weight:600;font-variant-numeric:tabular-nums}
+.dpt-v small,.dpt-p small{display:block;font-size:var(--fs-xs);color:var(--muted);line-height:1.35}
+.dpt-pie{font-size:var(--fs-sm);color:var(--muted);margin:10px 0 0;line-height:1.45}
+.dpt-d{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .dpt-h{display:none}
+  .dpt-f{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"n v p" "b b b" "d d d";row-gap:6px;padding:8px 0}
+  .dpt-det{display:none}
+  .dpt-d{display:block;grid-area:d;font-size:var(--fs-xs);color:var(--muted)}
+  .dpt-n{grid-area:n}.dpt-b{grid-area:b}.dpt-v{grid-area:v}.dpt-p{grid-area:p}
+}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
