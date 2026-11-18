@@ -16924,9 +16924,9 @@ const BMMP_RN={ok:0,warn:1,bad:2};
    vacío. */
 const BMMP_FUT=7;
 function bmMpColEst(st){return st==='baja'?'var(--bad)':(NOAV_FIS_ST.includes(st)||CARE_ST.includes(st))?'var(--warn)':'#7c9cbf';}
-function bmMpDatos(){
+function bmMpDatos(wv){
   const ps=STATE.players||{},hoy=dkey(new Date()),fin=dkey(REF());
-  const win=FILTER.window||28;
+  const win=wv||FILTER.window||28;
   let ini=win>=9999?TEMP_INICIO:dkSumaDias(fin,-(win-1));if(ini<TEMP_INICIO&&win>=9999)ini=TEMP_INICIO;
   const dks=dkRango(ini,fin);
   let par={};try{const cal=STATE.calendar||{};dks.forEach(dk=>{const e=(cal[dk]||[]).find(evEsPartido);if(e)par[dk]=evRival(e)||'Partido';});}catch(e){}
@@ -16997,12 +16997,10 @@ function bmMpCifras(){
   if(ancha()>cw-3)r.classList.remove('bmmp-num','bmmp-nums');
 }
 let BMMP_RZ=0;window.addEventListener('resize',()=>{clearTimeout(BMMP_RZ);BMMP_RZ=setTimeout(bmMpCifras,120);},{passive:true});
-function renderMapaPlantilla(){
-  const box=document.getElementById('carga-mapa');if(!box)return;
-  if(window.__RD_CALC)return;
-  const D=bmMpDatos(),E=bmEsc,FUT=BMMP.modo==='rec'?[]:(D.fut||[]),N=D.dks.length+FUT.length;
-  const L=['D','L','M','X','J','V','S'];
-  const ancho=N>40?'s':N>21?'m':'l';
+/* v810 · la rejilla del mapa (cabecera, fila del equipo y jugadores), sacada de
+   `renderMapaPlantilla` para que la lámina de la presentación sea la misma */
+function bmMpRejilla(D,FUT,ancho){
+  const E=bmEsc,L=['D','L','M','X','J','V','S'];
   let cab='<div class="bmmp-nom bmmp-esq"></div>'+D.dks.map((dk,i)=>{const d=dkToDate(dk),w=d.getDay();
     const cls=['bmmp-h'];if(w===1)cls.push('lun');if(dk===D.hoy)cls.push('hoy');if(D.par[dk])cls.push('par');
     const lab=ancho==='s'?(w===1?String(d.getDate()):''):'<b>'+L[w]+'</b>'+d.getDate();
@@ -17031,6 +17029,14 @@ function renderMapaPlantilla(){
       filas+='<div class="bmmp-tot">'+bmMpTot(F)+'</div>';
     });
   });
+  return {html:cab+filas,orden};
+}
+function renderMapaPlantilla(){
+  const box=document.getElementById('carga-mapa');if(!box)return;
+  if(window.__RD_CALC)return;
+  const D=bmMpDatos(),E=bmEsc,FUT=BMMP.modo==='rec'?[]:(D.fut||[]),N=D.dks.length+FUT.length;
+  const ancho=N>40?'s':N>21?'m':'l';
+  const RJ=bmMpRejilla(D,FUT,ancho),orden=RJ.orden;
   const desde=dkToDate(D.dks[0]),hasta=dkToDate(FUT.length?FUT[FUT.length-1]:D.fin);
   const REC=BMMP.modo==='rec';
   const modo='<div class="bmmp-modo" role="group" aria-label="Qué pinta el mapa"><button type="button" data-mpm="carga" aria-pressed="'+(!REC)+'"'+(!REC?' class="on"':'')+'>Carga</button><button type="button" data-mpm="rec" aria-pressed="'+REC+'"'+(REC?' class="on"':'')+'>Recuperación</button></div>';
@@ -17042,7 +17048,7 @@ function renderMapaPlantilla(){
     +'<span><i class="bmmp-lc fu" style="--ec:var(--bad)"></i>Fuera (el color de su estado)</span>'
     +'<span><i class="bmmp-lc mo"></i>Con molestia</span><span><i class="bmmp-lc par"></i>Partido</span><span class="bmmp-vac"><i class="bmmp-lc"></i>'+(REC?'Sin parte':'Sin cuestionario')+'</span>'
     +(FUT.length?'<span><i class="bmmp-lc fut n1"></i>Planificado (los '+FUT.length+' días siguientes)</span>':'')+'</div></div>'
-    +'<div class="bmmp-w"><div class="bmmp-r bmmp-'+ancho+'" style="--n:'+N+'">'+cab+filas+'</div></div>'
+    +'<div class="bmmp-w"><div class="bmmp-r bmmp-'+ancho+'" style="--n:'+N+'">'+RJ.html+'</div></div>'
     +'<p class="bmmp-pie">'+(FUT.length?'Los '+FUT.length+' días de la derecha, más tenues, son lo planificado en el calendario: su parte del plan, con su plan individual si lo tiene; arriba, el plan del día. Es lo que haría si hace lo que hay puesto, no una predicción, y no entra en el total. ':'')+(REC?'La recuperación es la que declara cada uno en el cuestionario de la mañana (la de la barra de 14 días del Resumen); la del equipo, la media de las filas de ese día sin los que están con la selección. ':'')+'Pasa el ratón por una casilla para ver el día; un clic abre su inspector, un clic en el nombre, su ficha, y en la fecha de arriba, el resumen de ese día. La ventana se cambia arriba (14 d · 28 d · 8 sem · Temporada).</p></div>';
   BMMP.D=D;BMMP.orden=orden;
   bmMpCifras();
@@ -17557,11 +17563,29 @@ function bprAtencion(){
     +'</div>'+(A.length>9?'<p class="bpr-nadie">y '+(A.length-9)+' más</p>':'')
     :'<div class="bpr-vacio"><b>Nadie con una señal fuera de rango</b><span>Ni ACWR, ni monotonía, ni readiness, ni episodios abiertos, ni coste cardíaco.</span></div>'};
 }
+/* ═══ v810 · EL MAPA, EN LA PRESENTACIÓN ═══
+   Daniel, 18/11/2026, propuesta 8 (10 en la lista). Una lámina más, después de
+   «La semana»: la plantilla en las dos últimas semanas —con lo planificado de
+   los 7 días siguientes si se está viendo hoy—, en el modo que esté elegido en
+   el mapa (Carga o Recuperación). Es la misma rejilla del mapa
+   (`bmMpRejilla`), más grande para la tele, con la cifra siempre escrita. */
+function bprMapa(){
+  let D;try{D=bmMpDatos(14);}catch(e){return null;}
+  if(!D||!D.dks.length)return null;
+  const REC=BMMP.modo==='rec',FUT=REC?[]:(D.fut||[]),N=D.dks.length+FUT.length;
+  const RJ=bmMpRejilla(D,FUT,'l');
+  const desde=dkToDate(D.dks[0]),hasta=dkToDate(FUT.length?FUT[FUT.length-1]:D.fin);
+  const ley=REC?'<span><i class="bmmp-lc n0"></i>Recuperación desde 75 %</span><span><i class="bmmp-lc n1"></i>55–74 %</span><span><i class="bmmp-lc n2"></i>Menos de 55 %</span>'
+    :'<span><i class="bmmp-lc n0"></i>Baja · menos de 600 UA</span><span><i class="bmmp-lc n1"></i>Media · 600–900</span><span><i class="bmmp-lc n2"></i>Alta · más de 900</span>'+(FUT.length?'<span><i class="bmmp-lc fut n1"></i>Planificado</span>':'');
+  return {tit:'La plantilla, día a día',sub:(REC?'Recuperación':'Carga')+' · del '+desde.getDate()+'/'+(desde.getMonth()+1)+' al '+hasta.getDate()+'/'+(hasta.getMonth()+1),
+    html:'<div class="bpr-mapa"><div class="bmmp-ley">'+ley+'<span><i class="bmmp-lc fu" style="--ec:var(--bad)"></i>Fuera</span><span><i class="bmmp-lc mo"></i>Con molestia</span></div>'
+      +'<div class="bmmp-r bmmp-l bmmp-num" style="--n:'+N+'">'+RJ.html+'</div></div>'};
+}
 function bmPresentar(){
   if(esMovil())return;
   if(window.__RD_CALC){setTimeout(bmPresentar,400);return;}
   try{bmMenuMacCierra();bmSpotCierra();}catch(e){}
-  BMPRES.sl=[bprHoy,bprDispo,bprSemana,bprPartido,bprAtencion].map(f=>{try{return f();}catch(e){console.error('bmnava · presentación',e);return null;}}).filter(Boolean);
+  BMPRES.sl=[bprHoy,bprDispo,bprSemana,bprMapa,bprPartido,bprAtencion].map(f=>{try{return f();}catch(e){console.error('bmnava · presentación',e);return null;}}).filter(Boolean);
   if(!BMPRES.sl.length){toast('No hay nada que presentar todavía');return;}
   BMPRES.i=0;
   let v=document.getElementById('bm-pres');
@@ -53282,6 +53306,26 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .bmdr-q{margin:0 0 6px;font-size:var(--fs-sm);color:var(--txt);line-height:1.45}.bmdr-q b{font-weight:600}
 .bmdr-nada{margin:0;font-size:var(--fs-sm);color:var(--muted)}
 .bmdr-acc{padding-top:12px;border-top:1px solid var(--hair);display:flex;justify-content:flex-end}
+/* v810 · el mapa en la presentación: la misma rejilla, más grande */
+@media screen and (min-width:761px) and (pointer:fine){
+  #bm-pres .bpr-mapa{display:flex;flex-direction:column;gap:14px;height:100%;min-height:0}
+  #bm-pres .bpr-mapa .bmmp-ley{margin:0;font-size:15px}
+  #bm-pres .bpr-mapa .bmmp-lc{width:16px;height:16px}
+  #bm-pres .bpr-mapa .bmmp-r{grid-template-columns:200px repeat(var(--n),minmax(0,1fr)) 110px;gap:3px;flex:1;align-content:start}
+  /* el alto de cada fila sale del de la pantalla: 23 filas tienen que caber de arriba abajo */
+  #bm-pres .bpr-mapa{--fh:max(18px,calc((100vh - 340px) / 24))}
+  #bm-pres .bpr-mapa .bmmp-c{height:var(--fh);border-radius:6px}
+  #bm-pres .bpr-mapa .bmmp-r .bmmp-c>b{font-size:min(14px,calc(var(--fh) * .58));letter-spacing:0}
+  #bm-pres .bpr-mapa .bmmp-h{font-size:14px;min-height:32px}#bm-pres .bpr-mapa .bmmp-h b{font-size:12px}
+  #bm-pres .bpr-mapa .bmmp-nom span{font-size:min(16px,calc(var(--fh) * .66))}
+  #bm-pres .bpr-mapa .bmmp-av,#bm-pres .bpr-mapa .bmmp-eqi{width:var(--fh);height:var(--fh)}
+  #bm-pres .bpr-mapa .bmmp-g{font-size:12px;padding:2px 0 0}
+  #bm-pres .bpr-mapa .bmmp-tot{flex-direction:row;align-items:center;justify-content:flex-end;gap:6px}
+  #bm-pres .bpr-mapa .bmmp-tot b{font-size:min(15px,calc(var(--fh) * .62))}#bm-pres .bpr-mapa .bmmp-tot small{font-size:12px}
+  #bm-pres .bpr-mapa .bmmp-eqn,#bm-pres .bpr-mapa .bmmp-c.eq,#bm-pres .bpr-mapa .bmmp-c.eq+.bmmp-tot{margin-top:2px}
+  #bm-pres .bpr-mapa .bmmp-nom,#bm-pres .bpr-mapa .bmmp-tot{background:transparent}
+  #bm-pres .bpr-mapa .bmmp-c:hover{outline:0}
+}
 /* v809 · exportar el mapa y la comparación */
 .cmp-con .cmp-png{margin-left:auto}
 @media screen and (min-width:761px) and (pointer:fine){
