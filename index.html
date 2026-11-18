@@ -6911,7 +6911,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 
     <div class="carga-pane" id="carga-resumen" style="display:none"></div>
     <!-- v824 · La temporada: lo longitudinal que traen XPS, WIMU y Catapult -->
-    <div class="carga-pane" id="carga-temporada" style="display:none"><div id="ct-ciclo"></div></div>
+    <div class="carga-pane" id="carga-temporada" style="display:none"><div id="ct-ciclo"></div><div id="ct-bloques"></div></div>
 
     <div class="carga-pane" id="carga-mapa" style="display:none"></div>
 
@@ -10336,7 +10336,7 @@ const LS_VISTO={};
    copia antigua perdona las tumbas de lo que restaura: eso sí es resucitar a
    propósito. */
 const LS_TUMBAS='bmnava_tumbas';
-const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos|alertas|notas|objetivos)$/;
+const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos|alertas|notas|objetivos|bloques)$/;
 /* v371 · Las sesiones de Polar se quedaban fuera del sistema de tumbas, así que
    borrar una no dejaba rastro: la fusión la conservaba desde la copia del
    servidor y volvía en cada actualización, una y otra vez. Sus registros no
@@ -10607,7 +10607,7 @@ function lsGuardar(clave,valor){
   }
 }
 /* Nombre legible de cada bloque, para que el aviso diga algo entendible. */
-const LS_NOMBRES={bmnava_objetivos:'Objetivos individuales',bmnava_notas:'Notas en los gráficos',bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_calaj:'Plan individual',bmnava_caltpl:'Plantillas de microciclo',
+const LS_NOMBRES={bmnava_bloques:'Bloques de la temporada',bmnava_objetivos:'Objetivos individuales',bmnava_notas:'Notas en los gráficos',bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_calaj:'Plan individual',bmnava_caltpl:'Plantillas de microciclo',
   bmnava_sessdur:'Duraciones de sesión',bmnava_asist:'Asistencia',bmnava_info:'Datos personales',
   bmnava_meddb:'Médico',bmnava_med:'Ficha médica',bmnava_medlog:'Agenda médica',
   bmnava_physio:'Fisioterapia',bmnava_physiodict:'Diccionario de fisioterapia',
@@ -10634,7 +10634,7 @@ function lsNombre(k){return LS_NOMBRES[k]||LS_NOMBRES_INT[k]||k;}
    sincronización: la sincronización reparte el estado actual entre el staff,
    pero no guarda historia, así que si un bloque se vacía se vacía para todos.
    Esto es lo que permite volver atrás. */
-const BKP_CLAVES=['bmnava_objetivos','bmnava_notas','bmnava_cal','bmnava_calmeta','bmnava_calaj','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
+const BKP_CLAVES=['bmnava_bloques','bmnava_objetivos','bmnava_notas','bmnava_cal','bmnava_calmeta','bmnava_calaj','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
   'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto','bmnava_vendajes','bmnava_nutri',
   /* v504 · volumen de gimnasio de BuilderPro. Se teclea fuera de la app y se
@@ -10818,6 +10818,7 @@ function invRender(){
     {k:'bmnava_caltpl',   lab:'Plantillas de microciclo',          porMes:false},
     {k:'bmnava_notas',    lab:'Notas en los gráficos',             porMes:false},
     {k:'bmnava_objetivos',lab:'Objetivos individuales',            porMes:false},
+    {k:'bmnava_bloques',  lab:'Bloques de la temporada',           porMes:false},
     {k:'bmnava_fisiotpl', lab:'Plantillas de fisioterapia',        porMes:false},
     {k:'bmnava_photos',   lab:'Fotos',                             porMes:false},
     {k:'bmnava_info',     lab:'Datos personales',                  porMes:false}
@@ -17264,6 +17265,99 @@ function renderCargaTemporada(){
 }
 let CT_RZ=0;window.addEventListener('resize',()=>{clearTimeout(CT_RZ);CT_RZ=setTimeout(()=>{const p=document.getElementById('carga-temporada');if(p&&p.offsetParent)renderCargaTemporada();},160);},{passive:true});
 window.renderCargaTemporada=renderCargaTemporada;window.ctSemanas=ctSemanas;
+
+/* ═══ v826 · BLOQUES DE LA TEMPORADA, CON SU OBJETIVO ═══
+   Daniel, 18/11/2026, propuesta 6 de la tanda de XPS, WIMU y Catapult: la
+   planificación por bloques de Kinexon y XPS. Pretemporada, primer bloque,
+   parón… cada uno con sus fechas y el rango de carga semanal del equipo que
+   pongáis, y lo real dibujado contra él en «El ciclo, semana a semana».
+   **El rango lo pone el cuerpo técnico, no la app**: no se inventa ninguno.
+   La carga es la misma de las barras (la del equipo del Dashboard), y una
+   semana pertenece al bloque si su lunes cae entre las dos fechas. Se
+   compara sólo con semanas cerradas —la regla de siempre— y el veredicto es
+   `calDesvio`, el único criterio de la app para «lo que salió contra lo que
+   se pidió»: verde dentro, ámbar fuera a menos de media franja, rojo más
+   allá (la excepción autorizada del rojo para el desvío, §2.3). La franja
+   va en neutro: no es una alerta, lo que se mira es dónde cae la barra.
+   Almacén nuevo, `bmnava_bloques`, en las cuatro listas: tumbas, copia,
+   nombres e inventario. */
+const BLQ_K='bmnava_bloques';
+function blqLoad(){if(!Array.isArray(STATE.bloques))STATE.bloques=lsLeer(BLQ_K,[]);if(!Array.isArray(STATE.bloques))STATE.bloques=[];return STATE.bloques;}
+function blqPersist(){return lsGuardar(BLQ_K,blqLoad());}
+function blqOrden(){return blqLoad().filter(b=>b&&b.desde&&b.hasta).slice().sort((a,b)=>String(a.desde).localeCompare(String(b.desde)));}
+function blqDe(w){const L=blqOrden();for(const b of L)if(w>=weekKey(dkToDate(b.desde))&&w<=b.hasta)return b;return null;}
+function ctBloquesMax(){return Math.max(0,...blqOrden().map(b=>+b.max||0));}
+function ctBloquesSVG(S,G){
+  const L=blqOrden();if(!L.length)return '';let g='';
+  L.forEach(b=>{const idx=S.map((s,i)=>blqDe(s.w)===b?i:-1).filter(i=>i>=0);if(!idx.length)return;
+    const x0=G.PL+idx[0]*G.cw+1,x1=G.PL+(idx[idx.length-1]+1)*G.cw-1,lo=+b.min,hi=+b.max;
+    if(isFinite(lo)&&isFinite(hi)&&hi>=lo){const y1=G.y(hi),y0=G.y(lo);
+      g+='<rect class="ctb-band" x="'+x0.toFixed(1)+'" y="'+y1.toFixed(1)+'" width="'+(x1-x0).toFixed(1)+'" height="'+Math.max(1,y0-y1).toFixed(1)+'"><title>'+bmEsc(b.nombre+' · objetivo '+Math.round(lo).toLocaleString('es-ES')+'–'+Math.round(hi).toLocaleString('es-ES')+' UA por semana')+'</title></rect>'
+        +'<line class="ctb-edge" x1="'+x0.toFixed(1)+'" x2="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" y2="'+y1.toFixed(1)+'"/><line class="ctb-edge" x1="'+x0.toFixed(1)+'" x2="'+x1.toFixed(1)+'" y1="'+y0.toFixed(1)+'" y2="'+y0.toFixed(1)+'"/>';}
+    g+='<text class="ctb-lab" x="'+(x0+3).toFixed(1)+'" y="'+(G.PT-8)+'">'+bmEsc(b.nombre)+'</text><line class="ctb-sep" x1="'+x0.toFixed(1)+'" x2="'+x0.toFixed(1)+'" y1="'+(G.PT-4)+'" y2="'+(G.H-G.PB)+'"/>';});
+  return g;
+}
+function ctBloquesLey(){return blqOrden().length?'<span><i class="ctc-lc ctb-lc"></i>Objetivo del bloque</span>':'';}
+function ctBloquesPie(){return '';}
+function blqResumen(b,S){
+  const sem=S.filter(s=>blqDe(s.w)===b),cer=sem.filter(s=>!s.parcial&&s.tot>0);
+  const c={ok:0,leve:0,fuerte:0,arriba:0,abajo:0};
+  cer.forEach(s=>{const D=calDesvio(s.tot,+b.min,+b.max);if(!D)return;c[D.est]++;if(D.dir>0)c.arriba++;if(D.dir<0)c.abajo++;});
+  const med=cer.length?cer.reduce((a,s)=>a+s.tot,0)/cer.length:null;
+  return {sem:sem.length,cer:cer.length,c,med,D:med!=null?calDesvio(med,+b.min,+b.max):null};
+}
+function renderCtBloques(){
+  const box=document.getElementById('ct-bloques');if(!box)return;
+  const E=bmEsc,L=blqOrden(),S=ctSemanas(),n0=v=>Math.round(v).toLocaleString('es-ES');
+  const cab='<h2>Bloques de la temporada <span class="r"><button type="button" class="btn ghost" data-blq-n>＋ Bloque</button></span></h2>';
+  if(!L.length){box.innerHTML='<div class="panel ctb">'+cab+'<p class="ctb-nada">Sin bloques. Pon la pretemporada, cada bloque y los parones con sus fechas y el rango de carga semanal del equipo que buscáis en cada uno, y en «El ciclo, semana a semana» verás cada semana contra su objetivo.</p></div>';return;}
+  const hoy=dkey(new Date());
+  const fila=b=>{const R=blqResumen(b,S),d0=dkToDate(b.desde),d1=dkToDate(b.hasta);
+    const est=b.hasta<hoy?'Terminado':(b.desde>hoy?'Por venir':'En curso');
+    const med=R.med!=null?'<b style="color:'+colTexto(R.D?R.D.col:'var(--txt)')+'">'+n0(R.med)+' UA</b> de media':'<span class="ctb-mu">sin semanas cerradas</span>';
+    const det=R.cer?[R.c.ok+' de '+R.cer+' dentro',R.c.arriba?R.c.arriba+' por encima':'',R.c.abajo?R.c.abajo+' por debajo':''].filter(Boolean).join(' · '):'';
+    return '<div class="ctb-f"><div class="ctb-n"><b>'+E(b.nombre)+'</b><small>'+d0.getDate()+'/'+(d0.getMonth()+1)+' – '+d1.getDate()+'/'+(d1.getMonth()+1)+' · '+est+'</small></div>'
+      +'<div class="ctb-o"><small>Objetivo</small><b>'+n0(+b.min)+'–'+n0(+b.max)+' UA</b><small>por semana</small></div>'
+      +'<div class="ctb-r"><div>'+med+'</div><small>'+E(det)+'</small></div>'
+      +'<div class="ctb-a"><button type="button" class="btn ghost" data-blq-e="'+E(b.id)+'">Editar</button><button type="button" class="ctb-x" data-blq-x="'+E(b.id)+'" aria-label="Quitar el bloque">×</button></div></div>';};
+  box.innerHTML='<div class="panel ctb">'+cab+L.map(fila).join('')
+    +'<p class="ctb-pie">El objetivo es el rango de carga semanal del equipo (la del Dashboard) que pongáis en cada bloque. Se comparan las semanas cerradas cuyo lunes cae dentro del bloque; la de ahora no, porque va a medias. Verde dentro; ámbar fuera, a menos de media franja; rojo, más allá: el mismo criterio que el plan contra real.</p></div>';
+}
+function bmBloque(id){
+  const E=bmEsc,b=id?blqLoad().find(x=>x&&x.id===id):null,hoy=dkey(new Date());
+  /* lo que dice la temporada hasta ahora, para ayudar a poner el rango sin inventarlo */
+  const cer=ctSemanas().filter(s=>!s.parcial&&s.tot>0).map(s=>s.tot).sort((a,c)=>a-c);
+  const q=f=>cer.length?cer[Math.min(cer.length-1,Math.max(0,Math.round((cer.length-1)*f)))]:null;
+  const ayuda=cer.length>=3?'Vuestras semanas cerradas van de '+Math.round(cer[0]).toLocaleString('es-ES')+' a '+Math.round(cer[cer.length-1]).toLocaleString('es-ES')+' UA; la mitad central, de '+Math.round(q(.25)).toLocaleString('es-ES')+' a '+Math.round(q(.75)).toLocaleString('es-ES')+'.':'';
+  const h='<div class="blf" data-id="'+E(b?b.id:'')+'"><label>Nombre<input type="text" data-bf="nombre" maxlength="40" placeholder="Pretemporada, Bloque 1, Parón…" value="'+E(b?b.nombre:'')+'"></label>'
+    +'<div class="blf-2"><label>Desde<input type="date" data-bf="desde" value="'+E(b?b.desde:hoy)+'"></label><label>Hasta<input type="date" data-bf="hasta" value="'+E(b?b.hasta:dkSumaDias(hoy,27))+'"></label></div>'
+    +'<div class="blf-2"><label>Carga semanal · desde<input type="number" data-bf="min" inputmode="numeric" step="50" value="'+(b?E(String(b.min)):'')+'"></label><label>hasta (UA)<input type="number" data-bf="max" inputmode="numeric" step="50" value="'+(b?E(String(b.max)):'')+'"></label></div>'
+    +(ayuda?'<p class="blf-ah">'+ayuda+'</p>':'')
+    +'<div class="blf-acc"><button type="button" class="btn" data-bf-ok>Guardar el bloque</button></div></div>';
+  bmHoja({id:'blq',titulo:b?'Bloque · '+b.nombre:'Bloque nuevo',html:h,clase:'bm-blqh'});
+}
+function blqGuarda(){
+  const f=document.querySelector('#bmh-blq .blf');if(!f)return;
+  const g=k=>f.querySelector('[data-bf="'+k+'"]'),nombre=String(g('nombre').value||'').trim(),desde=g('desde').value,hasta=g('hasta').value;
+  const mn=parseFloat(String(g('min').value).replace(',','.')),mx=parseFloat(String(g('max').value).replace(',','.'));
+  if(!nombre){g('nombre').focus();return;}if(!desde){g('desde').focus();return;}if(!hasta||hasta<desde){g('hasta').focus();toast('La fecha final tiene que ser posterior a la de inicio');return;}
+  if(!isFinite(mn)){g('min').focus();return;}if(!isFinite(mx)||mx<mn){g('max').focus();toast('El máximo tiene que ser mayor que el mínimo');return;}
+  const L=blqLoad(),id=f.dataset.id;
+  const solapa=L.find(x=>x&&x.id!==id&&!(hasta<x.desde||desde>x.hasta));
+  if(solapa){toast('Se solapa con «'+solapa.nombre+'»: un día sólo puede ser de un bloque');return;}
+  const o={id:id||('blq_'+Date.now()+'_'+Math.round(Math.random()*99999)),nombre,desde,hasta,min:Math.round(mn),max:Math.round(mx),quien:(typeof alvQuien==='function'?alvQuien():''),upd:Date.now()};
+  const i=L.findIndex(x=>x&&x.id===o.id);if(i>=0)L[i]=o;else L.push(o);
+  if(!blqPersist()){toast('No se pudo guardar');return;}
+  bmHojaCierra('blq');try{renderCargaTemporada();}catch(e){}toast('Bloque guardado');
+}
+function blqQuita(id){const L=blqLoad(),i=L.findIndex(x=>x&&x.id===id);if(i<0)return;const b=L[i];L.splice(i,1);blqPersist();try{renderCargaTemporada();}catch(e){}
+  bmHecho('Bloque quitado',()=>{blqLoad().push(Object.assign({},b,{id:'blq_'+Date.now()+'_'+Math.round(Math.random()*99999),upd:Date.now()}));blqPersist();try{renderCargaTemporada();}catch(e){}},'Deshecho · el bloque vuelve');}
+document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
+  if(e.target.closest('#ct-bloques [data-blq-n]')){bmBloque(null);return;}
+  const ed=e.target.closest('#ct-bloques [data-blq-e]');if(ed){bmBloque(ed.dataset.blqE);return;}
+  const x=e.target.closest('#ct-bloques [data-blq-x]');if(x){blqQuita(x.dataset.blqX);return;}
+  if(e.target.closest('#bmh-blq [data-bf-ok]'))blqGuarda();});
+window.bmBloque=bmBloque;window.renderCtBloques=renderCtBloques;window.ctBloquesSVG=ctBloquesSVG;window.ctBloquesMax=ctBloquesMax;window.ctBloquesLey=ctBloquesLey;window.ctBloquesPie=ctBloquesPie;window.blqLoad=blqLoad;
 
 /* ═══ v823 · LA TEMPORADA, SEMANA A SEMANA, CADA UNO CONTRA LO SUYO ═══
    Daniel, 18/11/2026, propuesta 3 de la tanda de XPS, WIMU y Catapult: las
@@ -54816,6 +54910,37 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   .dpt-det{display:none}
   .dpt-d{display:block;grid-area:d;font-size:var(--fs-xs);color:var(--muted)}
   .dpt-n{grid-area:n}.dpt-b{grid-area:b}.dpt-v{grid-area:v}.dpt-p{grid-area:p}
+}
+</style>
+<style id="bm-v826">
+/* v826 · bloques de la temporada */
+.ctb-band{fill:color-mix(in srgb,var(--txt) 7%,transparent)}
+.ctb-edge{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3}
+.ctb-lab{font-size:11px;font-weight:600;fill:var(--txt)}
+.ctb-sep{stroke:var(--hair);stroke-width:1}
+.ctb-lc{background:color-mix(in srgb,var(--txt) 9%,var(--panel));box-shadow:inset 0 0 0 1px var(--muted)}
+.panel.ctb{display:block}
+.ctb-nada{font-size:var(--fs-body);color:var(--muted);margin:8px 0 0;line-height:1.5}
+.ctb-f{display:grid;grid-template-columns:minmax(0,1.3fr) 170px minmax(0,1.4fr) auto;column-gap:16px;align-items:center;min-height:52px;padding:6px 0;border-bottom:.5px solid var(--hair)}
+.ctb-n b{display:block;font-weight:600}.ctb-n small,.ctb-o small,.ctb-r small{display:block;font-size:var(--fs-xs);color:var(--muted)}
+.ctb-o b,.ctb-r b{font-weight:600;font-variant-numeric:tabular-nums}
+.ctb-mu{color:var(--muted)}
+.ctb-a{display:flex;align-items:center;gap:6px}
+.ctb-x{all:unset;cursor:pointer;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;color:var(--muted);font-size:18px}
+.ctb-x:hover{background:var(--seg-carril);color:var(--txt)}
+.ctb-x:focus-visible{outline:2px solid var(--accent)}
+.ctb-pie{font-size:var(--fs-sm);color:var(--muted);margin:10px 0 0;line-height:1.45}
+.blf{display:grid;gap:12px}
+.blf label{display:grid;gap:5px;font-size:var(--fs-sm);color:var(--muted)}
+.blf input{font:inherit;font-size:15px;padding:9px 11px;border-radius:9px;border:.5px solid var(--hair);background:var(--panel2,var(--panel));color:var(--txt)}
+.blf-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.blf-ah{font-size:var(--fs-sm);color:var(--muted);margin:0;line-height:1.45}
+.blf-acc{display:flex;justify-content:flex-end}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .ctb-f{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n a" "o o" "r r";row-gap:4px;padding:10px 0}
+  .ctb-n{grid-area:n}.ctb-o{grid-area:o}.ctb-r{grid-area:r}.ctb-a{grid-area:a}
+  .ctb-o small:first-child,.ctb-o small:last-child{display:inline;margin:0 4px 0 0}
+  .ctb-x{width:44px;height:44px}
 }
 </style>
 <style id="bm-v808">
