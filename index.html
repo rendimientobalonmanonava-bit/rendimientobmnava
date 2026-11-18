@@ -6911,7 +6911,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 
     <div class="carga-pane" id="carga-resumen" style="display:none"></div>
     <!-- v824 · La temporada: lo longitudinal que traen XPS, WIMU y Catapult -->
-    <div class="carga-pane" id="carga-temporada" style="display:none"><div id="ct-ciclo"></div><div id="ct-bloques"></div><div id="ct-tags"></div></div>
+    <div class="carga-pane" id="carga-temporada" style="display:none"><div id="ct-ciclo"></div><div id="ct-bloques"></div><div id="ct-vi"></div><div id="ct-tags"></div></div>
 
     <div class="carga-pane" id="carga-mapa" style="display:none"></div>
 
@@ -17267,6 +17267,59 @@ function renderCargaTemporada(){
 let CT_RZ=0;window.addEventListener('resize',()=>{clearTimeout(CT_RZ);CT_RZ=setTimeout(()=>{const p=document.getElementById('carga-temporada');if(p&&p.offsetParent)renderCargaTemporada();},160);},{passive:true});
 window.renderCargaTemporada=renderCargaTemporada;window.ctSemanas=ctSemanas;
 
+/* ═══ v828 · VOLUMEN CONTRA INTENSIDAD ═══
+   Daniel, 18/11/2026, propuesta 8 de la tanda de XPS, WIMU y Catapult: los
+   indicadores de volumen e intensidad de Catapult, vistos juntos. Un punto
+   por día con carga del equipo desde el 1 de julio: sus minutos (horizontal)
+   contra su RPE —o su %Z4+Z5, los días con 3 pulsómetros o más (`calZonasDia`,
+   el de la casilla del mes)— y el color de su posición en el ciclo, el mismo
+   de «El ciclo, semana a semana». Se ve cómo diseñáis cada día: si los MD-1
+   son cortos y suaves, si los MD-3 son los largos y duros.
+   **Ni un umbral**: las dos rayas son las medianas de vuestros propios días,
+   que parten el plano en cuatro (más largo o más corto, más duro o más suave
+   que lo vuestro). Los minutos y el RPE son los del equipo del Dashboard
+   (`cgSerieEquipo`). Si hay una etiqueta elegida en «Por etiqueta», sus días
+   se resaltan también aquí. */
+const BMVI={y:'rpe'};
+function renderCtVI(){
+  const box=document.getElementById('ct-vi');if(!box)return;
+  const E=bmEsc,Y=BMVI.y;
+  let S=[];try{S=cgSerieEquipo();}catch(e){}
+  let ps=[];try{ps=calPartidosDks();}catch(e){}
+  const P=S.filter(d=>d.dk>=TEMP_INICIO&&d.ua>0&&d.dur>0).map(d=>{let y=null;
+    if(Y==='rpe')y=d.rpe>0?d.rpe:null;else{let z=null;try{z=calZonasDia(d.dk);}catch(e){}y=z&&z.fuente==='polar'&&isFinite(z.z4)&&isFinite(z.z5)?z.z4+z.z5:null;}
+    const m=ps.length?calMd(d.dk,ps):null;return {dk:d.dk,x:d.dur,y,ua:d.ua,m,cat:ctCat(m)};}).filter(p=>p.y!=null);
+  const seg='<div class="ctv-seg" role="group" aria-label="Intensidad"><button type="button" data-vy="rpe" aria-pressed="'+(Y==='rpe')+'"'+(Y==='rpe'?' class="on"':'')+'>RPE</button><button type="button" data-vy="z45" aria-pressed="'+(Y==='z45')+'"'+(Y==='z45'?' class="on"':'')+'>%Z4+Z5</button></div>';
+  const cab='<h2>Volumen contra intensidad <span class="r">un punto por día, desde el 1 de julio</span></h2>';
+  if(P.length<3){box.innerHTML='<div class="panel ctv">'+cab+seg+'<p class="hint" style="margin:8px 0 0">'+(Y==='z45'?'Hacen falta días con 3 pulsómetros o más y carga registrada.':'Hacen falta días con carga y minutos registrados.')+'</p></div>';return;}
+  const ancho=Math.max(300,Math.round((box.clientWidth||box.parentElement.clientWidth||900)-44)),H=300,PL=44,PR=12,PT=12,PB=34;
+  const xs=P.map(p=>p.x),ys=P.map(p=>p.y),q=a=>{const b=a.slice().sort((x,y)=>x-y),h=(b.length-1)/2;return (b[Math.floor(h)]+b[Math.ceil(h)])/2;};
+  const x1=Math.ceil(Math.max(...xs)*1.08/15)*15,y0=Y==='rpe'?Math.max(0,Math.floor(Math.min(...ys))-1):0,y1=Y==='rpe'?10:Math.ceil(Math.max(...ys)*1.12/5)*5;
+  const X=v=>PL+(ancho-PL-PR)*v/x1,Yp=v=>PT+(H-PT-PB)*(1-(v-y0)/(y1-y0));
+  let g='';
+  const stx=x1<=120?15:30;for(let v=0;v<=x1;v+=stx)g+='<line class="ctc-gr" x1="'+X(v).toFixed(1)+'" x2="'+X(v).toFixed(1)+'" y1="'+PT+'" y2="'+(H-PB)+'" opacity=".55"/><text class="ctc-ax" x="'+X(v).toFixed(1)+'" y="'+(H-PB+15)+'" text-anchor="middle">'+v+'</text>';
+  const sty=Y==='rpe'?1:(y1<=20?5:10);for(let v=y0;v<=y1;v+=sty)g+='<line class="ctc-gr" x1="'+PL+'" x2="'+(ancho-PR)+'" y1="'+Yp(v).toFixed(1)+'" y2="'+Yp(v).toFixed(1)+'"/><text class="ctc-ax" x="'+(PL-6)+'" y="'+(Yp(v)+4).toFixed(1)+'" text-anchor="end">'+v+(Y==='z45'?' %':'')+'</text>';
+  const mx=q(xs),my=q(ys);
+  g+='<line class="ctv-med" x1="'+X(mx).toFixed(1)+'" x2="'+X(mx).toFixed(1)+'" y1="'+PT+'" y2="'+(H-PB)+'"/><line class="ctv-med" x1="'+PL+'" x2="'+(ancho-PR)+'" y1="'+Yp(my).toFixed(1)+'" y2="'+Yp(my).toFixed(1)+'"/>';
+  g+='<text class="ctv-q" x="'+(ancho-PR-4)+'" y="'+(PT+12)+'" text-anchor="end">más largo y más duro</text><text class="ctv-q" x="'+(PL+6)+'" y="'+(PT+12)+'">más corto y más duro</text><text class="ctv-q" x="'+(PL+6)+'" y="'+(H-PB-6)+'">más corto y más suave</text><text class="ctv-q" x="'+(ancho-PR-4)+'" y="'+(H-PB-6)+'" text-anchor="end">más largo y más suave</text>';
+  g+='<text class="ctc-ax" x="'+(ancho-PR)+'" y="'+(H-4)+'" text-anchor="end">minutos de la sesión →</text>';
+  const tsel=(typeof BMTAG!=='undefined'&&BMTAG.sel)?new Set(((tagDias()[BMTAG.sel])||[]).map(x=>x.dk)):null;
+  /* los partidos y los días resaltados, encima */
+  const ord=P.slice().sort((a,b)=>(a.cat==='md')-(b.cat==='md')||(tsel?(tsel.has(a.dk)-tsel.has(b.dk)):0));
+  ord.forEach(p=>{const dd=dkToDate(p.dk);let t=dd.toLocaleDateString('es',{weekday:'short',day:'numeric',month:'numeric'});t=t.charAt(0).toUpperCase()+t.slice(1);
+    const cls='ctv-p c-'+p.cat+(tsel?(tsel.has(p.dk)?' ct-hl':' ct-dim'):'');
+    g+='<circle class="'+cls+'" data-vd="'+p.dk+'" cx="'+X(p.x).toFixed(1)+'" cy="'+Yp(p.y).toFixed(1)+'" r="5.5"><title>'+E(t+' · '+(p.m?p.m.txt:'sin partido cerca')+' · '+Math.round(p.x)+' min · '+(Y==='rpe'?'RPE '+fmt(p.y,1):'Z4+Z5 '+fmt(p.y,1)+' %')+' · '+Math.round(p.ua).toLocaleString('es-ES')+' UA')+'</title></circle>';});
+  const usadas=new Set(P.map(p=>p.cat));
+  const ley=CT_CAT.filter(([k])=>usadas.has(k)).map(([k,l])=>'<span><i class="ctc-lc ctv-lc c-'+k+'"></i>'+l+'</span>').join('');
+  box.innerHTML='<div class="panel ctv">'+cab+'<div class="ctv-top">'+seg+'<div class="ctc-ley">'+ley+'</div></div>'
+    +'<svg class="ctc-svg" viewBox="0 0 '+ancho+' '+H+'" width="100%" role="img" aria-label="Minutos contra '+(Y==='rpe'?'RPE':'porcentaje en Z4 y Z5')+' de cada día de entrenamiento">'+g+'</svg>'
+    +'<p class="ctc-pie">Cada punto es un día con carga del equipo: sus minutos medios contra su '+(Y==='rpe'?'RPE medio':'%Z4+Z5 (sólo los días con 3 pulsómetros o más)')+', los del Dashboard. Las rayas son vuestras medianas ('+Math.round(mx)+' min · '+(Y==='rpe'?'RPE '+fmt(my,1):fmt(my,1)+' %')+'): parten el plano en más largo o más corto y más duro o más suave que lo vuestro. El color, su posición en el ciclo. Pulsa un punto para ver el día.</p></div>';
+}
+document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
+  const b=e.target.closest('#ct-vi [data-vy]');if(b){BMVI.y=b.dataset.vy;renderCtVI();return;}
+  const p=e.target.closest('#ct-vi [data-vd]');if(p)bmDiaRes(p.getAttribute('data-vd'));});
+window.renderCtVI=renderCtVI;
+
 /* ═══ v827 · ETIQUETAS DE SESIÓN ═══
    Daniel, 18/11/2026, propuesta 7 de la tanda de XPS, WIMU y Catapult: las
    etiquetas de sesión de XPS y las de actividad de Catapult, que luego sirven
@@ -17349,7 +17402,7 @@ function renderCtTags(){
     +'<p class="ctg-pie">Medias de los días que llevan la etiqueta en alguna sesión, desde el 1 de julio. La carga, el RPE y los minutos son los del equipo del Dashboard y de todo el día: si ese día hubo otra sesión sin la etiqueta, entra también (se dice cuántos). El %Z4+Z5, sólo de los días con 3 pulsómetros o más. Pulsa una etiqueta para ver sus días y resaltarlos en el ciclo.</p></div>';
 }
 document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
-  const f=e.target.closest('#ct-tags [data-tg],#ct-ciclo [data-tg]');if(f){BMTAG.sel=BMTAG.sel===f.dataset.tg?null:f.dataset.tg;try{renderCtCiclo();renderCtTags();}catch(x){}return;}
+  const f=e.target.closest('#ct-tags [data-tg],#ct-ciclo [data-tg]');if(f){BMTAG.sel=BMTAG.sel===f.dataset.tg?null:f.dataset.tg;try{renderCtCiclo();renderCtTags();if(window.renderCtVI)renderCtVI();}catch(x){}return;}
   const d=e.target.closest('#ct-tags [data-tgd]');if(d)bmDiaRes(d.dataset.tgd);});
 window.calTagsForm=calTagsForm;window.calTagsLee=calTagsLee;window.renderCtTags=renderCtTags;window.ctTagDia=ctTagDia;window.evTags=evTags;
 
@@ -55069,6 +55122,26 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   .ctg-f>.ctg-t{grid-area:t}
   .ctg-f>span:not(.ctg-t){text-align:left}
   .ctg-d{min-height:44px;display:flex;align-items:center}
+}
+</style>
+<style id="bm-v828">
+/* v828 · volumen contra intensidad */
+.panel.ctv{display:block}
+.ctv-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:4px 0 6px}
+.ctv-top .ctc-ley{margin:0}
+.ctv-seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--seg-carril)}
+.ctv-seg button{all:unset;cursor:pointer;padding:4px 12px;border-radius:6px;font-size:12.5px;font-weight:500;color:var(--txt)}
+.ctv-seg button.on{background:var(--seg-on);box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600}
+.ctv-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ctv-lc{border-radius:50%}
+.ctv-p{stroke:var(--panel);stroke-width:1.5;cursor:pointer}
+.ctv-p:hover{stroke:var(--txt)}
+.ctv-p.ct-hl{stroke:var(--txt);stroke-width:2}
+.ctv-med{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4}
+.ctv-q{font-size:11px;fill:var(--muted2)}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .ctv-seg button{min-height:44px;display:flex;align-items:center;padding:0 16px}
+  .ctv-q{display:none}
 }
 </style>
 <style id="bm-v808">
