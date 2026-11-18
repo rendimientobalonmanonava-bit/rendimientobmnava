@@ -16914,6 +16914,15 @@ const BMMP={sel:null,modo:(()=>{try{return localStorage.getItem('bmnava-mapamodo
    las filas de debajo de ese día, sin los que están con la selección (la regla
    de las medias del parte, v500). El modo se recuerda en ese equipo. */
 const BMMP_RN={ok:0,warn:1,bad:2};
+/* v807 · LO QUE VIENE. Daniel, 18/11/2026, propuesta 5. Con el día de hoy a la
+   vista y el mapa en Carga, siguen 7 columnas más con lo PLANIFICADO en el
+   calendario para cada jugador: su parte del plan (`calPlanUAJug`, la misma de
+   la proyección del ACWR, que respeta su plan individual), en el mismo
+   semáforo (`nivelUA`) y más tenue. La fila del equipo, el plan del día
+   (`calPlanUA`). Es «si hace lo que hay puesto», no una predicción, y lo
+   planificado no entra en el total de la fila. Un día sin nada planificado va
+   vacío. */
+const BMMP_FUT=7;
 function bmMpColEst(st){return st==='baja'?'var(--bad)':(NOAV_FIS_ST.includes(st)||CARE_ST.includes(st))?'var(--warn)':'#7c9cbf';}
 function bmMpDatos(){
   const ps=STATE.players||{},hoy=dkey(new Date()),fin=dkey(REF());
@@ -16939,12 +16948,20 @@ function bmMpDatos(){
   const eq={m:{},n:{}};
   dks.forEach(dk=>{try{const t=window.lbTeamDay&&lbTeamDay(dk);if(t){eq.m[dk]=+t.ua||0;eq.n[dk]=t.n;}}catch(e){}});
   eq.tot=Object.values(eq.m).reduce((s,v)=>s+v,0);eq.dias=Object.values(eq.m).filter(v=>v>0).length;
+  /* v807 · los 7 días siguientes, sólo si se está viendo hoy */
+  const fut=fin===hoy?dkRango(dkSumaDias(hoy,1),dkSumaDias(hoy,BMMP_FUT)):[];
+  if(fut.length){
+    try{const cal=STATE.calendar||{};fut.forEach(dk=>{const e=(cal[dk]||[]).find(evEsPartido);if(e)par[dk]=evRival(e)||'Partido';});}catch(e){}
+    Object.keys(filas).forEach(n=>{const f={};fut.forEach(dk=>{let v=0;try{v=calPlanUAJug(dk,n);}catch(e){}if(v>0)f[dk]=v;
+      try{const ev=effectiveStatus(n,dk);if(ev&&ev.status&&ev.status!=='disp'&&ev.status!=='partido')filas[n].est[dk]=ev.status;}catch(e){}});filas[n].f=f;});
+    eq.f={};fut.forEach(dk=>{let v=0;try{v=calPlanUA(dk);}catch(e){}if(v>0)eq.f[dk]=v;});
+  }
   /* v806 · la recuperación del equipo: la media de las filas de ese día, sin los de la selección */
   eq.r={};eq.rn={};
   dks.forEach(dk=>{const v=Object.keys(filas).filter(n=>filas[n].r[dk]!=null&&!(()=>{try{return conLaSeleccion(n,dk);}catch(e){return false;}})()).map(n=>filas[n].r[dk]);
     if(v.length){eq.r[dk]=v.reduce((s,x)=>s+x,0)/v.length;eq.rn[dk]=v.length;}});
   const erv=Object.values(eq.r);eq.rm=erv.length?erv.reduce((s,v)=>s+v,0)/erv.length:null;eq.rd=erv.length;
-  return {dks,par,grupos,filas,eq,hoy,fin};
+  return {dks,par,grupos,filas,eq,hoy,fin,fut};
 }
 const BMMP_NIV=['Baja','Media','Alta'];
 function bmMpCelda(v,dk,D){
@@ -16983,17 +17000,22 @@ let BMMP_RZ=0;window.addEventListener('resize',()=>{clearTimeout(BMMP_RZ);BMMP_R
 function renderMapaPlantilla(){
   const box=document.getElementById('carga-mapa');if(!box)return;
   if(window.__RD_CALC)return;
-  const D=bmMpDatos(),E=bmEsc,N=D.dks.length;
+  const D=bmMpDatos(),E=bmEsc,FUT=BMMP.modo==='rec'?[]:(D.fut||[]),N=D.dks.length+FUT.length;
   const L=['D','L','M','X','J','V','S'];
   const ancho=N>40?'s':N>21?'m':'l';
   let cab='<div class="bmmp-nom bmmp-esq"></div>'+D.dks.map((dk,i)=>{const d=dkToDate(dk),w=d.getDay();
     const cls=['bmmp-h'];if(w===1)cls.push('lun');if(dk===D.hoy)cls.push('hoy');if(D.par[dk])cls.push('par');
     const lab=ancho==='s'?(w===1?String(d.getDate()):''):'<b>'+L[w]+'</b>'+d.getDate();
-    return '<div class="'+cls.join(' ')+'" title="'+E(bmInspFecha(dk)+(D.par[dk]?' · Partido · '+D.par[dk]:''))+'">'+lab+'</div>';}).join('')+'<div class="bmmp-tot bmmp-esq">'+(BMMP.modo==='rec'?'Media · partes':'Carga · días')+'</div>';
+    return '<div class="'+cls.join(' ')+'" title="'+E(bmInspFecha(dk)+(D.par[dk]?' · Partido · '+D.par[dk]:''))+'">'+lab+'</div>';}).join('')
+    +FUT.map((dk,i)=>{const d=dkToDate(dk),w=d.getDay();const cls=['bmmp-h','fut'];if(i===0)cls.push('fut1');if(D.par[dk])cls.push('par');
+      const lab=ancho==='s'?(w===1?String(d.getDate()):''):'<b>'+L[w]+'</b>'+d.getDate();
+      return '<div class="'+cls.join(' ')+'" title="'+E(bmInspFecha(dk)+' · planificado'+(D.par[dk]?' · Partido · '+D.par[dk]:''))+'">'+lab+'</div>';}).join('')+'<div class="bmmp-tot bmmp-esq">'+(BMMP.modo==='rec'?'Media · partes':'Carga · días')+'</div>';
   /* La fila del equipo, arriba y separada: es la referencia de todas las demás. */
   let filas='<div class="bmmp-nom bmmp-eqn"><i class="bmmp-eqi" aria-hidden="true"></i><span>Media del equipo</span></div>'
     +D.dks.map(dk=>{const v=bmMpVal(D.eq,dk),k=bmMpCelda(v,dk,D);k.cls.push('eq');
       return '<div class="'+k.cls.join(' ')+'" data-eq="1" data-dk="'+dk+'">'+k.txt+'</div>';}).join('')
+    +FUT.map((dk,i)=>{const k=bmMpCelda(D.eq.f[dk],dk,D);k.cls.push('eq','fut');if(i===0)k.cls.push('fut1');
+      return '<div class="'+k.cls.join(' ')+'" data-eq="1" data-f="1" data-dk="'+dk+'">'+k.txt+'</div>';}).join('')
     +'<div class="bmmp-tot">'+bmMpTot(D.eq)+'</div>';
   const orden=[];
   D.grupos.forEach(g=>{
@@ -17003,10 +17025,13 @@ function renderMapaPlantilla(){
       filas+=D.dks.map(dk=>{const v=bmMpVal(F,dk),st=F.est[dk],k=bmMpCelda(v,dk,D);let sty='';
         if(st){if(NOAV_ST.includes(st)){k.cls.push('fu');sty+='--ec:'+bmMpColEst(st)+';';}else k.cls.push('mo');}
         return '<div class="'+k.cls.join(' ')+'" data-p="'+pi+'" data-dk="'+dk+'"'+(sty?' style="'+sty+'"':'')+'>'+k.txt+'</div>';}).join('');
+      filas+=FUT.map((dk,i)=>{const st=F.est[dk],k=bmMpCelda((F.f||{})[dk],dk,D);k.cls.push('fut');if(i===0)k.cls.push('fut1');let sty='';
+        if(st){if(NOAV_ST.includes(st)){k.cls.push('fu');sty+='--ec:'+bmMpColEst(st)+';';}else k.cls.push('mo');}
+        return '<div class="'+k.cls.join(' ')+'" data-p="'+pi+'" data-f="1" data-dk="'+dk+'"'+(sty?' style="'+sty+'"':'')+'>'+k.txt+'</div>';}).join('');
       filas+='<div class="bmmp-tot">'+bmMpTot(F)+'</div>';
     });
   });
-  const desde=dkToDate(D.dks[0]),hasta=dkToDate(D.fin);
+  const desde=dkToDate(D.dks[0]),hasta=dkToDate(FUT.length?FUT[FUT.length-1]:D.fin);
   const REC=BMMP.modo==='rec';
   const modo='<div class="bmmp-modo" role="group" aria-label="Qué pinta el mapa"><button type="button" data-mpm="carga" aria-pressed="'+(!REC)+'"'+(!REC?' class="on"':'')+'>Carga</button><button type="button" data-mpm="rec" aria-pressed="'+REC+'"'+(REC?' class="on"':'')+'>Recuperación</button></div>';
   box.innerHTML='<div class="panel bmmp"><h2>La plantilla, día a día <span class="r">del '+desde.getDate()+'/'+(desde.getMonth()+1)+' al '+hasta.getDate()+'/'+(hasta.getMonth()+1)+'</span></h2>'
@@ -17015,9 +17040,10 @@ function renderMapaPlantilla(){
       ?'<span class="bmmp-ley-n" title="Los cortes del readiness">Recuperación declarada<i class="bmmp-lc n0"></i>Desde 75 %<i class="bmmp-lc n1"></i>55–74 %<i class="bmmp-lc n2"></i>Menos de 55 %</span>'
       :'<span class="bmmp-ley-n" title="Los cortes con los que la app clasifica la carga de una sesión">Carga del día<i class="bmmp-lc n0"></i>Baja · menos de 600 UA<i class="bmmp-lc n1"></i>Media · 600–900<i class="bmmp-lc n2"></i>Alta · más de 900</span><span><i class="bmmp-lc m0"></i>Con cuestionario y sin minutos</span>')
     +'<span><i class="bmmp-lc fu" style="--ec:var(--bad)"></i>Fuera (el color de su estado)</span>'
-    +'<span><i class="bmmp-lc mo"></i>Con molestia</span><span><i class="bmmp-lc par"></i>Partido</span><span class="bmmp-vac"><i class="bmmp-lc"></i>'+(REC?'Sin parte':'Sin cuestionario')+'</span></div></div>'
+    +'<span><i class="bmmp-lc mo"></i>Con molestia</span><span><i class="bmmp-lc par"></i>Partido</span><span class="bmmp-vac"><i class="bmmp-lc"></i>'+(REC?'Sin parte':'Sin cuestionario')+'</span>'
+    +(FUT.length?'<span><i class="bmmp-lc fut n1"></i>Planificado (los '+FUT.length+' días siguientes)</span>':'')+'</div></div>'
     +'<div class="bmmp-w"><div class="bmmp-r bmmp-'+ancho+'" style="--n:'+N+'">'+cab+filas+'</div></div>'
-    +'<p class="bmmp-pie">'+(REC?'La recuperación es la que declara cada uno en el cuestionario de la mañana (la de la barra de 14 días del Resumen); la del equipo, la media de las filas de ese día sin los que están con la selección. ':'')+'Pasa el ratón por una casilla para ver el día; un clic abre su inspector y un clic en el nombre, su ficha. La ventana se cambia arriba (14 d · 28 d · 8 sem · Temporada).</p></div>';
+    +'<p class="bmmp-pie">'+(FUT.length?'Los '+FUT.length+' días de la derecha, más tenues, son lo planificado en el calendario: su parte del plan, con su plan individual si lo tiene; arriba, el plan del día. Es lo que haría si hace lo que hay puesto, no una predicción, y no entra en el total. ':'')+(REC?'La recuperación es la que declara cada uno en el cuestionario de la mañana (la de la barra de 14 días del Resumen); la del equipo, la media de las filas de ese día sin los que están con la selección. ':'')+'Pasa el ratón por una casilla para ver el día; un clic abre su inspector y un clic en el nombre, su ficha. La ventana se cambia arriba (14 d · 28 d · 8 sem · Temporada).</p></div>';
   BMMP.D=D;BMMP.orden=orden;
   bmMpCifras();
   const w=box.querySelector('.bmmp-w');if(w)w.scrollLeft=w.scrollWidth;
@@ -17030,7 +17056,14 @@ function bmMpTip(c,x,y){
   const nom=eq?'Media del equipo':(BMMP.orden||[])[+c.dataset.p];if(!nom||!dk)return;
   const F=eq?D.eq:D.filas[nom],v=bmMpVal(F,dk),st=eq?null:F.est[dk];
   let d=dkToDate(dk).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'short'});d=d.charAt(0).toUpperCase()+d.slice(1);
-  const REC=BMMP.modo==='rec';
+  const REC=BMMP.modo==='rec',FU=!!c.dataset.f;
+  if(FU){const pv=(eq?D.eq.f:(F.f||{}))[dk];const l=[pv>0?'Planificado · '+Math.round(pv).toLocaleString('es-ES')+' UA · '+BMMP_NIV[nivelUA(pv)].toLowerCase():'Nada planificado'];
+    if(!eq&&pv>0){try{const aj=calAjDe(dk,nom);if(aj&&aj!=='n')l.push('su plan individual');}catch(e){}}
+    if(eq&&pv>0)l.push('lo de quien hace todas las sesiones');
+    if(st)l.push((PHYSTAT[st]||{}).lab||st);if(D.par[dk])l.push('Partido · '+D.par[dk]);
+    t.innerHTML='<b>'+bmEsc(nom)+'</b><span>'+bmEsc(d)+'</span><em>'+bmEsc(l.join(' · '))+'</em>';
+    t.classList.add('on');const W=t.offsetWidth,H=t.offsetHeight;
+    t.style.left=Math.round(Math.min(innerWidth-W-10,x+14))+'px';t.style.top=Math.round(Math.max(10,y-H-12))+'px';return;}
   const l=[REC?(v!=null?Math.round(v)+' % de recuperación · '+recState(recSev(Math.round(v))).toLowerCase():'Sin parte')
     :(v>0?Math.round(v).toLocaleString('es-ES')+' UA · carga '+BMMP_NIV[nivelUA(v)].toLowerCase():v===0?'Cuestionario sin minutos':(eq?'Sin carga del equipo':'Sin cuestionario'))];
   if(eq&&(REC?D.eq.rn[dk]:D.eq.n[dk]))l.push('sobre '+(REC?D.eq.rn[dk]:D.eq.n[dk])+' jugadores');
@@ -54200,6 +54233,11 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   .bmmp-lc.mo{position:relative}
   .bmmp-lc.par{background:var(--acc-seg,var(--accent))}
   .bmmp-c.lun,.bmmp-h.lun{margin-left:3px}
+  /* v807 · lo planificado: el mismo semáforo, tenue y con su filo; la cifra en la tinta de la app */
+  .bmmp-c.fut.v,.bmmp-lc.fut{background:color-mix(in srgb,var(--mpc) 28%,var(--panel2));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mpc) 75%,transparent)}
+  .bmmp-r.bmmp-num .bmmp-c.fut>b{color:var(--txt);font-weight:500}
+  .bmmp-c.fut1,.bmmp-h.fut1{margin-left:10px}
+  .bmmp-h.fut{color:var(--muted);font-style:italic}
   .bmmp-c.hoy{box-shadow:inset 0 0 0 1.5px var(--acc-seg,var(--accent))}
   .bmmp-c.par{box-shadow:inset 0 -2px 0 var(--acc-seg,var(--accent))}
   .bmmp-c:hover{outline:2px solid var(--txt);outline-offset:0;z-index:1}
