@@ -6911,7 +6911,7 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
 
     <div class="carga-pane" id="carga-resumen" style="display:none"></div>
     <!-- v824 · La temporada: lo longitudinal que traen XPS, WIMU y Catapult -->
-    <div class="carga-pane" id="carga-temporada" style="display:none"><div id="ct-ciclo"></div><div id="ct-bloques"></div></div>
+    <div class="carga-pane" id="carga-temporada" style="display:none"><div id="ct-ciclo"></div><div id="ct-bloques"></div><div id="ct-tags"></div></div>
 
     <div class="carga-pane" id="carga-mapa" style="display:none"></div>
 
@@ -17244,7 +17244,7 @@ function renderCtCiclo(){
     let acc=0;const ult=s.dias.length-1;
     s.dias.forEach((d,j)=>{const ya=y(acc+d.ua),yb=y(acc),h=Math.max(1,yb-ya-(j<ult?2:0));
       const dd=dkToDate(d.dk);let t=dd.toLocaleDateString('es',{weekday:'short',day:'numeric',month:'numeric'});t=t.charAt(0).toUpperCase()+t.slice(1);
-      g+='<rect class="ctc-s c-'+d.cat+'" x="'+x0.toFixed(1)+'" y="'+ya.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'"'+(j===ult?' rx="3"':'')+'><title>'+E(t+' · '+(d.m?d.m.txt:'sin partido cerca')+' · '+Math.round(d.ua).toLocaleString('es-ES')+' UA')+'</title></rect>';
+      g+='<rect class="ctc-s c-'+d.cat+(window.ctTagDia?ctTagDia(d.dk):'')+'" x="'+x0.toFixed(1)+'" y="'+ya.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'"'+(j===ult?' rx="3"':'')+'><title>'+E(t+' · '+(d.m?d.m.txt:'sin partido cerca')+' · '+Math.round(d.ua).toLocaleString('es-ES')+' UA')+'</title></rect>';
       acc+=d.ua;});
     if(cw>=30)g+='<text class="ctc-tot'+(s.parcial?' cur':'')+'" x="'+(x0+bw/2).toFixed(1)+'" y="'+(y(s.tot)-5).toFixed(1)+'" text-anchor="middle">'+(s.tot>=1000?fmt(s.tot/1000,1)+'k':Math.round(s.tot))+'</text>';
   });
@@ -17252,7 +17252,8 @@ function renderCtCiclo(){
   const ley=CT_CAT.filter(([k])=>usadas.has(k)).map(([k,l])=>'<span><i class="ctc-lc c-'+k+'"></i>'+l+'</span>').join('');
   const cer=S.filter(s=>!s.parcial&&s.tot>0),med=cer.length?cer.reduce((a,s)=>a+s.tot,0)/cer.length:null,maxS=cer.length?cer.reduce((a,s)=>s.tot>a.tot?s:a,cer[0]):null;
   const lee=med?'Media de las semanas cerradas: <b>'+Math.round(med).toLocaleString('es-ES')+' UA</b>'+(maxS?' · la más alta, la del '+dkToDate(maxS.w).getDate()+'/'+(dkToDate(maxS.w).getMonth()+1)+' con <b>'+Math.round(maxS.tot).toLocaleString('es-ES')+'</b>':''):'';
-  box.innerHTML='<div class="panel ctc">'+cab+(lee?'<p class="ctc-lee">'+lee+'</p>':'')+'<div class="ctc-ley">'+ley+(window.ctBloquesLey?ctBloquesLey():'')+'</div>'
+  const tg=(typeof BMTAG!=='undefined'&&BMTAG.sel)?'<p class="ctc-tg">Resaltados, los días con «'+E(BMTAG.sel)+'» <button type="button" class="ctc-tgx" data-tg="'+E(BMTAG.sel)+'">Quitar</button></p>':'';
+  box.innerHTML='<div class="panel ctc">'+cab+(lee?'<p class="ctc-lee">'+lee+'</p>':'')+tg+'<div class="ctc-ley">'+ley+(window.ctBloquesLey?ctBloquesLey():'')+'</div>'
     +'<svg class="ctc-svg" viewBox="0 0 '+ancho+' '+H+'" width="100%" role="img" aria-label="Carga del equipo por semana desde el 1 de julio, partida por días según su posición en el ciclo">'+g+'</svg>'
     +'<p class="ctc-pie">Cada barra es una semana (de lunes a domingo) y cada tramo un día, con la carga del equipo del Dashboard: la media de quien la registró. El color es su posición respecto al partido más cercano. La semana en curso va en gris en el eje. Una semana sin registros va vacía (—); con cuestionarios y sin minutos, un punto: la carga no es calculable.</p>'
     +(window.ctBloquesPie?ctBloquesPie():'')+'</div>';
@@ -17265,6 +17266,92 @@ function renderCargaTemporada(){
 }
 let CT_RZ=0;window.addEventListener('resize',()=>{clearTimeout(CT_RZ);CT_RZ=setTimeout(()=>{const p=document.getElementById('carga-temporada');if(p&&p.offsetParent)renderCargaTemporada();},160);},{passive:true});
 window.renderCargaTemporada=renderCargaTemporada;window.ctSemanas=ctSemanas;
+
+/* ═══ v827 · ETIQUETAS DE SESIÓN ═══
+   Daniel, 18/11/2026, propuesta 7 de la tanda de XPS, WIMU y Catapult: las
+   etiquetas de sesión de XPS y las de actividad de Catapult, que luego sirven
+   para comparar y filtrar. Cada sesión del calendario puede llevar las que
+   queráis («Juego reducido», «Recuperación», «Amistoso»…): se marcan en el
+   formulario de la sesión, se dicen en el resumen del día y, en Cargas ›
+   Temporada, «Por etiqueta» compara lo que dan las sesiones de cada una
+   —carga, RPE y minutos del día (la serie del equipo del Dashboard) y el
+   %Z4+Z5 de los días con 3 pulsómetros o más (`calZonasDia`, el de la casilla
+   del mes)— contra la media de todos los días de entrenamiento. Al elegir una,
+   «El ciclo, semana a semana» resalta sus días.
+   La carga es la del DÍA entero: si ese día hubo otra sesión sin la etiqueta,
+   entra también, y se dice. Un campo nuevo del evento (`tags`, una lista de
+   textos): la hoja de la semana copia el evento entero, así que no se pierde.
+   Las sugerencias son vocabulario, no criterio: las que ya habéis usado y unas
+   pocas de partida. */
+const TAG_BASE=['Juego reducido','Táctica','Técnica','Físico','Recuperación','Activación','Amistoso'];
+const BMTAG={sel:null};
+function evTags(e){return (e&&Array.isArray(e.tags))?e.tags.filter(t=>t&&String(t).trim()).map(t=>String(t).trim()):[];}
+function tagNorm(t){t=String(t||'').replace(/\s+/g,' ').trim().slice(0,24);return t?t.charAt(0).toUpperCase()+t.slice(1):'';}
+function tagsUsadas(){const c={};Object.values(STATE.calendar||{}).forEach(l=>(l||[]).forEach(e=>evTags(e).forEach(t=>{c[t]=(c[t]||0)+1;})));return c;}
+function calTagsForm(ed){
+  const E=bmEsc,sel=evTags(ed),us=tagsUsadas();
+  const todas=[];const ya=new Set();
+  const mete=t=>{const k=norm(t);if(!k||ya.has(k))return;ya.add(k);todas.push(t);};
+  sel.forEach(mete);Object.keys(us).sort((a,b)=>us[b]-us[a]).forEach(mete);TAG_BASE.forEach(mete);
+  const on=new Set(sel.map(norm));
+  return '<div class="full"><div class="cm-sub">Etiquetas <span class="muted" style="font-weight:400">· para comparar y encontrar sesiones parecidas</span></div><div class="cal-tags" id="cal-tags" role="group" aria-label="Etiquetas de la sesión">'
+    +todas.map(t=>'<button type="button" class="ctag'+(on.has(norm(t))?' on':'')+'" data-t="'+E(t)+'" aria-pressed="'+on.has(norm(t))+'">'+E(t)+'</button>').join('')
+    +'<input id="cal-tag-new" maxlength="24" placeholder="Otra…" aria-label="Otra etiqueta"></div></div>';
+}
+function calTagsLee(){
+  const box=document.getElementById('cal-tags');if(!box)return undefined;
+  const out=[],ya=new Set();
+  box.querySelectorAll('.ctag.on').forEach(b=>{const t=tagNorm(b.dataset.t);if(t&&!ya.has(norm(t))){ya.add(norm(t));out.push(t);}});
+  const nv=tagNorm((document.getElementById('cal-tag-new')||{}).value);if(nv&&!ya.has(norm(nv)))out.push(nv);
+  return out;
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#cal-tags .ctag');if(!b)return;e.preventDefault();b.classList.toggle('on');b.setAttribute('aria-pressed',b.classList.contains('on'));});
+document.addEventListener('keydown',e=>{if(e.key!=='Enter'||!e.target||e.target.id!=='cal-tag-new')return;e.preventDefault();
+  const t=tagNorm(e.target.value);if(!t)return;const box=document.getElementById('cal-tags');
+  let b=[...box.querySelectorAll('.ctag')].find(x=>norm(x.dataset.t)===norm(t));
+  if(!b){b=document.createElement('button');b.type='button';b.className='ctag';b.dataset.t=t;b.textContent=t;box.insertBefore(b,e.target);}
+  b.classList.add('on');b.setAttribute('aria-pressed','true');e.target.value='';});
+/* días con cada etiqueta, hasta hoy */
+function tagDias(){
+  const hoy=dkey(new Date()),cal=STATE.calendar||{},M={};
+  Object.keys(cal).forEach(dk=>{if(dk>hoy||dk<TEMP_INICIO)return;const evs=(cal[dk]||[]).filter(e=>e&&!evSP(e));
+    const ts=new Set();evs.forEach(e=>evTags(e).forEach(t=>ts.add(t)));
+    ts.forEach(t=>{(M[t]=M[t]||[]).push({dk,mixto:evs.some(e=>!evTags(e).includes(t)&&e.type!=='descanso'&&e.type!=='evento')});});});
+  return M;
+}
+function ctTagDia(dk){if(!BMTAG.sel)return '';const L=(tagDias()[BMTAG.sel]||[]);return L.some(x=>x.dk===dk)?' ct-hl':' ct-dim';}
+function renderCtTags(){
+  const box=document.getElementById('ct-tags');if(!box)return;
+  const E=bmEsc,M=tagDias(),tags=Object.keys(M).sort((a,b)=>M[b].length-M[a].length||a.localeCompare(b,'es'));
+  const cab='<h2>Por etiqueta <span class="r">lo que dan las sesiones de cada una</span></h2>';
+  if(!tags.length){if(BMTAG.sel){BMTAG.sel=null;}box.innerHTML='<div class="panel ctg">'+cab+'<p class="ctg-nada">Ninguna sesión lleva etiqueta todavía. Se ponen en el formulario de cada sesión del calendario («Juego reducido», «Recuperación», «Amistoso»…), y aquí se comparan.</p></div>';return;}
+  if(BMTAG.sel&&!M[BMTAG.sel])BMTAG.sel=null;
+  let S=[];try{S=cgSerieEquipo();}catch(e){}
+  const by={};S.forEach(d=>{by[d.dk]=d;});
+  const med=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const val=dks=>{const ua=[],rpe=[],dur=[],z=[];dks.forEach(dk=>{const d=by[dk];if(d&&d.ua>0)ua.push(d.ua);if(d&&d.rpe>0)rpe.push(d.rpe);if(d&&d.dur>0)dur.push(d.dur);
+      let zz=null;try{zz=calZonasDia(dk);}catch(e){}if(zz&&zz.fuente==='polar'&&isFinite(zz.z4)&&isFinite(zz.z5))z.push(zz.z4+zz.z5);});
+    return {ua:med(ua),rpe:med(rpe),dur:med(dur),z:med(z),nz:z.length,n:dks.length};};
+  /* la referencia: todos los días de entrenamiento con carga (sin partidos) */
+  let ps=new Set();try{ps=new Set(calPartidosDks());}catch(e){}
+  const ref=val(S.filter(d=>d.dk>=TEMP_INICIO&&d.ua>0&&!ps.has(d.dk)).map(d=>d.dk));
+  const n0=v=>v==null?'—':Math.round(v).toLocaleString('es-ES'),n1=v=>v==null?'—':fmt(v,1);
+  const fila=t=>{const V=val(M[t].map(x=>x.dk)),mix=M[t].filter(x=>x.mixto).length,on=BMTAG.sel===t;
+    return '<button type="button" class="ctg-f'+(on?' on':'')+'" data-tg="'+E(t)+'" aria-pressed="'+on+'"><span class="ctg-t"><b>'+E(t)+'</b><small>'+V.n+(V.n===1?' día':' días')+(mix?' · '+mix+' con otra sesión':'')+'</small></span>'
+      +'<span><b>'+n0(V.ua)+'</b><small>UA del día</small></span><span><b>'+n1(V.rpe)+'</b><small>RPE</small></span><span><b>'+n0(V.dur)+'</b><small>min</small></span><span><b>'+(V.z==null?'—':n1(V.z)+' %')+'</b><small>'+(V.nz?'Z4+Z5 · '+V.nz+' d':'Z4+Z5')+'</small></span></button>';};
+  let det='';
+  if(BMTAG.sel){const L=M[BMTAG.sel].slice().sort((a,b)=>b.dk.localeCompare(a.dk));
+    det='<div class="ctg-dias"><div class="ctg-dh">Días con «'+E(BMTAG.sel)+'»</div>'+L.map(x=>{const d=by[x.dk],m=(()=>{try{return calMd(x.dk);}catch(e){return null;}})();let zz=null;try{zz=calZonasDia(x.dk);}catch(e){}
+      return '<button type="button" class="ctg-d" data-tgd="'+x.dk+'"><b>'+bmInspFecha(x.dk)+'</b><small>'+[m?m.txt:'',d&&d.ua>0?n0(d.ua)+' UA':'sin carga',d&&d.rpe>0?'RPE '+n1(d.rpe):'',zz&&zz.fuente==='polar'?'Z4+Z5 '+n1(zz.z4+zz.z5)+' %':''].filter(Boolean).join(' · ')+'</small></button>';}).join('')+'</div>';}
+  box.innerHTML='<div class="panel ctg">'+cab
+    +'<div class="ctg-f ctg-ref" aria-hidden="true"><span class="ctg-t"><b>Todos los días de entrenamiento</b><small>'+ref.n+' días · la referencia</small></span><span><b>'+n0(ref.ua)+'</b><small>UA del día</small></span><span><b>'+n1(ref.rpe)+'</b><small>RPE</small></span><span><b>'+n0(ref.dur)+'</b><small>min</small></span><span><b>'+(ref.z==null?'—':n1(ref.z)+' %')+'</b><small>Z4+Z5</small></span></div>'
+    +tags.map(fila).join('')+det
+    +'<p class="ctg-pie">Medias de los días que llevan la etiqueta en alguna sesión, desde el 1 de julio. La carga, el RPE y los minutos son los del equipo del Dashboard y de todo el día: si ese día hubo otra sesión sin la etiqueta, entra también (se dice cuántos). El %Z4+Z5, sólo de los días con 3 pulsómetros o más. Pulsa una etiqueta para ver sus días y resaltarlos en el ciclo.</p></div>';
+}
+document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
+  const f=e.target.closest('#ct-tags [data-tg],#ct-ciclo [data-tg]');if(f){BMTAG.sel=BMTAG.sel===f.dataset.tg?null:f.dataset.tg;try{renderCtCiclo();renderCtTags();}catch(x){}return;}
+  const d=e.target.closest('#ct-tags [data-tgd]');if(d)bmDiaRes(d.dataset.tgd);});
+window.calTagsForm=calTagsForm;window.calTagsLee=calTagsLee;window.renderCtTags=renderCtTags;window.ctTagDia=ctTagDia;window.evTags=evTags;
 
 /* ═══ v826 · BLOQUES DE LA TEMPORADA, CON SU OBJETIVO ═══
    Daniel, 18/11/2026, propuesta 6 de la tanda de XPS, WIMU y Catapult: la
@@ -17514,7 +17601,7 @@ function bmDiaRes(dk){
   /* lo programado */
   const ev=evs.map(e=>{const T=(CAL_TYPES[e.type]||{}).lab||e.type,i=evIntens(e),I=(CAL_INT[i]||{});
     const det=[e.time||'',evDur(e)?evDur(e)+'′':'',I.lab&&e.type!=='descanso'?'intensidad '+I.lab.toLowerCase():'',evContacto(e)&&e.type!=='descanso'?'contacto '+evContacto(e):''].filter(Boolean).join(' · ');
-    return '<div class="bmdr-l"><i style="background:'+((CAL_TYPES[e.type]||{}).col||'var(--muted)')+'"></i><b>'+E(e.type==='partido'?(evRival(e)||T):(e.title||T))+'</b><small>'+E(det)+'</small></div>';}).join('');
+    return '<div class="bmdr-l"><i style="background:'+((CAL_TYPES[e.type]||{}).col||'var(--muted)')+'"></i><b>'+E(e.type==='partido'?(evRival(e)||T):(e.title||T))+'</b><small>'+E(det)+(evTags(e).length?' · '+evTags(e).map(t=>'<span class="ctag-m">'+E(t)+'</span>').join(' '):'')+'</small></div>';}).join('');
   h+=sec('Programado',ev||'<p class="bmdr-nada">Nada programado en el calendario.</p>');
   /* plan contra real */
   const pl=calDayPlan(dk);let real=null;
@@ -44702,6 +44789,7 @@ function calDayBody(dk){
            <div class="cal-objin"><span class="cal-objin-n">2</span><input id="cal-obj-1" maxlength="90" placeholder="contenido opcional" value="${ed?(evObjs(ed)[1]||'').replace(/"/g,'&quot;'):''}"></div>
            <div class="cal-objin"><span class="cal-objin-n">3</span><input id="cal-obj-2" maxlength="90" placeholder="contenido opcional" value="${ed?(evObjs(ed)[2]||'').replace(/"/g,'&quot;'):''}"></div>
          </div></div>
+       ${window.calTagsForm?calTagsForm(ed):''}
      </div>
      ${window.qdCalPlanBlock?qdCalPlanBlock(ed):''}
      <button class="btn" style="margin-top:14px" onclick="calSaveEvent()">${ed?'Guardar cambios':'Añadir al '+calDkLabel(dk)}</button>
@@ -44830,7 +44918,7 @@ function calSaveEvent(){const dk=CAL_CUR;if(!dk)return;try{calLoad();}catch(e){}
     data.origenHR=g('cal-orighr')||PARTIDO_DEF.origenHR;
     data.calent=Math.max(0,+(g('cal-calent')||0)||0);
   }else{data.rival=null;data.competicion=null;data.nivelRival=null;data.origenHR=null;data.calent=null;}
-  if(window.qdCalReadPlan)qdCalReadPlan(data);STATE.calendar[dk]=STATE.calendar[dk]||[];
+  if(window.qdCalReadPlan)qdCalReadPlan(data);try{if(window.calTagsLee){const _t=calTagsLee();if(_t!==undefined)data.tags=_t;}}catch(e){}STATE.calendar[dk]=STATE.calendar[dk]||[];
   /* v241 · guardar por el formulario completo significa programarla: se retira
      la marca de "sin programar". */
   if(CAL_EDIT){const e=STATE.calendar[dk].find(x=>x.id===CAL_EDIT);if(e){Object.assign(e,data);delete e.sp;}CAL_EDIT=null;toast('Sesión programada');}
@@ -54876,6 +54964,9 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .c-post2{fill:color-mix(in srgb,var(--gi-teal) 55%,var(--panel));background:color-mix(in srgb,var(--gi-teal) 55%,var(--panel))}
 .c-sin{fill:color-mix(in srgb,var(--muted2) 30%,var(--panel));background:color-mix(in srgb,var(--muted2) 30%,var(--panel))}
 .ctc-pie{font-size:var(--fs-sm);color:var(--muted);margin:10px 0 0;line-height:1.45}
+.ctc-tg{font-size:var(--fs-sm);color:var(--txt);margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.ctc-tgx{all:unset;cursor:pointer;color:var(--acc-seg,var(--accent));font-weight:600}
+.ctc-tgx:focus-visible{outline:2px solid var(--accent)}
 #carga-temporada>div+div{margin-top:var(--gap,18px)}
 </style>
 <style id="bm-v825">
@@ -54941,6 +55032,43 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   .ctb-n{grid-area:n}.ctb-o{grid-area:o}.ctb-r{grid-area:r}.ctb-a{grid-area:a}
   .ctb-o small:first-child,.ctb-o small:last-child{display:inline;margin:0 4px 0 0}
   .ctb-x{width:44px;height:44px}
+}
+</style>
+<style id="bm-v827">
+/* v827 · etiquetas de sesión */
+.cal-tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ctag{font:inherit;font-size:13px;padding:5px 11px;border-radius:999px;border:.5px solid var(--hair);background:var(--panel2,var(--panel));color:var(--txt);cursor:pointer}
+.ctag.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#fff);font-weight:600}
+.ctag:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#cal-tag-new{width:110px;font:inherit;font-size:13px;padding:5px 10px;border-radius:999px;border:.5px dashed var(--muted);background:transparent;color:var(--txt)}
+.ctag-m{display:inline-block;font-size:var(--fs-xs);padding:1px 7px;border-radius:999px;background:var(--seg-carril);color:var(--txt)}
+.panel.ctg{display:block}
+.ctg-nada{font-size:var(--fs-body);color:var(--muted);margin:8px 0 0;line-height:1.5}
+.ctg-f{all:unset;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1.6fr) repeat(4,minmax(70px,1fr));column-gap:12px;align-items:center;width:100%;min-height:48px;padding:6px 8px;border-bottom:.5px solid var(--hair);border-radius:8px;cursor:pointer}
+.ctg-f>span:not(.ctg-t){text-align:right}
+.ctg-f b{font-weight:600;font-variant-numeric:tabular-nums}
+.ctg-f small{display:block;font-size:var(--fs-xs);color:var(--muted)}
+.ctg-t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctg-f:hover{background:var(--seg-carril)}
+.ctg-f:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ctg-f.on{background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+.ctg-ref{cursor:default;background:var(--seg-carril)}
+.ctg-ref:hover{background:var(--seg-carril)}
+.ctg-dias{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+.ctg-dh{flex:0 0 100%;font-size:var(--fs-sm);font-weight:600;color:var(--muted)}
+.ctg-d{all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;background:var(--seg-carril);min-height:32px}
+.ctg-d b{font-weight:600;margin-right:6px;font-variant-numeric:tabular-nums}.ctg-d small{color:var(--muted);font-size:var(--fs-xs)}
+.ctg-d:hover{background:color-mix(in srgb,var(--accent) 14%,var(--seg-carril))}
+.ctg-d:focus-visible{outline:2px solid var(--accent)}
+.ctg-pie{font-size:var(--fs-sm);color:var(--muted);margin:10px 0 0;line-height:1.45}
+.ctc-s.ct-dim{opacity:.22}
+.ctc-s.ct-hl{stroke:var(--txt);stroke-width:1.5}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .ctag,#cal-tag-new{min-height:44px;padding:0 14px}
+  .ctg-f{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-areas:"t t t t" "a b c d";row-gap:4px;padding:10px 6px}
+  .ctg-f>.ctg-t{grid-area:t}
+  .ctg-f>span:not(.ctg-t){text-align:left}
+  .ctg-d{min-height:44px;display:flex;align-items:center}
 }
 </style>
 <style id="bm-v808">
