@@ -7272,6 +7272,9 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div class="med-pane" id="medpane-resumen">
       <div id="med-coach"></div>
       <div id="med-dashboard"></div>
+      <!-- v811 · «Carga antes de las lesiones» (lesCarga) vuelve a verse: desde la
+           v437 su contenedor no estaba en ninguna pantalla. -->
+      <div id="lescarga-card" class="panel"></div>
       </div>
       <div class="med-pane" id="medpane-clinica" style="display:none">
       <div class="ctrlrow">
@@ -13426,6 +13429,7 @@ function medTabPanes(){
   const p=document.getElementById('medpane-'+k);
   if(p)p.style.display=(k===MED_TAB)?'':'none';
  });
+ if(MED_TAB==='resumen')try{lesCargaDiferir();}catch(e){}
  document.querySelectorAll('#med-seg button').forEach(b=>b.classList.toggle('on',b.dataset.mt===MED_TAB));
 }
 window.medTab=medTab;window.medTabPanes=medTabPanes;
@@ -28710,7 +28714,8 @@ function renderCargaResumen(){
    fondo rAF no se dispara y los paneles no llegarían a rellenarse nunca. */
 let CARGA_DIF=null;
 function cargaDiferir(){
-  ['cgaten-card','cgplan-card','cgmin-card','lescarga-card'].forEach(id=>{
+  /* v811 · `lescarga-card` vive ahora en Médico y se pinta desde allí */
+  ['cgaten-card','cgplan-card','cgmin-card'].forEach(id=>{
     const b=document.getElementById(id);
     /* el aviso solo si está vacío: al repintar ya hay contenido anterior y
        cambiarlo por «calculando» sería un parpadeo gratuito */
@@ -28720,7 +28725,6 @@ function cargaDiferir(){
   CARGA_DIF=setTimeout(()=>{
     CARGA_DIF=null;
     try{renderCargaDecide();}catch(e){console.error('bmnava · decidir',e);}
-    try{renderLesCarga();}catch(e){console.error('bmnava · carga vs lesiones',e);}
   },0);
 }
 function renderCargaGrupal(){
@@ -39389,9 +39393,9 @@ function lesCarga(){
   /* tasas con los umbrales que la app ya usa */
   const Y=CONFIG.load.acwrYellowHi, R=CONFIG.load.acwrRedHi, MO=CONFIG.load.monoHi;
   const crit=[
-    {k:'acwr',lab:'ACWR por encima de '+Y,test:x=>x.acwr!=null&&x.acwr>Y},
-    {k:'acwrR',lab:'ACWR por encima de '+R,test:x=>x.acwr!=null&&x.acwr>R},
-    {k:'mono',lab:'Monotonía por encima de '+MO,test:x=>x.mono!=null&&x.mono>MO},
+    {k:'acwr',lab:'ACWR por encima de '+fmt(Y,1),test:x=>x.acwr!=null&&x.acwr>Y},
+    {k:'acwrR',lab:'ACWR por encima de '+fmt(R,1),test:x=>x.acwr!=null&&x.acwr>R},
+    {k:'mono',lab:'Monotonía por encima de '+fmt(MO,1),test:x=>x.mono!=null&&x.mono>MO},
     {k:'salto',lab:'Salto de un día a otro mayor del 50%',test:x=>x.salto!=null&&x.salto>50}
   ].map(c=>{
     const nl=casos.filter(c.test).length, nc=ctrl.filter(c.test).length;
@@ -39410,20 +39414,40 @@ function lesCarga(){
     }};
 }
 window.lesCarga=lesCarga;
+/* ═══ v811 · CARGA ANTES DE LAS LESIONES, DE VUELTA ═══
+   Daniel, 18/11/2026, propuesta 5 (7 en la lista). `lesCarga` (v409) estaba
+   entera y sin sitio desde que se rehizo Cargas: su contenedor no estaba en
+   ninguna pantalla. Vuelve a Médico › Resumen, debajo del cronograma. Sigue
+   igual: la víspera de cada episodio contra los días normales, y por debajo
+   de LES_MIN episodios enseña el recuento y calla la conclusión. Se pinta
+   después del resto (es el cálculo más largo de la pantalla) y se recuerda
+   mientras no cambie ningún dato. */
+let LESC_K=null,LESC_T=0;
+function lesCargaDiferir(){
+  const box=document.getElementById('lescarga-card');if(!box)return;
+  const k=BM_DV+'|'+dkey(new Date());
+  if(LESC_K===k&&box.innerHTML.trim())return;
+  if(!box.innerHTML.trim())box.innerHTML='<h2>Carga antes de las lesiones</h2><p class="hint calc-t">Calculando…</p><div class="calc-s" role="status" aria-label="Calculando"><i></i><i></i><i></i></div>';
+  clearTimeout(LESC_T);
+  LESC_T=setTimeout(()=>{try{renderLesCarga();LESC_K=k;}catch(e){console.error('bmnava · carga vs lesiones',e);}},60);
+}
+window.lesCargaDiferir=lesCargaDiferir;
 function renderLesCarga(){
   const box=document.getElementById('lescarga-card');if(!box)return;
   let L=null;try{L=lesCarga();}catch(e){console.error('bmnava · carga vs lesiones',e);}
   const cab='<h2>Carga antes de las lesiones <span class="r muted">qué dicen vuestros propios episodios</span></h2>';
   if(!L){box.innerHTML='';return;}
-  const n1=v=>v==null||!isFinite(v)?'—':String(Math.round(v*100)/100);
-  const p0=v=>v==null||!isFinite(v)?'—':Math.round(v)+'%';
+  /* v811 · con coma decimal, como el resto de la app */
+  const n1=v=>v==null||!isFinite(v)?'—':String(Math.round(v*100)/100).replace('.',',');
+  const p0=v=>v==null||!isFinite(v)?'—':Math.round(v)+' %';
   if(!L.n){
     box.innerHTML=cab+'<p class="hint">No hay episodios médicos con carga suficiente alrededor para contrastar. '
       +'En cuanto haya episodios registrados con historial de carga detrás, aquí se verá qué tenían en común.</p>';
     return;
   }
   const filas=L.crit.map(c=>{
-    const mas=c.ratio!=null&&c.ratio>1.25, menos=c.ratio!=null&&c.ratio<0.8;
+    /* v811 · sin conclusión con pocos episodios, tampoco color */
+    const mas=L.suficiente&&c.ratio!=null&&c.ratio>1.25, menos=L.suficiente&&c.ratio!=null&&c.ratio<0.8;
     const col=mas?'var(--bad)':(menos?'var(--ok)':'var(--muted)');
     return '<tr><td>'+c.lab+'</td>'
       +'<td class="mono"><b>'+p0(c.tl)+'</b><span class="lc-n">'+c.nl+'/'+L.n+'</span></td>'
