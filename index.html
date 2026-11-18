@@ -17309,6 +17309,86 @@ document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
   const b=e.target.closest('#bmh-partido [data-ip]');if(b&&!b.disabled&&b.dataset.ip){bmInformePartido(b.dataset.ip);return;}
   if(e.target.closest('#bmh-partido [data-ip-png]'))bmInformePartidoPNG();});
 window.bmInformePartido=bmInformePartido;
+/* ═══ v816 · SELECCIONAR UN TRAMO EN UN GRÁFICO DE DÍAS ═══
+   Daniel, 18/11/2026, propuesta 4. Como en Salud o Garmin: se arrastra sobre
+   el gráfico (en el teléfono, se mantiene el dedo y se desliza), el tramo se
+   sombrea y sale su resumen —total, media, máximo y días con dato— y la
+   comparación con el tramo anterior igual de largo. **Ni un cálculo nuevo**:
+   son las mismas cifras que dibuja el gráfico, sumadas. Lo que no es una
+   cantidad (un ACWR, un %, un RPE) no se suma: se da su media y su máximo.
+   Vale para los gráficos de días con Chart.js (la regla de las notas,
+   `bmnDks`) y para los dibujados a mano que declaran sus datos en
+   `data-bmtr`; fuera, el Resumen, el Calendario y los documentos. */
+const BMTR={s:null,a:-1,b:-1,el:null,ov:null,card:null,lp:0,x0:0,y0:0,tocando:false};
+function bmtrNoSuma(l,u){return /acwr|ratio|rpe|%|monoton|readiness|recup|fc|z4|z5/i.test(String(l||'')+' '+String(u||''));}
+function bmtrFuente(el){
+  if(!el||(el.closest&&el.closest(NOTAS_FUERA)))return null;
+  if(el.tagName==='CANVAS'){const ch=Object.values(charts||{}).find(c=>c&&c.canvas===el);if(!ch)return null;const dks=bmnDks(ch);if(!dks)return null;
+    const sx=ch.scales&&ch.scales.x;if(!sx)return null;
+    const series=(ch.data.datasets||[]).map((d,i)=>({d,i})).filter(o=>!ch.getDatasetMeta(o.i).hidden&&Array.isArray(o.d.data)&&o.d.data.some(v=>typeof v==='number'))
+      .slice(0,3).map(o=>({l:o.d.label||'',u:/\bUA\b/.test(o.d.label||'')?'UA':'',v:o.d.data.map(v=>typeof v==='number'&&isFinite(v)?v:null)}));
+    if(!series.length)return null;
+    /* la posición del lienzo, medida contra su contenedor (no `offsetLeft`, que mide contra otro) */
+    const cont=el.parentElement,dx=()=>el.getBoundingClientRect().left-cont.getBoundingClientRect().left,dy=()=>el.getBoundingClientRect().top-cont.getBoundingClientRect().top;
+    const ca=ch.chartArea||{top:0,bottom:el.clientHeight};
+    return {dks,series,cont,xOf:i=>sx.getPixelForValue(i)+dx(),top:ca.top+dy(),h:(ca.bottom-ca.top)||el.clientHeight,ix:x=>{const o=dx();let b=0,bd=1e9;dks.forEach((_,i)=>{const d=Math.abs(sx.getPixelForValue(i)+o-x);if(d<bd){bd=d;b=i;}});return b;}};}
+  const c=el.closest&&el.closest('[data-bmtr]');if(!c)return null;
+  let D=null;try{D=JSON.parse(c.getAttribute('data-bmtr'));}catch(e){return null;}
+  if(!D||!D.dks||D.dks.length<2)return null;
+  const sv=c.querySelector('svg')||c;const r=()=>sv.getBoundingClientRect(),rc=()=>c.getBoundingClientRect();
+  const n=D.dks.length,X=i=>{const R=r();return R.left-rc().left+R.width*(D.x0+(D.x1-D.x0)*i/(n-1));};
+  return {dks:D.dks,series:D.s,cont:c,xOf:X,top:r().top-rc().top,h:r().height,ix:x=>Math.max(0,Math.min(n-1,Math.round(((x-(r().left-rc().left))/r().width-D.x0)/(D.x1-D.x0)*(n-1))))};
+}
+function bmtrLimpia(){if(BMTR.ov)BMTR.ov.remove();if(BMTR.card)BMTR.card.remove();BMTR.ov=BMTR.card=null;BMTR.s=null;}
+function bmtrPinta(final){
+  const S=BMTR.s;if(!S)return;
+  if(getComputedStyle(S.cont).position==='static')S.cont.style.position='relative';
+  if(!BMTR.ov){BMTR.ov=document.createElement('div');BMTR.ov.className='bmtr-ov';BMTR.ov.setAttribute('data-html2canvas-ignore','true');S.cont.appendChild(BMTR.ov);}
+  const a=Math.min(BMTR.a,BMTR.b),b=Math.max(BMTR.a,BMTR.b),paso=S.dks.length>1?Math.abs(S.xOf(1)-S.xOf(0)):10;
+  const x1=S.xOf(a)-paso/2,x2=S.xOf(b)+paso/2;
+  Object.assign(BMTR.ov.style,{left:x1+'px',width:Math.max(4,x2-x1)+'px',top:S.top+'px',height:S.h+'px'});
+  if(!final)return;
+  const n=b-a+1,f=dk=>bmInspFecha(dk),E=bmEsc,n0=v=>(Math.abs(v)>=100?Math.round(v).toLocaleString('es-ES'):fmt(v,Math.abs(v)<10?2:1));
+  let h='<div class="bmtr-h"><b>Del '+f(S.dks[a])+' al '+f(S.dks[b])+'</b><span>'+n+(n===1?' día':' días')+'</span><button type="button" class="bmtr-x" aria-label="Quitar la selección">×</button></div>';
+  S.series.forEach(se=>{const v=se.v.slice(a,b+1),con=v.filter(x=>x!=null&&x!==0);if(!con.length){h+='<div class="bmtr-s"><em>'+E(se.l||'Serie')+'</em><span>sin dato en el tramo</span></div>';return;}
+    const tot=con.reduce((s2,x)=>s2+x,0),mx=Math.max(...con),imx=a+v.indexOf(mx),u=se.u?' '+se.u:'';
+    const sum=!bmtrNoSuma(se.l,se.u);
+    let cmp='';if(sum&&a-n>=0){const pv=se.v.slice(a-n,a).filter(x=>x!=null&&x!==0);if(pv.length){const pt=pv.reduce((s2,x)=>s2+x,0),d=tot-pt;cmp='<small>'+(d>=0?'+':'−')+n0(Math.abs(d))+u+(pt>0?' ('+(d>=0?'+':'−')+Math.round(Math.abs(d)/pt*100)+' %)':'')+' frente a los '+n+' días anteriores</small>';}}
+    h+='<div class="bmtr-s"><em>'+E(se.l||'Serie')+'</em>'+(sum?'<span><b>'+n0(tot)+u+'</b> en total</span>':'')+'<span>media <b>'+n0(tot/con.length)+u+'</b></span><span>máximo <b>'+n0(mx)+u+'</b> el '+f(S.dks[imx])+'</span><span>'+con.length+' de '+n+' días con dato</span>'+cmp+'</div>';});
+  if(!BMTR.card){BMTR.card=document.createElement('div');BMTR.card.className='bmtr-card';BMTR.card.setAttribute('data-html2canvas-ignore','true');S.cont.appendChild(BMTR.card);}
+  BMTR.card.innerHTML=h;
+  const cw=S.cont.clientWidth,w=Math.min(300,cw-8),cx=(x1+x2)/2;
+  Object.assign(BMTR.card.style,{width:w+'px',left:Math.max(4,Math.min(cw-w-4,cx-w/2))+'px',top:Math.max(0,S.top-8)+'px'});
+  BMTR.card.style.transform='translateY(-100%)';
+}
+function bmtrDesde(e){const t=e.target;if(!t||!t.closest)return null;if(t.closest('.bmtr-card'))return null;
+  if(t.tagName==='CANVAS')return t;const c=t.closest('[data-bmtr]');return c||null;}
+document.addEventListener('pointerdown',e=>{
+  if(e.button>0)return;
+  if(BMTR.card&&!(e.target.closest&&e.target.closest('.bmtr-card')))bmtrLimpia();
+  const el=bmtrDesde(e);if(!el)return;
+  const S=bmtrFuente(el);if(!S)return;
+  const cr=S.cont.getBoundingClientRect(),x=e.clientX-cr.left;
+  const go=()=>{BMTR.s=S;BMTR.a=BMTR.b=S.ix(x);BMTR.tocando=true;try{bmVibra&&bmVibra();}catch(_){}bmtrPinta(false);};
+  BMTR.x0=e.clientX;BMTR.y0=e.clientY;
+  if(e.pointerType==='mouse'){BMTR.pend={S,x};}
+  else{clearTimeout(BMTR.lp);BMTR.lp=setTimeout(go,380);}
+},true);
+document.addEventListener('pointermove',e=>{
+  if(BMTR.pend&&!BMTR.s&&Math.abs(e.clientX-BMTR.x0)>6){const P=BMTR.pend;BMTR.s=P.S;BMTR.a=P.S.ix(P.x);BMTR.tocando=true;}
+  if(!BMTR.s&&BMTR.lp&&(Math.abs(e.clientX-BMTR.x0)>8||Math.abs(e.clientY-BMTR.y0)>8)){clearTimeout(BMTR.lp);BMTR.lp=0;}
+  if(!BMTR.s||!BMTR.tocando)return;
+  const cr=BMTR.s.cont.getBoundingClientRect();BMTR.b=BMTR.s.ix(e.clientX-cr.left);bmtrPinta(false);
+},true);
+document.addEventListener('touchmove',e=>{if(BMTR.s&&BMTR.tocando)e.preventDefault();},{passive:false,capture:true});
+document.addEventListener('pointerup',e=>{clearTimeout(BMTR.lp);BMTR.lp=0;BMTR.pend=null;
+  if(!BMTR.s||!BMTR.tocando)return;BMTR.tocando=false;
+  if(BMTR.a===BMTR.b&&e.pointerType==='mouse'){bmtrLimpia();return;}
+  bmtrPinta(true);},true);
+document.addEventListener('click',e=>{if(e.target&&e.target.closest&&e.target.closest('.bmtr-x')){bmtrLimpia();}},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BMTR.s){bmtrLimpia();}});
+window.addEventListener('scroll',()=>{if(BMTR.s&&!BMTR.tocando&&BMTR.card){/* la tarjeta va dentro del gráfico y se desplaza con él */}},{passive:true});
+window.bmtrLimpia=bmtrLimpia;
 /* ═══ v793 · ORDENADOR · Alertas como Mail ═══
    Daniel, 17/11/2026, propuesta 2. Medido: 39 alertas en 15 tarjetas que dicen
    el TIPO («Sueño · Wellness») pero no la cifra, ni desde cuándo, ni contra
@@ -19768,7 +19848,7 @@ function cmpRd14(EA,EB,LA,LB){
   const dat=s=>{const v=s.filter(x=>x!=null);if(!v.length)return {};return {m:v.reduce((x,y)=>x+y,0)/v.length,min:Math.min(...v),roj:v.filter(x=>recSev(Math.round(x))==='bad').length,n:v.length};};
   const A=dat(rA),B=dat(rB),n0=v=>Math.round(v).toLocaleString('es-ES');
   return '<section class="cmp-sec"><h3>Readiness · últimos 14 días <span>0–100</span>'+cmpLeyenda(LA,LB)+'</h3>'
-    +cmpSerie([rA,rB],dks,100,{puntos:true,lab:'Readiness de los dos lados'})
+    +cmpSerie([rA,rB],dks,100,{puntos:true,lab:'Readiness de los dos lados',series:[{l:LA+' · readiness',u:''},{l:LB+' · readiness',u:''}]})
     +cmpTablaDatos(LA,LB,[['Media · 14 días',A.m,B.m,n0,'alto'],['El más bajo',A.min,B.min,n0,'alto'],['Días en rojo (menos de 55)',A.roj,B.roj,n0,'bajo'],['Días con parte',A.n,B.n,n0]])
     +'<p class="cmp-pie">El de cada día, el mismo cálculo que el de hoy. Un día sin su parte no tiene readiness propio y no se dibuja.</p></section>';
 }
@@ -19791,7 +19871,9 @@ function cmpSerie(vals,dks,max,opt){
   vals.forEach((serie,si)=>{let d='',ab=false;serie.forEach((v,i)=>{if(v==null||isNaN(v)){ab=false;return;}d+=(ab?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1);ab=true;});
     if(d)g+='<path d="'+d+'" fill="none" stroke="'+CMP_COL[si]+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';
     serie.forEach((v,i)=>{if(v==null||isNaN(v))return;if(opt.puntos)g+='<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="2.4" fill="'+CMP_COL[si]+'"/>';});});
-  return '<svg class="cmp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+bmEsc(opt.lab||'')+'">'+g+'</svg>';
+  /* v816 · los datos del gráfico, para seleccionar un tramo */
+  const tr=opt.series?' data-bmtr="'+bmEsc(JSON.stringify({dks,x0:X(0)/W,x1:X(n-1)/W,s:opt.series.map((se,i)=>({l:se.l,u:se.u||'',v:(vals[i]||[]).map(v=>v==null||isNaN(v)?null:Math.round(v*100)/100)}))}))+'"':'';
+  return '<div class="cmp-svgw"'+tr+'><svg class="cmp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+bmEsc(opt.lab||'')+'">'+g+'</svg></div>';
 }
 /* v802 · COMPARAR CON LA MEDIA DE SU PUESTO O DEL EQUIPO. Daniel, 17/11/2026,
    eligió la propuesta 3: «una referencia objetiva para decidir». El segundo
@@ -19971,8 +20053,8 @@ function cmpPinta(){
   const notaRef=REFB?'<p class="cmp-pie cmp-pie-ref">La media es, cada día, la de los compañeros que entrenaron con el grupo y tienen carga ese día (fuera los de baja, enfermos, en readaptación o con la selección; un día sin cuestionario no cuenta como cero); el readiness y el ACWR, la de hoy sin los que están con la selección. No le cuenta a él.</p>':'';
   box.innerHTML=seg+'<div class="cmp-cab">'+cabA+'<button type="button" class="cmp-swap" data-cmp="swap" title="'+(REFB?'Con una media no se puede cambiar el orden':'Cambiar el orden')+'" aria-label="Cambiar el orden"'+(REFB?' disabled':'')+'>⇄</button>'+cabB+'</div>'
     +'<section class="cmp-sec">'+tabla+notaRef+'</section>'
-    +'<section class="cmp-sec"><h3>Carga diaria · últimas 4 semanas <span>UA</span>'+cmpLeyenda(LA,LB)+'</h3>'+cmpSerie([cA,cB],dks,topC,{lab:'Carga diaria de los dos lados'})+datosCarga+'</section>'
-    +'<section class="cmp-sec"><h3>Recuperación declarada <span>% · wellness</span>'+cmpLeyenda(LA,LB)+'</h3>'+(dr.length?cmpSerie([EA.rec,EB.rec],dr,100,{u:'',puntos:true,lab:'Recuperación de los dos lados'})+datosRec:'<p class="cmp-pie">Sin partes de wellness.</p>')+'</section>'
+    +'<section class="cmp-sec"><h3>Carga diaria · últimas 4 semanas <span>UA</span>'+cmpLeyenda(LA,LB)+'</h3>'+cmpSerie([cA,cB],dks,topC,{lab:'Carga diaria de los dos lados',series:[{l:LA,u:'UA'},{l:LB,u:'UA'}]})+datosCarga+'</section>'
+    +'<section class="cmp-sec"><h3>Recuperación declarada <span>% · wellness</span>'+cmpLeyenda(LA,LB)+'</h3>'+(dr.length?cmpSerie([EA.rec,EB.rec],dr,100,{u:'',puntos:true,lab:'Recuperación de los dos lados',series:[{l:LA+' · recuperación',u:'%'},{l:LB+' · recuperación',u:'%'}]})+datosRec:'<p class="cmp-pie">Sin partes de wellness.</p>')+'</section>'
     +cmpRd14(EA,EB,LA,LB)
     +'<section class="cmp-sec"><h3>Capacidades'+cmpLeyenda(LA,LB)+'</h3>'+radar+'</section>'
     +'<section class="cmp-sec"><h3>Pruebas físicas</h3>'+pruebas+'</section>';
@@ -25797,7 +25879,8 @@ function renderPlNormal(name){
                (N.altos+N.bajos)?'var(--warn)':'var(--ok)')
         +'</div>'
       : '')
-    +'<div class="pln-ch"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" width="100%" height="'+H+'">'
+    /* v816 · los datos del gráfico, para seleccionar un tramo (el centro de cada barra) */
+    +'<div class="pln-ch" data-bmtr="'+bmEsc(JSON.stringify({dks:N.serie.map(x=>x.dk),x0:(L+bw/2)/W,x1:(L+(N.serie.length-0.5)*bw)/W,s:[{l:'Su carga',u:'UA',v:N.serie.map(x=>x.ua>0?Math.round(x.ua):null)}]}))+'"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" width="100%" height="'+H+'">'
       +banda+barras
     +'</svg></div>'
     +'<p class="hint" style="margin:8px 0 0">'
@@ -53698,6 +53781,21 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .bmip-t{display:block;overflow-x:auto}
   .bmip-nav>button:not(.btn){width:44px;height:44px}
 }
+</style>
+<style id="bm-v816">
+/* v816 · seleccionar un tramo */
+.bmtr-ov{position:absolute;z-index:3;pointer-events:none;background:color-mix(in srgb,var(--accent) 14%,transparent);border-left:1.5px solid var(--accent);border-right:1.5px solid var(--accent);border-radius:3px}
+.bmtr-card{position:absolute;z-index:6;padding:10px 12px;border-radius:12px;background:var(--panel);box-shadow:0 0 0 .5px var(--line),0 10px 28px -8px rgba(0,0,0,.35);font-variant-numeric:tabular-nums}
+.bmtr-h{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.bmtr-h b{font-size:var(--fs-sm);font-weight:600;color:var(--txt)}.bmtr-h span{font-size:var(--fs-xs);color:var(--muted)}
+.bmtr-x{all:unset;margin-left:auto;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--seg-carril);color:var(--muted);font-size:14px;cursor:default}
+.bmtr-s{padding:6px 0;border-top:1px solid var(--hair);display:flex;flex-wrap:wrap;gap:2px 10px;font-size:var(--fs-xs);color:var(--muted)}
+.bmtr-s em{width:100%;font-style:normal;font-weight:600;color:var(--txt);font-size:var(--fs-sm)}
+.bmtr-s b{color:var(--txt);font-weight:600}
+.bmtr-s small{width:100%;font-size:var(--fs-xs);color:var(--muted)}
+.cmp-svgw{position:relative}
+canvas,[data-bmtr]{-webkit-user-select:none;user-select:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.bmtr-x{width:36px;height:36px}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
