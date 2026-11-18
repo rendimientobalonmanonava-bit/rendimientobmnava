@@ -14436,6 +14436,7 @@ function bmbIndice(){
   A('Informe del jugador','Su mes: carga, recuperación, ACWR, minutos, pruebas y salud, para la reunión',()=>{if(window.bmInformeJugador)bmInformeJugador();},'informe reunion jugador mes');
   A('Carta del jugador','Su nota física, sus capacidades y lo que ha mejorado, en una imagen para dársela',()=>{if(window.bmCarta)bmCarta();},'carta tarjeta jugador nota fisica imagen motivacion');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
+  A('Notas para ti','Las notas que te avisan, con sus respuestas',()=>{if(window.bmNotasMias)bmNotasMias();},'notas mensajes avisos para mi respuestas');
   A('Informe del partido','El último partido: minutos, carga, cómo llegó cada uno y cómo se recuperó',()=>{if(window.bmInformePartido)bmInformePartido();},'informe partido post partido minutos recuperacion md+1');
   A('Bitácora de la temporada','Notas, lesiones y altas, partes, «Ojo hoy», partidos y valoraciones en una línea de tiempo',()=>{if(window.bmBitacora)bmBitacora('');},'bitacora historial cronologia linea tiempo temporada lesiones notas');
   document.querySelectorAll('#add-menu .add-item').forEach(b=>{const t=b.querySelector('b'),sm=b.querySelector('small');if(!t)return;
@@ -17924,12 +17925,13 @@ function bmMenuHoy(){
   let w=document.getElementById('sb-hoy');
   if(!rd&&!di&&!par){if(w)w.remove();return;}
   if(!w){w=document.createElement('div');w.id='sb-hoy';br.after(w);
-    w.addEventListener('click',e=>{const p=e.target.closest('.sbh-par');if(p&&p.dataset.dk){e.stopPropagation();try{bmPreviaPartido(p.dataset.dk);}catch(err){}return;}go('equipo');});}
+    w.addEventListener('click',e=>{const nt=e.target.closest('.sbh-nota');if(nt){e.stopPropagation();try{bmNotasMias();}catch(err){}return;}const p=e.target.closest('.sbh-par');if(p&&p.dataset.dk){e.stopPropagation();try{bmPreviaPartido(p.dataset.dk);}catch(err){}return;}go('equipo');});}
   const E=bmEsc;
   const cifra=(x,l)=>x?'<span class="sbh-c"><b style="color:'+E(x.c?colTexto(x.c):'var(--txt)')+'">'+E(x.t)+'</b><small>'+l+'</small></span>':'';
   const h='<div class="sbh-tit"><span>'+E(dia)+'</span></div>'
     +'<div class="sbh-cs">'+cifra(rd,'Readiness')+cifra(di,'Disponibles')+cifra(mo,'Con molestia')+'</div>'
-    +(par?'<button type="button" class="sbh-par" data-dk="'+E(par.dk)+'" title="Abre la previa del partido"><i></i><span>'+E(par.riv)+'</span><b>'+E(par.cuando)+'</b><em>'+E(par.fecha)+'</em></button>':'');
+    +(par?'<button type="button" class="sbh-par" data-dk="'+E(par.dk)+'" title="Abre la previa del partido"><i></i><span>'+E(par.riv)+'</span><b>'+E(par.cuando)+'</b><em>'+E(par.fecha)+'</em></button>':'')
+    +(()=>{const c=(typeof notasSinLeer==='function')?notasSinLeer():0;return c?'<button type="button" class="sbh-nota" title="Abre tus notas"><i aria-hidden="true">✎</i><span>'+c+(c===1?' nota para ti':' notas para ti')+'</span></button>':'';})();
   if(w.dataset.h!==h){w.dataset.h=h;w.innerHTML=h;}
   w.setAttribute('role','button');w.tabIndex=0;w.setAttribute('aria-label','El día de un vistazo: abre el Resumen');
   if(!w.dataset.k){w.dataset.k='1';w.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===w){e.preventDefault();go('equipo');}});}
@@ -20736,6 +20738,9 @@ function uvCambios(T){
   try{const C=((STATE.nutri||{}).cobros)||[];const pag=C.filter(c=>c&&c.pagado&&uvTs(c)>T);
     if(pag.length){const tot=pag.reduce((a,c)=>a+(+c.importe||0),0);const js=[...new Set(pag.map(c=>c.jugador))];
       out.push({g:'nut',t:Math.max(...pag.map(uvTs)),n:'',txt:pag.length+(pag.length===1?' cobro marcado':' cobros marcados')+' · '+(typeof nutEur==='function'?nutEur(tot):tot.toFixed(2)+' €')+' · '+js.slice(0,3).map(corto).join(', ')+(js.length>3?'…':''),col:'var(--accent)'});}}catch(e){}
+  /* v817 · las notas que me avisan y las respuestas que me han llegado */
+  try{const yo=notaYo();if(yo)notasMias().forEach(n=>{if(n.de!==yo&&uvTs(n)>T)out.push({g:'nota',t:uvTs(n),n:n.jugador||'',txt:'Nota'+(n.de?' de '+notaRolN(n.de):'')+': '+n.txt,col:'var(--accent)'});
+    (n.resp||[]).forEach(r=>{if(r&&r.de!==yo&&(r.t||0)>T)out.push({g:'nota',t:r.t,n:'',txt:'Respuesta'+(r.de?' de '+notaRolN(r.de):'')+': '+r.txt,col:'var(--accent)'});});});}catch(e){}
   try{let nT=0;const jT=new Set();Object.keys(STATE.testHist||{}).forEach(n=>{(STATE.testHist[n]||[]).forEach(h=>{if(h&&h.real&&String(h.date||'').slice(0,10)>=dT){const k=Object.keys(h.vals||{}).length;if(k){nT+=k;jT.add(n);}}});});
     if(nT)out.push({g:'val',t:T+1,n:'',txt:nT+' pruebas físicas nuevas de '+jT.size+(jT.size===1?' jugador':' jugadores'),col:'var(--accent)'});}catch(e){}
   /* v746 · la convocatoria está retirada: no se anuncia */
@@ -20751,7 +20756,7 @@ function bmDesdeVisita(){
   const T=UV.T;
   if(!T){bmHoja({id:'uv',titulo:'Desde tu última visita',html:'<p class="uv-p">Es la primera vez que se abre la app en este equipo: a partir de ahora se apunta cuándo la dejas.</p>'});return;}
   const xs=uvCambios(T),al=uvAlertas();
-  const g={fis:'Fisioterapia',med:'Médico',ojo:'Ojo hoy',nut:'Nutrición',val:'Valoraciones',cv:'Convocatorias'};
+  const g={nota:'Notas para ti',fis:'Fisioterapia',med:'Médico',ojo:'Ojo hoy',nut:'Nutrición',val:'Valoraciones',cv:'Convocatorias'};
   const grupos=Object.keys(g).map(k=>{const ys=xs.filter(x=>x.g===k);return ys.length?'<section class="uv-s"><h3>'+g[k]+'<em>'+ys.length+'</em></h3><ul class="uv-l">'+ys.map(uvLinea).join('')+'</ul></section>':'';}).join('');
   bmHoja({id:'uv',titulo:'Desde tu última visita',clase:'bm-uvh',html:'<p class="uv-p">Tu última visita en este equipo fue <b>'+uvHace(T)+'</b>.</p>'
     +(al?'<ul class="uv-l uv-al">'+uvLinea(al)+'</ul>':'')+(grupos||'<p class="uv-p">No ha entrado nada con fecha desde entonces.</p>')
@@ -21767,6 +21772,7 @@ function bmdDolor(){
 }
 function bmDestacados(){
   const v=document.getElementById('v-equipo');if(!v||!v.classList.contains('on'))return;
+  try{if(esMovil()&&typeof notaAvisos==='function')notaAvisos();}catch(e){}
   if(!bmEstadoEstable())return;
   const k=[dkey(REF()),(STATE.wellness||[]).length,(STATE.rpe||[]).length,(STATE.hr||[]).length,(()=>{try{const s=teamReadinessSerieCache(14);return s&&s.length&&s[0].por?'s':'-';}catch(e){return '-';}})()].join('|');
   let el=document.getElementById('bm-dest');
@@ -22444,6 +22450,74 @@ const bmMorphPlugin={id:'bmMorph',
   }catch(e){}}
 };
 /* la hoja de notas de un día */
+/* ═══ v817 · NOTAS DIRIGIDAS ENTRE EL CUERPO TÉCNICO ═══
+   Daniel, 18/11/2026, propuesta 5. Una nota puede avisar a alguien —el
+   entrenador, la fisio o preparación física, los papeles que ya pregunta el
+   móvil (`BMROL_L`)—; a esa persona le sale en «Desde tu última visita», en la
+   tarjeta del día del menú (ordenador) y en el Resumen (móvil), y puede
+   responder debajo. **Son las mismas notas** (`bmnava_notas`) con dos campos
+   más: `para` (los papeles) y `resp` (las respuestas, cada una con su id, que
+   es lo que la fusión necesita para no perder ninguna). Quién es cada equipo
+   se dice una vez (`bmnava-soy`, con guion: es de ese aparato) y, si el móvil
+   ya lo preguntó, se toma de ahí. Lo leído también es de cada aparato. */
+const NOTA_ROLES=[{k:'entrenador',n:'Carlos',t:'Entrenador'},{k:'fisio',n:'Virginia',t:'Fisioterapia'},{k:'pf',n:'Daniel',t:'Preparación física'}];
+function notaRolN(k){const r=NOTA_ROLES.find(x=>x.k===k);return r?r.n:k;}
+function notaYo(){try{const s=localStorage.getItem('bmnava-soy');if(s==='-')return '';return s||localStorage.getItem('bmnava-rol')||'';}catch(e){return '';}}
+function notaVistas(){try{return new Set(JSON.parse(localStorage.getItem('bmnava-notasvistas')||'[]'));}catch(e){return new Set();}}
+function notaVistasPon(ids){try{const s=notaVistas();ids.forEach(i=>s.add(i));localStorage.setItem('bmnava-notasvistas',JSON.stringify([...s].slice(-800)));}catch(e){}}
+/* lo que me toca: notas que me avisan y respuestas de otros a notas mías o que me avisan */
+function notasMias(){const yo=notaYo();if(!yo)return [];
+  return notasLoad().filter(n=>n&&((Array.isArray(n.para)&&n.para.includes(yo))||(n.de&&n.de===yo&&Array.isArray(n.para)&&n.para.length)));}
+function notasSinLeer(){const yo=notaYo();if(!yo)return 0;const V=notaVistas();let c=0;
+  notasMias().forEach(n=>{if(n.de!==yo&&!V.has(n.id))c++;(n.resp||[]).forEach(r=>{if(r&&r.de!==yo&&!V.has(r.id))c++;});});return c;}
+const BNM={tab:'para'};
+function bmNotasMias(){
+  const E=bmEsc,yo=notaYo(),V=notaVistas();
+  const hora=t=>{if(!t)return '';const d=new Date(t);return d.getDate()+'/'+(d.getMonth()+1)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+  let h='';
+  if(!yo){h='<p class="bnm-p">¿Quién usa este equipo? Se dice una vez y sirve para saber qué notas son para ti.</p><div class="bnm-soy">'+NOTA_ROLES.map(r=>'<button type="button" class="btn ghost" data-bnm-soy="'+r.k+'"><b>'+E(r.n)+'</b> · '+E(r.t)+'</button>').join('')+'</div>';
+    bmHoja({id:'notasmi',titulo:'Notas para ti',html:'<div class="bnm">'+h+'</div>',clase:'bm-bnmh'});return;}
+  const L=notasMias().filter(n=>BNM.tab==='para'?n.de!==yo:n.de===yo).sort((a,b)=>{const t=x=>Math.max(x.upd||0,...((x.resp||[]).map(r=>r.t||0)));return t(b)-t(a);});
+  const nuevas=new Set();
+  h='<div class="bnm-top"><div class="bnm-tab" role="group" aria-label="Qué notas"><button type="button" data-bnm-tab="para"'+(BNM.tab==='para'?' class="on"':'')+'>Para ti</button><button type="button" data-bnm-tab="mias"'+(BNM.tab==='mias'?' class="on"':'')+'>Las que mandaste</button></div>'
+    +'<span class="bnm-yo">Eres '+E(notaRolN(yo))+' · <button type="button" data-bnm-soy="">cambiar</button></span></div>';
+  if(!L.length)h+='<p class="bnm-p">'+(BNM.tab==='para'?'Nadie te ha avisado con una nota todavía.':'No has mandado ninguna nota a nadie. Al apuntar una nota, «Avisar a» la manda.')+'</p>';
+  L.forEach(n=>{const nueva=n.de!==yo&&!V.has(n.id);if(nueva)nuevas.add(n.id);
+    h+='<article class="bnm-n'+(nueva?' nueva':'')+'" data-bnm-id="'+E(n.id)+'"><div class="bnm-h"><b>'+(n.jugador?E(n.jugador):'Equipo')+'</b><span>'+E(bmciTit(n.dk))+'</span>'+(nueva?'<i class="bnm-dot" aria-label="Sin leer"></i>':'')+'</div>'
+      +'<p>'+E(n.txt)+'</p><small>'+E([n.de?'de '+notaRolN(n.de):(n.quien||''),'para '+(n.para||[]).map(notaRolN).join(' y '),hora(n.upd)].filter(Boolean).join(' · '))+'</small>'
+      +(n.resp||[]).map(r=>{const nv=r.de!==yo&&!V.has(r.id);if(nv)nuevas.add(r.id);return '<div class="bnm-r'+(nv?' nueva':'')+'"><b>'+E(r.de?notaRolN(r.de):(r.quien||''))+'</b> '+E(r.txt)+'<small> · '+hora(r.t)+'</small></div>';}).join('')
+      +'<div class="bnm-f"><input type="text" maxlength="200" placeholder="Responder…" aria-label="Responder a esta nota"><button type="button" class="btn ghost" data-bnm-resp="'+E(n.id)+'">Responder</button></div></article>';});
+  bmHoja({id:'notasmi',titulo:'Notas para ti',html:'<div class="bnm">'+h+'</div>',clase:'bm-bnmh'});
+  if(nuevas.size)setTimeout(()=>{notaVistasPon([...nuevas]);notaAvisos();},1200);
+}
+function bmNotaResponde(id,inp){
+  const txt=String(inp&&inp.value||'').replace(/\s+/g,' ').trim();if(!txt){try{inp.focus();}catch(e){}return;}
+  const L=notasLoad(),n=L.find(x=>x&&x.id===id);if(!n)return;
+  n.resp=Array.isArray(n.resp)?n.resp:[];
+  const r={id:'rp_'+Date.now()+'_'+Math.round(Math.random()*99999),txt:txt.slice(0,200),de:notaYo()||'',quien:(typeof alvQuien==='function'?alvQuien():''),t:Date.now()};
+  n.resp.push(r);n.upd=Date.now();
+  if(!notasPersist()){n.resp.pop();toast('No se pudo guardar');return;}
+  notaVistasPon([r.id]);bmNotasMias();toast('Respuesta enviada');
+}
+/* el número, donde se mira: la tarjeta del día del menú y el Resumen del móvil */
+function notaAvisos(){
+  const c=notasSinLeer();
+  if(!esMovil()){try{if(typeof bmMenuHoy==='function')bmMenuHoy();}catch(e){}return;}
+  const v=document.getElementById('v-equipo');if(!v)return;
+  let p=document.getElementById('bm-notasmi');
+  if(!c){if(p)p.remove();return;}
+  if(!p){p=document.createElement('button');p.type='button';p.id='bm-notasmi';p.className='bm-notasmi';p.addEventListener('click',()=>bmNotasMias());
+    const ref=v.querySelector(':scope>.bm-prox')||v.querySelector(':scope>.pagehead');if(ref&&ref.nextSibling)v.insertBefore(p,ref.nextSibling);else v.prepend(p);}
+  p.innerHTML='<i aria-hidden="true">✎</i><span>'+c+(c===1?' nota para ti':' notas para ti')+'</span><u aria-hidden="true">›</u>';
+}
+document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
+  /* «cambiar» deja la marca '-' (vuelve a preguntar) sin tocar el papel que el móvil usa para su barra */
+  const soy=e.target.closest('#bmh-notasmi [data-bnm-soy]');if(soy){try{localStorage.setItem('bmnava-soy',soy.dataset.bnmSoy||'-');}catch(x){}
+    bmNotasMias();notaAvisos();return;}
+  const tb=e.target.closest('#bmh-notasmi [data-bnm-tab]');if(tb){BNM.tab=tb.dataset.bnmTab;bmNotasMias();return;}
+  const rp=e.target.closest('#bmh-notasmi [data-bnm-resp]');if(rp){bmNotaResponde(rp.dataset.bnmResp,rp.parentElement.querySelector('input'));return;}});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target&&e.target.matches&&e.target.matches('#bmh-notasmi .bnm-f input')){e.preventDefault();const b=e.target.parentElement.querySelector('[data-bnm-resp]');if(b)bmNotaResponde(b.dataset.bnmResp,e.target);}});
+window.bmNotasMias=bmNotasMias;window.notasSinLeer=notasSinLeer;window.notaAvisos=notaAvisos;
 function bmNota(dk,jug){
   notasLoad();
   NOTAS_H.dk=dk||dkey(new Date());NOTAS_H.jug=(jug&&(STATE.players||{})[jug])?jug:null;
@@ -22459,11 +22533,12 @@ function bmnPinta(foco){
   const borrador=(box.querySelector('.bnt-t')||{}).value||'';
   box.innerHTML='<div class="bci-nav"><button type="button" class="inf-fl" data-bnt="-1" aria-label="Día anterior">‹</button><b>'+E(bmciTit(dk))+(dk===hoy?' · hoy':'')+'</b>'
       +'<button type="button" class="inf-fl" data-bnt="1" aria-label="Día siguiente"'+(dk>=hoy?' disabled':'')+'>›</button></div>'
-    +'<div class="bnt-l">'+(ns.length?ns.map(n=>'<div class="bnt-r"><span class="bnt-q">'+(n.jugador?E(n.jugador):'Equipo')+'</span><p>'+E(n.txt)+'</p>'
+    +'<div class="bnt-l">'+(ns.length?ns.map(n=>'<div class="bnt-r"><span class="bnt-q">'+(n.jugador?E(n.jugador):'Equipo')+(Array.isArray(n.para)&&n.para.length?' · para '+E(n.para.map(notaRolN).join(' y ')):'')+'</span><p>'+E(n.txt)+'</p>'+(Array.isArray(n.resp)&&n.resp.length?'<small class="bnt-rc">'+n.resp.length+(n.resp.length===1?' respuesta':' respuestas')+'</small>':'')
         +'<small>'+E([n.quien||'',hora(n.upd)].filter(Boolean).join(' · '))+'</small>'
         +'<button type="button" class="bnt-x" data-bnt-x="'+E(n.id)+'" aria-label="Borrar esta nota">'+BMH_X+'</button></div>').join('')
       :'<p class="bnt-nada">Ninguna nota este día.</p>')+'</div>'
     +'<div class="bnt-f"><textarea class="bnt-t" maxlength="200" rows="2" placeholder="Viaje de 6 h, jugó con fiebre, cambio de pista…" aria-label="Texto de la nota">'+E(borrador)+'</textarea>'
+    +'<div class="bnt-para" role="group" aria-label="Avisar a"><span>Avisar a</span>'+NOTA_ROLES.filter(r=>r.k!==notaYo()).map(r=>'<button type="button" data-bnt-para="'+r.k+'" aria-pressed="'+(NOTAS_H.para&&NOTAS_H.para.has(r.k))+'"'+(NOTAS_H.para&&NOTAS_H.para.has(r.k)?' class="on"':'')+'>'+E(r.n)+'</button>').join('')+'</div>'
     +'<div class="bnt-fr"><select class="bnt-s" aria-label="De quién es la nota"><option value="">Todo el equipo</option>'
       +noms.map(x=>'<option'+(x===NOTAS_H.jug?' selected':'')+'>'+E(x)+'</option>').join('')+'</select>'
     +'<button type="button" class="btn" data-bnt="ok">Añadir nota</button></div></div>'
@@ -22476,9 +22551,11 @@ function bmnAnade(){
   if(!txt){try{t.focus();}catch(e){}return;}
   const jug=(s&&s.value)||'';
   const n={id:'nt_'+Date.now()+'_'+Math.round(Math.random()*99999),dk:NOTAS_H.dk,jugador:jug,txt:txt.slice(0,200),quien:(typeof alvQuien==='function'?alvQuien():''),upd:Date.now()};
+  /* v817 · a quién avisa, y quién la escribe */
+  if(NOTAS_H.para&&NOTAS_H.para.size){n.para=[...NOTAS_H.para];n.de=notaYo()||'';}
   notasLoad().push(n);
   if(!notasPersist()){STATE.notas=STATE.notas.filter(x=>x!==n);toast('No se pudo guardar');return;}
-  t.value='';NOTAS_H.jug=jug||null;
+  t.value='';NOTAS_H.jug=jug||null;NOTAS_H.para=new Set();
   bmnRefresca();
   toast('Nota apuntada · '+bmciTit(n.dk).toLowerCase());
 }
@@ -22488,6 +22565,7 @@ function bmnBorra(id){
   bmLista('#bnt-cuerpo .bnt-l',[{sel:'.bnt-r',key:el=>bmTxt(el)}],()=>bmnRefresca());
   bmHecho('Nota borrada',()=>{notasLoad().push(Object.assign({},n,{id:'nt_'+Date.now()+'_'+Math.round(Math.random()*99999),upd:Date.now()}));notasPersist();bmnRefresca();},'Deshecho · la nota vuelve');
 }
+document.addEventListener('click',e=>{const pb=e.target&&e.target.closest&&e.target.closest('#bmh-notas [data-bnt-para]');if(pb){const k=pb.dataset.bntPara;NOTAS_H.para=NOTAS_H.para||new Set();if(NOTAS_H.para.has(k))NOTAS_H.para.delete(k);else NOTAS_H.para.add(k);pb.classList.toggle('on');pb.setAttribute('aria-pressed',NOTAS_H.para.has(k));return;}});
 document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-notas [data-bnt],#bmh-notas [data-bnt-x]');if(!b||b.disabled)return;
   if(b.dataset.bntX){bmnBorra(b.dataset.bntX);return;}
   const v=b.dataset.bnt;if(v==='ok'){bmnAnade();return;}
@@ -44268,6 +44346,7 @@ function bmTbMenu(e){
     {t:'Añadir una nota…',f:()=>{try{bmNota();}catch(err){}}},
     {t:'Bitácora de la temporada',f:()=>{try{bmBitacora('');}catch(err){}}},
     {t:'Informe del último partido',f:()=>{try{bmInformePartido();}catch(err){}}},
+    {t:'Notas para ti'+(()=>{const c=(typeof notasSinLeer==='function')?notasSinLeer():0;return c?' ('+c+')':'';})(),f:()=>{try{bmNotasMias();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Inspector del jugador',k:'I',f:()=>{try{bmInspAlterna();}catch(err){}}},
     {t:'Línea de tiempo',k:'L',f:()=>{try{bmTlAlterna();}catch(err){}}},
@@ -53796,6 +53875,38 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .cmp-svgw{position:relative}
 canvas,[data-bmtr]{-webkit-user-select:none;user-select:none}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.bmtr-x{width:36px;height:36px}}
+</style>
+<style id="bm-v817">
+/* v817 · notas dirigidas */
+.bnt-para{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 2px;font-size:var(--fs-sm);color:var(--muted)}
+.bnt-para button{all:unset;cursor:default;padding:4px 10px;border-radius:999px;background:var(--seg-carril);font-size:var(--fs-sm);font-weight:500;color:var(--txt)}
+.bnt-para button.on{background:var(--accent);color:var(--on-accent)}
+.bnt-para button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bnt-rc{display:block;color:var(--acc-seg,var(--accent))}
+.bnm-p{margin:4px 0 12px;font-size:var(--fs-sm);color:var(--muted)}
+.bnm-soy{display:flex;flex-direction:column;gap:8px}
+.bnm-top{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin-bottom:12px}
+.bnm-tab{display:inline-flex;padding:2px;border-radius:8px;background:var(--seg-carril)}
+.bnm-tab button{all:unset;cursor:default;padding:4px 12px;border-radius:6px;font-size:12.5px;font-weight:500;color:var(--txt)}
+.bnm-tab button.on{background:var(--seg-on);box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600}
+.bnm-yo{font-size:var(--fs-xs);color:var(--muted)}.bnm-yo button{all:unset;cursor:default;color:var(--acc-seg,var(--accent));font-weight:600}
+.bnm-n{padding:12px 0;border-top:1px solid var(--hair)}
+.bnm-h{display:flex;align-items:baseline;gap:8px}.bnm-h b,.bnm-h span{text-transform:none;letter-spacing:0}.bnm-h b{font-size:var(--fs-body);font-weight:600;color:var(--txt)}.bnm-h span{font-size:var(--fs-xs);color:var(--muted)}
+.bnm-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);align-self:center;margin-left:auto}
+.bnm-n p{margin:4px 0;font-size:var(--fs-body);color:var(--txt);line-height:1.45}
+.bnm-n>small{font-size:var(--fs-xs);color:var(--muted)}
+.bnm-r{margin:8px 0 0 12px;padding:6px 10px;border-left:2px solid var(--hair);font-size:var(--fs-sm);color:var(--txt)}
+.bnm-r.nueva{border-left-color:var(--accent)}.bnm-r b{font-weight:600}.bnm-r small{color:var(--muted)}
+.bnm-f{display:flex;gap:8px;margin-top:8px}
+.bnm-f input{flex:1;min-width:0;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font:inherit;font-size:var(--fs-sm)}
+.sbh-nota{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--acc-seg,var(--accent));font-size:12px;font-weight:600;cursor:default}
+.bm-notasmi{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-notasmi{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin:0 0 12px;padding:8px 14px;border:0;border-radius:14px;background:color-mix(in srgb,var(--accent) 12%,var(--panel));color:var(--acc-seg,var(--accent));font:inherit;font-size:15px;font-weight:600;text-align:left}
+  .bm-notasmi u{margin-left:auto;text-decoration:none}
+  .bnt-para button,.bnm-tab button{min-height:44px;display:inline-flex;align-items:center}
+  .bnm-f input,.bnm-f .btn{min-height:44px}
+}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
