@@ -15870,7 +15870,9 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     try{bmHojaMac();}catch(e){}
     try{bmAtajosMenu();}catch(e){}
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
-    try{bmTarjetasT();}catch(e){}},120);};
+    try{bmTarjetasT();}catch(e){}
+    /* v820 · el icono de cada cabecera */
+    try{bmCabIconos();}catch(e){}},120);};
   const arma=()=>{const m=document.querySelector('main');if(!m)return;
     new MutationObserver(pasa).observe(m,{childList:true,subtree:true});
     new MutationObserver(pasa).observe(document.head,{childList:true});
@@ -18986,6 +18988,39 @@ const BMGL_PAL=[[/borrad/,'del'],[/gimnasio|builderpro/,'gym'],[/nutri|cobro|ped
   [/wellness|datos del d[ií]a|dolor/,'wel'],[/duraci|minutos|carga de trabajo|sin tratar desde/,'rel'],
   [/valoraci|isocin|prueba|referencia|hoja|fase|cuadrante/,'val'],[/jugador|personal|foto|asistencia|revisados/,'per'],[/responden|c[oó]mo/,'gra']];
 function bmGlifo(t){t=String(t||'').toLowerCase();for(const [re,k] of BMGL_PAL)if(re.test(t))return k;return 'dat';}
+/* ═══ v820 · UN ICONO Y UN COLOR POR CATEGORÍA EN CADA CABECERA ═══
+   Daniel, 18/11/2026, propuesta 8. Medido: 24 cabeceras de bloque en las
+   pantallas principales y ninguna con icono. Cada una lleva ahora el dibujo
+   que le corresponde por su título —**la misma tabla de palabras e iconos de
+   las listas del móvil** (`BMGL_PAL` → `BMGL`, v598): ni un dibujo nuevo— en
+   un cuadrado del color de su categoría, el de los recuadros del Resumen
+   (v635): carga en verde azulado, salud en pizarra, wellness y nutrición en
+   violeta, rendimiento y equipo en azul. Alertas, en el rojo de alertas, que
+   es lo que son. **El Resumen y el Calendario no se tocan**, ni los
+   documentos. Igual en el ordenador y en el móvil. */
+const BMCAB_VISTA={'v-carga':'teal','v-hr':'teal','v-tests':'azul','v-jugadores':'azul','v-nutri':'violeta','v-alertas':'bad','v-config':'pizarra'};
+function bmCabCat(h){
+  const v=h.closest('main>.view');if(!v||v.id==='v-equipo'||v.id==='v-cal')return null;
+  if(v.id==='v-estado'){const p=h.closest('.estado-pane');return p&&p.id==='estado-parte'?'violeta':'pizarra';}
+  if(v.id==='v-jugador'){const p=h.closest('.plt-pane');const id=p?p.id:'';return id==='plt-carga'?'teal':id==='plt-medico'?'pizarra':'azul';}
+  return BMCAB_VISTA[v.id]||'azul';
+}
+function bmCabIconos(){
+  document.querySelectorAll('main>.view.on .panel>h2,main>.view.on .cgr-card>h3,main>.view.on .cgr-card-h>h3').forEach(h=>{
+    if(h.querySelector(':scope>.bmcab'))return;
+    if(h.closest(BMG_DOC)||h.querySelector('svg,img'))return;
+    const cat=bmCabCat(h);if(!cat)return;
+    const tx=(h.firstChild&&h.firstChild.nodeType===3?h.firstChild.textContent:h.textContent)||'';if(!tx.trim())return;
+    const k=bmGlifo(tx),ic=(BMGL[k]||BMGL.dat)[1];
+    const i=document.createElement('i');i.className='bmcab';i.setAttribute('aria-hidden','true');
+    i.style.setProperty('--cc',cat==='bad'?'var(--bad)':'var(--gi-'+cat+')');
+    i.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ic+'</svg>';
+    /* en una cabecera flexible el hueco ya lo pone su `gap` */
+    try{const cs=getComputedStyle(h);if(/flex|grid/.test(cs.display)&&parseFloat(cs.columnGap||cs.gap)>0)i.style.marginRight='0';}catch(e){}
+    h.prepend(i);
+  });
+}
+window.bmCabIconos=bmCabIconos;
 function bmGlEstilo(){
   if(document.getElementById('bm-glifos'))return;
   const url=d=>'url("data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>')+'")';
@@ -22047,6 +22082,7 @@ function bmPulido(){
   try{bmDosTonos();}catch(e){}
   try{bmFichaHoy();}catch(e){console.error('bmnava · ficha plegada',e);}
   try{bmFormasHoja();}catch(e){console.error('bmnava · formularios en hoja',e);}
+  try{bmCabIconos();}catch(e){}
   try{bmTarjetasT();}catch(e){}
   try{bmProx();}catch(e){console.error('bmnava · próximo partido',e);}
   try{bmrsPie();}catch(e){console.error('bmnava · resumen a la carta',e);}
@@ -54166,6 +54202,12 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   body.bmit-print .bmit-p{box-shadow:none;break-after:page;page-break-after:always;margin:0}
   body.bmit-print .bmit-p:last-child{break-after:auto;page-break-after:auto}
 }
+</style>
+<style id="bm-v820">
+/* v820 · el icono de la categoría en cada cabecera */
+.bmcab{display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;margin-right:9px;border-radius:7px;background:var(--cc);color:#fff;vertical-align:-5px;font-style:normal}
+.bmcab svg{width:14px;height:14px;display:block}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.bmcab{width:22px;height:22px;border-radius:6px;margin-right:8px;vertical-align:-4px}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
