@@ -17699,6 +17699,7 @@ function bmInspHTML(n){
   const parteDe=w&&w.dk&&w.dk!==dkR?'parte del '+bmInspFecha(w.dk):'';
   let rh='<div class="bmin-rd"><b'+(rd!=null?tx(sevC):'')+'>'+(rd!=null?rd:'—')+'</b><span>'+(rd!=null?(p.sev==='ok'?'Óptimo':p.sev==='warn'?'Moderado':'Bajo'):'Sin readiness')+(parteDe?'<br>'+E(parteDe):'')+'</span></div>';
   try{if(p.factors)rh+='<div class="bmin-fac">'+rdFactoresHTML(p,4)+'</div>';}catch(e){}
+  try{rh+=rd14HTML(n,{sinRot:true,tit:'Últimos 14 días'});}catch(e){}
   h+=sec('Readiness',rh);
   /* carga */
   const ac=p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null;
@@ -19448,6 +19449,23 @@ function cmpTablaDatos(A,B,filas){
     const dt=ok?(Math.abs(d)<1e-9?'igual':(d>0?'+':'−')+FD(Math.abs(d))):'—';
     return '<tr><th>'+lab+'</th>'+td(a,0)+td(b,1)+'<td class="cmp-dif">'+dt+'</td></tr>';}).join('')+'</tbody></table>';
 }
+/* v803 · el readiness de los últimos 14 días de cada lado. La media es, cada
+   día, la de los compañeros que tenían su parte ese día y no estaban con la
+   selección; de un jugador, sólo los días con su parte. */
+function cmpRd14(EA,EB,LA,LB){
+  const S=teamReadinessSerieCache(14);
+  if(!S||!S.length||!S[0].por){try{teamReadinessSerieAsync(14);}catch(e){}return '<section class="cmp-sec"><h3>Readiness · últimos 14 días</h3><p class="cmp-pie">Calculando la serie de 14 días…</p></section>';}
+  const sel=(n,dk)=>{try{return conLaSeleccion(n,dk);}catch(e){return false;}};
+  const serie=E=>E.ref?S.map(d=>{const v=E.miembros.filter(n=>{const x=d.por[n];return x&&x[1]&&!sel(n,d.dk);}).map(n=>d.por[n][0]);return v.length?v.reduce((x,y)=>x+y,0)/v.length:null;})
+    :S.map(d=>{const x=d.por[E.k];return x&&x[1]?x[0]:null;});
+  const rA=serie(EA),rB=serie(EB),dks=S.map(d=>d.dk);
+  const dat=s=>{const v=s.filter(x=>x!=null);if(!v.length)return {};return {m:v.reduce((x,y)=>x+y,0)/v.length,min:Math.min(...v),roj:v.filter(x=>recSev(Math.round(x))==='bad').length,n:v.length};};
+  const A=dat(rA),B=dat(rB),n0=v=>Math.round(v).toLocaleString('es-ES');
+  return '<section class="cmp-sec"><h3>Readiness · últimos 14 días <span>0–100</span>'+cmpLeyenda(LA,LB)+'</h3>'
+    +cmpSerie([rA,rB],dks,100,{puntos:true,lab:'Readiness de los dos lados'})
+    +cmpTablaDatos(LA,LB,[['Media · 14 días',A.m,B.m,n0,'alto'],['El más bajo',A.min,B.min,n0,'alto'],['Días en rojo (menos de 55)',A.roj,B.roj,n0,'bajo'],['Días con parte',A.n,B.n,n0]])
+    +'<p class="cmp-pie">El de cada día, el mismo cálculo que el de hoy. Un día sin su parte no tiene readiness propio y no se dibuja.</p></section>';
+}
 /* v802 · reciben ya el rótulo de cada lado: un jugador o una media */
 function cmpLeyenda(A,B){return '<span class="cmp-ley"><i class="cmp-pt" style="--cmp-c:'+CMP_COL[0]+'"></i>'+bmEsc(A)+'<i class="cmp-pt cmp-pt-b" style="--cmp-c:'+CMP_COL[1]+'"></i>'+bmEsc(B)+'</span>';}
 function bmComparar(a,b){
@@ -19646,6 +19664,7 @@ function cmpPinta(){
     +'<section class="cmp-sec">'+tabla+notaRef+'</section>'
     +'<section class="cmp-sec"><h3>Carga diaria · últimas 4 semanas <span>UA</span>'+cmpLeyenda(LA,LB)+'</h3>'+cmpSerie([cA,cB],dks,topC,{lab:'Carga diaria de los dos lados'})+datosCarga+'</section>'
     +'<section class="cmp-sec"><h3>Recuperación declarada <span>% · wellness</span>'+cmpLeyenda(LA,LB)+'</h3>'+(dr.length?cmpSerie([EA.rec,EB.rec],dr,100,{u:'',puntos:true,lab:'Recuperación de los dos lados'})+datosRec:'<p class="cmp-pie">Sin partes de wellness.</p>')+'</section>'
+    +cmpRd14(EA,EB,LA,LB)
     +'<section class="cmp-sec"><h3>Capacidades'+cmpLeyenda(LA,LB)+'</h3>'+radar+'</section>'
     +'<section class="cmp-sec"><h3>Pruebas físicas</h3>'+pruebas+'</section>';
 }
@@ -21276,6 +21295,20 @@ const BMD_IC={
   well:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
   pulso:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>',
   dolor:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"/></svg>'};
+BMD_IC.rd='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 18a8.5 8.5 0 1 1 15 0"/><path d="M12 14l3.5-4"/></svg>';
+/* v803 · quién lleva 3 días seguidos con el readiness en rojo (hasta el último día) */
+function bmdRd(){
+  const s=teamReadinessSerieCache(14);if(!s||!s.length||!s[0].por)return null;
+  if(dkey(REF())<s[s.length-1].dk)return null;
+  const L=Object.keys(STATE.players||{}).map(n=>({n,r:rdRacha(n)})).filter(x=>x.r&&x.r.dias>=RD_RACHA).sort((a,b)=>b.r.dias-a.r.dias||a.n.localeCompare(b.n,'es'));
+  if(!L.length)return null;
+  const a=L[0],ser=rdJugSerie(a.n),q=String(a.n).replace(/'/g,"\\'");
+  const graf='<span class="bmd-dias">'+ser.map(d=>'<i class="'+(d.rd!=null&&recSev(d.rd)==='bad'?'on':'')+'"></i>').join('')+'</span>'
+    +'<span class="bmd-pie">Últimos 14 días · cada marca es un día en rojo (menos de 55)</span>';
+  const otros=L.slice(1).map(x=>cvCorto(x.n));
+  return {k:'rd',cat:'azul',tit:'Readiness',cuando:'Seguido',ir:"openPlayer('"+q+"')",
+    frase:cvCorto(a.n)+' lleva '+a.r.dias+' días seguidos con el readiness en rojo.'+(otros.length?' También '+(otros.length>2?otros.slice(0,2).join(', ')+' y '+(otros.length-2)+' más':otros.join(' y '))+'.':''),graf};
+}
 const bmdN0=x=>Math.round(x).toLocaleString('es-ES');
 const bmdN1=x=>(Math.round(x*10)/10).toFixed(1).replace('.',',');
 function bmdCarga(){
@@ -21343,11 +21376,11 @@ function bmdDolor(){
 function bmDestacados(){
   const v=document.getElementById('v-equipo');if(!v||!v.classList.contains('on'))return;
   if(!bmEstadoEstable())return;
-  const k=[dkey(REF()),(STATE.wellness||[]).length,(STATE.rpe||[]).length,(STATE.hr||[]).length].join('|');
+  const k=[dkey(REF()),(STATE.wellness||[]).length,(STATE.rpe||[]).length,(STATE.hr||[]).length,(()=>{try{const s=teamReadinessSerieCache(14);return s&&s.length&&s[0].por?'s':'-';}catch(e){return '-';}})()].join('|');
   let el=document.getElementById('bm-dest');
   if(el&&el.dataset.k===k)return;
   const cs=[];
-  [bmdCarga,bmdWell,bmdPulso,bmdDolor].forEach(f=>{try{const c=f();if(c)cs.push(c);}catch(e){console.error('bmnava · destacado',e);}});
+  [bmdRd,bmdCarga,bmdWell,bmdPulso,bmdDolor].forEach(f=>{try{const c=f();if(c)cs.push(c);}catch(e){console.error('bmnava · destacado',e);}});
   if(!el){el=document.createElement('section');el.id='bm-dest';el.className='bm-dest';
     const ref=v.querySelector(':scope>.bm-prox')||v.querySelector(':scope>.bm-hoy')||v.querySelector(':scope>.pagehead');
     if(ref&&ref.nextSibling)v.insertBefore(el,ref.nextSibling);else v.appendChild(el);}
@@ -23301,7 +23334,9 @@ function teamReadinessSerieAsync(n){
       const v=Object.values(STATE.players)
         .filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dk)))
         .map(p=>p.readiness).filter(x=>x!=null);
-        out.push({dk,rd:v.length?Math.round(mean(v)):null,n:v.length});
+        /* v803 · y el de cada jugador, que se calculaba aquí y se tiraba: [readiness, ¿tenía su parte ese día?] */
+        const por={};Object.values(STATE.players).forEach(p=>{if(p&&p.name&&p.readiness!=null&&!isNaN(p.readiness))por[p.name]=[Math.round(p.readiness),p.last&&p.last.dk===dk?1:0];});
+        out.push({dk,rd:v.length?Math.round(mean(v)):null,n:v.length,por});
         await respira();
       }
     }catch(e){console.error('bmnava · serie de readiness',e);}
@@ -23325,6 +23360,10 @@ function teamReadinessSerieAsync(n){
     /* v738 · una ficha abierta mientras la serie recorría los días se pintó con
        un día prestado: se repinta con el de verdad */
     try{if(typeof fichaRepinta==='function')fichaRepinta();}catch(e){}
+    /* v803 · lo que enseña el readiness de cada jugador y se pintó antes de tenerlo */
+    try{if(document.getElementById('bm-insp')&&typeof bmInspPinta==='function')bmInspPinta(true);}catch(e){}
+    try{if(document.getElementById('cmp-cuerpo')&&typeof cmpPinta==='function')cmpPinta();}catch(e){}
+    try{if(typeof bmDestacados==='function')bmDestacados();}catch(e){}
     return out;
   })();
   return RD_SERIE_PROM;
@@ -23340,14 +23379,15 @@ function teamReadinessSerieCache(n){
   /* v772b · la de memoria también comprueba la huella, pero sólo si la versión
      de los datos ha cambiado desde la última vez: cambiar unos minutos o una
      convocatoria dejaba la serie con los valores viejos hasta recargar */
-  if(RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave){
+  const conPor=d=>Array.isArray(d)&&(!d.length||!!d[0].por);
+  if(RD_SERIE_CACHE&&RD_SERIE_CACHE.clave===clave&&conPor(RD_SERIE_CACHE.datos)){
     if(RD_SERIE_CACHE.dv===BM_DV||RD_SERIE_CACHE.huella==null)return RD_SERIE_CACHE.datos;
     if(dks.length&&rdHuella(dks)===RD_SERIE_CACHE.huella){RD_SERIE_CACHE.dv=BM_DV;return RD_SERIE_CACHE.datos;}
     RD_SERIE_CACHE=null;return null;
   }
   /* v772 · la que se calculó en una visita anterior, si los datos son los mismos */
   try{if(!dks.length)return null;const g=JSON.parse(localStorage.getItem(RDS_K)||'null');
-    if(g&&g.clave===clave&&g.huella===rdHuella(dks)&&Array.isArray(g.datos)){RD_SERIE_CACHE={clave,datos:g.datos,huella:g.huella,dv:BM_DV};return g.datos;}}catch(e){}
+    if(g&&g.clave===clave&&g.huella===rdHuella(dks)&&conPor(g.datos)){RD_SERIE_CACHE={clave,datos:g.datos,huella:g.huella,dv:BM_DV};return g.datos;}}catch(e){}
   return null;
 }
 /* ═══ v772 · El arranque no traba los primeros toques ═══
@@ -23379,6 +23419,41 @@ function rdHuella(dks){
   return h;
 }
 window.teamReadinessSerieCache=teamReadinessSerieCache;
+/* ═══ v803 · EL READINESS DE CADA JUGADOR, DÍA A DÍA ═══
+   Daniel, 18/11/2026, eligió la propuesta 1. Medido antes: en los últimos 14
+   días la media del equipo fue de 72 a 85 —nunca roja— y 12 de los 18 tuvieron
+   algún día en rojo. La media lo esconde. **Ni un cálculo nuevo**: el recorrido
+   de la serie del equipo ya calculaba el readiness de cada jugador cada día con
+   `buildPlayers` —el mismo cálculo que el de hoy— y lo tiraba; ahora lo guarda.
+   Un día SIN su parte no tiene readiness propio (el wellness sería el del
+   último parte) y sale vacío: no se rellena. El rojo es el de siempre (menos
+   de 55, `recSev`), y «3 días seguidos» es la racha de «Dolor que no se va». */
+function rdJugSerie(n){const s=teamReadinessSerieCache(14);if(!s||!s.length||!s[0].por)return null;
+  return s.map(d=>{const x=d.por&&d.por[n];return {dk:d.dk,rd:x&&x[1]?x[0]:null};});}
+/* los días seguidos en rojo hasta el último; si el último es hoy y aún no ha respondido, no corta */
+function rdRacha(n){const s=rdJugSerie(n);if(!s||!s.length)return null;let i=s.length-1;
+  if(s[i].rd==null&&s[i].dk===dkey(new Date()))i--;
+  let c=0;const fin=i>=0?s[i].dk:null;
+  for(;i>=0;i--){const v=s[i].rd;if(v==null||recSev(v)!=='bad')break;c++;}
+  return {dias:c,fin};}
+const RD_RACHA=3;
+function rd14Fd(dk){const p=String(dk).split('-');return (+p[2])+'/'+(+p[1]);}
+function rd14Cel(v,tit){const sv=v!=null?recSev(v):null;return '<i class="rd14-x'+(sv?' r-'+sv:' vac')+'" title="'+tit+'">'+(v!=null?'<b>'+v+'</b>':'')+'</i>';}
+/* La tira de 14 días de un jugador: o.sinRot (sin columna de rótulos), o.tit (cabecera), o.extra (filas de más) */
+function rd14HTML(n,o){o=o||{};const s=rdJugSerie(n);
+  if(!s)return '<div class="rd14"><p class="rd14-pie">Calculando sus últimos 14 días…</p></div>';
+  const fila=(lab,cel)=>'<div class="rd14-f'+(o.sinRot?' sr':'')+'">'+(o.sinRot?'':'<em>'+lab+'</em>')+'<div class="rd14-c">'+cel+'</div></div>';
+  let h='<div class="rd14'+(o.sinRot?' sr':'')+'">';
+  if(o.tit!==false)h+='<div class="rd14-h"><b>'+(o.tit||'Sus últimos 14 días')+'</b><span>'+rd14Fd(s[0].dk)+' – '+rd14Fd(s[s.length-1].dk)+'</span></div>';
+  h+=fila('Readiness',s.map(d=>rd14Cel(d.rd,rd14Fd(d.dk)+(d.rd!=null?' · readiness '+d.rd:' · sin su parte'))).join(''));
+  if(o.extra)h+=o.extra(s,fila);
+  h+=fila('',s.map(d=>'<span>'+(+d.dk.slice(8))+'</span>').join('')).replace('rd14-f','rd14-f rd14-dd');
+  const v=s.filter(d=>d.rd!=null),nR=v.filter(d=>recSev(d.rd)==='bad').length,r=rdRacha(n);
+  h+='<p class="rd14-pie">'+(r&&r.dias>=RD_RACHA?'<b>Lleva '+r.dias+' días seguidos en rojo.</b> ':'')
+    +(v.length?nR+' de '+v.length+' días con parte en rojo (menos de 55) · ':'')+'un día sin su parte va vacío'+(o.pie||'')+'.</p>';
+  return h+'</div>';
+}
+window.rdJugSerie=rdJugSerie;window.rdRacha=rdRacha;window.rd14HTML=rd14HTML;
 function teamAcwrSeries(n){const byDk={};Object.keys(STATE.players).forEach(nm=>{try{acwrSeries(nm,'ua',REF()).slice(-(n||12)).forEach(d=>{if(!isNaN(d.ra))(byDk[d.dk]=byDk[d.dk]||[]).push(d.ra);});}catch(e){}});
   const dks=Object.keys(byDk).sort();return dks.slice(-(n||12)).map(dk=>mean(byDk[dk]));}
 function kpi(l,v,s,sev,opts){opts=opts||{};
@@ -35320,7 +35395,7 @@ function renderPlayerReadiness(name){
         <div class="rc-smalls">${cells}</div>
       </div>
       <div><div class="phys-sec" style="margin-top:0">Wellness · Jugador vs Equipo <span class="small muted">· menor = mejor (eje invertido)</span></div><div style="height:300px"><canvas id="ch-pl-radar"></canvas></div></div>
-    </div>`;
+    </div>${(typeof rd14HTML==='function')?rd14HTML(name,{extra:(typeof rd14Sueno==='function')?rd14Sueno(name):null}):''}`;
   // radar jugador vs equipo (escala 1-5, eje invertido para que fuera=mejor)
   const AX5=[['fatiga','Fatiga'],['sueno','Sueño'],['doms','DOMS'],['mood','Ánimo'],['stress','Estrés']];
   /* el equipo, en el MISMO día que el jugador: sólo quien tiene parte de ese día */
@@ -52957,6 +53032,33 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .cvd-l h3{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6e6e73}
 .cvd-j{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px solid #f0f0f3;font-size:16px}
 .cvd-j b{width:28px;text-align:right;font-weight:800;color:#3056c4;font-variant-numeric:tabular-nums}
+</style>
+<style id="bm-v803">
+/* v803 · el readiness de cada jugador, día a día */
+.rd14{margin-top:14px;padding-top:12px;border-top:1px solid var(--hair)}
+.rd14.sr{margin-top:10px;padding-top:0;border-top:0}
+.rd14-h{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.rd14-h b{font-size:var(--fs-sm);font-weight:600;color:var(--txt)}
+.rd14-h span{font-size:var(--fs-xs);color:var(--muted)}
+.rd14-f{display:grid;grid-template-columns:104px minmax(0,1fr);align-items:center;gap:10px;margin-top:4px}
+.rd14-f.sr{grid-template-columns:minmax(0,1fr)}
+.rd14-f>em{font-style:normal;font-size:var(--fs-xs);color:var(--muted)}
+.rd14-c{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:3px}
+.rd14-x{display:flex;align-items:center;justify-content:center;height:26px;border-radius:6px;font-style:normal;min-width:0}
+.rd14-x.vac{border:1px dashed var(--hair)}
+.rd14-x.r-ok{background:color-mix(in srgb,var(--ok) 80%,var(--panel2))}
+.rd14-x.r-warn{background:color-mix(in srgb,var(--warn) 80%,var(--panel2))}
+.rd14-x.r-bad{background:color-mix(in srgb,var(--bad) 80%,var(--panel2))}
+.rd14-x b{font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;color:#0d1117;letter-spacing:-.03em}
+.rd14-dd{margin-top:2px}.rd14-dd span{font-size:10px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+.rd14-pie{margin:8px 0 0;font-size:var(--fs-xs);color:var(--muted);line-height:1.4}
+.rd14-pie b{color:var(--bad-text);font-weight:600}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .rd14-f{grid-template-columns:minmax(0,1fr);gap:3px}
+  .rd14-f>em:empty{display:none}
+  .rd14-c{gap:2px}
+  .rd14-x b{letter-spacing:-.06em}
+}
 </style>
 <style id="bm-v741">
 /* v741 · Comparar dos jugadores (hoja; ordenador y móvil). */
