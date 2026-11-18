@@ -7274,6 +7274,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div id="med-dashboard"></div>
       <!-- v811 · «Carga antes de las lesiones» (lesCarga) vuelve a verse: desde la
            v437 su contenedor no estaba en ninguna pantalla. -->
+      <!-- v814 · las lesiones de la temporada con las métricas del consenso del COI -->
+      <div id="les-coi" class="panel"></div>
       <div id="lescarga-card" class="panel"></div>
       </div>
       <div class="med-pane" id="medpane-clinica" style="display:none">
@@ -13429,7 +13431,7 @@ function medTabPanes(){
   const p=document.getElementById('medpane-'+k);
   if(p)p.style.display=(k===MED_TAB)?'':'none';
  });
- if(MED_TAB==='resumen')try{lesCargaDiferir();}catch(e){}
+ if(MED_TAB==='resumen'){try{lesCoiDiferir();}catch(e){}try{lesCargaDiferir();}catch(e){}}
  document.querySelectorAll('#med-seg button').forEach(b=>b.classList.toggle('on',b.dataset.mt===MED_TAB));
 }
 window.medTab=medTab;window.medTabPanes=medTabPanes;
@@ -39486,6 +39488,99 @@ window.lesCarga=lesCarga;
    de LES_MIN episodios enseña el recuento y calla la conclusión. Se pinta
    después del resto (es el cálculo más largo de la pantalla) y se recuerda
    mientras no cambie ningún dato. */
+/* ═══ v814 · LESIONES CON LAS MÉTRICAS DEL CONSENSO DEL COI ═══
+   Daniel, 18/11/2026, propuesta 2. Como lo miden los departamentos médicos de
+   referencia (consenso del COI 2020; matriz de riesgo de Bahr, Clarsen y
+   Ekstrand 2018). **Son fórmulas, no umbrales**:
+   · Exposición: las horas de cada jugador cada día desde el 1 de julio, los
+     minutos de sus bloques (`lbDayOf(dk,n).dur`); en día de partido, los suyos.
+   · Días perdidos de un episodio: los días, de su inicio a su alta (o a hoy si
+     sigue abierto), en que su estado fue de salud y fuera (`NOAV_FIS_ST`: baja,
+     no entrena por lo físico, enfermedad). Así un episodio sin días fuera no
+     suma días perdidos aunque esté abierto.
+   · Incidencia = episodios con días perdidos / horas × 1.000.
+   · Carga lesional = días perdidos / horas × 1.000.
+   · Matriz de riesgo: por zona, cuántas veces pasa (incidencia) contra cuánto
+     cuesta cada una (días perdidos medios); las curvas son la misma carga.
+   · Disponibilidad: días-jugador sin ese estado, mes a mes.
+   Con menos de LES_MIN episodios se dice que una lesión más mueve mucho las
+   tasas: se leen como recuento. */
+let LCOI_K=null,LCOI_T=0,LCOI_D=null;
+function lesCoiDatos(){
+  const hoy=dkey(new Date()),dks=dkRango(TEMP_INICIO,hoy),ns=Object.keys(STATE.players||{});
+  let par=new Set();try{par=new Set(calPartidosDks());}catch(e){}
+  let minT=0,minP=0;
+  ns.forEach(n=>dks.forEach(dk=>{let x=null;try{x=lbDayOf(dk,n);}catch(e){}const d=x&&+x.dur||0;if(d>0){if(par.has(dk))minP+=d;else minT+=d;}}));
+  const fuera=(n,dk)=>{try{const e=effectiveStatus(n,dk);return !!(e&&NOAV_FIS_ST.includes(e.status));}catch(e){return false;}};
+  /* disponibilidad, mes a mes */
+  const meses={};
+  ns.forEach(n=>dks.forEach(dk=>{const m=dk.slice(0,7);const M=meses[m]||(meses[m]={dj:0,f:0});M.dj++;if(fuera(n,dk))M.f++;}));
+  /* episodios */
+  try{medDbLoad();}catch(e){}
+  const eps=((STATE.med||{}).inj||[]).filter(e=>e&&!e.mergedInto&&e.name&&e.dk&&e.dk>=TEMP_INICIO&&e.dk<=hoy&&STATE.players[e.name]).map(e=>{
+    const fin=(!e.open&&e.end&&e.end<hoy)?e.end:hoy;const dl=dkRango(e.dk,fin).filter(dk=>fuera(e.name,dk)).length;
+    let reg=null;try{reg=zoneRegion(e.zona||e.title||'');}catch(x){}
+    return {n:e.name,dk:e.dk,kind:e.kind||'lesion',reg:reg||'otra',dias:dl,abierta:!!e.open,tit:e.title||e.zona||''};});
+  const h=(minT+minP)/60,tl=eps.filter(e=>e.dias>0),dias=tl.reduce((s,e)=>s+e.dias,0);
+  const porReg={};tl.forEach(e=>{const R=porReg[e.reg]||(porReg[e.reg]={n:0,d:0});R.n++;R.d+=e.dias;});
+  return {h,hP:minP/60,hT:minT/60,eps,tl,dias,inc:h>0?tl.length/h*1000:null,carga:h>0?dias/h*1000:null,
+    disp:(()=>{let dj=0,f=0;Object.values(meses).forEach(M=>{dj+=M.dj;f+=M.f;});return dj?100*(1-f/dj):null;})(),meses,porReg};
+}
+const LCOI_REG={cabeza:'Cuello y cabeza',hombro:'Hombro',brazo:'Brazo y codo',mano:'Muñeca y mano',tronco:'Lumbar y tronco',cadera:'Cadera y glúteo',muslo:'Muslo',rodilla:'Rodilla',pierna:'Pierna',pie:'Tobillo y pie',otra:'Sin zona'};
+function lesCoiMatriz(D){
+  const R=Object.keys(D.porReg).map(k=>({k,n:D.porReg[k].n,inc:D.h>0?D.porReg[k].n/D.h*1000:0,sev:D.porReg[k].d/D.porReg[k].n}));
+  if(!R.length)return '';
+  const W=560,H=280,L=46,B=36,T=12,Rr=16,xm=Math.max(...R.map(r=>r.inc))*1.25||1,ym=Math.max(...R.map(r=>r.sev))*1.25||1;
+  const X=v=>L+v/xm*(W-L-Rr),Y=v=>H-B-v/ym*(H-B-T);
+  let g='';
+  /* las curvas de igual carga lesional (incidencia × días = constante) */
+  const cmax=xm*ym,pasos=[0.15,0.35,0.65].map(f=>f*cmax);
+  pasos.forEach(c=>{let d='';for(let i=1;i<=40;i++){const x=xm*i/40,y=c/x;if(y>ym*1.02)continue;d+=(d?'L':'M')+X(x).toFixed(1)+','+Y(y).toFixed(1);}
+    if(d)g+='<path d="'+d+'" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 4" opacity=".55"/>';});
+  [0,0.5,1].forEach(f=>{const y=Y(ym*f);g+='<line x1="'+L+'" x2="'+(W-Rr)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="var(--hair)"/><text x="'+(L-6)+'" y="'+(y+3.5).toFixed(1)+'" text-anchor="end" font-size="10.5" fill="var(--muted)">'+fmt(ym*f,0)+'</text>';});
+  [0,0.5,1].forEach(f=>{const x=X(xm*f);g+='<text x="'+x.toFixed(1)+'" y="'+(H-B+16)+'" text-anchor="'+(f===0?'start':f===1?'end':'middle')+'" font-size="10.5" fill="var(--muted)">'+fmt(xm*f,2)+'</text>';});
+  g+='<text x="'+(W-Rr)+'" y="'+(H-4)+'" text-anchor="end" font-size="10.5" fill="var(--muted)">incidencia · episodios por 1.000 h</text>';
+  g+='<text x="'+L+'" y="'+(T-2)+'" font-size="10.5" fill="var(--muted)">días perdidos de media</text>';
+  R.forEach(r=>{const rr=6+Math.sqrt(r.n)*5;g+='<circle cx="'+X(r.inc).toFixed(1)+'" cy="'+Y(r.sev).toFixed(1)+'" r="'+rr.toFixed(1)+'" style="fill:color-mix(in srgb,var(--gi-pizarra) 55%,transparent);stroke:var(--gi-pizarra)" stroke-width="1.2"><title>'+bmEsc((LCOI_REG[r.k]||r.k)+' · '+r.n+(r.n===1?' episodio':' episodios')+' · '+fmt(r.inc,2)+' por 1.000 h · '+fmt(r.sev,0)+' días de media')+'</title></circle>'
+    +'<text x="'+(X(r.inc)+rr+4).toFixed(1)+'" y="'+(Y(r.sev)+4).toFixed(1)+'" font-size="11.5" font-weight="600" fill="var(--txt)">'+bmEsc(LCOI_REG[r.k]||r.k)+'</text>';});
+  return '<svg class="lcoi-mx" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Matriz de riesgo por zona">'+g+'</svg>';
+}
+function renderLesCoi(){
+  const box=document.getElementById('les-coi');if(!box)return;
+  const D=LCOI_D||lesCoiDatos();
+  const n0=v=>Math.round(v).toLocaleString('es-ES'),E=bmEsc;
+  const cab='<h2>Lesiones de la temporada <span class="r muted">métricas del consenso del COI · desde el 1 de julio</span></h2>';
+  const kpi=(t,v,sub)=>'<div class="lcoi-k"><em>'+t+'</em><b>'+v+'</b><span>'+sub+'</span></div>';
+  const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const mk=Object.keys(D.meses).sort();
+  /* el alto es lo que se PERDIÓ ese mes (días-jugador fuera): de 0 a 100 % un 94 y un 100 se dibujaban iguales */
+  const fmx=Math.max(1,...mk.map(m=>D.meses[m].f));
+  const barras='<div class="lcoi-ms">'+mk.map(m=>{const M=D.meses[m],pc=M.dj?100*(1-M.f/M.dj):null;
+    return '<div class="lcoi-m"><b>'+(pc==null?'—':fmt(pc,pc>=99.95?0:1)+' %')+'</b><span class="lcoi-mb"><i style="height:'+(M.f/fmx*100).toFixed(1)+'%"></i></span><span class="lcoi-md">'+M.f+(M.f===1?' día':' días')+'</span><small>'+MES[+m.slice(5)-1]+'</small></div>';}).join('')+'</div>';
+  const pocos=D.tl.length<LES_MIN;
+  box.innerHTML=cab
+    +'<div class="lcoi-ks">'
+      +kpi('Exposición',n0(D.h)+' h',n0(D.hT)+' de entreno · '+n0(D.hP)+' de partido')
+      +kpi('Episodios',String(D.eps.length),D.tl.length+' con días perdidos')
+      +kpi('Incidencia',D.inc!=null?fmt(D.inc,2):'—','por cada 1.000 h')
+      +kpi('Días perdidos',n0(D.dias),'de baja, sin entrenar o enfermos')
+      +kpi('Carga lesional',D.carga!=null?fmt(D.carga,1):'—','días perdidos por 1.000 h')
+      +kpi('Disponibilidad',D.disp!=null?fmt(D.disp,1)+' %':'—','días-jugador sin baja')
+    +'</div>'
+    +(pocos?'<p class="lcoi-pocos">'+(D.tl.length?'Con '+D.tl.length+(D.tl.length===1?' episodio':' episodios')+' con días perdidos, uno más mueve mucho las tasas: léelas como recuento.':'Aún no hay episodios con días perdidos esta temporada: la incidencia y la carga lesional salen a cero.')+'</p>':'')
+    +'<div class="lcoi-g2"><section><h3>Matriz de riesgo por zona</h3>'+(D.tl.length?lesCoiMatriz(D)+'<p class="lcoi-pie">Cada círculo es una zona: a la derecha, las que pasan más a menudo; arriba, las que más días cuestan. Su tamaño, cuántos episodios. Las curvas discontinuas unen puntos con la misma carga lesional: cuanto más arriba a la derecha, más pesa esa zona en la temporada.</p>':'<p class="lcoi-pie">Sin episodios con días perdidos, no hay matriz.</p>')+'</section>'
+    +'<section><h3>Disponibilidad, mes a mes</h3>'+barras+'<p class="lcoi-pie">Arriba, el % de días-jugador disponibles; la barra, los días-jugador perdidos ese mes (de baja, sin entrenar por lo físico o enfermos).</p></section></div>'
+    +'<p class="lcoi-pie">Exposición: los minutos de cada jugador cada día (en día de partido, los suyos). Días perdidos: los días de su estado de baja, sin entrenar o enfermo desde el inicio de cada episodio hasta su alta. Fórmulas del consenso del COI (2020) y la matriz de riesgo de Bahr, Clarsen y Ekstrand (2018): no hay umbrales.</p>';
+}
+function lesCoiDiferir(){
+  const box=document.getElementById('les-coi');if(!box)return;
+  const k=BM_DV+'|'+dkey(new Date());
+  if(LCOI_K===k&&box.innerHTML.trim())return;
+  if(!box.innerHTML.trim())box.innerHTML='<h2>Lesiones de la temporada</h2><p class="hint calc-t">Calculando…</p><div class="calc-s" role="status" aria-label="Calculando"><i></i><i></i><i></i></div>';
+  clearTimeout(LCOI_T);
+  LCOI_T=setTimeout(()=>{try{LCOI_D=lesCoiDatos();renderLesCoi();LCOI_K=k;}catch(e){console.error('bmnava · lesiones COI',e);}},40);
+}
+window.lesCoiDiferir=lesCoiDiferir;window.lesCoiDatos=lesCoiDatos;
 let LESC_K=null,LESC_T=0;
 function lesCargaDiferir(){
   const box=document.getElementById('lescarga-card');if(!box)return;
@@ -53483,6 +53578,28 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .bmpv-nada{margin:0;font-size:var(--fs-sm);color:var(--muted)}
 .bmpv-pie{margin:10px 0 0;font-size:var(--fs-xs);color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.bmpv-p{transition:none}}
+</style>
+<style id="bm-v814">
+/* v814 · lesiones con las métricas del COI */
+.lcoi-ks{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:6px 0 4px}
+.lcoi-k{padding:12px 14px;border-radius:12px;background:var(--panel2)}
+.lcoi-k em{display:block;font-style:normal;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.lcoi-k b{display:block;margin:4px 0 2px;font-size:var(--fs-h1);font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt)}
+.lcoi-k span{font-size:var(--fs-xs);color:var(--muted)}
+.lcoi-pocos{margin:8px 0 0;font-size:var(--fs-sm);color:var(--muted)}
+.lcoi-g2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;margin-top:16px}
+.lcoi-g2 h3{margin:0 0 8px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.lcoi-mx{width:100%;height:auto;display:block}
+.lcoi-ms{display:flex;align-items:flex-end;gap:10px;height:170px;padding-top:8px}
+.lcoi-m{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;min-width:0}
+.lcoi-mb{flex:1;width:100%;max-width:46px;display:flex;align-items:flex-end;border-radius:8px;background:var(--seg-carril);overflow:hidden;min-height:20px}
+.lcoi-mb i{display:block;width:100%;background:var(--gi-pizarra);border-radius:8px 8px 0 0}
+.lcoi-m b{font-size:var(--fs-sm);font-weight:600;font-variant-numeric:tabular-nums;color:var(--txt)}
+.lcoi-md{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.lcoi-m small{font-size:var(--fs-xs);color:var(--muted)}
+.lcoi-pie{margin:10px 0 0;font-size:var(--fs-xs);color:var(--muted);max-width:90ch}
+@media (max-width:1100px){.lcoi-ks{grid-template-columns:repeat(3,minmax(0,1fr))}.lcoi-g2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.lcoi-ks{grid-template-columns:repeat(2,minmax(0,1fr))}.lcoi-ms{height:140px;gap:6px}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
