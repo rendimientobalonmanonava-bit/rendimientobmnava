@@ -6791,6 +6791,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <div id="pl-normal"></div>
       <!-- v805 · su carga contra el plan, y cómo puntúa el RPE frente a sus compañeros -->
       <div id="pl-plan"></div>
+      <!-- v822 · cada sesión contra su MD: la suya, la de su puesto o la del equipo -->
+      <div id="pl-mdh"></div>
       <!-- v504 · UA de pista (cuestionario) y de gimnasio (BuilderPro), al lado. -->
       <div id="pl-gym" class="panel"></div>
       <!-- v469 · Dónde carga dentro del ciclo y cómo reparte la intensidad.
@@ -7094,6 +7096,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     <div data-mt="modelo" class="panel panel--hq" id="hreq-card"></div>
     <!-- v405 · el otro lado del modelo: ¿se cumplió el objetivo de esta sesión? -->
     <div data-mt="sesion" class="panel" id="hrcump-card"></div>
+    <!-- v822 · cada jugador de esta sesión contra su media en ese día del ciclo -->
+    <div data-mt="sesion" id="hrmd-card"></div>
     <!-- v406 · coste cardíaco: cada jugador contra su propio patrón -->
     <div data-mt="jugadores" class="panel" id="hrefi-card"></div>
     <!-- v407 · familias de sesión: agrupadas por cómo son y qué cuestan -->
@@ -17153,6 +17157,8 @@ function bmDiaRes(dk){
       return '<div class="bmdr-l"><b>'+NOM[b]+'</b><small>'+[Math.round(x.uaSes)+' UA',x.nb+' de '+t.n,x.dur?Math.round(x.dur)+'′':'',x.rpe?'RPE '+fmt(x.rpe,1):''].filter(Boolean).join(' · ')
         +(fuera?' · <span class="bmdr-mu">'+(b==='tec'?'tecnificación, fuera del %':'sin programar, fuera del %')+'</span>':'')+'</small></div>';}).join('');
     if(bl)h+=sec('Bloques',bl,'la carga, sobre quien lo hizo');}
+  /* v822 · cada uno contra su media en esta posición del ciclo */
+  try{const M=mdhDiaHTML(dk);if(M)h+=sec('Contra su '+M.md+' habitual',M.html,'cada uno contra lo suyo');}catch(e){}
   /* quién */
   if(dk<=hoy){
     const reales=new Set((STATE.rpe||[]).filter(r=>r&&r.dk===dk&&!r.bloqueConvocado&&!r.sinRegistro).map(r=>r.name));
@@ -21449,6 +21455,8 @@ function bmpgRes(pn,h2,k){
   /* la cifra que cada bloque de la ficha ya enseña */
   if(k==='pl-normal'){const C=[...pn.querySelectorAll('.pln-c')].map(c=>({e:(c.querySelector('em')||{}).textContent||'',b:(c.querySelector('b')||{}).textContent||'',u:(c.querySelector('u')||{}).textContent||''}));
     const u=C.find(c=>/Último/.test(c.e)),nm=C.find(c=>/normal/i.test(c.e));if(u)return {v:bmprNum(u.b.trim()),sub:['Último día',u.u.trim().toLowerCase(),nm?'su normal '+nm.b.trim():''].filter(Boolean).join(' · ')};}
+  /* v822 · lo que dice el bloque de cada sesión contra su MD, en una línea */
+  if(k==='pl-mdh'||k==='hrmd-card'){const r=tx('.mdh-res').replace(/^Sus últimas \d+ sesiones: /,'').replace(/\.$/,'');if(r)return {sub:r};}
   if(k==='pl-resp'){const f=(T.match(/Fatiga\s*([+−-]?[\d,]+)/)||[])[1],d=(T.match(/DOMS\s*([+−-]?[\d,]+)/)||[])[1];if(f||d)return {sub:'Al día siguiente de uno duro: '+[f?'fatiga '+f:'',d?'DOMS '+d:''].filter(Boolean).join(' · ')};}
   if(k==='pl-kpisem'){const a=(T.match(/ACWR \(7:21\)\s*([\d]+,[\d]+)/)||[])[1],m=(T.match(/Monotonía \(7d\)\s*([\d]+,[\d]+)/)||[])[1];if(a)return {v:bmEsc(a),sub:'ACWR (7:21)'+(m?' · monotonía '+m:'')};}
   const n=tx('.bm-lee-n');if(n){const c=tx('.bm-lee-c'),sb=tx('.bm-lee-s').split(' · ')[0];return {v:bmprNum(n),sub:[c,sb].filter(Boolean).join(' · ')};}
@@ -24910,6 +24918,7 @@ function renderPlayer(name){
   /* v464 · los dos bloques nuevos de la ficha por pestañas */
   try{renderPlNormal(name);}catch(e){console.error('carga normal',e);}
   try{renderPlPlan(name);}catch(e){console.error('plan contra real',e);}
+  try{renderPlMdh(name);}catch(e){console.error('contra su MD',e);}
   try{renderPlObj(name);}catch(e){console.error('objetivos',e);}
   try{renderPlGym(name);}catch(e){console.error('bmnava · gimnasio ficha',e);}
   try{renderPlIntensidad(name);}catch(e){console.error('intensidad ficha',e);}
@@ -39466,6 +39475,155 @@ function renderPlPlan(name){
     +'</div>';
 }
 window.renderPlPlan=renderPlPlan;window.rpeSesgo=rpeSesgo;
+
+/* ═══ v822 · CADA SESIÓN CONTRA SU MD, JUGADOR A JUGADOR ═══
+   Daniel, 18/11/2026, propuesta 2 de la tanda de XPS, WIMU y Catapult. Es el
+   informe central de Catapult: cada sesión contra la media de ese mismo día
+   del ciclo (MD-2 contra MD-2), primero la del propio jugador; si no tiene
+   bastantes días, la de su puesto, y si tampoco, la del equipo.
+   **Nada nuevo por dentro**: la posición del día es `calMd` (la única regla
+   de MD), las posiciones son las de `MD_ORDEN`, la ventana empieza en
+   `MD_REF_DESDE` y los partidos se filtran igual que en `calRefMD`; la carga
+   es la suya de siempre (`dailyAgg`) y un día sin carga no cuenta como cero.
+   El mínimo de 3 días es el de `calRefMD`. La referencia se calcula con los
+   días ANTERIORES al que se mira: «lo habitual» no puede incluir el propio
+   día. Para el puesto y el equipo sólo cuentan los días que entrenó con el
+   grupo (`lbEntrenaConGrupo`), la población de la carga del equipo.
+   El color: dentro de ±15 % es «como lo habitual» (la franja de `calDev`, la
+   del plan contra real) y fuera va en ámbar con su flecha; sin rojo, porque
+   no es un desvío de lo que se pidió sino de lo que suele hacer. Se clasifica
+   sobre el porcentaje redondeado que se ve. */
+const MDH_MIN=3,MDH_N=8,MDH_BANDA=15;
+let MDH={k:null,v:null};
+function mdhIdx(){
+  const k=BM_DV+'|'+dkey(new Date())+'|'+Object.keys(STATE.players||{}).length+'|'+(STATE.hr||[]).length;
+  if(MDH.k===k&&MDH.v)return MDH.v;
+  try{calLoad();}catch(e){}
+  const ps=((typeof calPartidosDks==='function')?calPartidosDks():[]).filter(p=>p>=MD_REF_DESDE);
+  const jug={},z={},hz={},ua={};
+  Object.keys(STATE.players||{}).forEach(n=>{
+    const pos=(STATE.players[n]||{}).pos||'',a=[],m={};
+    (dailyAgg(n)||[]).forEach(d=>{
+      if(!d||!d.dk||!(d.ua>0))return;
+      m[d.dk]=d.ua;
+      if(!ps.length||d.dk<MD_REF_DESDE)return;
+      const c=calMd(d.dk,ps);if(!c||MD_ORDEN.indexOf(c.txt)<0)return;
+      let grp=true;try{grp=lbEntrenaConGrupo(n,d.dk)!==false;}catch(e){}
+      a.push({dk:d.dk,md:c.txt,v:d.ua,grp});
+    });
+    jug[n]={pos,a};ua[n]=m;
+  });
+  (STATE.hr||[]).forEach(r=>{
+    if(!r||!r.name||!r.dk)return;
+    let t=0;for(let i=0;i<5;i++)t+=zOf(r,i);if(!(t>0))return;
+    const kk=r.name+'\u0000'+r.dk,o=hz[kk]||(hz[kk]={t:0,a:0});o.t+=t;o.a+=zOf(r,3)+zOf(r,4);
+  });
+  Object.keys(hz).forEach(kk=>{
+    const i=kk.indexOf('\u0000'),n=kk.slice(0,i),dk=kk.slice(i+1);
+    if(!ps.length||dk<MD_REF_DESDE)return;
+    const c=calMd(dk,ps);if(!c||MD_ORDEN.indexOf(c.txt)<0)return;
+    (z[n]=z[n]||[]).push({dk,md:c.txt,v:hz[kk].a/hz[kk].t*100,grp:true});
+  });
+  MDH={k,v:{ps,jug,z,hz,ua}};return MDH.v;
+}
+/* su carga y su %Z4+Z5 de un día (null si no hay) */
+function mdhUA(n,dk){const I=mdhIdx();const v=(I.ua[n]||{})[dk];return v>0?v:null;}
+function mdhZ(n,dk){const o=mdhIdx().hz[n+'\u0000'+dk];return o&&o.t>0?o.a/o.t*100:null;}
+/* la referencia: la suya, la de su puesto o la del equipo, con los días
+   anteriores a `dk` en la misma posición del ciclo */
+function mdhRef(n,dk,campo){
+  const I=mdhIdx();if(!I.ps.length)return null;
+  const c=calMd(dk,I.ps);if(!c)return null;
+  const md=c.txt;if(MD_ORDEN.indexOf(md)<0)return {md,ref:null,fuera:true};
+  const src=campo==='z45'?I.z:Object.fromEntries(Object.keys(I.jug).map(k=>[k,I.jug[k].a]));
+  const med=v=>v.reduce((a,b)=>a+b,0)/v.length;
+  const own=(src[n]||[]).filter(x=>x.md===md&&x.dk<dk).map(x=>x.v);
+  if(own.length>=MDH_MIN)return {md,ref:med(own),n:own.length,src:'suya'};
+  const pos=(I.jug[n]||{}).pos,pp=[],tt=[];
+  Object.keys(src).forEach(k=>(src[k]||[]).forEach(x=>{if(x.md!==md||x.dk>=dk||!x.grp)return;tt.push(x.v);if(pos&&(I.jug[k]||{}).pos===pos)pp.push(x.v);}));
+  if(pos&&pp.length>=MDH_MIN)return {md,ref:med(pp),n:pp.length,src:'puesto',pos};
+  if(tt.length>=MDH_MIN)return {md,ref:med(tt),n:tt.length,src:'equipo'};
+  return {md,ref:null,n:own.length,src:null};
+}
+function mdhPct(v,r){
+  if(v==null||!r||!(r.ref>0))return null;
+  const p=Math.round(v/r.ref*100),d=p-100;
+  return {p,est:Math.abs(d)<=MDH_BANDA?'ok':'warn',fl:Math.abs(d)<=MDH_BANDA?'':(d>0?'↑':'↓')};
+}
+function mdhChip(P){return P?'<span class="mdh-p '+P.est+'">'+(P.fl?P.fl+' ':'')+P.p+' %</span>':'<span class="mdh-p na">—</span>';}
+function mdhSrc(r){
+  if(!r||r.ref==null)return '';
+  const q=r.src==='suya'?'su':(r.src==='puesto'?'de su puesto ('+String(r.pos||'').toLowerCase()+')':'del equipo');
+  return r.src==='suya'?'su '+r.md+': '+Math.round(r.ref).toLocaleString('es-ES')+' UA de media en '+r.n+' días'
+    :r.md+' '+q+': '+Math.round(r.ref).toLocaleString('es-ES')+' UA · '+r.n+' días-jugador';
+}
+function mdhSinPartidos(){return '<p class="hint" style="margin:8px 0 0">No hay partidos en el calendario desde el 1 de septiembre: sin ellos no se sabe qué día es MD-2 o MD-1, y no hay con qué comparar.</p>';}
+/* ficha › Carga */
+function renderPlMdh(name){
+  const box=document.getElementById('pl-mdh');if(!box)return;
+  const E=bmEsc,I=mdhIdx(),refk=dkey(REF());
+  const cab='<h2>Cada sesión contra su MD <span class="r muted">su media en ese día del ciclo</span></h2>';
+  if(!I.ps.length){box.innerHTML='<div class="panel mdh">'+cab+mdhSinPartidos()+'</div>';return;}
+  const m=I.ua[name]||{};
+  const dks=Object.keys(m).filter(dk=>dk>=MD_REF_DESDE&&dk<=refk).sort().slice(-MDH_N).reverse();
+  if(!dks.length){box.innerHTML='<div class="panel mdh">'+cab+'<p class="hint" style="margin:8px 0 0">Sin carga suya registrada desde el 1 de septiembre.</p></div>';return;}
+  const F=dks.map(dk=>{const v=m[dk],r=mdhRef(name,dk,'ua'),z=mdhZ(name,dk),rz=z!=null?mdhRef(name,dk,'z45'):null;return {dk,v,r,P:mdhPct(v,r),z,rz,Pz:mdhPct(z,rz)};});
+  const mx=Math.max(1,...F.map(f=>Math.max(f.v,(f.r&&f.r.ref)||0)))*1.06,w=v=>(v/mx*100).toFixed(1)+'%';
+  const cnt={ok:0,sube:0,baja:0,na:0};F.forEach(f=>{if(!f.P)cnt.na++;else if(f.P.est==='ok')cnt.ok++;else if(f.P.p>100)cnt.sube++;else cnt.baja++;});
+  const res=[cnt.ok?'<b>'+cnt.ok+'</b> como lo suyo':'',cnt.sube?'<b>'+cnt.sube+'</b> por encima':'',cnt.baja?'<b>'+cnt.baja+'</b> por debajo':'',cnt.na?cnt.na+' sin referencia':''].filter(Boolean).join(' · ');
+  const fila=f=>{const md=f.r?f.r.md:'—';
+    const sub=!f.r?'sin posición en el ciclo':f.r.fuera?'ciclo de más de una semana':f.r.ref==null?'aún sin referencia':mdhSrc(f.r);
+    return '<div class="mdh-f"><div class="mdh-d"><b>'+E(md)+'</b><small>'+bmInspFecha(f.dk)+'</small></div>'
+      +'<div class="mdh-b" aria-hidden="true"><i style="width:'+w(f.v)+'"></i>'+(f.r&&f.r.ref?'<u style="left:'+w(f.r.ref)+'"></u>':'')+'</div>'
+      +'<div class="mdh-v"><b>'+Math.round(f.v).toLocaleString('es-ES')+' UA</b>'+mdhChip(f.P)+'<small>'+E(sub)+'</small></div>'
+      +(f.z!=null?'<div class="mdh-z">%Z4+Z5 '+fmt(f.z,1)+' %'+(f.rz&&f.rz.ref!=null?' · '+(f.rz.src==='suya'?'el suyo en '+f.rz.md:f.rz.md+(f.rz.src==='puesto'?' de su puesto':' del equipo'))+' '+fmt(f.rz.ref,1)+' % '+mdhChip(f.Pz):'')+'</div>':'')
+      +'</div>';};
+  box.innerHTML='<div class="panel mdh">'+cab+'<p class="mdh-res">Sus últimas '+F.length+' sesiones: '+res+'.</p>'+F.map(fila).join('')
+    +'<p class="mdh-pie">La raya es su media en esa posición del ciclo desde el 1 de septiembre, sin contar ese día ni los siguientes. Con menos de 3 días suyos, la de su puesto; con menos de 3 de su puesto, la del equipo. Dentro de ±15 % es como lo habitual (la franja del plan contra real); fuera, en ámbar. Un día sin cuestionario no cuenta como cero.</p></div>';
+}
+/* el resumen de un día */
+function mdhDiaHTML(dk){
+  const I=mdhIdx();if(!I.ps.length||dk>dkey(new Date()))return null;
+  const c=calMd(dk,I.ps);if(!c||MD_ORDEN.indexOf(c.txt)<0)return null;
+  const E=bmEsc,F=[];
+  Object.keys(STATE.players||{}).forEach(n=>{const v=mdhUA(n,dk);if(v==null)return;const r=mdhRef(n,dk,'ua');const P=mdhPct(v,r);if(P)F.push({n,v,P,src:r.src});});
+  if(!F.length)return null;
+  F.sort((a,b)=>Math.abs(b.P.p-100)-Math.abs(a.P.p-100)||a.n.localeCompare(b.n,'es'));
+  /* el equipo: la media de los que entrenaron con el grupo contra la de sus días anteriores en esa posición */
+  let eq='';
+  try{const hoyv=[],ant=[];Object.keys(I.jug).forEach(n=>(I.jug[n].a||[]).forEach(x=>{if(x.md!==c.txt||!x.grp)return;if(x.dk===dk)hoyv.push(x.v);else if(x.dk<dk)ant.push(x.v);}));
+    if(hoyv.length&&ant.length>=MDH_MIN){const a=hoyv.reduce((s,x)=>s+x,0)/hoyv.length,b=ant.reduce((s,x)=>s+x,0)/ant.length,P=mdhPct(a,{ref:b});
+      eq='<p class="mdhd-eq">Equipo: <b>'+Math.round(a).toLocaleString('es-ES')+' UA</b> por jugador '+mdhChip(P)+' <small>de su '+c.txt+' habitual, '+Math.round(b).toLocaleString('es-ES')+' UA</small></p>';}}catch(e){}
+  const ok=F.filter(f=>f.P.est==='ok').length;
+  return {md:c.txt,html:eq+'<div class="mdhd">'+F.map(f=>'<div title="'+E(f.src==='suya'?'Contra su propia media':f.src==='puesto'?'Contra la media de su puesto: tiene menos de 3 días suyos':'Contra la media del equipo')+'"><b>'+E(cvCorto(f.n))+'</b><small>'+Math.round(f.v).toLocaleString('es-ES')+'</small>'+mdhChip(f.P)+(f.src!=='suya'?'<em>'+(f.src==='puesto'?'puesto':'equipo')+'</em>':'')+'</div>').join('')+'</div>'
+    +'<p class="mdhd-pie">'+ok+' de '+F.length+' dentro de ±15 % de lo suyo. Su media en esta posición del ciclo, con los días anteriores; con menos de 3 suyos, la de su puesto o la del equipo.</p>'};
+}
+/* Pulsómetros › Sesión */
+function renderHRMdh(key){
+  const box=document.getElementById('hrmd-card');if(!box)return;
+  const E=bmEsc,dk=String(key||'').slice(0,10),I=mdhIdx();
+  const cab=t=>'<h2>Contra su MD habitual <span class="r muted">'+t+'</span></h2>';
+  if(!dk){box.innerHTML='';return;}
+  if(!I.ps.length){box.innerHTML='<div class="panel hrmd">'+cab('cada jugador contra lo suyo')+mdhSinPartidos()+'</div>';return;}
+  const c=calMd(dk,I.ps);
+  if(!c||MD_ORDEN.indexOf(c.txt)<0){box.innerHTML='<div class="panel hrmd">'+cab('cada jugador contra lo suyo')+'<p class="hint" style="margin:8px 0 0">'+(c?'Este día ('+E(c.txt)+') cae en un ciclo de más de una semana: no hay posición con la que compararlo.':'Sin posición en el ciclo.')+'</p></div>';return;}
+  const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key),vis={};
+  const F=[];rows.forEach(r=>{if(!r||vis[r.name])return;vis[r.name]=1;
+    let t=0;for(let i=0;i<5;i++)t+=zOf(r,i);const z=t>0?(zOf(r,3)+zOf(r,4))/t*100:null;
+    const rz=z!=null?mdhRef(r.name,dk,'z45'):null,v=mdhUA(r.name,dk),ru=v!=null?mdhRef(r.name,dk,'ua'):null;
+    F.push({n:r.name,z,rz,Pz:mdhPct(z,rz),v,ru,Pu:mdhPct(v,ru)});});
+  if(!F.length){box.innerHTML='';return;}
+  F.sort((a,b)=>(b.Pz?Math.abs(b.Pz.p-100):-1)-(a.Pz?Math.abs(a.Pz.p-100):-1)||a.n.localeCompare(b.n,'es'));
+  const n1=v=>v==null?'—':fmt(v,1)+' %',n0=v=>v==null?'—':Math.round(v).toLocaleString('es-ES');
+  const src=r=>!r||r.ref==null?'':(r.src==='suya'?'':' <em>'+(r.src==='puesto'?'puesto':'equipo')+'</em>');
+  const tb='<div class="wrap-x"><table class="tbl hrmd-t"><thead><tr><th>Jugador</th><th>%Z4+Z5</th><th>Su '+c.txt+'</th><th>%</th><th>Carga del día</th><th>Su '+c.txt+'</th><th>%</th></tr></thead><tbody>'
+    +F.map(f=>'<tr><td>'+E(cvCorto(f.n))+'</td><td>'+n1(f.z)+'</td><td>'+(f.rz&&f.rz.ref!=null?n1(f.rz.ref)+src(f.rz):'—')+'</td><td>'+mdhChip(f.Pz)+'</td><td>'+(f.v==null?'sin cuestionario':n0(f.v)+' UA')+'</td><td>'+(f.ru&&f.ru.ref!=null?n0(f.ru.ref)+src(f.ru):'—')+'</td><td>'+mdhChip(f.Pu)+'</td></tr>').join('')+'</tbody></table></div>';
+  const ok=F.filter(f=>f.Pz&&f.Pz.est==='ok').length,con=F.filter(f=>f.Pz).length;
+  box.innerHTML='<div class="panel hrmd">'+cab(c.txt+' · '+bmInspFecha(dk))
+    +'<p class="mdh-res">'+(con?'<b>'+ok+' de '+con+'</b> dentro de ±15 % de su %Z4+Z5 habitual en un '+c.txt+'.':'Ninguno tiene todavía referencia de pulso en un '+c.txt+'.')+'</p>'+tb
+    +'<p class="mdh-pie">Cada uno contra su media en esta posición del ciclo, con las sesiones anteriores. Con menos de 3 suyas, la de su puesto (<em>puesto</em>) o la del equipo (<em>equipo</em>). La carga del día es la del cuestionario, de toda la jornada.</p></div>';
+}
+window.renderPlMdh=renderPlMdh;window.renderHRMdh=renderHRMdh;window.mdhDiaHTML=mdhDiaHTML;window.mdhRef=mdhRef;window.mdhIdx=mdhIdx;
 /* ═══ v818 · OBJETIVOS INDIVIDUALES ═══
    Daniel, 18/11/2026, propuesta 6. Una meta con fecha por jugador —una prueba
    física (el peso incluido), sus horas de sueño o su carga semanal— y en su
@@ -40659,6 +40817,7 @@ function renderHR(){
   const key=sel?sel.value:defKey;
   const rows=STATE.hr.filter(r=>hrKey(r)===key);
   renderHRIndiv(rows);
+  try{renderHRMdh(key);}catch(e){console.error('bmnava · contra su MD',e);}
   try{renderHRCumpl(key);}catch(e){console.error('bmnava · cumplimiento',e);}
   try{renderHREfic();}catch(e){console.error('bmnava · coste cardíaco',e);}
   try{renderHRFam(key);}catch(e){console.error('bmnava · familias',e);}
@@ -54238,6 +54397,43 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   #v-estado #avail-body>.wm-chip{grid-row:1}
   #v-estado #avail-body>.dsp-bd{grid-row:2}
   #v-estado #avail-body>.dsp-an{display:block}
+}
+</style>
+<style id="bm-v822">
+/* v822 · cada sesión contra su MD */
+#v-jugador .panel.mdh,.panel.hrmd{display:block}
+.mdh-res{font-size:var(--fs-body);color:var(--muted);margin:6px 0 10px}
+.mdh-res b{color:var(--txt);font-weight:600}
+.mdh-f{display:grid;grid-template-columns:72px minmax(0,1fr) 220px;column-gap:14px;row-gap:2px;align-items:center;padding:9px 0;border-top:.5px solid var(--hair)}
+.mdh-res+.mdh-f{border-top:none}
+.mdh-d b{display:block;font-size:var(--fs-body);font-weight:600;font-variant-numeric:tabular-nums}
+.mdh-d small{font-size:var(--fs-sm);color:var(--muted)}
+.mdh-b{position:relative;height:12px;border-radius:6px;background:var(--seg-carril)}
+.mdh-b i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--c-data)}
+.mdh-b u{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--txt);border-radius:1px}
+.mdh-v{text-align:right;min-width:0}
+.mdh-v b{font-size:var(--fs-body);font-weight:600;font-variant-numeric:tabular-nums}
+.mdh-v small{display:block;font-size:var(--fs-xs);color:var(--muted);line-height:1.35}
+.mdh-p{display:inline-block;margin-left:8px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mdh-p.ok{color:var(--ok-text)}.mdh-p.warn{color:var(--warn-text)}.mdh-p.na{color:var(--muted);font-weight:400}
+.mdh-z{grid-column:2/-1;font-size:var(--fs-sm);color:var(--muted)}
+.mdh-z .mdh-p{margin-left:4px}
+.mdh-pie,.mdhd-pie{font-size:var(--fs-sm);color:var(--muted);margin:10px 0 0;line-height:1.45}
+.mdhd-eq{margin:0 0 8px;font-size:var(--fs-body)}
+.mdhd-eq b{font-weight:600;font-variant-numeric:tabular-nums}.mdhd-eq small{color:var(--muted);font-size:var(--fs-sm)}
+.mdhd-eq .mdh-p{margin-left:6px}
+.mdhd{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));column-gap:16px}
+.mdhd>div{display:flex;align-items:baseline;gap:6px;min-height:30px;padding:5px 0;border-top:.5px solid var(--hair)}
+.mdhd>div b{flex:1;min-width:0;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mdhd>div small{color:var(--muted);font-variant-numeric:tabular-nums}
+.mdhd>div .mdh-p{margin-left:2px}
+.mdhd>div em,.hrmd-t em,.mdh-pie em{font-style:normal;font-size:var(--fs-xs);color:var(--muted)}
+.hrmd-t td:nth-child(n+2),.hrmd-t th:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}
+.hrmd-t .mdh-p{margin-left:0}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .mdh-f{grid-template-columns:52px minmax(0,1fr) 128px;column-gap:10px}
+  .mdh-v small{max-width:150px;margin-left:auto}
+  .mdhd{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}
 }
 </style>
 <style id="bm-v808">
