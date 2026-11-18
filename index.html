@@ -6787,6 +6787,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
          bloque que compara al jugador con SU propio normal. -->
     <div class="plt-pane" id="plt-carga">
       <div id="pl-normal"></div>
+      <!-- v805 · su carga contra el plan, y cómo puntúa el RPE frente a sus compañeros -->
+      <div id="pl-plan"></div>
       <!-- v504 · UA de pista (cuestionario) y de gimnasio (BuilderPro), al lado. -->
       <div id="pl-gym" class="panel"></div>
       <!-- v469 · Dónde carga dentro del ciclo y cómo reparte la intensidad.
@@ -9009,7 +9011,7 @@ function lbBias(){
   LB_BIAS=out;return out;
 }
 function lbResetBias(){LB_BIAS=null;LB_CACHE={};}
-window.lbBias=lbBias;window.lbResetBias=lbResetBias;
+window.lbBias=lbBias;window.lbResetBias=lbResetBias;window.LB_MAXBIAS=LB_MAXBIAS;  /* v805 · lo lee rpeSesgo, fuera del módulo */
 
 /* ---------- carga del día por jugador ----------
    Estructura devuelta:
@@ -19597,7 +19599,9 @@ function cmpPinta(){
     ['Carga total · 28 días',KA.tot,KB.tot,v=>n0(v)+' UA'],
     ['Días con carga',KA.dias,KB.dias,v=>n0(v)],
     ['Media de un día entrenado',KA.media,KB.media,v=>n0(v)+' UA'],
-    ['Día más alto',KA.mx,KB.mx,v=>n0(v)+' UA']]);
+    ['Día más alto',KA.mx,KB.mx,v=>n0(v)+' UA'],
+    /* v805 · cómo puntúa el RPE frente a sus compañeros en la misma sesión (`lbBias`); una media no tiene */
+    ['Su RPE frente a sus compañeros',...[EA,EB].map(E=>{if(E.ref)return null;const S=rpeSesgo(E.k);return S&&S.fiable?S.b:null;}),v=>(v>0?'+':v<0?'−':'')+fmt(Math.abs(v),1),null,1,v=>fmt(v,1)+' pts']]);
   const paso=maxC>2000?500:maxC>1000?250:100;const topC=Math.ceil(maxC/paso)*paso;
   /* recuperación declarada · los días en ámbar o rojo con `recSev`, el corte del readiness (75 · 55) */
   const dRec=s=>{const v=s.filter(x=>x!=null&&isFinite(x));if(!v.length)return {};const ult=v[v.length-1];
@@ -24311,6 +24315,7 @@ function renderPlayer(name){
      dijera ya el estado del problema. */
   /* v464 · los dos bloques nuevos de la ficha por pestañas */
   try{renderPlNormal(name);}catch(e){console.error('carga normal',e);}
+  try{renderPlPlan(name);}catch(e){console.error('plan contra real',e);}
   try{renderPlGym(name);}catch(e){console.error('bmnava · gimnasio ficha',e);}
   try{renderPlIntensidad(name);}catch(e){console.error('intensidad ficha',e);}
   try{renderPlRegistro(name);}catch(e){console.error('registro ficha',e);}
@@ -38826,6 +38831,45 @@ function cgPlanReal(dias){
   return {n:dks.length,desde,hasta,jug:jug.sort((a,b)=>(b.pct||0)-(a.pct||0))};
 }
 window.cgPlanReal=cgPlanReal;
+/* ═══ v805 · CONTRA EL PLAN, Y CÓMO PUNTÚA EL RPE ═══
+   Daniel, 18/11/2026, eligió la propuesta 3. Medido: los tres que siempre
+   salen por debajo del plan (Dzmitry −21 %, Mateus −19 %, Paulo −18 %) son
+   los tres que, en la misma sesión, declaran el RPE más bajo que sus
+   compañeros (−1,5 · −0,9 · −1,4 de mediana). Esa tendencia la calcula ya
+   `lbBias` —para estimar el RPE de quien no responde— y no se enseñaba. Y
+   «Plan contra real, por jugador» (v409) **no estaba en ninguna pantalla**: su
+   contenedor `cgplan-card` se fue con el Dashboard de Cargas (v439). Vuelve a
+   la ficha › Carga, del jugador, con la tendencia al lado. **Ni un cálculo
+   nuevo**: `cgPlanReal` y `lbBias`, tal cual; los colores del % son los de
+   `calDev` (15 % y 30 %), los del calendario. */
+let PLP_MEMO=null;
+function plpPlan(){const k=BM_DV+'|'+dkey(REF())+'|'+dkey(new Date());if(PLP_MEMO&&PLP_MEMO.k===k)return PLP_MEMO.v;const v=cgPlanReal(28);PLP_MEMO={k,v};return v;}
+/* la tendencia del RPE de un jugador frente a sus compañeros, en palabras */
+function rpeSesgo(n){let B=null;try{B=lbBias()[n];}catch(e){}if(!B)return null;
+  const TOPE=window.LB_MAXBIAS||1.5,b=Math.round(B.b*10)/10,tope=Math.abs(B.b)>=TOPE-1e-9;
+  return {b,n:B.n,fiable:B.fiable,tope,
+    txt:!B.fiable?'Aún hay pocas sesiones comparables ('+B.n+') para saber cómo puntúa frente a sus compañeros.'
+      :Math.abs(b)<0.05?'En la misma sesión, puntúa el RPE igual que sus compañeros (mediana de '+B.n+' sesiones).'
+      :'En la misma sesión, puntúa el RPE <b>'+(tope?fmt(TOPE,1)+' puntos o más':fmt(Math.abs(b),1)+(Math.abs(b)===1?' punto':' puntos'))+' '+(b<0?'por debajo':'por encima')+'</b> de sus compañeros (mediana de '+B.n+' sesiones con 3 respuestas o más).'};}
+function renderPlPlan(name){
+  const box=document.getElementById('pl-plan');if(!box)return;
+  let P=null;try{P=plpPlan();}catch(e){}
+  const j=P&&P.jug?P.jug.find(x=>x.name===name):null,S=rpeSesgo(name);
+  const cab='<h2>Su carga contra el plan <span class="r muted">últimos 28 días</span></h2>';
+  if(!j){box.innerHTML='<div class="panel pl-plan">'+cab+'<p class="hint" style="margin:8px 0 0">'
+    +(P&&P.n?'Hacen falta 3 días o más con plan en el calendario y carga suya registrada para comparar.':'No hay días planificados en el calendario con carga registrada en los últimos 28 días.')
+    +'</p>'+(S?'<p class="pl-plan-rpe">'+S.txt+'</p>':'')+'</div>';return;}
+  const D=calDev(j.plan,j.real),mx=Math.max(j.plan,j.real,1),w=v=>(v/mx*100).toFixed(1)+'%',n0=v=>Math.round(v).toLocaleString('es-ES');
+  const mismo=S&&S.fiable&&Math.abs(S.b)>=0.05&&j.pct!=null&&j.pct!==0&&((S.b<0)===(j.pct<0));
+  box.innerHTML='<div class="panel pl-plan">'+cab
+    +'<div class="pl-plan-g"><div class="pl-plan-pct"><b style="color:'+colTexto(D.col)+'">'+(j.pct>0?'+':j.pct<0?'−':'')+Math.abs(j.pct)+' %</b><span>'+D.lab+'</span></div>'
+    +'<div class="pl-plan-bs"><div class="pl-plan-b"><em>Plan</em><span><i class="pl" style="width:'+w(j.plan)+'"></i></span><u>'+n0(j.plan)+' UA</u></div>'
+    +'<div class="pl-plan-b"><em>Hizo</em><span><i class="re" style="width:'+w(j.real)+'"></i></span><u>'+n0(j.real)+' UA</u></div></div></div>'
+    +'<p class="pl-plan-pie">'+j.n+' días con plan y carga suya registrada. Su parte del plan, si tenía un plan individual; un día sin dato no cuenta como cero.</p>'
+    +(S?'<p class="pl-plan-rpe">'+S.txt+(mismo?' <span>Su carga es RPE × minutos, así que parte de ese '+(j.pct>0?'+':'−')+Math.abs(j.pct)+' % puede ser cómo lo puntúa y no cuánto entrenó.</span>':'')+'</p>':'')
+    +'</div>';
+}
+window.renderPlPlan=renderPlPlan;window.rpeSesgo=rpeSesgo;
 
 /* ═══════════════ v409 · Minutos jugados contra carga ═══════════════
    Propuesta 3.4. La misión número dos es disponibilidad y ayuda a la
@@ -53118,6 +53162,22 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
   .sue-f{padding:8px 0}.sue-n{min-height:44px;display:flex;align-items:center}
   .sue-c{gap:1px}.sue-c i{height:14px;border-radius:2px}
+}
+/* v805 · contra el plan */
+.pl-plan-g{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;align-items:center;margin-top:6px}
+.pl-plan-pct b{display:block;font-size:var(--fs-h1);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.pl-plan-pct span{font-size:var(--fs-sm);color:var(--muted)}
+.pl-plan-b{display:grid;grid-template-columns:44px minmax(0,1fr) 92px;align-items:center;gap:10px;margin:4px 0}
+.pl-plan-b em{font-style:normal;font-size:var(--fs-sm);color:var(--muted)}
+.pl-plan-b span{display:block;height:12px;border-radius:6px;background:var(--seg-carril);overflow:hidden}
+.pl-plan-b i{display:block;height:100%;border-radius:6px}
+.pl-plan-b i.pl{background:var(--muted2);opacity:.55}.pl-plan-b i.re{background:var(--accent)}
+.pl-plan-b u{text-decoration:none;text-align:right;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;color:var(--txt)}
+.pl-plan-pie{margin:10px 0 0;font-size:var(--fs-xs);color:var(--muted)}
+.pl-plan-rpe{margin:10px 0 0;padding-top:10px;border-top:1px solid var(--hair);font-size:var(--fs-sm);color:var(--txt);line-height:1.45}
+.pl-plan-rpe b{font-weight:600}.pl-plan-rpe span{color:var(--muted)}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .pl-plan-g{grid-template-columns:minmax(0,1fr);gap:8px}
 }
 </style>
 <style id="bm-v741">
