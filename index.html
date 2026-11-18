@@ -17011,7 +17011,7 @@ function renderMapaPlantilla(){
       const lab=ancho==='s'?(w===1?String(d.getDate()):''):'<b>'+L[w]+'</b>'+d.getDate();
       return '<div class="'+cls.join(' ')+'" data-dk="'+dk+'" role="button" tabindex="0" title="'+E(bmInspFecha(dk)+' · planificado'+(D.par[dk]?' · Partido · '+D.par[dk]:'')+' · ver el día')+'">'+lab+'</div>';}).join('')+'<div class="bmmp-tot bmmp-esq">'+(BMMP.modo==='rec'?'Media · partes':'Carga · días')+'</div>';
   /* La fila del equipo, arriba y separada: es la referencia de todas las demás. */
-  let filas='<div class="bmmp-nom bmmp-eqn"><i class="bmmp-eqi" aria-hidden="true"></i><span>Media del equipo</span></div>'
+  let filas='<div class="bmmp-nom bmmp-eqn"><i class="bmmp-eqi" aria-hidden="true" data-html2canvas-ignore="true"></i><span>Media del equipo</span></div>'
     +D.dks.map(dk=>{const v=bmMpVal(D.eq,dk),k=bmMpCelda(v,dk,D);k.cls.push('eq');
       return '<div class="'+k.cls.join(' ')+'" data-eq="1" data-dk="'+dk+'">'+k.txt+'</div>';}).join('')
     +FUT.map((dk,i)=>{const k=bmMpCelda(D.eq.f[dk],dk,D);k.cls.push('eq','fut');if(i===0)k.cls.push('fut1');
@@ -17035,7 +17035,7 @@ function renderMapaPlantilla(){
   const REC=BMMP.modo==='rec';
   const modo='<div class="bmmp-modo" role="group" aria-label="Qué pinta el mapa"><button type="button" data-mpm="carga" aria-pressed="'+(!REC)+'"'+(!REC?' class="on"':'')+'>Carga</button><button type="button" data-mpm="rec" aria-pressed="'+REC+'"'+(REC?' class="on"':'')+'>Recuperación</button></div>';
   box.innerHTML='<div class="panel bmmp"><h2>La plantilla, día a día <span class="r">del '+desde.getDate()+'/'+(desde.getMonth()+1)+' al '+hasta.getDate()+'/'+(hasta.getMonth()+1)+'</span></h2>'
-    +'<div class="bmmp-top">'+modo
+    +'<div class="bmmp-top">'+modo+'<button type="button" class="btn ghost bmmp-png" data-mpx="png" data-html2canvas-ignore="true">Exportar imagen</button>'
     +'<div class="bmmp-ley">'+(REC
       ?'<span class="bmmp-ley-n" title="Los cortes del readiness">Recuperación declarada<i class="bmmp-lc n0"></i>Desde 75 %<i class="bmmp-lc n1"></i>55–74 %<i class="bmmp-lc n2"></i>Menos de 55 %</span>'
       :'<span class="bmmp-ley-n" title="Los cortes con los que la app clasifica la carga de una sesión">Carga del día<i class="bmmp-lc n0"></i>Baja · menos de 600 UA<i class="bmmp-lc n1"></i>Media · 600–900<i class="bmmp-lc n2"></i>Alta · más de 900</span><span><i class="bmmp-lc m0"></i>Con cuestionario y sin minutos</span>')
@@ -17081,6 +17081,7 @@ document.addEventListener('mousemove',e=>{
 document.addEventListener('click',e=>{
   if(!e.target||!e.target.closest)return;
   const mm=e.target.closest('#carga-mapa [data-mpm]');if(mm){bmMpModo(mm.dataset.mpm);return;}
+  if(e.target.closest('#carga-mapa [data-mpx="png"]')){bmMpPNG();return;}
   const hd=e.target.closest('#carga-mapa .bmmp-h[data-dk]');if(hd){bmMpTip(null);bmDiaRes(hd.dataset.dk);return;}
   const nm=e.target.closest('#carga-mapa .bmmp-nom[data-n]');if(nm){openPlayer(nm.dataset.n);return;}
   const c=e.target.closest('#carga-mapa .bmmp-c');if(!c)return;
@@ -17142,6 +17143,31 @@ function bmDiaRes(dk){
   bmHoja({id:'dia',titulo:d,html:'<div class="bmdr">'+h+'</div>',clase:'bm-diah'});
 }
 window.bmDiaRes=bmDiaRes;
+/* ═══ v809 · EL MAPA Y LA COMPARACIÓN, EN IMAGEN ═══
+   Daniel, 18/11/2026, propuesta 7 (9 en la lista). Para la reunión técnica o
+   el grupo. Por el sitio de siempre (`exportNodePNG` → la hoja de Copiar ·
+   Compartir · Guardar del ordenador, la de compartir del teléfono). El mapa,
+   si la ventana es tan larga que hay que desplazarse de lado (8 semanas, la
+   temporada), se ensancha mientras se hace la imagen para que salga entero, y
+   vuelve a su sitio al terminar. Los botones no salen en la imagen. */
+function bmMpPNG(){
+  const p=document.querySelector('#carga-mapa .panel.bmmp');if(!p)return;
+  if(!p.id)p.id='bmmp-panel';
+  const w=p.querySelector('.bmmp-w'),ancho=w&&w.scrollWidth>w.clientWidth+2;
+  /* se ensancha justo lo que sobra: la leyenda y el pie siguen partiendo en líneas */
+  if(ancho){p.style.width=(p.offsetWidth+w.scrollWidth-w.clientWidth+4)+'px';p.classList.add('bmmp-exp');}
+  const D=BMMP.D||{},n=(BMMP.modo==='rec'?'recuperacion':'carga');
+  const fin=()=>{p.classList.remove('bmmp-exp');p.style.width='';const ww=p.querySelector('.bmmp-w');if(ww)ww.scrollLeft=ww.scrollWidth;};
+  let r=null;try{r=exportNodePNG(p.id,'plantilla_'+n+'_'+(D.fin||dkey(REF()))+'.png',{bg:cssVar('--panel')||'#ffffff'});}catch(e){fin();return;}
+  Promise.resolve(r).then(fin,fin);
+}
+function cmpPNG(){
+  const b=document.getElementById('cmp-cuerpo');if(!b)return;
+  const nom=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  const B=cmpEsRef(CMP.b)?(CMP.b==='__eq'?'media_equipo':'media_puesto'):CMP.b;
+  exportNodePNG('cmp-cuerpo','comparar_'+nom(CMP.a)+'_'+nom(B)+'_'+dkey(REF())+'.png',{bg:cssVar('--panel')||'#ffffff'});
+}
+window.bmMpPNG=bmMpPNG;window.cmpPNG=cmpPNG;
 /* ═══ v793 · ORDENADOR · Alertas como Mail ═══
    Daniel, 17/11/2026, propuesta 2. Medido: 39 alertas en 15 tarjetas que dicen
    el TIPO («Sueño · Wellness») pero no la cifra, ni desde cuándo, ni contra
@@ -19774,14 +19800,15 @@ function cmpPinta(){
   const pieRef=REFB?(()=>{const M=EB.miembros;return M.length+' jugadores, sin contar a '+cvCorto(A);})():'';
   const cabA='<div class="cmp-j" style="--cmp-c:'+CMP_COL[0]+'"><span class="cmp-av">'+foto(A)+'</span><div>'+selA+'<small>'+esc(((STATE.players[A]||{}).pos||'—')+(typeof posDetailOf==='function'&&posDetailOf(A)?' · '+posDetailOf(A):''))+'</small></div></div>';
   const cabB=REFB
-    ?'<div class="cmp-j cmp-j-ref" style="--cmp-c:'+CMP_COL[1]+'"><span class="cmp-av cmp-av-ref" aria-hidden="true"></span><div>'+selB+'<small>'+esc(pieRef)+'</small></div></div>'
+    ?'<div class="cmp-j cmp-j-ref" style="--cmp-c:'+CMP_COL[1]+'"><span class="cmp-av cmp-av-ref" aria-hidden="true" data-html2canvas-ignore="true"></span><div>'+selB+'<small>'+esc(pieRef)+'</small></div></div>'
     :'<div class="cmp-j" style="--cmp-c:'+CMP_COL[1]+'"><span class="cmp-av">'+foto(B)+'</span><div>'+selB+'<small>'+esc(((STATE.players[B]||{}).pos||'—')+(typeof posDetailOf==='function'&&posDetailOf(B)?' · '+posDetailOf(B):''))+'</small></div></div>';
   /* contra quién: tres botones a la vista, para no tener que descubrir la media dentro del desplegable */
   const modo=B==='__pos'?'pos':B==='__eq'?'eq':'jug';
   const seg='<div class="cmp-con" role="group" aria-label="Comparar con"><span>Comparar con</span>'
     +'<button type="button" data-cmp="con-jug"'+(modo==='jug'?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>Otro jugador</button>'
     +'<button type="button" data-cmp="con-pos"'+(modo==='pos'?' class="on" aria-pressed="true"':' aria-pressed="false"')+(nPos<CMP_MIN?' disabled title="Sólo hay otro jugador en su puesto"':'')+'>Media de '+esc(cmpPuestoLab(A))+'</button>'
-    +'<button type="button" data-cmp="con-eq"'+(modo==='eq'?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>Media del equipo</button></div>';
+    +'<button type="button" data-cmp="con-eq"'+(modo==='eq'?' class="on" aria-pressed="true"':' aria-pressed="false"')+'>Media del equipo</button>'
+    +'<button type="button" class="btn ghost cmp-png" data-cmp="png" data-html2canvas-ignore="true">Exportar imagen</button></div>';
   const notaRef=REFB?'<p class="cmp-pie cmp-pie-ref">La media es, cada día, la de los compañeros que entrenaron con el grupo y tienen carga ese día (fuera los de baja, enfermos, en readaptación o con la selección; un día sin cuestionario no cuenta como cero); el readiness y el ACWR, la de hoy sin los que están con la selección. No le cuenta a él.</p>':'';
   box.innerHTML=seg+'<div class="cmp-cab">'+cabA+'<button type="button" class="cmp-swap" data-cmp="swap" title="'+(REFB?'Con una media no se puede cambiar el orden':'Cambiar el orden')+'" aria-label="Cambiar el orden"'+(REFB?' disabled':'')+'>⇄</button>'+cabB+'</div>'
     +'<section class="cmp-sec">'+tabla+notaRef+'</section>'
@@ -19798,6 +19825,7 @@ document.addEventListener('click',e=>{const s=e.target&&e.target.closest&&e.targ
   const c=s.dataset.cmp;
   if(c==='swap'){if(cmpEsRef(CMP.b))return;const t=CMP.a;CMP.a=CMP.b;CMP.b=t;}
   else if(c==='con-pos'||c==='con-eq'){if(!cmpEsRef(CMP.b))CMP.bJug=CMP.b;CMP.b=c==='con-pos'?'__pos':'__eq';}
+  else if(c==='png'){cmpPNG();return;}
   else if(c==='con-jug'){if(!cmpEsRef(CMP.b))return;const ps=STATE.players||{},ns=Object.keys(ps).sort((x,y)=>x.localeCompare(y,'es')),pa=(ps[CMP.a]||{}).pos;
     CMP.b=(CMP.bJug&&CMP.bJug!==CMP.a&&ps[CMP.bJug])?CMP.bJug:(ns.find(n=>n!==CMP.a&&(ps[n]||{}).pos===pa)||ns.find(n=>n!==CMP.a));}
   else return;
@@ -53254,6 +53282,15 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .bmdr-q{margin:0 0 6px;font-size:var(--fs-sm);color:var(--txt);line-height:1.45}.bmdr-q b{font-weight:600}
 .bmdr-nada{margin:0;font-size:var(--fs-sm);color:var(--muted)}
 .bmdr-acc{padding-top:12px;border-top:1px solid var(--hair);display:flex;justify-content:flex-end}
+/* v809 · exportar el mapa y la comparación */
+.cmp-con .cmp-png{margin-left:auto}
+@media screen and (min-width:761px) and (pointer:fine){
+  .bmmp-top .bmmp-png{margin-left:auto;order:3;flex:none}
+  .bmmp.bmmp-exp{max-width:none}
+  .bmmp.bmmp-exp .bmmp-w{overflow:visible}
+  /* las columnas fijas se sueltan: con el panel más ancho que la ventana, «fijo a la derecha» las metería en medio */
+  .bmmp.bmmp-exp .bmmp-nom,.bmmp.bmmp-exp .bmmp-tot,.bmmp.bmmp-exp .bmmp-esq,.bmmp.bmmp-exp .bmmp-g{position:static}
+}
 @media screen and (min-width:761px) and (pointer:fine){
   #carga-mapa .bmmp-h[data-dk]:hover{color:var(--txt)}
   #carga-mapa .bmmp-h[data-dk]:hover b{opacity:1}
