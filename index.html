@@ -17267,6 +17267,44 @@ function renderCargaTemporada(){
 let CT_RZ=0;window.addEventListener('resize',()=>{clearTimeout(CT_RZ);CT_RZ=setTimeout(()=>{const p=document.getElementById('carga-temporada');if(p&&p.offsetParent)renderCargaTemporada();},160);},{passive:true});
 window.renderCargaTemporada=renderCargaTemporada;window.ctSemanas=ctSemanas;
 
+/* ═══ v829 · EXPORTAR CUALQUIER TABLA A EXCEL ═══
+   Daniel, 18/11/2026, propuesta 9 de la tanda de XPS, WIMU y Catapult: SPRO y
+   Catapult sacan cualquier informe a Excel. En el ordenador, el clic derecho
+   sobre cualquier tabla ofrece «Exportar a Excel (CSV)» y «Copiar la tabla»
+   (para pegarla tal cual en Excel o Numbers); en el móvil, la tabla a
+   pantalla completa lleva «Exportar», que abre la hoja de compartir. El CSV
+   va con punto y coma, la coma decimal tal como se ve y la marca UTF-8, que
+   es lo que Excel en español abre sin preguntar. El nombre del archivo es el
+   título de su bloque y la fecha. Un solo sitio que lee la tabla
+   (`tablaFilas`); `exportTableCSV`, el de los botones antiguos, también. */
+function tablaNombre(table){
+  const p=table.closest('.panel,.cgr-card,.bmh,section');const h=p&&p.querySelector('h2,h3');let t='';
+  if(h){const c=h.cloneNode(true);c.querySelectorAll('.r,button,.bmcab-i,svg').forEach(x=>x.remove());t=c.textContent.replace(/\s+/g,' ').trim();}
+  if(!t)t=table.id||'tabla';
+  return 'bmnava_'+t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40)+'_'+dkey(new Date());
+}
+async function tablaEntrega(table){
+  if(!table)return;const csv=tablaCSV(table),nom=tablaNombre(table)+'.csv';
+  if(esMovil()&&navigator.canShare){try{const f=new File([csv],nom,{type:'text/csv'});if(navigator.canShare({files:[f]})){await navigator.share({files:[f],title:nom});return;}}catch(e){if(e&&e.name==='AbortError')return;console.error('bmnava · compartir la tabla',e);}}
+  const a=document.createElement('a');a.download=nom;a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+  toast('Tabla exportada · '+nom);
+}
+async function tablaCopia(table){
+  try{await navigator.clipboard.writeText(tablaTSV(table));toast('Tabla copiada · pégala en Excel o Numbers');}
+  catch(e){console.error('bmnava · copiar la tabla',e);toast('No se pudo copiar: usa «Exportar a Excel»');}
+}
+document.addEventListener('contextmenu',e=>{
+  if(e.defaultPrevented||esMovil()||!(typeof bmEscFino==='function'&&bmEscFino()))return;
+  if(!e.target||!e.target.closest||e.target.closest('input,textarea,select,a[href]'))return;
+  const t=e.target.closest('table');if(!t||t.closest(BMG_DOC))return;
+  if(tablaFilas(t).length<2)return;
+  e.preventDefault();
+  const it=[{h:'Tabla'},{t:'Exportar a Excel (CSV)',ic:'',f:()=>tablaEntrega(t)}];
+  if(navigator.clipboard&&navigator.clipboard.writeText)it.push({t:'Copiar la tabla',ic:'',f:()=>tablaCopia(t)});
+  bmMenuMac(it,{x:e.clientX,y:e.clientY},{de:'tabla',etiqueta:'Tabla'});
+});
+window.tablaEntrega=tablaEntrega;window.tablaCSV=tablaCSV;window.tablaFilas=tablaFilas;
+
 /* ═══ v828 · VOLUMEN CONTRA INTENSIDAD ═══
    Daniel, 18/11/2026, propuesta 8 de la tanda de XPS, WIMU y Catapult: los
    indicadores de volumen e intensidad de Catapult, vistos juntos. Un punto
@@ -23469,8 +23507,11 @@ function bmTablaAbre(w){
   if(h2){const c=h2.cloneNode(true);c.querySelectorAll('.r,button').forEach(x=>x.remove());tit=c.textContent.trim();}
   let bar=document.getElementById('bm-tvh');
   if(!bar){bar=document.createElement('div');bar.id='bm-tvh';
-    bar.innerHTML='<b></b><span class="tvh-g">Gira el teléfono para ver más</span><button type="button" aria-label="Cerrar la pantalla completa">'+BMH_X+'</button>';
-    document.body.appendChild(bar);bar.querySelector('button').onclick=bmTablaCierra;}
+    bar.innerHTML='<b></b><span class="tvh-g">Gira el teléfono para ver más</span><button type="button" class="tvh-x" hidden>Exportar</button><button type="button" class="tvh-c" aria-label="Cerrar la pantalla completa">'+BMH_X+'</button>';
+    document.body.appendChild(bar);bar.querySelector('.tvh-c').onclick=bmTablaCierra;
+    /* v829 · exportar la tabla que se está viendo */
+    bar.querySelector('.tvh-x').onclick=()=>{const v=document.querySelector('.bm-tv');const tb=v&&(v.matches('table')?v:v.querySelector('table'));if(tb)tablaEntrega(tb);};}
+  {const tvx=bar.querySelector('.tvh-x');if(tvx)tvx.hidden=!(w.matches('table')||w.querySelector('table'));}
   bar.querySelector('b').textContent=tit||'Tabla';
   try{bmTablas();}catch(e){}
   /* Un antepasado con `transform`, `filter` o una animación a medias se
@@ -45361,7 +45402,20 @@ function focusSearch(){
 function exportChartPNG(id){const ch=charts[id];if(!ch){toast('Este gráfico aún no está dibujado');return;}const src=ch.canvas;const tmp=document.createElement('canvas');tmp.width=src.width;tmp.height=src.height;const cx=tmp.getContext('2d');cx.fillStyle=(getComputedStyle(document.documentElement).getPropertyValue('--panel')||'#fff').trim();cx.fillRect(0,0,tmp.width,tmp.height);cx.drawImage(src,0,0);const _mv=esMovil();bmEntregaPNG(tmp,'bmnava_'+id+'.png');if(!_mv)toast('Imagen exportada');}
 
 /* --- Exportar tabla a CSV --- */
-function exportTableCSV(table,name){if(!table){toast('Tabla no encontrada');return;}const rows=[...table.querySelectorAll('tr')].filter(r=>r.querySelector('th,td'));const lines=rows.map(r=>[...r.children].map(c=>{let t=(c.innerText||c.textContent||'').replace(/\s+/g,' ').trim();if(/[";\n]/.test(t))t='"'+t.replace(/"/g,'""')+'"';return t;}).join(';'));const csv='\ufeff'+lines.join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.download=(name||'tabla')+'.csv';a.href=URL.createObjectURL(blob);a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);toast('CSV exportado');}
+/* v829 · Exportar una tabla: un solo sitio que la lee (`tablaFilas`) y de él
+   salen el CSV de Excel y el texto para pegar. Sólo las filas que se ven si la
+   tabla está a la vista (una tabla filtrada exporta lo filtrado); una celda
+   que ocupa varias columnas deja las demás vacías, para que no se descuadre. */
+function tablaFilas(table){
+  const vis=table.getClientRects().length>0;
+  return [...table.querySelectorAll('tr')].filter(r=>r.querySelector('th,td')&&(!vis||r.getClientRects().length>0)).map(r=>{const o=[];
+    [...r.children].forEach(c=>{if(!/^(TD|TH)$/.test(c.tagName))return;
+      /* la cabecera, como está escrita (el estilo la pone en versalitas); las celdas, como se ven */
+      o.push(((c.tagName==='TH'?c.textContent:(c.innerText||c.textContent))||'').replace(/\s+/g,' ').trim());for(let k=1;k<(+c.colSpan||1);k++)o.push('');});return o;});
+}
+function tablaCSV(table){return '﻿'+tablaFilas(table).map(r=>r.map(t=>/[";\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t).join(';')).join('\r\n');}
+function tablaTSV(table){return tablaFilas(table).map(r=>r.map(t=>t.replace(/\t/g,' ')).join('\t')).join('\n');}
+function exportTableCSV(table,name){if(!table){toast('Tabla no encontrada');return;}const csv=tablaCSV(table);const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.download=(name||'tabla')+'.csv';a.href=URL.createObjectURL(blob);a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);toast('CSV exportado');}
 
 /* --- Inyecta botones ⤓ en paneles con gráfico/tabla --- */
 function injectPanelActions(){document.querySelectorAll('.panel').forEach(panel=>{const h2=panel.querySelector('h2');if(!h2)return;const cvs=panel.querySelectorAll('canvas');if(cvs.length===1&&cvs[0].id&&!h2.querySelector('[data-png]')){const id=cvs[0].id;const b=document.createElement('button');b.className='panel-act';b.dataset.png='1';b.textContent='⤓ PNG';if(!h2.querySelector('.r'))b.style.marginLeft='auto';b.onclick=()=>exportChartPNG(id);h2.appendChild(b);}const tbs=panel.querySelectorAll('table.tbl[id]');if(tbs.length>=1&&!h2.querySelector('[data-csv]')){const tb=tbs[0];const b=document.createElement('button');b.className='panel-act';b.dataset.csv='1';b.textContent='⤓ CSV';if(!h2.querySelector('.r')&&!h2.querySelector('[data-png]'))b.style.marginLeft='auto';b.onclick=()=>exportTableCSV(tb,'bmnava_'+tb.id);h2.appendChild(b);}});}
@@ -55143,6 +55197,14 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   .ctv-seg button{min-height:44px;display:flex;align-items:center;padding:0 16px}
   .ctv-q{display:none}
 }
+</style>
+<style id="bm-v829">
+/* v829 · exportar la tabla a pantalla completa (móvil) */
+#bm-tvh button.tvh-x{all:unset;cursor:pointer;flex:none;min-height:44px;padding:0 12px;display:inline-flex;align-items:center;font-weight:600;color:var(--acc-seg,var(--accent))}
+#bm-tvh button.tvh-x[hidden]{display:none}
+/* con «Exportar», el aviso de girar el teléfono deja el sitio al título */
+#bm-tvh:has(.tvh-x:not([hidden])) .tvh-g{display:none}
+#bm-tvh button.tvh-x:focus-visible{outline:2px solid var(--accent);border-radius:8px}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
