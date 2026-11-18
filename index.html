@@ -17074,6 +17074,8 @@ function renderMapaPlantilla(){
     +'<div class="bmmp-w"><div class="bmmp-r bmmp-'+ancho+'" style="--n:'+N+'">'+RJ.html+'</div></div>'
     +'<p class="bmmp-pie">'+(FUT.length?'Los '+FUT.length+' días de la derecha, más tenues, son lo planificado en el calendario: su parte del plan, con su plan individual si lo tiene; arriba, el plan del día. Es lo que haría si hace lo que hay puesto, no una predicción, y no entra en el total. ':'')+(REC?'La recuperación es la que declara cada uno en el cuestionario de la mañana (la de la barra de 14 días del Resumen); la del equipo, la media de las filas de ese día sin los que están con la selección. ':'')+'Pasa el ratón por una casilla para ver el día; un clic abre su inspector, un clic en el nombre, su ficha, y en la fecha de arriba, el resumen de ese día. La ventana se cambia arriba (14 d · 28 d · 8 sem · Temporada).</p></div>';
   BMMP.D=D;BMMP.orden=orden;
+  /* v823 · debajo, la temporada semana a semana, cada uno contra lo suyo */
+  try{const pb=document.createElement('div');pb.id='bmper';box.appendChild(pb);renderPer();}catch(e){console.error('bmnava · temporada por semanas',e);}
   bmMpCifras();
   const w=box.querySelector('.bmmp-w');if(w)w.scrollLeft=w.scrollWidth;
 }
@@ -17119,6 +17121,142 @@ document.addEventListener('click',e=>{
 });
 window.addEventListener('scroll',()=>{if(BMMP.sel){BMMP.sel=null;bmMpTip(null);}},{passive:true,capture:true});
 window.renderMapaPlantilla=renderMapaPlantilla;
+
+/* ═══ v823 · LA TEMPORADA, SEMANA A SEMANA, CADA UNO CONTRA LO SUYO ═══
+   Daniel, 18/11/2026, propuesta 3 de la tanda de XPS, WIMU y Catapult: las
+   «tablas de periodización» de XPS, con su z-score y su botón para cambiar
+   filas por columnas. Va debajo del mapa de la plantilla (Cargas › Plantilla,
+   sólo en el ordenador). Una columna por semana desde el 1 de julio y una
+   fila por jugador; la métrica se elige (carga, sesiones, minutos, %Z4+Z5,
+   recuperación, sueño) y el color dice cuánto se aparta ESA semana de SU
+   normal —su mediana de las semanas cerradas, con la desviación robusta
+   (MAD) y el suelo del 2 % que ya usan las valoraciones—. Los cortes son los
+   del wellness (`CONFIG.z`: 0,8 y 1,6): ni un umbral nuevo. Un solo tono, más
+   intenso cuanto más lejos, y la flecha dice el lado: así no se confunde con
+   el semáforo, porque más carga o menos recuperación no es por sí sola una
+   alerta. Hacen falta `WZ_MIN_SEM` semanas suyas con dato para tener normal.
+   Una semana sin registros va vacía, no a cero. La semana en curso de las
+   métricas que se SUMAN (carga, sesiones, minutos) no se compara —una semana
+   a medias contra semanas enteras, la regla de siempre—; las que son una
+   media (%Z4+Z5, recuperación, sueño) sí. Pulsar una casilla cambia el eje:
+   ese jugador con todas sus métricas, como el botón de XPS. */
+const PER_M=[['carga','Carga','UA'],['ses','Sesiones','días'],['min','Minutos','min'],['z45','%Z4+Z5','%'],['rec','Recuperación','%'],['sue','Sueño','h']];
+const PER_SUMA={carga:1,ses:1,min:1};
+/* El suelo de la desviación, para que una diferencia por debajo de lo que la
+   escala distingue no salga como «se aparta mucho». Ninguno es nuevo: en la
+   recuperación, el suelo del wellness (`sdMin` 0,7 de un ítem, y cada punto de
+   un ítem son 5 puntos de recuperación); en el sueño, el de las horas de sueño
+   (0,8 h); en las sesiones, un día, que es la resolución de la cuenta. En el
+   resto, el 2 % de su mediana, el de las valoraciones. */
+const PER_SDMIN={rec:((CONFIG.wellnessVars.fatiga||{}).sdMin||0.7)*5,sue:(CONFIG.wellnessVars.horas_sueno||{}).sdMin||0.8,ses:1};
+const BMPER={m:(()=>{try{const v=localStorage.getItem('bmnava-permet');return PER_M.some(x=>x[0]===v)?v:'carga';}catch(e){return 'carga';}})(),jug:null,k:null,D:null};
+function perDatos(){
+  const refk=dkey(REF()),k=BM_DV+'|'+refk+'|'+dkey(new Date());
+  if(BMPER.k===k&&BMPER.D)return BMPER.D;
+  const ps=STATE.players||{},W=[],w1=weekKey(REF());
+  for(let w=weekKey(dkToDate(TEMP_INICIO));w<=w1;w=dkSumaDias(w,7))W.push(w);
+  const wi={};W.forEach((w,i)=>wi[w]=i);
+  const wOf=dk=>wi[weekKey(dkToDate(dk))];
+  const cur=dkSumaDias(w1,6)>refk?W.length-1:-1;
+  const vacio=()=>W.map(()=>null);
+  const J={};
+  Object.keys(ps).forEach(n=>{J[n]={carga:vacio(),ses:vacio(),min:vacio(),z45:vacio(),rec:vacio(),sue:vacio(),_z:W.map(()=>({a:0,t:0})),_r:W.map(()=>[]),_s:W.map(()=>[]),_d:W.map(()=>new Set())};});
+  (STATE.rpe||[]).forEach(x=>{if(!x||!J[x.name]||x.dk<TEMP_INICIO||x.dk>refk)return;const i=wOf(x.dk);if(i==null)return;const F=J[x.name];
+    F.carga[i]=(F.carga[i]||0)+(+x.ua||0);F.min[i]=(F.min[i]||0)+(+x.dur||0);F._d[i].add(x.dk);});
+  (STATE.hr||[]).forEach(r=>{if(!r||!J[r.name]||!r.dk||r.dk<TEMP_INICIO||r.dk>refk)return;const i=wOf(r.dk);if(i==null)return;let t=0;for(let q=0;q<5;q++)t+=zOf(r,q);if(!(t>0))return;const o=J[r.name]._z[i];o.t+=t;o.a+=zOf(r,3)+zOf(r,4);});
+  Object.keys(J).forEach(n=>{const F=J[n];
+    try{playerRecSeries(ps[n],400).forEach(x=>{if(x.dk<TEMP_INICIO||x.dk>refk||!isFinite(x.pct))return;const i=wOf(x.dk);if(i!=null)F._r[i].push({dk:x.dk,v:x.pct});});}catch(e){}
+    try{const m=sueMapa(n);Object.keys(m).forEach(dk=>{if(dk<TEMP_INICIO||dk>refk)return;const i=wOf(dk);if(i!=null)F._s[i].push({dk,v:m[dk]});});}catch(e){}
+    W.forEach((w,i)=>{F.ses[i]=F._d[i].size?F._d[i].size:null;
+      /* con cuestionarios y sin minutos la carga no es calculable: no es una semana de 0 UA */
+      if(!(F.carga[i]>0))F.carga[i]=null;if(!(F.min[i]>0))F.min[i]=null;
+      F.z45[i]=F._z[i].t>0?F._z[i].a/F._z[i].t*100:null;
+      F.rec[i]=F._r[i].length?F._r[i].reduce((s,x)=>s+x.v,0)/F._r[i].length:null;
+      F.sue[i]=F._s[i].length?F._s[i].reduce((s,x)=>s+x.v,0)/F._s[i].length:null;});
+  });
+  /* la fila del equipo: en la carga, la semana del Dashboard (`cgSemanasEquipo`);
+     en lo demás, la media de los jugadores con dato esa semana; recuperación y
+     sueño, sin los días con la selección (v500) */
+  const EQ={};PER_M.forEach(([m])=>EQ[m]=vacio());
+  try{cgSemanasEquipo(cgSerieEquipo()).forEach(w=>{const i=wi[w.week];if(i!=null&&w.conCarga>0&&w.ua>0)EQ.carga[i]=w.ua;});}catch(e){}
+  W.forEach((w,i)=>{
+    const med=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:null;
+    EQ.ses[i]=med(Object.keys(J).map(n=>J[n].ses[i]).filter(v=>v!=null));
+    EQ.min[i]=med(Object.keys(J).map(n=>J[n].min[i]).filter(v=>v!=null));
+    let a=0,t=0;Object.keys(J).forEach(n=>{a+=J[n]._z[i].a;t+=J[n]._z[i].t;});EQ.z45[i]=t>0?a/t*100:null;
+    const sel=(n,dk)=>{try{return conLaSeleccion(n,dk);}catch(e){return false;}};
+    EQ.rec[i]=med([].concat(...Object.keys(J).map(n=>J[n]._r[i].filter(x=>!sel(n,x.dk)).map(x=>x.v))));
+    EQ.sue[i]=med([].concat(...Object.keys(J).map(n=>J[n]._s[i].filter(x=>!sel(n,x.dk)).map(x=>x.v))));
+  });
+  BMPER.k=k;BMPER.D={W,cur,J,EQ};return BMPER.D;
+}
+/* su normal en una métrica: mediana y desviación robusta de sus semanas cerradas con dato */
+function perNormal(serie,m,cur){
+  const v=serie.filter((x,i)=>x!=null&&i!==cur).slice().sort((a,b)=>a-b);
+  if(v.length<WZ_MIN_SEM)return {n:v.length};
+  const q=a=>{const h=(a.length-1)/2;return (a[Math.floor(h)]+a[Math.ceil(h)])/2;};
+  const med=q(v),mad=q(v.map(x=>Math.abs(x-med)).sort((a,b)=>a-b));
+  const sdv=Math.max(mad*1.4826,Math.abs(med)*0.02,PER_SDMIN[m]||0);
+  return {n:v.length,med,sd:sdv>0?sdv:null};
+}
+function perZ(v,N,i,cur,m){
+  if(v==null||!N||N.sd==null)return null;
+  if(i===cur&&PER_SUMA[m])return null;
+  return (v-N.med)/N.sd;
+}
+function perFmt(m,v){if(v==null)return '';if(m==='z45'||m==='sue')return fmt(v,1);if(m==='rec')return String(Math.round(v));if(m==='ses')return fmt(v,v%1?1:0);return Math.round(v).toLocaleString('es-ES');}
+function perCelda(m,v,N,i,cur,nom,w){
+  const z=perZ(v,N,i,cur,m),u=(PER_M.find(x=>x[0]===m)||[])[2]||'';
+  const cls=['bmper-c'];let fl='';
+  if(i===cur)cls.push('cur');
+  if(z!=null){const a=Math.abs(z);if(a>CONFIG.z.red)cls.push('z2');else if(a>CONFIG.z.yellow)cls.push('z1');if(a>CONFIG.z.yellow)fl='<i class="fl">'+(z>0?'↑':'↓')+'</i>';}
+  const d=dkToDate(w),lab='semana del '+d.getDate()+'/'+(d.getMonth()+1);
+  let t=nom+' · '+lab+' · '+(v==null?'sin datos':perFmt(m,v)+' '+u);
+  if(v!=null){if(i===cur&&PER_SUMA[m])t+=' · semana en curso: no se compara con semanas enteras';
+    else if(N&&N.sd!=null)t+=' · su normal '+perFmt(m,N.med)+' '+u+' (mediana de '+N.n+' semanas) · '+(z>=0?'+':'−')+fmt(Math.abs(z),1)+' desviaciones';
+    else t+=' · faltan semanas suyas para tener su normal ('+(N?N.n:0)+' de '+WZ_MIN_SEM+')';}
+  return '<div class="'+cls.join(' ')+'" title="'+bmEsc(t)+'">'+(v==null?'':'<b>'+perFmt(m,v)+'</b>'+fl)+'</div>';
+}
+function renderPer(){
+  const box=document.getElementById('bmper');if(!box)return;
+  const E=bmEsc,D=perDatos(),W=D.W,cur=D.cur,m=BMPER.m,ps=STATE.players||{};
+  if(BMPER.jug&&!ps[BMPER.jug])BMPER.jug=null;
+  const J=BMPER.jug;
+  const cab='<div class="bmper-nom bmper-esq"></div>'+W.map((w,i)=>{const d=dkToDate(w);const vac=D.EQ.carga[i]==null&&D.EQ.ses[i]==null;
+    return '<div class="bmper-h'+(i===cur?' cur':'')+(vac?' paron':'')+'" title="Semana del '+d.getDate()+'/'+(d.getMonth()+1)+(i===cur?' · en curso':'')+(vac?' · sin registros del equipo':'')+'">'+d.getDate()+'/'+(d.getMonth()+1)+'</div>';}).join('');
+  let filas='';
+  if(!J){
+    const N=perNormal(D.EQ[m],m,cur);
+    filas+='<div class="bmper-nom bmper-eqn"><span>Equipo</span></div>'+W.map((w,i)=>perCelda(m,D.EQ[m][i],N,i,cur,'Equipo',w)).join('');
+    const GR=(typeof JL_GR!=='undefined'?JL_GR:[]).concat([['_','Sin puesto']]);
+    GR.forEach(([k,t])=>{const ns=Object.keys(ps).filter(n=>{const p=ps[n].pos;return k==='_'?!GR.some(g=>g[0]===p&&g[0]!=='_'):p===k;}).sort((a,b)=>a.localeCompare(b,'es'));if(!ns.length)return;
+      filas+='<div class="bmper-g">'+E(t)+'</div>';
+      ns.forEach(n=>{const F=D.J[n];if(!F)return;const N=perNormal(F[m],m,cur);
+        filas+='<div class="bmper-nom" data-pn="'+E(n)+'" title="Ver todas sus métricas">'+bmjCara(n,'bmmp-av')+'<span>'+E(cvCorto(n))+'</span></div>'
+          +W.map((w,i)=>perCelda(m,F[m][i],N,i,cur,n,w).replace('<div class="bmper-c','<div data-pj="'+E(n)+'" class="bmper-c')).join('');});});
+  }else{
+    const F=D.J[J];
+    PER_M.forEach(([mk,ml,mu])=>{const N=perNormal(F[mk],mk,cur);
+      filas+='<div class="bmper-nom bmper-met"><span>'+E(ml)+'</span><small>'+(N.sd!=null?'su normal '+perFmt(mk,N.med)+' '+mu:'sin normal todavía')+'</small></div>'+W.map((w,i)=>perCelda(mk,F[mk][i],N,i,cur,cvCorto(J),w)).join('');});
+  }
+  const met='<div class="bmmp-modo bmper-met-s" role="group" aria-label="Qué métrica">'+PER_M.map(([k,l])=>'<button type="button" data-pm="'+k+'" aria-pressed="'+(k===m)+'"'+(k===m?' class="on"':'')+'>'+l+'</button>').join('')+'</div>';
+  const eje='<div class="bmmp-modo" role="group" aria-label="Qué se ve en las filas"><button type="button" data-pe="plant" aria-pressed="'+(!J)+'"'+(!J?' class="on"':'')+'>La plantilla</button><button type="button" data-pe="jug" aria-pressed="'+(!!J)+'"'+(J?' class="on"':'')+'>Un jugador</button></div>';
+  const sel=J?'<select class="bmper-sel" aria-label="Jugador">'+Object.keys(ps).sort((a,b)=>a.localeCompare(b,'es')).map(n=>'<option'+(n===J?' selected':'')+' value="'+E(n)+'">'+E(n)+'</option>').join('')+'</select>':'';
+  box.innerHTML='<div class="panel bmper"><h2>La temporada, semana a semana <span class="r">cada uno contra lo suyo · desde el 1 de julio</span></h2>'
+    +'<div class="bmper-top">'+eje+(J?sel:met)+'<span class="bmper-ley"><i class="bmper-lc"></i>Como lo suyo <i class="bmper-lc z1"></i>Se aparta <i class="bmper-lc z2"></i>Se aparta mucho <span>· ↑ por encima · ↓ por debajo</span></span></div>'
+    +'<div class="bmper-w"><div class="bmper-r" style="--n:'+W.length+'">'+cab+filas+'</div></div>'
+    +'<p class="bmper-pie">Cada casilla contra la normal de ESE jugador: la mediana de sus semanas cerradas con dato, con su desviación (MAD; con un suelo para que no cuente lo que la escala no distingue: un día en las sesiones, 3,5 puntos en la recuperación y 0,8 h en el sueño, los del wellness; el 2 % en lo demás). Se aparta desde 0,8 desviaciones y mucho desde 1,6, los cortes del wellness. Hacen falta '+WZ_MIN_SEM+' semanas suyas. Una semana sin registros va vacía. La semana en curso va en cursiva, y su carga, sus sesiones y sus minutos no se comparan: es una semana a medias. La fila del equipo: en la carga, la del Dashboard; en lo demás, la media de los jugadores con dato. '+(J?'':'Pulsa una casilla para ver todas las métricas de ese jugador.')+'</p></div>';
+  const w=box.querySelector('.bmper-w');if(w)w.scrollLeft=w.scrollWidth;
+}
+document.addEventListener('click',e=>{
+  if(!e.target||!e.target.closest)return;
+  const pm=e.target.closest('#bmper [data-pm]');if(pm){BMPER.m=pm.dataset.pm;try{localStorage.setItem('bmnava-permet',BMPER.m);}catch(x){}renderPer();return;}
+  const pe=e.target.closest('#bmper [data-pe]');if(pe){if(pe.dataset.pe==='plant')BMPER.jug=null;else if(!BMPER.jug)BMPER.jug=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'))[0]||null;renderPer();return;}
+  const pj=e.target.closest('#bmper [data-pj]');if(pj){BMPER.jug=pj.dataset.pj;renderPer();return;}
+  const pn=e.target.closest('#bmper .bmper-nom[data-pn]');if(pn){BMPER.jug=pn.dataset.pn;renderPer();return;}
+});
+document.addEventListener('change',e=>{if(e.target&&e.target.matches&&e.target.matches('#bmper .bmper-sel')){BMPER.jug=e.target.value;renderPer();}});
+window.renderPer=renderPer;window.perDatos=perDatos;
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('#carga-mapa .bmmp-h[data-dk]')){e.preventDefault();bmDiaRes(e.target.dataset.dk);}});
 /* ═══ v808 · EL RESUMEN DE UN DÍA ═══
    Daniel, 18/11/2026, propuesta 6 (8 en la lista). Un clic en la cabecera de
@@ -54434,6 +54572,44 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   .mdh-f{grid-template-columns:52px minmax(0,1fr) 128px;column-gap:10px}
   .mdh-v small{max-width:150px;margin-left:auto}
   .mdhd{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}
+}
+</style>
+<style id="esc-v823">
+/* v823 · ORDENADOR · la temporada semana a semana, cada uno contra lo suyo */
+@media screen and (min-width:761px){
+  #bmper .bmper{margin-top:20px}
+  .bmper-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:2px 0 12px}
+  .bmper-top .bmmp-modo{margin-bottom:0}
+  .bmper-sel{font:inherit;font-size:13px;padding:4px 8px;border-radius:7px;border:.5px solid var(--hair);background:var(--panel);color:var(--txt);max-width:240px}
+  .bmper-ley{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-left:auto}
+  .bmper-ley span{color:var(--muted)}
+  .bmper-lc{display:inline-block;width:16px;height:12px;border-radius:3px;border:.5px solid var(--hair);margin-left:6px}
+  .bmper-lc.z1{background:color-mix(in srgb,var(--c-data) 22%,var(--panel))}
+  .bmper-lc.z2{background:color-mix(in srgb,var(--c-data) 46%,var(--panel))}
+  .bmper-w{overflow-x:auto;padding-bottom:4px}
+  .bmper-r{display:grid;grid-template-columns:150px repeat(var(--n),minmax(48px,1fr));font-size:12px;min-width:min-content}
+  .bmper-r>div{min-height:30px;display:flex;align-items:center;justify-content:center;border-bottom:.5px solid var(--hair)}
+  .bmper-h{font-size:11px;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
+  .bmper-h.cur{color:var(--txt)}
+  .bmper-h.paron{color:var(--muted2);font-weight:400}
+  .bmper-nom{justify-content:flex-start!important;gap:8px;position:sticky;left:0;z-index:1;background:var(--panel);padding-right:8px;cursor:default;min-width:0}
+  .bmper-nom span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .bmper-nom[data-pn]:hover span{color:var(--acc-seg,var(--accent))}
+  .bmper-eqn span{font-weight:600}
+  .bmper-r>.bmper-met{min-height:42px}
+  .bmper-met{flex-direction:column;align-items:flex-start!important;justify-content:center!important;gap:0!important}
+  .bmper-met span{font-weight:600}.bmper-met small{font-size:11px;color:var(--muted)}
+  .bmper-g{grid-column:1/-1;justify-content:flex-start!important;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-top:12px;border-bottom:none!important;min-height:26px!important;position:sticky;left:0}
+  .bmper-c{font-variant-numeric:tabular-nums;border-left:.5px solid transparent}
+  .bmper-c b{font-weight:500}
+  .bmper-c.z1{background:color-mix(in srgb,var(--c-data) 22%,var(--panel))}
+  .bmper-c.z2{background:color-mix(in srgb,var(--c-data) 46%,var(--panel))}
+  .bmper-c.z2 b{font-weight:700}
+  .bmper-c.cur b{font-style:italic;color:var(--muted)}
+  .bmper-c.cur.z1 b,.bmper-c.cur.z2 b{color:var(--txt)}
+  .bmper-c .fl{font-style:normal;font-size:11px;margin-left:2px;color:var(--txt)}
+  .bmper-c[data-pj]:hover{outline:1.5px solid var(--acc-seg,var(--accent));outline-offset:-1.5px}
+  .bmper-pie{font-size:12.5px;color:var(--muted);margin:12px 0 0;line-height:1.45;max-width:110ch}
 }
 </style>
 <style id="bm-v808">
