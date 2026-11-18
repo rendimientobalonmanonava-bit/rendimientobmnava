@@ -14434,6 +14434,7 @@ function bmbIndice(){
   A('Informe del jugador','Su mes: carga, recuperación, ACWR, minutos, pruebas y salud, para la reunión',()=>{if(window.bmInformeJugador)bmInformeJugador();},'informe reunion jugador mes');
   A('Carta del jugador','Su nota física, sus capacidades y lo que ha mejorado, en una imagen para dársela',()=>{if(window.bmCarta)bmCarta();},'carta tarjeta jugador nota fisica imagen motivacion');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
+  A('Bitácora de la temporada','Notas, lesiones y altas, partes, «Ojo hoy», partidos y valoraciones en una línea de tiempo',()=>{if(window.bmBitacora)bmBitacora('');},'bitacora historial cronologia linea tiempo temporada lesiones notas');
   document.querySelectorAll('#add-menu .add-item').forEach(b=>{const t=b.querySelector('b'),sm=b.querySelector('small');if(!t)return;
     A(t.textContent.trim(),sm?sm.textContent.trim():'',()=>b.click(),'añadir');});
   document.querySelectorAll('#sb-tools button').forEach(b=>{const tx=[...b.querySelectorAll('span')].map(x=>x.textContent.trim()).filter(Boolean);let l=(tx.length?tx[tx.length-1]:b.textContent.trim());
@@ -14673,7 +14674,7 @@ function bmlpMenu(x){
         +(window.openFisioReg?fila(BMLP_IC.trat,'Registrar en fisioterapia','Tratamiento, vendaje o parte','trat'):'')
         +(window.openHeroForm?fila(BMLP_IC.cita,'Cita o documento médico','','cita'):'')
       +'</div>';
-    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),carta:()=>bmCarta(n),nota:()=>bmNota(dkey(new Date()),n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),bit:()=>bmBitacora(n),carta:()=>bmCarta(n),nota:()=>bmNota(dkey(new Date()),n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
   }else{
     const p=x.dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]),pas=x.dk<=dkey(new Date());
     tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
@@ -14743,6 +14744,7 @@ function bmPrevia(x,acc){
     menu=fila('ficha',BMLP_IC.ficha,'Ver la ficha')
       +(window.bmComparar?fila('cmp',BMLP_IC.ficha,'Comparar con…'):'')
       +(window.bmInformeJugador?fila('inf',BMLP_IC.parte,'Informe del mes'):'')
+      +(window.bmBitacora?fila('bit',BMLP_IC.parte,'Su bitácora'):'')
       +(window.bmCarta?fila('carta',BMLP_IC.ficha,'Carta del jugador'):'')
       +(window.bmNota?fila('nota',BMLP_IC.parte,'Añadir una nota'):'')
       +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
@@ -14878,6 +14880,7 @@ function bmCtxMac(x,cx,cy){
     if(window.bmInspAbre)it.push({t:'Ver en el inspector',ic:'',k:'⌥ clic',f:()=>bmInspAbre(n)});
     if(window.bmComparar)it.push({t:'Comparar con…',ic:'',f:acc.cmp});
     if(window.bmInformeJugador)it.push({t:'Informe del mes',ic:'',f:()=>bmInformeJugador(n)});
+    if(window.bmBitacora)it.push({t:'Su bitácora',ic:'',tit:'Lo que tiene fecha desde el 1 de julio',f:()=>bmBitacora(n)});
     if(window.bmCarta)it.push({t:'Carta del jugador',ic:'',f:()=>bmCarta(n)});
     if(window.bmNota)it.push({t:'Añadir una nota…',ic:'',tit:'De hoy, sale como marca en sus gráficos',f:()=>bmNota(dkey(new Date()),n)});
     it.push({sep:1});
@@ -17178,6 +17181,65 @@ function cmpPNG(){
   exportNodePNG('cmp-cuerpo','comparar_'+nom(CMP.a)+'_'+nom(B)+'_'+dkey(REF())+'.png',{bg:cssVar('--panel')||'#ffffff'});
 }
 window.bmMpPNG=bmMpPNG;window.cmpPNG=cmpPNG;
+/* ═══ v812 · LA BITÁCORA DE LA TEMPORADA ═══
+   Daniel, 18/11/2026, propuesta 4 (6 en la lista). Todo lo que tiene fecha
+   estaba repartido en seis sitios. Aquí, en una sola línea de tiempo desde el
+   1 de julio, filtrable por jugador y por tipo: las notas (`bmnava_notas`),
+   las lesiones y molestias y sus altas (`STATE.med.inj`), los partes del día
+   (`STATE.physioUser`, el estado que se le pone a un jugador), los avisos de
+   «Ojo hoy» (`medLog`, tipo `ojo`), los partidos (con sus minutos si se mira
+   a un jugador, `ptMinutos`) y las valoraciones (el histórico real de
+   pruebas). **Sólo se lee**: no hay un almacén nuevo ni una segunda copia de
+   nada. Un clic en una fila abre el resumen de ese día (v808). */
+const BMBIT={n:'',tipo:'todo'};
+const BMBIT_T=[['todo','Todo'],['med','Médico'],['ojo','Ojo hoy'],['nota','Notas'],['par','Partidos'],['val','Valoraciones']];
+const BMBIT_COL={med:'var(--gi-pizarra)',ojo:'var(--warn)',nota:'var(--gi-violeta)',par:'var(--accent)',val:'var(--gi-teal)'};
+function bmBitDatos(n){
+  const L=[],desde=TEMP_INICIO,hoy=dkey(new Date()),ps=STATE.players||{},es=x=>!n||x===n;
+  const lab=st=>((typeof PHYSTAT!=='undefined'&&PHYSTAT[st])||{}).lab||st;
+  try{notasLoad().forEach(x=>{if(x&&x.dk>=desde&&(n?x.jugador===n:true))L.push({t:'nota',dk:x.dk,j:x.jugador||'',tit:x.txt||'',det:(x.jugador?'':'Equipo')+(x.quien?(x.jugador?'':' · ')+x.quien:'')});});}catch(e){}
+  try{medDbLoad();((STATE.med||{}).inj||[]).forEach(e=>{if(!e||e.mergedInto||!e.name||!es(e.name))return;
+    const qu=(e.kind==='molestia'?'Molestia':'Lesión')+(e.title?': '+e.title:'');
+    if(e.dk>=desde)L.push({t:'med',dk:e.dk,j:e.name,tit:qu,det:[e.zona||'',e.open?'abierta':''].filter(Boolean).join(' · ')});
+    if(!e.open&&e.end&&e.end>=desde)L.push({t:'med',dk:e.end,j:e.name,tit:'Alta'+(e.title?': '+e.title:''),det:e.dk?'desde el '+bmInspFecha(e.dk):''});});}catch(e){}
+  try{const pu=STATE.physioUser||{};Object.keys(pu).forEach(nm=>{if(!es(nm))return;(pu[nm]||[]).forEach(x=>{if(!x||!x.dk||x.dk<desde||!x.status)return;
+    L.push({t:'med',dk:x.dk,j:nm,tit:'Parte del día: '+lab(x.status),det:[x.zone?x.zone+(x.side?' '+x.side:''):'',x.pain?'dolor '+x.pain:'',x.note||''].filter(Boolean).join(' · ')});});});}catch(e){}
+  try{const ml=ojoLoad();Object.keys(ml).forEach(nm=>{if(!es(nm))return;(ml[nm]||[]).forEach(x=>{if(!x||x.type!=='ojo'||!x.dk||x.dk<desde)return;
+    L.push({t:'ojo',dk:x.dk,j:nm,tit:'Ojo hoy: '+ojoLab(x),det:[x.nota||'',x.vis?'ya pasó'+(x.visDk?' el '+bmInspFecha(x.visDk):''):'abierto'].filter(Boolean).join(' · ')});});});}catch(e){}
+  try{calPartidosDks().filter(d=>d>=desde&&d<=hoy).forEach(d=>{const ev=((STATE.calendar||{})[d]||[]).find(evEsPartido);let det='';
+    if(n){let m=null;try{m=ptMinutos(d,n);}catch(e){}det=m>0?'jugó '+Math.round(m)+'′':(m===0?'no jugó':'sin minutos apuntados');}
+    L.push({t:'par',dk:d,j:'',tit:'Partido · '+((ev&&evRival(ev))||'rival sin apuntar'),det});});}catch(e){}
+  try{const porDia={};Object.keys(ps).forEach(nm=>{if(!es(nm))return;((STATE.testHist||{})[nm]||[]).forEach(sn=>{if(!sn||!sn.real||!sn.date||sn.date<desde)return;const k=Object.keys(sn.vals||{}).length;if(!k)return;
+      if(n)L.push({t:'val',dk:sn.date,j:nm,tit:'Valoración física',det:k+(k===1?' prueba':' pruebas')});else{(porDia[sn.date]=porDia[sn.date]||{j:0,p:0});porDia[sn.date].j++;porDia[sn.date].p+=k;}});});
+    Object.keys(porDia).forEach(d=>L.push({t:'val',dk:d,j:'',tit:'Valoración física',det:porDia[d].j+(porDia[d].j===1?' jugador':' jugadores')+' · '+porDia[d].p+' mediciones'}));}catch(e){}
+  const ord={med:0,ojo:1,par:2,val:3,nota:4};
+  return L.sort((a,b)=>b.dk.localeCompare(a.dk)||ord[a.t]-ord[b.t]||String(a.j).localeCompare(String(b.j),'es'));
+}
+function bmBitacora(n){
+  if(n!==undefined)BMBIT.n=n&&(STATE.players||{})[n]?n:'';
+  const E=bmEsc,todos=bmBitDatos(BMBIT.n),L=BMBIT.tipo==='todo'?todos:todos.filter(x=>x.t===BMBIT.tipo);
+  const cnt={};todos.forEach(x=>{cnt[x.t]=(cnt[x.t]||0)+1;});
+  const ns=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const WD=['dom','lun','mar','mié','jue','vie','sáb'];
+  let h='<div class="bmbit"><div class="bmbit-f"><label class="bmbit-j"><span>Jugador</span><select data-bit="j"><option value="">Toda la plantilla</option>'+ns.map(x=>'<option'+(x===BMBIT.n?' selected':'')+'>'+E(x)+'</option>').join('')+'</select></label>'
+    +'<div class="bmbit-t" role="group" aria-label="Tipo">'+BMBIT_T.map(([k,l])=>'<button type="button" data-bit="t" data-v="'+k+'" aria-pressed="'+(BMBIT.tipo===k)+'"'+(BMBIT.tipo===k?' class="on"':'')+'>'+l+(k!=='todo'&&cnt[k]?' <small>'+cnt[k]+'</small>':'')+'</button>').join('')+'</div></div>';
+  if(!L.length)h+='<p class="bmbit-nada">Nada '+(BMBIT.tipo==='todo'?'apuntado':'de este tipo')+' desde el 1 de julio'+(BMBIT.n?' para '+E(cvCorto(BMBIT.n)):'')+'.</p>';
+  let mes='';
+  L.forEach(x=>{const m=x.dk.slice(0,7);if(m!==mes){mes=m;h+='<h3 class="bmbit-m">'+MES[+m.slice(5)-1]+' '+m.slice(0,4)+'</h3>';}
+    const d=dkToDate(x.dk);
+    h+='<button type="button" class="bmbit-l" data-dk="'+x.dk+'" style="--bc:'+BMBIT_COL[x.t]+'"><span class="bmbit-d"><b>'+d.getDate()+'</b><small>'+WD[d.getDay()]+'</small></span><i aria-hidden="true"></i>'
+      +'<span class="bmbit-x"><b>'+E(x.tit)+'</b>'+((x.j&&!BMBIT.n)||x.det?'<small>'+(x.j&&!BMBIT.n?'<em>'+E(cvCorto(x.j))+'</em>'+(x.det?' · ':''):'')+E(x.det||'')+'</small>':'')+'</span></button>';});
+  h+='<p class="bmbit-pie">Desde el 1 de julio. Junta lo que ya está apuntado en la app: notas, lesiones y altas, partes del día, «Ojo hoy», partidos y valoraciones. Un clic en una fila abre el resumen de ese día.</p></div>';
+  const ya=document.getElementById('bmh-bit');const y=ya?ya.querySelector('.bmh-cuerpo').scrollTop:0;
+  const hoja=bmHoja({id:'bit',titulo:'Bitácora'+(BMBIT.n?' · '+cvCorto(BMBIT.n):' de la temporada'),html:h,clase:'bm-bith'});
+  if(ya&&y){const c=hoja.querySelector('.bmh-cuerpo');if(c)c.scrollTop=y;}
+}
+document.addEventListener('change',e=>{const s=e.target&&e.target.closest&&e.target.closest('#bmh-bit [data-bit="j"]');if(!s)return;BMBIT.n=s.value;bmBitacora();});
+document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
+  const t=e.target.closest('#bmh-bit [data-bit="t"]');if(t){BMBIT.tipo=t.dataset.v;bmBitacora();return;}
+  const l=e.target.closest('#bmh-bit .bmbit-l');if(l&&window.bmDiaRes)bmDiaRes(l.dataset.dk);});
+window.bmBitacora=bmBitacora;
 /* ═══ v793 · ORDENADOR · Alertas como Mail ═══
    Daniel, 17/11/2026, propuesta 2. Medido: 39 alertas en 15 tarjetas que dicen
    el TIPO («Sueño · Wellness») pero no la cifra, ni desde cuándo, ni contra
@@ -43873,6 +43935,7 @@ function bmTbMenu(e){
     {t:'Planificar con lo habitual…',f:()=>{try{bmHabitual();}catch(err){}}},
     {t:'Planificar la semana…',f:()=>{try{bmHojaSemana();}catch(err){}}},
     {t:'Añadir una nota…',f:()=>{try{bmNota();}catch(err){}}},
+    {t:'Bitácora de la temporada',f:()=>{try{bmBitacora('');}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Inspector del jugador',k:'I',f:()=>{try{bmInspAlterna();}catch(err){}}},
     {t:'Línea de tiempo',k:'L',f:()=>{try{bmTlAlterna();}catch(err){}}},
@@ -45453,6 +45516,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
        +'<button class="btn phero-add" onclick="openReunion(\''+q2(name)+'\')">+ Reunión</button>'
        +'<button class="btn ghost phero-cmp" onclick="bmComparar(\''+q2(name)+'\')">Comparar con…</button>'
        +'<button class="btn ghost phero-cmp" onclick="bmInformeJugador(\''+q2(name)+'\')">Informe del mes</button>'
+       +'<button class="btn ghost phero-cmp" onclick="bmBitacora(\''+q2(name)+'\')">Su bitácora</button>'
        +'<button class="btn ghost phero-cmp" onclick="bmCarta(\''+q2(name)+'\')">Carta del jugador</button>'
      +'</div>'
    +'</div>';
@@ -53349,6 +53413,32 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   #bm-pres .bpr-mapa .bmmp-eqn,#bm-pres .bpr-mapa .bmmp-c.eq,#bm-pres .bpr-mapa .bmmp-c.eq+.bmmp-tot{margin-top:2px}
   #bm-pres .bpr-mapa .bmmp-nom,#bm-pres .bpr-mapa .bmmp-tot{background:transparent}
   #bm-pres .bpr-mapa .bmmp-c:hover{outline:0}
+}
+/* v812 · la bitácora */
+.bmbit-f{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:6px}
+.bmbit-j{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--muted)}
+.bmbit-t{display:inline-flex;flex-wrap:wrap;gap:2px;padding:2px;border-radius:8px;background:var(--seg-carril)}
+.bmbit-t button{all:unset;cursor:default;padding:4px 10px;border-radius:6px;font-size:12.5px;font-weight:500;color:var(--txt)}
+.bmbit-t button.on{background:var(--seg-on);box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600}
+.bmbit-t button small{color:var(--muted);font-weight:500;font-size:11px}
+.bmbit-t button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.bmbit-m{margin:16px 0 4px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.bmbit-l{all:unset;box-sizing:border-box;display:grid;grid-template-columns:40px 10px minmax(0,1fr);gap:10px;align-items:start;width:100%;padding:7px 4px;border-top:1px solid var(--hair);cursor:default}
+.bmbit-l:hover{background:var(--seg-carril);border-radius:8px}
+.bmbit-l:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:8px}
+.bmbit-d{display:flex;flex-direction:column;align-items:center;line-height:1.1}
+.bmbit-d b{font-size:var(--fs-h2);font-weight:600;font-variant-numeric:tabular-nums;color:var(--txt)}
+.bmbit-d small{font-size:var(--fs-xs);color:var(--muted)}
+.bmbit-l>i{width:10px;height:10px;border-radius:50%;background:var(--bc);margin-top:5px}
+.bmbit-x b{display:block;font-size:var(--fs-body);font-weight:600;color:var(--txt);line-height:1.35}
+.bmbit-x small{display:block;font-size:var(--fs-sm);color:var(--muted);line-height:1.4}
+.bmbit-x em{font-style:normal;font-weight:600;color:var(--txt)}
+.bmbit-nada{margin:14px 0;font-size:var(--fs-sm);color:var(--muted)}
+.bmbit-pie{margin:16px 0 0;font-size:var(--fs-xs);color:var(--muted)}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bmbit-t button{min-height:44px;display:inline-flex;align-items:center}
+  .bmbit-l{min-height:44px}
+  .bmbit-j select{min-height:44px}
 }
 /* v809 · exportar el mapa y la comparación */
 .cmp-con .cmp-png{margin-left:auto}
