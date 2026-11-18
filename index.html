@@ -14439,6 +14439,7 @@ function bmbIndice(){
   A('Informe del jugador','Su mes: carga, recuperación, ACWR, minutos, pruebas y salud, para la reunión',()=>{if(window.bmInformeJugador)bmInformeJugador();},'informe reunion jugador mes');
   A('Carta del jugador','Su nota física, sus capacidades y lo que ha mejorado, en una imagen para dársela',()=>{if(window.bmCarta)bmCarta();},'carta tarjeta jugador nota fisica imagen motivacion');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
+  A('Informe de la temporada','Un documento de varias páginas para imprimir o guardar en PDF: disponibilidad, lesiones, carga, minutos y valoraciones',()=>{if(window.bmInformeTemporada)bmInformeTemporada();},'informe temporada pdf directiva memoria documento');
   A('Notas para ti','Las notas que te avisan, con sus respuestas',()=>{if(window.bmNotasMias)bmNotasMias();},'notas mensajes avisos para mi respuestas');
   A('Informe del partido','El último partido: minutos, carga, cómo llegó cada uno y cómo se recuperó',()=>{if(window.bmInformePartido)bmInformePartido();},'informe partido post partido minutos recuperacion md+1');
   A('Bitácora de la temporada','Notas, lesiones y altas, partes, «Ojo hoy», partidos y valoraciones en una línea de tiempo',()=>{if(window.bmBitacora)bmBitacora('');},'bitacora historial cronologia linea tiempo temporada lesiones notas');
@@ -17313,6 +17314,87 @@ document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
   const b=e.target.closest('#bmh-partido [data-ip]');if(b&&!b.disabled&&b.dataset.ip){bmInformePartido(b.dataset.ip);return;}
   if(e.target.closest('#bmh-partido [data-ip-png]'))bmInformePartidoPNG();});
 window.bmInformePartido=bmInformePartido;
+/* ═══ v819 · EL INFORME DE LA TEMPORADA, EN PDF ═══
+   Daniel, 18/11/2026, propuesta 7. Un documento de club, de varias páginas
+   A4, para la directiva o el 50 aniversario: portada, disponibilidad y
+   lesiones (las métricas del COI de la v814), la carga y los minutos de cada
+   jugador, los partidos y lo que han dejado las valoraciones por fase. Se
+   abre en un visor y se imprime o se guarda en PDF desde el sistema. **Ni una
+   cifra nueva**: cada página lee lo que ya enseña su pantalla
+   (`lesCoiDatos`, `dailyAgg`, `ptMinutos`, `playerRecSeries`,
+   `vhComparaFases`). Como los demás documentos, va fijado a claro. */
+function bmItDatos(){
+  const hoy=dkey(new Date()),ps=STATE.players||{},ns=Object.keys(ps).sort((a,b)=>a.localeCompare(b,'es'));
+  const L=bmPartidosJugados();
+  const jug=ns.map(n=>{let tot=0,dias=0;const sem=new Set();try{(dailyAgg(n)||[]).forEach(d=>{if(d.dk>=TEMP_INICIO&&d.dk<=hoy&&d.ua>0){tot+=d.ua;dias++;sem.add(dkey(calWeekStart(dkToDate(d.dk))));}});}catch(e){}
+    let min=0,pj=0;L.forEach(dk=>{const m=ptMinutos(dk,n);if(m>0){min+=m;pj++;}});
+    const p=ps[n]||{},ac=p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null;
+    return {n,pos:p.pos||'',tot,dias,sem:sem.size,mediaSem:sem.size?tot/sem.size:null,min,pj,ac};});
+  const media=a=>{const v=a.filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((x,y)=>x+y,0)/v.length:null;};
+  const recM={};ns.forEach(n=>{const m={};try{playerRecSeries(ps[n],400).forEach(x=>{if(isFinite(x.pct))m[x.dk]=x.pct;});}catch(e){}recM[n]=m;});
+  const par=L.map(dk=>{const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};const cm=ns.filter(n=>ptMinutos(dk,n)>0);
+    return {dk,riv:evRival(ev)||'Partido',comp:(()=>{try{const c=evComp(ev);return (PARTIDO_COMP[c]||c||'').toString();}catch(e){return '';}})(),n:cm.length,min:cm.reduce((s,n)=>s+ptMinutos(dk,n),0),r1:media(ns.map(n=>recM[n][dkSumaDias(dk,1)]))};});
+  let ses=0;try{dkRango(TEMP_INICIO,hoy).forEach(dk=>{((STATE.calendar||{})[dk]||[]).forEach(e=>{if(e&&!evSP(e)&&(e.type==='entreno'||e.type==='fuerza'))ses++;});});}catch(e){}
+  let C=null;try{C=window.vhComparaFases?vhComparaFases():null;}catch(e){}
+  return {hoy,jug,par,ses,C,D:lesCoiDatos()};
+}
+function bmInformeTemporada(){
+  const X=bmItDatos(),E=bmEsc,n0=v=>Math.round(v).toLocaleString('es-ES'),D=X.D;
+  const tem=TEMP_INICIO.slice(0,4)+'/'+String(+TEMP_INICIO.slice(2,4)+1).padStart(2,'0');
+  const fl=dk=>{const d=dkToDate(dk);return d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase()+' de '+d.getFullYear();};
+  const pags=[];
+  const pag=(tit,sub,cuerpo)=>pags.push({tit,sub,cuerpo});
+  const kpi=(t,v,s)=>'<div class="bmit-k"><em>'+t+'</em><b>'+v+'</b><span>'+s+'</span></div>';
+  /* 1 · portada */
+  pags.push({portada:true,cuerpo:'<div class="bmit-por"><img src="escudo.png" alt="" onerror="this.remove()"><small>Club Balonmano Nava</small><h1>Informe de la temporada '+tem+'</h1><p>Del 1 de julio al '+fl(X.hoy)+'</p>'
+    +'<div class="bmit-ks">'+kpi('Sesiones',n0(X.ses),'de pista y gimnasio en el calendario')+kpi('Partidos',String(X.par.length),'jugados')+kpi('Exposición',n0(D.h)+' h','de entreno y partido')
+      +kpi('Disponibilidad',D.disp!=null?fmt(D.disp,1)+' %':'—','días-jugador sin baja')+kpi('Episodios',String(D.eps.length),D.tl.length+' con días perdidos')+kpi('Días perdidos',n0(D.dias),'de baja, sin entrenar o enfermos')+'</div>'
+    +'<p class="bmit-firma">Preparación física y cuerpo técnico · generado el '+fl(X.hoy)+'</p></div>'});
+  /* 2 · disponibilidad y lesiones */
+  const peores=D.tl.slice().sort((a,b)=>b.dias-a.dias).slice(0,10);
+  pag('Disponibilidad y lesiones','Métricas del consenso del COI (2020)',
+    '<div class="bmit-ks bmit-ks3">'+kpi('Incidencia',D.inc!=null?fmt(D.inc,2):'—','episodios por 1.000 h')+kpi('Carga lesional',D.carga!=null?fmt(D.carga,1):'—','días perdidos por 1.000 h')+kpi('Disponibilidad',D.disp!=null?fmt(D.disp,1)+' %':'—','días-jugador sin baja')+'</div>'
+    +'<h3>Matriz de riesgo por zona</h3>'+(D.tl.length?lesCoiMatriz(D):'<p class="bmit-nada">Sin episodios con días perdidos esta temporada.</p>')
+    +'<h3>Disponibilidad, mes a mes</h3>'+lesCoiMesesHTML(D)
+    +(peores.length?'<h3>Los episodios que más días han costado</h3><table class="bmit-t"><thead><tr><th>Jugador</th><th>Zona</th><th>Desde</th><th>Días perdidos</th></tr></thead><tbody>'
+      +peores.map(e=>'<tr><td>'+E(e.n)+'</td><td>'+E(LCOI_REG[e.reg]||e.reg)+'</td><td>'+bmInspFecha(e.dk)+'</td><td>'+e.dias+(e.abierta?' · sigue':'')+'</td></tr>').join('')+'</tbody></table>':''));
+  /* 3 · la carga de cada jugador */
+  const J=X.jug.slice().sort((a,b)=>b.tot-a.tot),mx=Math.max(1,...J.map(j=>j.tot));
+  pag('La carga de cada jugador','Desde el 1 de julio · lo que declaró en el cuestionario por los minutos',
+    '<table class="bmit-t bmit-car"><thead><tr><th>Jugador</th><th>Puesto</th><th>Días con carga</th><th>Carga total</th><th></th><th>Media semanal</th><th>ACWR hoy</th></tr></thead><tbody>'
+    +J.map(j=>'<tr><td>'+E(j.n)+'</td><td>'+E(j.pos)+'</td><td>'+j.dias+'</td><td>'+n0(j.tot)+' UA</td><td class="bmit-bc"><i style="width:'+(j.tot/mx*100).toFixed(1)+'%"></i></td><td>'+(j.mediaSem!=null?n0(j.mediaSem)+' UA':'—')+'</td><td>'+(j.ac!=null?fmt(j.ac,2):'—')+'</td></tr>').join('')+'</tbody></table>'
+    +'<p class="bmit-pie">La media semanal, sobre las semanas en que tuvo carga. Un día sin cuestionario no cuenta como cero.</p>');
+  /* 4 · partidos y minutos */
+  const M=X.jug.slice().sort((a,b)=>b.min-a.min);
+  pag('Partidos y minutos','Lo apuntado en «Min jugados» de cada partido',
+    '<table class="bmit-t bmit-par"><thead><tr><th>Fecha</th><th>Rival</th><th>Competición</th><th>Jugaron</th><th>Recuperación MD+1</th></tr></thead><tbody>'
+    +X.par.map(q=>'<tr><td>'+bmInspFecha(q.dk)+'</td><td>'+E(q.riv)+'</td><td>'+E(q.comp)+'</td><td>'+q.n+'</td><td>'+(q.r1!=null?n0(q.r1)+' %':'—')+'</td></tr>').join('')+'</tbody></table>'
+    +'<h3>Minutos de cada jugador</h3><table class="bmit-t"><thead><tr><th>Jugador</th><th>Partidos con minutos</th><th>Minutos</th><th>Media por partido</th></tr></thead><tbody>'
+    +M.map(j=>'<tr><td>'+E(j.n)+'</td><td>'+j.pj+'</td><td>'+n0(j.min)+'′</td><td>'+(j.pj?n0(j.min/j.pj)+'′':'—')+'</td></tr>').join('')+'</tbody></table>');
+  /* 5 · valoraciones por fase */
+  const C=X.C;
+  pag('Lo que han dejado las valoraciones',C?'De «'+((C.A&&C.A.fase)||C.A)+'» a «'+((C.B&&C.B.fase)||C.B)+'»':'Por fases',
+    C?'<table class="bmit-t"><thead><tr><th>Prueba</th><th>Jugadores</th><th>Cambio mediano</th><th>A mejor</th><th>A peor</th></tr></thead><tbody>'
+      +C.tests.slice(0,22).map(o=>{const u=o.t.unit?' '+o.t.unit:'',dec=Math.abs(o.med)<10?2:1;return '<tr><td>'+E(o.t.name)+'</td><td>'+o.n+'</td><td>'+(o.med>0?'+':o.med<0?'−':'')+fmt(Math.abs(o.med),dec)+E(u)+'</td><td>'+(o.neutro?'—':o.suben)+'</td><td>'+(o.neutro?'—':o.bajan)+'</td></tr>';}).join('')+'</tbody></table>'
+      +'<p class="bmit-pie">El cambio es la mediana de quien tiene medición en las dos fases, en la unidad de cada prueba. Peso y talla no tienen lado bueno.</p>'
+      :'<p class="bmit-nada">Hacen falta dos fases con valoraciones para comparar.</p>');
+  const tot=pags.length;
+  const html='<div class="bmit-bar"><b>Informe de la temporada '+tem+'</b><span>'+tot+' páginas A4</span><button type="button" class="btn" data-bmit="print">Imprimir o guardar en PDF</button><button type="button" class="btn ghost" data-bmit="x">Cerrar</button></div>'
+    +'<div class="bmit-pages">'+pags.map((p,i)=>'<section class="bmit-p'+(p.portada?' por':'')+'">'+(p.portada?'':'<div class="bmit-hd"><img src="escudo.png" alt="" onerror="this.remove()"><div><b>'+E(p.tit)+'</b><span>'+E(p.sub||'')+'</span></div></div>')
+      +'<div class="bmit-c">'+p.cuerpo+'</div><div class="bmit-ft"><span>BM Nava · Informe de la temporada '+tem+'</span><span>'+(i+1)+' / '+tot+'</span></div></section>').join('')+'</div>';
+  let v=document.getElementById('bmit');if(!v){v=document.createElement('div');v.id='bmit';v.setAttribute('role','dialog');v.setAttribute('aria-label','Informe de la temporada');document.body.appendChild(v);}
+  v.innerHTML=html;v.classList.add('on');document.documentElement.classList.add('bmit-on');
+  bmItAjusta();
+}
+function bmItAjusta(){const pg=document.querySelector('#bmit .bmit-pages');if(!pg)return;const k=Math.min(1,(innerWidth-32)/794);pg.style.zoom=k<1?k.toFixed(3):'';}
+function bmItCierra(){const v=document.getElementById('bmit');if(!v||!v.classList.contains('on'))return false;v.classList.remove('on');document.documentElement.classList.remove('bmit-on');return true;}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmit [data-bmit]');if(!b)return;
+  if(b.dataset.bmit==='x'){bmItCierra();return;}
+  document.body.classList.add('bmit-print');const z=document.querySelector('#bmit .bmit-pages');const zz=z?z.style.zoom:'';if(z)z.style.zoom='';
+  setTimeout(()=>{window.print();setTimeout(()=>{document.body.classList.remove('bmit-print');if(z)z.style.zoom=zz;},400);},60);});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('bmit')&&document.getElementById('bmit').classList.contains('on')){e.preventDefault();e.stopPropagation();bmItCierra();}},true);
+window.addEventListener('resize',()=>{if(document.querySelector('#bmit.on'))bmItAjusta();},{passive:true});
+window.bmInformeTemporada=bmInformeTemporada;
 /* ═══ v816 · SELECCIONAR UN TRAMO EN UN GRÁFICO DE DÍAS ═══
    Daniel, 18/11/2026, propuesta 4. Como en Salud o Garmin: se arrastra sobre
    el gráfico (en el teléfono, se mantiene el dedo y se desliza), el tramo se
@@ -39870,6 +39952,13 @@ function lesCoiMatriz(D){
     +'<text x="'+(X(r.inc)+rr+4).toFixed(1)+'" y="'+(Y(r.sev)+4).toFixed(1)+'" font-size="11.5" font-weight="600" fill="var(--txt)">'+bmEsc(LCOI_REG[r.k]||r.k)+'</text>';});
   return '<svg class="lcoi-mx" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Matriz de riesgo por zona">'+g+'</svg>';
 }
+/* el alto es lo que se PERDIÓ ese mes (días-jugador fuera): de 0 a 100 % un 94 y un 100 se dibujaban iguales */
+function lesCoiMesesHTML(D){
+  const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'],mk=Object.keys(D.meses).sort();
+  const fmx=Math.max(1,...mk.map(m=>D.meses[m].f));
+  return '<div class="lcoi-ms">'+mk.map(m=>{const M=D.meses[m],pc=M.dj?100*(1-M.f/M.dj):null;
+    return '<div class="lcoi-m"><b>'+(pc==null?'—':fmt(pc,pc>=99.95?0:1)+' %')+'</b><span class="lcoi-mb"><i style="height:'+(M.f/fmx*100).toFixed(1)+'%"></i></span><span class="lcoi-md">'+M.f+(M.f===1?' día':' días')+'</span><small>'+MES[+m.slice(5)-1]+'</small></div>';}).join('')+'</div>';
+}
 function renderLesCoi(){
   const box=document.getElementById('les-coi');if(!box)return;
   const D=LCOI_D||lesCoiDatos();
@@ -39878,10 +39967,7 @@ function renderLesCoi(){
   const kpi=(t,v,sub)=>'<div class="lcoi-k"><em>'+t+'</em><b>'+v+'</b><span>'+sub+'</span></div>';
   const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const mk=Object.keys(D.meses).sort();
-  /* el alto es lo que se PERDIÓ ese mes (días-jugador fuera): de 0 a 100 % un 94 y un 100 se dibujaban iguales */
-  const fmx=Math.max(1,...mk.map(m=>D.meses[m].f));
-  const barras='<div class="lcoi-ms">'+mk.map(m=>{const M=D.meses[m],pc=M.dj?100*(1-M.f/M.dj):null;
-    return '<div class="lcoi-m"><b>'+(pc==null?'—':fmt(pc,pc>=99.95?0:1)+' %')+'</b><span class="lcoi-mb"><i style="height:'+(M.f/fmx*100).toFixed(1)+'%"></i></span><span class="lcoi-md">'+M.f+(M.f===1?' día':' días')+'</span><small>'+MES[+m.slice(5)-1]+'</small></div>';}).join('')+'</div>';
+  const barras=lesCoiMesesHTML(D);
   const pocos=D.tl.length<LES_MIN;
   box.innerHTML=cab
     +'<div class="lcoi-ks">'
@@ -44445,6 +44531,7 @@ function bmTbMenu(e){
     {t:'Añadir una nota…',f:()=>{try{bmNota();}catch(err){}}},
     {t:'Bitácora de la temporada',f:()=>{try{bmBitacora('');}catch(err){}}},
     {t:'Informe del último partido',f:()=>{try{bmInformePartido();}catch(err){}}},
+    {t:'Informe de la temporada…',f:()=>{try{bmInformeTemporada();}catch(err){}}},
     {t:'Notas para ti'+(()=>{const c=(typeof notasSinLeer==='function')?notasSinLeer():0;return c?' ('+c+')':'';})(),f:()=>{try{bmNotasMias();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Inspector del jugador',k:'I',f:()=>{try{bmInspAlterna();}catch(err){}}},
@@ -54032,6 +54119,54 @@ canvas,[data-bmtr]{-webkit-user-select:none;user-select:none}
 .obf-acc{display:flex;justify-content:flex-end}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.plob-x{width:44px;height:44px}.obf select,.obf input{min-height:44px}}
 </style>
+<style id="bm-v819">
+/* v819 · el informe de la temporada (documento: fijado a claro) */
+#bmit{position:fixed;inset:0;z-index:960;display:none;flex-direction:column;background:rgba(40,40,46,.92)}
+#bmit.on{display:flex}
+html.bmit-on,html.bmit-on body{overflow:hidden}
+.bmit-bar{display:flex;align-items:center;gap:12px;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));background:#1c1c1e;color:#fff}
+.bmit-bar b{font-size:15px;font-weight:600}.bmit-bar span{font-size:13px;color:rgba(255,255,255,.6);margin-right:auto}
+.bmit-pages{flex:1;overflow:auto;display:flex;flex-direction:column;align-items:center;gap:24px;padding:24px 16px 48px}
+.bmit-p{--txt:#1d1d1f;--muted:#6e6e73;--muted2:#6e6e73;--panel:#fff;--panel2:#f5f5f7;--hair:#e5e5ea;--line:#d1d1d6;--accent:#3056c4;--acc-seg:#3056c4;--ok:#1ea863;--warn:#e0a800;--bad:#e23b32;--ok-text:#116b44;--warn-text:#8a5400;--bad-text:#b42b23;--seg-carril:#ececf0;--gi-pizarra:#64748b;--ft:1;--fmin:0px;
+  flex:none;width:794px;height:1123px;box-sizing:border-box;padding:48px 56px 40px;background:#fff;color:#1d1d1f;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.35);font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;overflow:hidden}
+.bmit-hd{display:flex;align-items:center;gap:14px;padding-bottom:14px;margin-bottom:18px;border-bottom:2px solid #1d2836}
+.bmit-hd img{width:44px;height:44px;object-fit:contain}
+.bmit-hd b{display:block;font-size:22px;font-weight:700;color:#1d1d1f}.bmit-hd span{font-size:13px;color:#6e6e73}
+.bmit-c{flex:1;min-height:0}
+.bmit-ft{display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid #e5e5ea;font-size:11px;color:#6e6e73}
+.bmit-p h3{margin:18px 0 8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6e6e73}
+.bmit-por{display:flex;flex-direction:column;align-items:center;text-align:center;justify-content:center;height:100%}
+.bmit-por img{width:200px;height:200px;object-fit:contain;margin-bottom:22px}
+.bmit-por small{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:#6e6e73}
+.bmit-por h1{margin:8px 0 6px;font-size:40px;line-height:1.1;font-weight:800;color:#1d2836}
+.bmit-por>p{margin:0 0 34px;font-size:16px;color:#6e6e73}
+.bmit-ks{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%}
+.bmit-k{padding:14px 16px;border-radius:12px;background:#f5f5f7;text-align:left}
+.bmit-k em{display:block;font-style:normal;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6e6e73}
+.bmit-k b{display:block;margin:4px 0 2px;font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:#1d1d1f}
+.bmit-k span{font-size:11.5px;color:#6e6e73}
+.bmit-firma{margin-top:40px;font-size:12px;color:#6e6e73}
+.bmit-t{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.bmit-t th{text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;padding:5px 6px;border-bottom:1px solid #d1d1d6}
+.bmit-t td{padding:5px 6px;border-bottom:1px solid #eeeef0;color:#1d1d1f}
+.bmit-t td:not(:first-child),.bmit-t th:not(:first-child){text-align:right}
+.bmit-car td:nth-child(2),.bmit-car th:nth-child(2),.bmit-par td:nth-child(-n+3),.bmit-par th:nth-child(-n+3){text-align:left}
+.bmit-bc{width:24%}.bmit-bc i{display:block;height:8px;border-radius:4px;background:#3056c4}
+.bmit-t td{white-space:nowrap}.bmit-t td:first-child{white-space:normal}
+.bmit-pie,.bmit-nada{margin:10px 0 0;font-size:11px;color:#6e6e73}
+.bmit-p .lcoi-mx{max-height:330px}
+.bmit-p .lcoi-ms{height:150px}
+@media print{
+  @page{size:A4 portrait;margin:0}
+  body.bmit-print>*:not(#bmit){display:none!important}
+  body.bmit-print{background:#fff!important}
+  body.bmit-print #bmit{position:static;display:block!important;background:#fff}
+  body.bmit-print .bmit-bar{display:none!important}
+  body.bmit-print .bmit-pages{display:block;overflow:visible;padding:0;zoom:1!important}
+  body.bmit-print .bmit-p{box-shadow:none;break-after:page;page-break-after:always;margin:0}
+  body.bmit-print .bmit-p:last-child{break-after:auto;page-break-after:auto}
+}
+</style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
 .bmdr{display:grid;gap:4px}
@@ -57596,7 +57731,7 @@ function renderVhFases(){
     +'La barrita fina es la proporci\u00f3n de jugadores a mejor. Peso y talla van en <b>neutro</b>: no tienen direcci\u00f3n buena.</p>';
 }
 
-window.renderVhFases=renderVhFases;
+window.renderVhFases=renderVhFases;window.vhComparaFases=vhComparaFases;  /* v819 · lo lee el informe de temporada */
 function vhIngestLong(rows){
   const res={rows:0,ok:0,players:0,tests:0,unknownTests:{},unknownPlayers:{},noDate:0,noPlayer:0,noValue:0,zeros:0,errs:0,dates:[]};
   if(!rows||!rows.length)return res;
