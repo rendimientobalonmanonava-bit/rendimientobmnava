@@ -6769,6 +6769,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
       <!-- v745 · Su temporada de un vistazo: después de los cinco que Daniel
            puso arriba (v470), que es donde va «el resto». -->
       <div id="pl-temporada"></div>
+      <!-- v818 · sus objetivos -->
+      <div id="pl-obj"></div>
       <!-- v470 · Fuera de la vista, por decisión de Daniel (27/10/2026):
            `pl-anillos` —los medidores de efecto del entrenamiento, «no me
            gustan, quítalos»— y `pl-ses` —«Sus últimas sesiones», que lo
@@ -10326,7 +10328,7 @@ const LS_VISTO={};
    copia antigua perdona las tumbas de lo que restaura: eso sí es resucitar a
    propósito. */
 const LS_TUMBAS='bmnava_tumbas';
-const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos|alertas|notas)$/;
+const LS_TUMBAS_OK=/^bmnava_(cal|calmeta|caltpl|meddb|medlog|physio|physiodict|reuniones|testlog|info|asist|sessdur|fisiotpl|expl|hr|iso|vendajes|nutri|partidos|alertas|notas|objetivos)$/;
 /* v371 · Las sesiones de Polar se quedaban fuera del sistema de tumbas, así que
    borrar una no dejaba rastro: la fusión la conservaba desde la copia del
    servidor y volvía en cada actualización, una y otra vez. Sus registros no
@@ -10597,7 +10599,7 @@ function lsGuardar(clave,valor){
   }
 }
 /* Nombre legible de cada bloque, para que el aviso diga algo entendible. */
-const LS_NOMBRES={bmnava_notas:'Notas en los gráficos',bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_calaj:'Plan individual',bmnava_caltpl:'Plantillas de microciclo',
+const LS_NOMBRES={bmnava_objetivos:'Objetivos individuales',bmnava_notas:'Notas en los gráficos',bmnava_cal:'Calendario',bmnava_calmeta:'Datos del día',bmnava_calaj:'Plan individual',bmnava_caltpl:'Plantillas de microciclo',
   bmnava_sessdur:'Duraciones de sesión',bmnava_asist:'Asistencia',bmnava_info:'Datos personales',
   bmnava_meddb:'Médico',bmnava_med:'Ficha médica',bmnava_medlog:'Agenda médica',
   bmnava_physio:'Fisioterapia',bmnava_physiodict:'Diccionario de fisioterapia',
@@ -10624,7 +10626,7 @@ function lsNombre(k){return LS_NOMBRES[k]||LS_NOMBRES_INT[k]||k;}
    sincronización: la sincronización reparte el estado actual entre el staff,
    pero no guarda historia, así que si un bloque se vacía se vacía para todos.
    Esto es lo que permite volver atrás. */
-const BKP_CLAVES=['bmnava_notas','bmnava_cal','bmnava_calmeta','bmnava_calaj','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
+const BKP_CLAVES=['bmnava_objetivos','bmnava_notas','bmnava_cal','bmnava_calmeta','bmnava_calaj','bmnava_caltpl','bmnava_sessdur','bmnava_asist',
   'bmnava_info','bmnava_meddb','bmnava_med','bmnava_medlog','bmnava_physio','bmnava_physiodict',
   'bmnava_testlog','bmnava_expl','bmnava_hr','bmnava_photos','bmnava_reuniones','bmnava_fisiotpl','bmnava_fisiovisto','bmnava_vendajes','bmnava_nutri',
   /* v504 · volumen de gimnasio de BuilderPro. Se teclea fuera de la app y se
@@ -10807,6 +10809,7 @@ function invRender(){
     {k:'bmnava_testlog',  lab:'Valoraciones físicas',              porMes:false},
     {k:'bmnava_caltpl',   lab:'Plantillas de microciclo',          porMes:false},
     {k:'bmnava_notas',    lab:'Notas en los gráficos',             porMes:false},
+    {k:'bmnava_objetivos',lab:'Objetivos individuales',            porMes:false},
     {k:'bmnava_fisiotpl', lab:'Plantillas de fisioterapia',        porMes:false},
     {k:'bmnava_photos',   lab:'Fotos',                             porMes:false},
     {k:'bmnava_info',     lab:'Datos personales',                  porMes:false}
@@ -20644,11 +20647,13 @@ function cjHTML(D){
     return '<div class="cj-cap"><span>'+E(x.c)+'</span><i class="cj-bar"><b style="width:'+w.toFixed(1)+'%;background:'+N.c+'"></b><s style="left:33.33%"></s><s style="left:66.67%"></s></i>'
       +'<em style="color:'+N.c+'">'+(x.lv===3?'★ ':'')+N.t+'</em></div>';
   }).join('');
-  const mej=D.mejoras.length?D.mejoras.map(m=>{const u=m.t.unit?' '+m.t.unit:'';
+  /* v818 · con objetivo, dos mejoras y el objetivo en su lugar: todas las cartas miden lo mismo */
+  const OBJ=(()=>{try{const hoy=dkey(new Date());return objLoad().filter(x=>x&&x.jugador===D.n&&x.tipo==='prueba'&&x.hasta>=hoy).sort((a,b)=>String(a.hasta).localeCompare(String(b.hasta)))[0]||null;}catch(e){return null;}})();
+  const mej=D.mejoras.length?D.mejoras.slice(0,OBJ?2:3).map(m=>{const u=m.t.unit?' '+m.t.unit:'';
       return '<div class="cj-m"><b>▲</b><span>'+E(m.t.name)+'</span><em>'+(m.d>0?'+':'−')+f2(m.d)+E(u)+'</em></div>';}).join('')
     :'<p class="cj-nada">'+(D.ultima?'Todavía ninguna prueba ha subido más que el cambio mínimo desde su primera valoración de la temporada.':'Sin dos valoraciones esta temporada con las que comparar.')+'</p>';
   const ini=String(D.n).split(/\s+/).map(w=>w[0]).slice(0,2).join('');
-  return '<div class="cj-doc">'
+  return '<div class="cj-doc'+(OBJ?' cj-con-obj':'')+'">'
     +'<div class="cj-cab">'+(D.dor!==''?'<div class="cj-dor">'+E(D.dor)+'</div>':'')
       +(D.foto?'<img class="cj-ph" src="'+E(D.foto)+'" alt="">':'<div class="cj-ini">'+E(ini)+'</div>')
       +'<div class="cj-top">'+(window.__LOGO_CLUB__?'<span class="cj-logo"><img src="'+window.__LOGO_CLUB__+'" alt=""></span>':'<span></span>')+'<span class="cj-tem">Temporada '+tem+'</span></div>'
@@ -20658,6 +20663,11 @@ function cjHTML(D){
     +'<div class="cj-cu"><div class="cj-id"><b>'+E(D.n)+'</b><span>'+E([D.pos,D.dor!==''?'Dorsal '+D.dor:''].filter(Boolean).join(' · '))+'</span></div>'
     +'<div class="cj-sec"><h4>Capacidades'+(D.puesto?' · baremo de '+E(D.puesto):'')+'</h4>'+caps+'</div>'
     +'<div class="cj-sec"><h4>Desde julio'+(D.julio!=null?'<em class="'+(D.julio>=0?'cj-up':'cj-dn')+'">'+(D.julio>0?'+':D.julio<0?'−':'')+Math.abs(D.julio)+' puntos de nota</em>':'')+'</h4>'+mej+'</div>'
+    /* v818 · su objetivo de una prueba física, el de plazo más cercano */
+    +(()=>{try{const o=OBJ;if(!o)return '';
+      const S=objEstado(o),Df=S.D,f=v=>v==null?'—':fmt(v,Df.dec)+(Df.u?' '+Df.u:''),pc=S.prog==null?0:Math.round(S.prog*100);
+      return '<div class="cj-sec cj-obj"><div class="cj-ob"><span>Su objetivo · '+E(Df.nom)+'</span><b>'+f(S.v)+' → '+f(+o.meta)+'</b><small>'+(S.hecho?'conseguido':pc+' % · para el '+bmInspFecha(o.hasta))+'</small></div>'
+        +'<i class="cj-obb"><b style="width:'+pc+'%"></b></i></div>';}catch(e){return '';}})()
     +'<div class="cj-pie"><span>BM Nava · Perfil físico'+(D.ultima?' · valoración del '+ddmmaa(D.ultima):'')+'</span>'+(window.__LOGO_HP__?'<span class="cj-hp"><img src="'+window.__LOGO_HP__+'" alt=""></span>':'')+'</div>'
     +'</div></div>';
 }
@@ -24782,6 +24792,7 @@ function renderPlayer(name){
   /* v464 · los dos bloques nuevos de la ficha por pestañas */
   try{renderPlNormal(name);}catch(e){console.error('carga normal',e);}
   try{renderPlPlan(name);}catch(e){console.error('plan contra real',e);}
+  try{renderPlObj(name);}catch(e){console.error('objetivos',e);}
   try{renderPlGym(name);}catch(e){console.error('bmnava · gimnasio ficha',e);}
   try{renderPlIntensidad(name);}catch(e){console.error('intensidad ficha',e);}
   try{renderPlRegistro(name);}catch(e){console.error('registro ficha',e);}
@@ -39337,6 +39348,94 @@ function renderPlPlan(name){
     +'</div>';
 }
 window.renderPlPlan=renderPlPlan;window.rpeSesgo=rpeSesgo;
+/* ═══ v818 · OBJETIVOS INDIVIDUALES ═══
+   Daniel, 18/11/2026, propuesta 6. Una meta con fecha por jugador —una prueba
+   física (el peso incluido), sus horas de sueño o su carga semanal— y en su
+   ficha cuánto lleva. Almacén nuevo, `bmnava_objetivos` (lista con `id`, el
+   campo `jugador` para el filtro de bajas), dado de alta en las cuatro listas
+   de siempre: tumbas, copia, nombres e inventario.
+   **Lo que vale ahora sale de lo de siempre**: la prueba, su última medición
+   real de la temporada (el histórico, no las instantáneas fabricadas); el
+   sueño, la media de sus horas de los últimos 14 días; la carga, la media de
+   sus 4 últimas semanas cerradas (`weekly`). El avance es cuánto ha recorrido
+   de la distancia entre donde estaba al fijarlo y la meta; el ritmo, cuánto
+   tiempo ha pasado de su plazo. Ni un umbral: la meta la pone quien la fija. */
+const OBJ_K='bmnava_objetivos';
+function objLoad(){if(!Array.isArray(STATE.objetivos))STATE.objetivos=lsLeer(OBJ_K,[]);if(!Array.isArray(STATE.objetivos))STATE.objetivos=[];return STATE.objetivos;}
+function objPersist(){return lsGuardar(OBJ_K,objLoad());}
+const OBJ_TIPOS=[['prueba','Una prueba física'],['sueno','Horas de sueño'],['carga','Carga semanal']];
+function objActual(o){
+  const n=o.jugador;
+  if(o.tipo==='prueba'){let v=null,dk=null;((STATE.testHist||{})[n]||[]).forEach(h=>{if(h&&h.real&&h.date>=TEMP_INICIO&&h.vals&&h.vals[o.k]!=null&&!isNaN(h.vals[o.k])&&(!dk||h.date>=dk)){v=+h.vals[o.k];dk=h.date;}});return v==null?null:{v,dk};}
+  if(o.tipo==='sueno'){const m=sueMapa(n),fin=dkey(new Date()),dks=dkRango(dkSumaDias(fin,-13),fin),v=dks.map(d=>m[d]).filter(x=>x!=null);return v.length?{v:v.reduce((a,b)=>a+b,0)/v.length,n:v.length}:null;}
+  if(o.tipo==='carga'){let w=[];try{w=weekly(n,'ua',new Date());}catch(e){}const cer=w.filter(x=>!x.parcial).slice(-4).map(x=>x.ua).filter(x=>x>0);return cer.length?{v:cer.reduce((a,b)=>a+b,0)/cer.length,n:cer.length}:null;}
+  return null;
+}
+function objDef(o){
+  if(o.tipo==='prueba'){const t=(typeof TESTS!=='undefined'?TESTS:[]).find(x=>x.k===o.k)||{};return {nom:t.name||o.k,u:t.unit||'',dec:Math.abs(+o.meta)<10?2:Math.abs(+o.meta)<100?1:0};}
+  if(o.tipo==='sueno')return {nom:'Horas de sueño · media de 14 días',u:'h',dec:1};
+  return {nom:'Carga semanal · media de 4 semanas',u:'UA',dec:0};
+}
+function objEstado(o){
+  const A=objActual(o),D=objDef(o),hoy=dkey(new Date());
+  const base=+o.base,meta=+o.meta,dir=Math.sign(meta-base)||1;
+  /* lo de ahora, redondeado como se guardó la base: sin eso un objetivo recién puesto salía con un 1 % */
+  const v=A?Math.round(A.v*100)/100:null,dist0=Math.abs(meta-base);
+  const prog=v==null||!dist0?null:Math.max(0,Math.min(1,1-Math.abs(meta-v)/dist0));
+  const hecho=v!=null&&(v-meta)*dir>=0;
+  const tot=Math.max(1,dkRango(o.desde,o.hasta).length-1),pas=Math.max(0,Math.min(tot,dkRango(o.desde,hoy).length-1));
+  return {A,D,v,prog:hecho?1:prog,hecho,tiempo:pas/tot,nuevo:pas===0,quedan:Math.max(0,dkRango(hoy,o.hasta).length-1),vencido:hoy>o.hasta};
+}
+function renderPlObj(name){
+  const box=document.getElementById('pl-obj');if(!box)return;
+  const E=bmEsc,L=objLoad().filter(o=>o&&o.jugador===name);
+  const q=String(name).replace(/'/g,"\\'");
+  let h='<div class="panel plob"><h2>Sus objetivos <span class="r"><button type="button" class="btn ghost" onclick="bmObjetivo(\''+q+'\')">＋ Objetivo</button></span></h2>';
+  if(!L.length){box.innerHTML=h+'<p class="plob-nada">Sin objetivos. Ponle una meta con fecha —una prueba física, el peso, sus horas de sueño o su carga semanal— y aquí verás cuánto lleva.</p></div>';return;}
+  h+=L.sort((a,b)=>String(a.hasta).localeCompare(String(b.hasta))).map(o=>{const S=objEstado(o),D=S.D,f=v=>v==null?'—':fmt(v,D.dec)+(D.u?' '+D.u:'');
+    const pct=S.prog==null?null:Math.round(S.prog*100);
+    const ritmo=S.hecho?'Conseguido':S.vencido?'Plazo cumplido':S.nuevo?'Puesto hoy':pct==null?'Sin medición nueva':(S.prog>=S.tiempo?'Por delante del ritmo':'Por detrás del ritmo');
+    return '<div class="plob-o'+(S.hecho?' ok':'')+'"><div class="plob-h"><b>'+E(D.nom)+'</b><span>'+E(ritmo)+'</span><button type="button" class="plob-x" data-obx="'+E(o.id)+'" aria-label="Quitar el objetivo">×</button></div>'
+      +'<div class="plob-v"><span>Estaba en <b>'+f(+o.base)+'</b></span><span>Ahora <b>'+f(S.v)+'</b>'+(S.A&&S.A.dk?' <small>('+bmInspFecha(S.A.dk)+')</small>':'')+'</span><span>Meta <b>'+f(+o.meta)+'</b> el '+bmInspFecha(o.hasta)+'</span></div>'
+      +'<div class="plob-b" aria-label="Avance '+(pct==null?'sin dato':pct+' %')+'"><i style="width:'+(pct||0)+'%"></i><u style="left:'+Math.round(S.tiempo*100)+'%" title="El tiempo que ha pasado del plazo"></u></div>'
+      +'<small class="plob-p">'+(pct==null?'':pct+' % del camino')+(S.vencido?'':' · quedan '+S.quedan+(S.quedan===1?' día':' días'))+'</small></div>';}).join('');
+  box.innerHTML=h+'<p class="plob-pie">La barra es lo recorrido entre donde estaba al fijar el objetivo y la meta; la raya, el tiempo que ha pasado de su plazo.</p></div>';
+}
+function bmObjetivo(name){
+  const E=bmEsc,hoy=dkey(new Date());
+  const tests=(typeof TESTS!=='undefined'?TESTS:[]).filter(t=>typeof tempVigente!=='function'||tempVigente(t.k));
+  const h='<div class="obf" data-n="'+E(name)+'"><label>Qué<select data-of="tipo">'+OBJ_TIPOS.map(t=>'<option value="'+t[0]+'">'+t[1]+'</option>').join('')+'</select></label>'
+    +'<label data-of-pr>Prueba<select data-of="k">'+tests.map(t=>'<option value="'+E(t.k)+'">'+E(t.name)+(t.unit?' ('+E(t.unit)+')':'')+'</option>').join('')+'</select></label>'
+    +'<p class="obf-ah" data-of-ah></p>'
+    +'<label>Meta<input type="number" step="any" data-of="meta" inputmode="decimal"></label>'
+    +'<label>Para el<input type="date" data-of="hasta" min="'+hoy+'" value="'+dkSumaDias(hoy,56)+'"></label>'
+    +'<div class="obf-acc"><button type="button" class="btn" data-of-ok>Guardar el objetivo</button></div></div>';
+  bmHoja({id:'obj',titulo:'Objetivo · '+cvCorto(name),html:h,clase:'bm-objh'});
+  objFormAhora();
+}
+function objFormAhora(){
+  const f=document.querySelector('#bmh-obj .obf');if(!f)return;
+  const g=k=>f.querySelector('[data-of="'+k+'"]'),tipo=g('tipo').value;
+  f.querySelector('[data-of-pr]').style.display=tipo==='prueba'?'':'none';
+  const o={jugador:f.dataset.n,tipo,k:g('k').value,meta:1};const A=objActual(o),D=objDef(o);
+  f.querySelector('[data-of-ah]').textContent=A?'Ahora está en '+fmt(A.v,D.dec)+(D.u?' '+D.u:'')+(A.dk?' (medido el '+bmInspFecha(A.dk)+')':'')+'.':'Sin medición todavía: el objetivo empieza a contar con la primera.';
+}
+function objGuarda(){
+  const f=document.querySelector('#bmh-obj .obf');if(!f)return;
+  const g=k=>f.querySelector('[data-of="'+k+'"]'),tipo=g('tipo').value,meta=parseFloat(String(g('meta').value).replace(',','.')),hasta=g('hasta').value;
+  if(!isFinite(meta)){g('meta').focus();return;}if(!hasta){g('hasta').focus();return;}
+  const o={id:'ob_'+Date.now()+'_'+Math.round(Math.random()*99999),jugador:f.dataset.n,tipo,k:tipo==='prueba'?g('k').value:'',meta,hasta,desde:dkey(new Date()),quien:(typeof alvQuien==='function'?alvQuien():''),upd:Date.now()};
+  const A=objActual(o);if(!A){toast('Sin medición todavía: ponle la meta cuando tenga la primera');return;}
+  o.base=Math.round(A.v*100)/100;
+  objLoad().push(o);if(!objPersist()){STATE.objetivos=objLoad().filter(x=>x!==o);toast('No se pudo guardar');return;}
+  bmHojaCierra('obj');try{renderPlObj(o.jugador);}catch(e){}toast('Objetivo guardado');
+}
+function objQuita(id){const L=objLoad(),i=L.findIndex(x=>x&&x.id===id);if(i<0)return;const o=L[i];L.splice(i,1);objPersist();try{renderPlObj(o.jugador);}catch(e){}
+  bmHecho('Objetivo quitado',()=>{objLoad().push(Object.assign({},o,{id:'ob_'+Date.now()+'_'+Math.round(Math.random()*99999),upd:Date.now()}));objPersist();try{renderPlObj(o.jugador);}catch(e){}},'Deshecho · el objetivo vuelve');}
+document.addEventListener('change',e=>{if(e.target&&e.target.closest&&e.target.closest('#bmh-obj [data-of="tipo"],#bmh-obj [data-of="k"]'))objFormAhora();});
+document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;if(e.target.closest('#bmh-obj [data-of-ok]')){objGuarda();return;}
+  const x=e.target.closest('#pl-obj [data-obx]');if(x)objQuita(x.dataset.obx);});
+window.bmObjetivo=bmObjetivo;window.renderPlObj=renderPlObj;window.objEstado=objEstado;window.objLoad=objLoad;
 
 /* ═══════════════ v409 · Minutos jugados contra carga ═══════════════
    Propuesta 3.4. La misión número dos es disponibilidad y ayuda a la
@@ -53908,6 +54007,31 @@ canvas,[data-bmtr]{-webkit-user-select:none;user-select:none}
   .bnm-f input,.bnm-f .btn{min-height:44px}
 }
 </style>
+<style id="bm-v818">
+/* v818 · objetivos individuales */
+.plob-o{padding:12px 0;border-top:1px solid var(--hair)}
+.plob-h{display:flex;align-items:baseline;gap:10px}
+.plob-h b{font-size:var(--fs-body);font-weight:600;color:var(--txt)}
+.plob-h span{font-size:var(--fs-sm);color:var(--muted)}
+.plob-o.ok .plob-h span{color:var(--ok-text);font-weight:600}
+.plob-x{all:unset;margin-left:auto;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);cursor:default}
+.plob-x:hover{background:var(--seg-carril)}
+.plob-v{display:flex;flex-wrap:wrap;gap:4px 18px;margin:6px 0 8px;font-size:var(--fs-sm);color:var(--muted);font-variant-numeric:tabular-nums}
+.plob-v b{color:var(--txt);font-weight:600}
+.plob-b{position:relative;height:10px;border-radius:5px;background:var(--seg-carril)}
+.plob-b i{display:block;height:100%;border-radius:5px;background:var(--accent)}
+.plob-o.ok .plob-b i{background:var(--ok)}
+.plob-b u{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--txt);opacity:.55}
+.plob-p{display:block;margin-top:5px;font-size:var(--fs-xs);color:var(--muted)}
+.plob-nada,.plob-pie{margin:6px 0 0;font-size:var(--fs-sm);color:var(--muted)}
+.plob-pie{font-size:var(--fs-xs)}
+.obf{display:flex;flex-direction:column;gap:12px}
+.obf label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--muted)}
+.obf select,.obf input{padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font:inherit;font-size:var(--fs-body)}
+.obf-ah{margin:-4px 0 0;font-size:var(--fs-sm);color:var(--txt)}
+.obf-acc{display:flex;justify-content:flex-end}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.plob-x{width:44px;height:44px}.obf select,.obf input{min-height:44px}}
+</style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
 .bmdr{display:grid;gap:4px}
@@ -54648,6 +54772,10 @@ html.bpr-on body{overflow:hidden}
 .cj-id b{display:block;font-size:34px;font-weight:800;letter-spacing:-.025em;line-height:1.05}
 .cj-id span{display:block;font-size:15px;color:rgba(255,255,255,.72);margin-top:6px}
 .cj-sec{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.12)}
+.cj-ob{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:15px}.cj-ob span{color:rgba(255,255,255,.75)}.cj-ob b{font-weight:700;color:#fff;font-variant-numeric:tabular-nums}.cj-ob small{color:rgba(255,255,255,.6);font-size:13px}
+.cj-obj{margin-top:14px;padding-top:12px}
+/* con el objetivo dentro, las secciones se aprietan un poco: la carta mide lo mismo que las demás */
+.cj-doc.cj-con-obj .cj-sec{margin-top:13px;padding-top:11px}.cj-doc.cj-con-obj .cj-obj{margin-top:11px;padding-top:10px}.cj-obb{display:block;height:6px;margin-top:8px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden;background-repeat:no-repeat}.cj-obb b{display:block;height:100%;border-radius:4px;background:#e3c877}
 .cj-sec h4{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:rgba(255,255,255,.62);display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .cj-sec h4 em{font-style:normal;font-size:15px;letter-spacing:0;text-transform:none;font-weight:700}
 .cj-up{color:#30d47f}.cj-dn{color:rgba(255,255,255,.72)}
