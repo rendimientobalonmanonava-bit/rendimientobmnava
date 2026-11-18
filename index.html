@@ -6910,6 +6910,8 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     </div>
 
     <div class="carga-pane" id="carga-resumen" style="display:none"></div>
+    <!-- v824 · La temporada: lo longitudinal que traen XPS, WIMU y Catapult -->
+    <div class="carga-pane" id="carga-temporada" style="display:none"><div id="ct-ciclo"></div></div>
 
     <div class="carga-pane" id="carga-mapa" style="display:none"></div>
 
@@ -17122,6 +17124,79 @@ document.addEventListener('click',e=>{
 window.addEventListener('scroll',()=>{if(BMMP.sel){BMMP.sel=null;bmMpTip(null);}},{passive:true,capture:true});
 window.renderMapaPlantilla=renderMapaPlantilla;
 
+/* ═══ v824 · CARGAS › TEMPORADA · EL CICLO, SEMANA A SEMANA ═══
+   Daniel, 18/11/2026, propuesta 4 de la tanda de XPS, WIMU y Catapult: el
+   informe «Match Day» de WIMU y el de Catapult. Una barra por semana desde el
+   1 de julio, partida por días, y cada día con el color de su posición en el
+   ciclo (`calMd`, la única regla de MD). Se ve de un golpe si cada semana se
+   estructuró igual y en qué días se carga.
+   **Ningún cálculo nuevo**: cada día vale la carga del EQUIPO del Dashboard
+   (`cgSerieEquipo`, la media de quien la registró), así que la suma de la
+   barra es la carga de la semana de su tabla ②. Una semana sin registros se
+   dibuja vacía, no se salta: un parón tiene que verse como un parón.
+   Los colores: el partido en el color de acción (el del Calendario); los días
+   de antes, un solo tono más intenso cuanto más lejos del partido; los de
+   después, en verde azulado (el de categoría de la app). No es un semáforo: dice la posición, no si está bien.
+   Pestaña nueva y no un bloque más del Dashboard: el Dashboard es la
+   estructura del PDF de Daniel (v439) y no se toca. */
+const CT_CAT=[['pre4','MD-4 o antes'],['pre3','MD-3'],['pre2','MD-2'],['pre1','MD-1'],['md','Partido'],['post1','MD+1'],['post2','MD+2 o después'],['sin','Sin partido cerca']];
+function ctCat(m){if(!m)return 'sin';if(m.md===0)return 'md';if(m.md<0){const d=-m.md;return d>=4?'pre4':'pre'+d;}return m.md>=2?'post2':'post1';}
+function ctSemanas(){
+  const refk=dkey(REF()),W=[],w1=weekKey(REF());
+  for(let w=weekKey(dkToDate(TEMP_INICIO));w<=w1;w=dkSumaDias(w,7))W.push(w);
+  let S=[];try{S=cgSerieEquipo();}catch(e){}
+  const by={};S.forEach(d=>{if(d.dk<TEMP_INICIO||d.dk>refk)return;(by[weekKey(d.date)]=by[weekKey(d.date)]||[]).push(d);});
+  let ps=[];try{ps=calPartidosDks();}catch(e){}
+  return W.map(w=>{
+    const dias=(by[w]||[]).filter(d=>d.ua>0).map(d=>{const m=ps.length?calMd(d.dk,ps):null;return {dk:d.dk,ua:d.ua,m,cat:ctCat(m)};});
+    const tot=dias.reduce((s,d)=>s+d.ua,0),par=dkSumaDias(w,6)>refk;
+    return {w,dias,tot,parcial:par,reg:(by[w]||[]).some(d=>!d.vacio)};
+  });
+}
+function ctPaso(mx){const p=[50,100,250,500,1000,2000];for(const x of p)if(mx/x<=6)return x;return 5000;}
+function renderCtCiclo(){
+  const box=document.getElementById('ct-ciclo');if(!box)return;
+  const E=bmEsc,S=ctSemanas();
+  const cab='<h2>El ciclo, semana a semana <span class="r">la carga del equipo, día a día, desde el 1 de julio</span></h2>';
+  if(!S.some(x=>x.tot>0)){box.innerHTML='<div class="panel ctc">'+cab+'<p class="hint" style="margin:8px 0 0">Sin carga del equipo registrada desde el 1 de julio.</p></div>';return;}
+  const ancho=Math.max(320,Math.round((box.clientWidth||box.parentElement.clientWidth||900)-44));
+  const H=250,PL=44,PR=8,PT=22,PB=26,n=S.length,cw=(ancho-PL-PR)/n,bw=Math.max(6,Math.min(46,cw*0.66));
+  let mx=Math.max(...S.map(x=>x.tot),1);
+  try{if(window.ctBloquesMax)mx=Math.max(mx,ctBloquesMax());}catch(e){}
+  const paso=ctPaso(mx),top=Math.ceil(mx*1.05/paso)*paso,y=v=>PT+(H-PT-PB)*(1-v/top);
+  let g='';
+  for(let v=0;v<=top;v+=paso)g+='<line class="ctc-gr" x1="'+PL+'" x2="'+(ancho-PR)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="ctc-ax" x="'+(PL-6)+'" y="'+(y(v)+4).toFixed(1)+'" text-anchor="end">'+v.toLocaleString('es-ES')+'</text>';
+  try{if(window.ctBloquesSVG)g+=ctBloquesSVG(S,{PL,cw,y,ancho,PR,H,PT,PB});}catch(e){}
+  const salto=cw<26?Math.ceil(26/cw):1;
+  S.forEach((s,i)=>{
+    const x0=PL+i*cw+(cw-bw)/2,d0=dkToDate(s.w),lab=d0.getDate()+'/'+(d0.getMonth()+1);
+    if(i%salto===0)g+='<text class="ctc-ax'+(s.parcial?' cur':'')+'" x="'+(x0+bw/2).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle">'+lab+'</text>';
+    if(!s.dias.length){g+='<text class="ctc-vac" x="'+(x0+bw/2).toFixed(1)+'" y="'+(y(0)-6).toFixed(1)+'" text-anchor="middle">'+(s.reg?'·':'—')+'</text>';return;}
+    let acc=0;const ult=s.dias.length-1;
+    s.dias.forEach((d,j)=>{const ya=y(acc+d.ua),yb=y(acc),h=Math.max(1,yb-ya-(j<ult?2:0));
+      const dd=dkToDate(d.dk);let t=dd.toLocaleDateString('es',{weekday:'short',day:'numeric',month:'numeric'});t=t.charAt(0).toUpperCase()+t.slice(1);
+      g+='<rect class="ctc-s c-'+d.cat+'" x="'+x0.toFixed(1)+'" y="'+ya.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'"'+(j===ult?' rx="3"':'')+'><title>'+E(t+' · '+(d.m?d.m.txt:'sin partido cerca')+' · '+Math.round(d.ua).toLocaleString('es-ES')+' UA')+'</title></rect>';
+      acc+=d.ua;});
+    if(cw>=30)g+='<text class="ctc-tot'+(s.parcial?' cur':'')+'" x="'+(x0+bw/2).toFixed(1)+'" y="'+(y(s.tot)-5).toFixed(1)+'" text-anchor="middle">'+(s.tot>=1000?fmt(s.tot/1000,1)+'k':Math.round(s.tot))+'</text>';
+  });
+  const usadas=new Set();S.forEach(s=>s.dias.forEach(d=>usadas.add(d.cat)));
+  const ley=CT_CAT.filter(([k])=>usadas.has(k)).map(([k,l])=>'<span><i class="ctc-lc c-'+k+'"></i>'+l+'</span>').join('');
+  const cer=S.filter(s=>!s.parcial&&s.tot>0),med=cer.length?cer.reduce((a,s)=>a+s.tot,0)/cer.length:null,maxS=cer.length?cer.reduce((a,s)=>s.tot>a.tot?s:a,cer[0]):null;
+  const lee=med?'Media de las semanas cerradas: <b>'+Math.round(med).toLocaleString('es-ES')+' UA</b>'+(maxS?' · la más alta, la del '+dkToDate(maxS.w).getDate()+'/'+(dkToDate(maxS.w).getMonth()+1)+' con <b>'+Math.round(maxS.tot).toLocaleString('es-ES')+'</b>':''):'';
+  box.innerHTML='<div class="panel ctc">'+cab+(lee?'<p class="ctc-lee">'+lee+'</p>':'')+'<div class="ctc-ley">'+ley+(window.ctBloquesLey?ctBloquesLey():'')+'</div>'
+    +'<svg class="ctc-svg" viewBox="0 0 '+ancho+' '+H+'" width="100%" role="img" aria-label="Carga del equipo por semana desde el 1 de julio, partida por días según su posición en el ciclo">'+g+'</svg>'
+    +'<p class="ctc-pie">Cada barra es una semana (de lunes a domingo) y cada tramo un día, con la carga del equipo del Dashboard: la media de quien la registró. El color es su posición respecto al partido más cercano. La semana en curso va en gris en el eje. Una semana sin registros va vacía (—); con cuestionarios y sin minutos, un punto: la carga no es calculable.</p>'
+    +(window.ctBloquesPie?ctBloquesPie():'')+'</div>';
+}
+function renderCargaTemporada(){
+  try{renderCtCiclo();}catch(e){console.error('bmnava · el ciclo semana a semana',e);}
+  try{if(window.renderCtBloques)renderCtBloques();}catch(e){console.error('bmnava · bloques',e);}
+  try{if(window.renderCtVI)renderCtVI();}catch(e){console.error('bmnava · volumen e intensidad',e);}
+  try{if(window.renderCtTags)renderCtTags();}catch(e){console.error('bmnava · etiquetas',e);}
+}
+let CT_RZ=0;window.addEventListener('resize',()=>{clearTimeout(CT_RZ);CT_RZ=setTimeout(()=>{const p=document.getElementById('carga-temporada');if(p&&p.offsetParent)renderCargaTemporada();},160);},{passive:true});
+window.renderCargaTemporada=renderCargaTemporada;window.ctSemanas=ctSemanas;
+
 /* ═══ v823 · LA TEMPORADA, SEMANA A SEMANA, CADA UNO CONTRA LO SUYO ═══
    Daniel, 18/11/2026, propuesta 3 de la tanda de XPS, WIMU y Catapult: las
    «tablas de periodización» de XPS, con su z-score y su botón para cambiar
@@ -27323,7 +27398,7 @@ function renderCargaActive(){/* v792 · «Plantilla» es sólo del ordenador: si
      lee como que la vista está rota. Se oculta en esa pestaña y vuelve en las
      demás. */
   try{const cr=document.querySelector('#v-carga .ctrlrow');
-    if(cr)cr.style.display=(t==='resumen')?'none':'';}catch(e){}
+    if(cr)cr.style.display=(t==='resumen'||t==='temporada')?'none':'';}catch(e){}
   /* v652 · Gimnasio y Perfil de partido caían en la rama por defecto y pintaban
      entero el panel de Cargas › RPE, retirado de la navegación (§4.3.0b) y
      oculto: 72 cálculos de `weekly()` y, en diferido, `renderCargaDecide` y
@@ -27334,6 +27409,7 @@ function renderCargaActive(){/* v792 · «Plantilla» es sólo del ordenador: si
   if(t==='resumen')renderCargaResumen();else if(t==='cuadrantes'){if(window.qdRenderFull)qdRenderFull();}else if(t==='posicion')renderCargaPos();else if(t==='individual')renderLoadDetail();
   else if(t==='gym'){try{renderGym();}catch(e){console.error('bmnava · gimnasio',e);}}
   else if(t==='mapa'){try{renderMapaPlantilla();}catch(e){console.error('bmnava · mapa de la plantilla',e);}}
+  else if(t==='temporada'){try{renderCargaTemporada();}catch(e){console.error('bmnava · la temporada',e);}}
   else if(t==='partidos'){try{renderPartidos();}catch(e){console.error('partidos',e);}}
   else renderCargaGrupal();}
 
@@ -45570,12 +45646,12 @@ window.ptEstRender=function(){
 /* v438 · La clave sigue siendo 'resumen' —cambiarla invalidaría la pestaña
    guardada en `bmnava_cargatab` de todo el mundo—; lo que cambia es lo que
    pone, porque ya no es un resumen del día sino la temporada. */
-const CARGAS_TABS=[['resumen','Dashboard'],['pulso','Pulso · Polar'],['gym','Gimnasio'],['partidos','Perfil de partido']];
+const CARGAS_TABS=[['resumen','Dashboard'],['temporada','Temporada'],['pulso','Pulso · Polar'],['gym','Gimnasio'],['partidos','Perfil de partido']];
 /* v792 · la plantilla día a día, sólo en el ordenador */
-try{if(!esMovil()&&bmEscFino())CARGAS_TABS.splice(1,0,['mapa','Plantilla']);}catch(e){}
+try{if(!esMovil()&&bmEscFino())CARGAS_TABS.splice(2,0,['mapa','Plantilla']);}catch(e){}
 const RPE_SUBS=[['grupal','Grupal'],['individual','Individual'],['posicion','Por posición']];
 const RPE_KEYS=RPE_SUBS.map(s=>s[0]);
-const CARGA_PANES=['resumen','mapa','grupal','individual','posicion','partidos','gym'];
+const CARGA_PANES=['resumen','temporada','mapa','grupal','individual','posicion','partidos','gym'];
 function cargasTopKey(){return (STATE.view==='hr')?'pulso':(RPE_KEYS.includes(FILTER.cargaTab)?'rpe':(FILTER.cargaTab||'resumen'));}
 function mountCargasTabs(){
   const top='<div class="seg cargas-seg">'+CARGAS_TABS.map(([k,l])=>`<button data-k="${k}" onclick="cargasTab('${k}')">${l}</button>`).join('')+'</div>';
@@ -54611,6 +54687,33 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   .bmper-c[data-pj]:hover{outline:1.5px solid var(--acc-seg,var(--accent));outline-offset:-1.5px}
   .bmper-pie{font-size:12.5px;color:var(--muted);margin:12px 0 0;line-height:1.45;max-width:110ch}
 }
+</style>
+<style id="bm-v824">
+/* v824 · Cargas › Temporada · el ciclo semana a semana */
+.panel.ctc{display:block}
+.ctc-lee{font-size:var(--fs-body);color:var(--muted);margin:6px 0 8px}
+.ctc-lee b{color:var(--txt);font-weight:600;font-variant-numeric:tabular-nums}
+.ctc-ley{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:var(--fs-sm);color:var(--muted);margin:0 0 6px}
+.ctc-ley span{display:inline-flex;align-items:center;gap:6px}
+.ctc-lc{display:inline-block;width:12px;height:12px;border-radius:3px}
+.ctc-svg{display:block;overflow:visible}
+.ctc-gr{stroke:var(--hair);stroke-width:1}
+.ctc-ax{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
+.ctc-ax.cur{fill:var(--muted2);font-style:italic}
+.ctc-tot{font-size:10.5px;fill:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
+.ctc-tot.cur{font-style:italic;font-weight:400}
+.ctc-vac{font-size:12px;fill:var(--muted2)}
+.ctc-s:hover{opacity:.82}
+.c-pre4{fill:color-mix(in srgb,var(--c-data) 100%,var(--panel));background:color-mix(in srgb,var(--c-data) 100%,var(--panel))}
+.c-pre3{fill:color-mix(in srgb,var(--c-data) 80%,var(--panel));background:color-mix(in srgb,var(--c-data) 80%,var(--panel))}
+.c-pre2{fill:color-mix(in srgb,var(--c-data) 64%,var(--panel));background:color-mix(in srgb,var(--c-data) 64%,var(--panel))}
+.c-pre1{fill:color-mix(in srgb,var(--c-data) 48%,var(--panel));background:color-mix(in srgb,var(--c-data) 48%,var(--panel))}
+.c-md{fill:var(--accent);background:var(--accent)}
+.c-post1{fill:color-mix(in srgb,var(--gi-teal) 85%,var(--panel));background:color-mix(in srgb,var(--gi-teal) 85%,var(--panel))}
+.c-post2{fill:color-mix(in srgb,var(--gi-teal) 55%,var(--panel));background:color-mix(in srgb,var(--gi-teal) 55%,var(--panel))}
+.c-sin{fill:color-mix(in srgb,var(--muted2) 30%,var(--panel));background:color-mix(in srgb,var(--muted2) 30%,var(--panel))}
+.ctc-pie{font-size:var(--fs-sm);color:var(--muted);margin:10px 0 0;line-height:1.45}
+#carga-temporada>div+div{margin-top:var(--gap,18px)}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
