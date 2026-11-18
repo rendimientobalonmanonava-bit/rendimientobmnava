@@ -14447,6 +14447,7 @@ function bmbIndice(){
   A('Desde tu última visita','Lo que ha entrado desde la última vez en este equipo',()=>{if(window.bmDesdeVisita)bmDesdeVisita();},'novedades cambios nuevo');
   A('Informe del jugador','Su mes: carga, recuperación, ACWR, minutos, pruebas y salud, para la reunión',()=>{if(window.bmInformeJugador)bmInformeJugador();},'informe reunion jugador mes');
   A('Carta del jugador','Su nota física, sus capacidades y lo que ha mejorado, en una imagen para dársela',()=>{if(window.bmCarta)bmCarta();},'carta tarjeta jugador nota fisica imagen motivacion');
+  A('Su semana · imagen para el jugador','Su carga, su sueño, su recuperación y su readiness de la semana, contra lo suyo, para mandárselo',()=>{if(window.bmTuSemana)bmTuSemana();},'tu semana jugador imagen whatsapp resumen semanal');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
   A('Informe de la temporada','Un documento de varias páginas para imprimir o guardar en PDF: disponibilidad, lesiones, carga, minutos y valoraciones',()=>{if(window.bmInformeTemporada)bmInformeTemporada();},'informe temporada pdf directiva memoria documento');
   A('Notas para ti','Las notas que te avisan, con sus respuestas',()=>{if(window.bmNotasMias)bmNotasMias();},'notas mensajes avisos para mi respuestas');
@@ -14691,7 +14692,7 @@ function bmlpMenu(x){
         +(window.openFisioReg?fila(BMLP_IC.trat,'Registrar en fisioterapia','Tratamiento, vendaje o parte','trat'):'')
         +(window.openHeroForm?fila(BMLP_IC.cita,'Cita o documento médico','','cita'):'')
       +'</div>';
-    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),bit:()=>bmBitacora(n),carta:()=>bmCarta(n),nota:()=>bmNota(dkey(new Date()),n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
+    acc={ficha:()=>openPlayer(n),cmp:()=>bmComparar(n),inf:()=>bmInformeJugador(n),bit:()=>bmBitacora(n),carta:()=>bmCarta(n),tsw:()=>bmTuSemana(n),nota:()=>bmNota(dkey(new Date()),n),parte:()=>openHeroForm('incidencia',n),ojo:()=>ojoMarcar(n),trat:()=>openFisioReg(n),cita:()=>openHeroForm('med',n)};
   }else{
     const p=x.dk.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]),pas=x.dk<=dkey(new Date());
     tit=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});tit=tit.charAt(0).toUpperCase()+tit.slice(1);
@@ -14763,6 +14764,7 @@ function bmPrevia(x,acc){
       +(window.bmInformeJugador?fila('inf',BMLP_IC.parte,'Informe del mes'):'')
       +(window.bmBitacora?fila('bit',BMLP_IC.parte,'Su bitácora'):'')
       +(window.bmCarta?fila('carta',BMLP_IC.ficha,'Carta del jugador'):'')
+      +(window.bmTuSemana?fila('tsw',BMLP_IC.parte,'Su semana (imagen)'):'')
       +(window.bmNota?fila('nota',BMLP_IC.parte,'Añadir una nota'):'')
       +(window.openHeroForm?fila('parte',BMLP_IC.parte,'Parte del día'):'')
       +(window.ojoMarcar?fila('ojo',BMLP_IC.ojo,'Ojo hoy'):'')
@@ -14899,6 +14901,7 @@ function bmCtxMac(x,cx,cy){
     if(window.bmInformeJugador)it.push({t:'Informe del mes',ic:'',f:()=>bmInformeJugador(n)});
     if(window.bmBitacora)it.push({t:'Su bitácora',ic:'',tit:'Lo que tiene fecha desde el 1 de julio',f:()=>bmBitacora(n)});
     if(window.bmCarta)it.push({t:'Carta del jugador',ic:'',f:()=>bmCarta(n)});
+    if(window.bmTuSemana)it.push({t:'Su semana (imagen)',ic:'',tit:'Su carga, su sueño y su readiness de la semana, para mandárselo',f:()=>bmTuSemana(n)});
     if(window.bmNota)it.push({t:'Añadir una nota…',ic:'',tit:'De hoy, sale como marca en sus gráficos',f:()=>bmNota(dkey(new Date()),n)});
     it.push({sep:1});
     if(window.openHeroForm)it.push({t:'Parte del día',ic:I.parte,tit:'Dolor, tratamiento o incidencia',f:acc.parte});
@@ -17266,6 +17269,129 @@ function renderCargaTemporada(){
 }
 let CT_RZ=0;window.addEventListener('resize',()=>{clearTimeout(CT_RZ);CT_RZ=setTimeout(()=>{const p=document.getElementById('carga-temporada');if(p&&p.offsetParent)renderCargaTemporada();},160);},{passive:true});
 window.renderCargaTemporada=renderCargaTemporada;window.ctSemanas=ctSemanas;
+
+/* ═══ v830 · «SU SEMANA», UNA IMAGEN PARA CADA JUGADOR ═══
+   Daniel, 18/11/2026, propuesta 10 de la tanda de XPS, WIMU y Catapult: lo
+   esencial de la app del deportista de XPS y del resumen semanal de Firstbeat,
+   hecho como una imagen para mandarle por WhatsApp, sin cuentas ni accesos.
+   **Cada cifra contra LO SUYO, nunca contra los demás**: su carga de la semana
+   contra su semana normal, su sueño y su recuperación contra los suyos — las
+   mismas normales de «La temporada, semana a semana» (`perDatos`/`perNormal`:
+   la mediana de sus semanas cerradas). Sus siete días con la carga de cada
+   uno y su posición en el ciclo (`calMd`); los que faltan, lo que tiene
+   planificado (`calPlanUAJug`, con su plan individual). Su readiness de cada
+   día (la serie de 14 días, `rdJugSerie`), con su semáforo. Su objetivo si lo
+   tiene y el próximo partido. **Nada médico y nadie más**: es suyo y va a él.
+   Sin colores de alerta en las comparaciones: «más» o «menos» que lo suyo no
+   es una alarma. Documento fijado a claro, como la carta y la ficha. */
+const TSW={n:null,w:null};
+function tswDatos(n,w){
+  const hoy=dkey(new Date()),dks=dkRango(w,dkSumaDias(w,6)),ps=(()=>{try{return calPartidosDks();}catch(e){return [];}})();
+  const ua={};try{(dailyAgg(n)||[]).forEach(d=>{if(d.ua>0)ua[d.dk]=d.ua;});}catch(e){}
+  const sue=(()=>{try{return sueMapa(n);}catch(e){return {};}})();
+  const rec={};try{playerRecSeries((STATE.players||{})[n],60).forEach(x=>{if(isFinite(x.pct))rec[x.dk]=x.pct;});}catch(e){}
+  const rd={};try{(rdJugSerie(n)||[]).forEach(x=>{if(x.rd!=null)rd[x.dk]=x.rd;});}catch(e){}
+  const cal=STATE.calendar||{};
+  const dias=dks.map(dk=>{const m=ps.length?calMd(dk,ps):null,par=(cal[dk]||[]).find(evEsPartido);let plan=0;if(dk>hoy){try{plan=calPlanUAJug(dk,n);}catch(e){}}
+    return {dk,ua:ua[dk]||null,plan:plan>0?plan:null,fut:dk>hoy,md:m?m.txt:'',par:par?(evRival(par)||'Partido'):null,sue:sue[dk]!=null?sue[dk]:null,rec:rec[dk]!=null?rec[dk]:null,rd:rd[dk]!=null?rd[dk]:null};});
+  const pas=dias.filter(d=>!d.fut);
+  const tot=pas.reduce((a,d)=>a+(d.ua||0),0),ent=pas.filter(d=>d.ua).length;
+  const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const sm=mean(pas.map(d=>d.sue).filter(v=>v!=null)),rm=mean(pas.map(d=>d.rec).filter(v=>v!=null));
+  /* las normales: las de la tabla de la temporada */
+  let N={};try{const D=perDatos(),i=D.W.indexOf(w),J=D.J[n];if(J){['carga','sue','rec'].forEach(m=>{
+    /* su normal, sin la semana que se enseña ni la que va a medias */
+    const ser=J[m].slice();if(D.cur>=0&&D.cur!==i)ser[D.cur]=null;N[m]=perNormal(ser,m,i>=0?i:D.cur);});}}catch(e){}
+  const partial=dkSumaDias(w,6)>hoy;
+  let obj=null;try{obj=objLoad().filter(o=>o&&o.jugador===n&&!(o.hasta<hoy)).sort((a,b)=>String(a.hasta).localeCompare(String(b.hasta)))[0]||null;}catch(e){}
+  const prox=ps.find(d=>d>=hoy)||null;
+  const pl=(STATE.players||{})[n]||{};
+  let pos='';try{pos=posDetailOf(n)||pl.pos||'';}catch(e){pos=pl.pos||'';}
+  return {n,w,dias,tot,ent,sm,rm,N,partial,obj,prox,proxEv:prox?((cal[prox]||[]).find(evEsPartido)):null,pos,
+    dor:(typeof dorsal==='function'?dorsal(n):'')||((STATE.info||{})[n]||{}).dorsal||'',
+    foto:(()=>{const u=pl.avatar||photoFor(n)||'';try{return phGrande(u);}catch(e){return u;}})()};
+}
+function tswHTML(D){
+  const E=bmEsc,L=['L','M','X','J','V','S','D'],n0=v=>Math.round(v).toLocaleString('es-ES');
+  const d0=dkToDate(D.w),d6=dkToDate(dkSumaDias(D.w,6)),mes=d=>d.toLocaleDateString('es',{month:'short'}).replace('.','');
+  const rango=d0.getDate()+(d0.getMonth()!==d6.getMonth()?' '+mes(d0):'')+'–'+d6.getDate()+' '+mes(d6);
+  const cmp=(v,N,u,dec)=>{if(v==null)return '<small>sin dato esta semana</small>';if(!N||N.med==null)return '<small>aún sin semana normal</small>';
+    const d=v-N.med,f=x=>dec?fmt(Math.abs(x),dec):n0(Math.abs(x));
+    return '<small>tu normal '+(dec?fmt(N.med,dec):n0(N.med))+' '+u+(Math.abs(d)<(dec?0.05:1)?' · igual':' · '+(d>0?'+':'−')+f(d)+' '+u)+'</small>';};
+  const pct=(v,N)=>v!=null&&N&&N.med>0?Math.min(100,v/(N.med*1.6)*100):0,mk=N=>N&&N.med>0?(100/1.6):null;
+  const kc=D.N.carga,ks=D.N.sue,kr=D.N.rec;
+  const kpi=(t,v,u,N,dec,extra)=>'<div class="tsw-k"><span>'+t+'</span><b>'+(v==null?'—':(dec?fmt(v,dec):n0(v)))+(v==null?'':'<i> '+u+'</i>')+'</b>'
+    +'<em class="tsw-bar"><s style="width:'+pct(v,N).toFixed(1)+'%"></s>'+(mk(N)!=null?'<u style="left:'+mk(N).toFixed(1)+'%"></u>':'')+'</em>'+cmp(v,N,u,dec)+(extra||'')+'</div>';
+  const mxd=Math.max(1,...D.dias.map(d=>d.ua||d.plan||0));
+  const dias=D.dias.map((d,i)=>{const v=d.ua||d.plan||0,h=v?Math.max(4,v/mxd*100):0;
+    const rd=d.rd!=null?'<i class="tsw-rd '+recSev(d.rd)+'">'+Math.round(d.rd)+'</i>':'<i class="tsw-rd na">·</i>';
+    return '<div class="tsw-d'+(d.fut?' fut':'')+(d.par?' par':'')+'"><span class="tsw-v">'+(v?n0(v):(d.fut?'':'—'))+'</span><div class="tsw-col"><b style="height:'+h.toFixed(1)+'%"></b></div>'
+      +'<span class="tsw-l">'+L[i]+' '+dkToDate(d.dk).getDate()+'</span><span class="tsw-md">'+E(d.par?d.par:(d.md||''))+'</span>'+(d.fut?'<span class="tsw-rdl">plan</span>':rd)+'</div>';}).join('');
+  let obj='';try{if(D.obj){const S=objEstado(D.obj),Df=S.D,f=v=>v==null?'—':fmt(v,Df.dec)+(Df.u?' '+Df.u:''),pc=S.prog==null?0:Math.round(S.prog*100);
+    obj='<div class="tsw-s tsw-obj"><div><span>Tu objetivo · '+E(Df.nom)+'</span><b>'+f(S.v)+' → '+f(+D.obj.meta)+'</b><small>'+(S.hecho?'¡Conseguido!':pc+' % del camino · para el '+bmInspFecha(D.obj.hasta))+'</small></div><em class="tsw-bar"><s style="width:'+pc+'%"></s></em></div>';}}catch(e){}
+  const prox=D.prox?'<div class="tsw-s tsw-prox"><span>Próximo partido</span><b>'+E(D.proxEv?(evRival(D.proxEv)||'Partido'):'Partido')+'</b><small>'+(()=>{let x=dkToDate(D.prox).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});return x.charAt(0).toUpperCase()+x.slice(1);})()+(D.proxEv&&D.proxEv.time?' · '+E(D.proxEv.time):'')+'</small></div>':'';
+  const ini=String(D.n).split(/\s+/).map(w=>w[0]).slice(0,2).join('');
+  return '<div class="tsw-doc">'
+    +'<div class="tsw-cab">'+(window.__LOGO_CLUB__?'<img class="tsw-logo" src="'+window.__LOGO_CLUB__+'" alt="">':'')
+      +'<div class="tsw-tit"><span>Tu semana</span><b>'+rango+'</b>'+(D.partial?'<small>hasta hoy</small>':'')+'</div></div>'
+    +'<div class="tsw-yo">'+(D.foto?'<img class="tsw-ph" src="'+E(D.foto)+'" alt="">':'<div class="tsw-ini">'+E(ini)+'</div>')
+      +'<div><b>'+E(D.n)+'</b><span>'+E([D.pos,D.dor!==''?'Dorsal '+D.dor:''].filter(Boolean).join(' · '))+'</span></div></div>'
+    +'<div class="tsw-ks">'+(D.partial
+      /* la semana en curso no se compara con semanas enteras: se dice cuánto lleva */
+      ?'<div class="tsw-k"><span>Tu carga</span><b>'+(D.tot?n0(D.tot):'—')+(D.tot?'<i> UA</i>':'')+'</b><em class="tsw-bar"><s style="width:'+pct(D.tot||null,kc).toFixed(1)+'%"></s>'+(mk(kc)!=null?'<u style="left:'+mk(kc).toFixed(1)+'%"></u>':'')+'</em><small>'+(kc&&kc.med!=null?'llevas eso de una semana normal de '+n0(kc.med)+' UA':'aún sin semana normal')+'</small><small class="tsw-x">'+D.ent+(D.ent===1?' día entrenado':' días entrenados')+' hasta hoy</small></div>'
+      :kpi('Tu carga',D.tot||null,'UA',kc,0,'<small class="tsw-x">'+D.ent+(D.ent===1?' día entrenado':' días entrenados')+'</small>'))+kpi('Tu sueño',D.sm,'h',ks,1)+kpi('Tu recuperación',D.rm,'%',kr,0)+'</div>'
+    +'<div class="tsw-s"><h4>Día a día <small>la carga de cada día · tu readiness debajo</small></h4><div class="tsw-dias">'+dias+'</div></div>'
+    +obj+prox
+    +'<div class="tsw-pie"><span>BM Nava · cada cifra contra lo tuyo</span>'+(window.__LOGO_HP__?'<img class="tsw-hp" src="'+window.__LOGO_HP__+'" alt="">':'')+'</div>'
+    +'</div>';
+}
+function bmTuSemana(n){
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  n=(n&&(STATE.players||{})[n])?n:(STATE.curPlayer&&(STATE.players||{})[STATE.curPlayer]?STATE.curPlayer:noms[0]);if(!n)return;
+  /* la última semana cerrada, salvo el domingo, que la de ahora ya está entera */
+  TSW.n=n;const hoy=new Date();TSW.w=weekKey(hoy.getDay()===0?hoy:new Date(hoy.getFullYear(),hoy.getMonth(),hoy.getDate()-7));
+  bmHoja({id:'tsw',titulo:'Su semana',clase:'cj-hoja',html:'<div class="cj" id="tsw-cuerpo"></div>'});
+  tswPinta();
+}
+function tswPinta(){
+  const box=document.getElementById('tsw-cuerpo');if(!box)return;
+  let D=null;try{D=tswDatos(TSW.n,TSW.w);}catch(e){console.error('bmnava · su semana',e);}
+  if(!D){box.innerHTML='<p class="ij-nada">No se pudo preparar la imagen.</p>';return;}
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es')),w1=weekKey(new Date());
+  box.innerHTML='<div class="ij-nav cj-nav"><button type="button" class="inf-fl" data-tsw="-1" aria-label="Jugador anterior">‹</button>'
+      +'<select data-tsw="n" aria-label="Jugador">'+noms.map(x=>'<option'+(x===TSW.n?' selected':'')+'>'+bmEsc(x)+'</option>').join('')+'</select>'
+      +'<button type="button" class="inf-fl" data-tsw="1" aria-label="Jugador siguiente">›</button></div>'
+    +'<div class="ij-nav cj-nav tsw-wnav"><button type="button" class="inf-fl" data-tsw="w-1" aria-label="Semana anterior">‹</button><span>Semana del '+bmInspFecha(TSW.w)+'</span><button type="button" class="inf-fl" data-tsw="w1" aria-label="Semana siguiente"'+(TSW.w>=w1?' disabled':'')+'>›</button></div>'
+    +'<div class="cj-vista"><div class="cj-esc">'+tswHTML(D)+'</div></div>'
+    +'<div class="ij-acc cj-acc">'+(!esMovil()?'<button type="button" class="btn ghost" data-tsw="lote">Exportar las '+noms.length+'</button>':'')
+    +'<button type="button" class="btn" data-tsw="png">'+(esMovil()?'Compartir':'Exportar imagen')+'</button></div>';
+  const v=box.querySelector('.cj-vista'),e=v&&v.querySelector('.cj-esc'),d=e&&e.firstElementChild;
+  if(d){const s=Math.min(1,(v.clientWidth||600)/600);e.style.transform=s<1?'scale('+s+')':'';v.style.height=Math.ceil(d.offsetHeight*s)+'px';}
+}
+function tswExporta(n,w){
+  let D=null;try{D=tswDatos(n,w);}catch(e){}if(!D)return Promise.resolve();
+  const host=document.createElement('div');host.className='cvd-host';
+  host.innerHTML=tswHTML(D).replace('class="tsw-doc"','class="tsw-doc" id="tsw-doc"');
+  document.body.appendChild(host);
+  const fin=()=>{try{host.remove();}catch(e){}};
+  const nom=String(D.n).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_');
+  const imgs=[...host.querySelectorAll('img')].map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r;setTimeout(r,3000);}));
+  return Promise.all(imgs).then(()=>Promise.resolve(exportNodePNG('tsw-doc','su_semana_'+nom+'_'+w+'.png',{bg:'transparent'}))).then(fin,fin);
+}
+async function tswLote(){
+  const noms=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b,'es'));
+  if(!bmPregunta('Se descargan '+noms.length+' imágenes, una por jugador. ¿Seguimos?',()=>tswLote()))return;
+  window.__EXP_LOTE=true;
+  try{for(let i=0;i<noms.length;i++){toast('Exportando '+(i+1)+' de '+noms.length+'…');await tswExporta(noms[i],TSW.w);await new Promise(r=>setTimeout(r,250));}}
+  finally{window.__EXP_LOTE=false;}
+  toast('Semanas exportadas · '+noms.length);
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bmh-tsw [data-tsw]');if(!b||b.disabled||b.tagName==='SELECT')return;
+  const v=b.dataset.tsw;if(v==='png'){tswExporta(TSW.n,TSW.w);return;}if(v==='lote'){tswLote();return;}
+  if(v==='w-1'||v==='w1'){TSW.w=dkSumaDias(TSW.w,v==='w1'?7:-7);tswPinta();return;}
+  const noms=Object.keys(STATE.players||{}).sort((a,c)=>a.localeCompare(c,'es'));let i=noms.indexOf(TSW.n)+(+v);if(i<0)i=noms.length-1;if(i>=noms.length)i=0;TSW.n=noms[i];tswPinta();});
+document.addEventListener('change',e=>{const t=e.target;if(!t||!t.matches||!t.matches('#bmh-tsw [data-tsw="n"]'))return;TSW.n=t.value;tswPinta();});
+window.bmTuSemana=bmTuSemana;
 
 /* ═══ v829 · EXPORTAR CUALQUIER TABLA A EXCEL ═══
    Daniel, 18/11/2026, propuesta 9 de la tanda de XPS, WIMU y Catapult: SPRO y
@@ -46882,6 +47008,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
        +'<button class="btn ghost phero-cmp" onclick="bmInformeJugador(\''+q2(name)+'\')">Informe del mes</button>'
        +'<button class="btn ghost phero-cmp" onclick="bmBitacora(\''+q2(name)+'\')">Su bitácora</button>'
        +'<button class="btn ghost phero-cmp" onclick="bmCarta(\''+q2(name)+'\')">Carta del jugador</button>'
+       +'<button class="btn ghost phero-cmp" onclick="bmTuSemana(\''+q2(name)+'\')">Su semana</button>'
      +'</div>'
    +'</div>';
  };
@@ -55205,6 +55332,60 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 /* con «Exportar», el aviso de girar el teléfono deja el sitio al título */
 #bm-tvh:has(.tvh-x:not([hidden])) .tvh-g{display:none}
 #bm-tvh button.tvh-x:focus-visible{outline:2px solid var(--accent);border-radius:8px}
+</style>
+<style id="bm-v830">
+/* v830 · «Su semana» · documento fijado a claro, como la carta */
+.tsw-doc{--ft:1;--fmin:0px;--d-txt:#1d1d1f;--d-mut:#5f6570;--d-hair:#e4e6eb;--d-bg:#f4f5f8;--d-acc:#3056c4;--d-ok:#1ea863;--d-warn:#e0a800;--d-bad:#e23b32;
+  width:600px;box-sizing:border-box;padding:28px 30px 22px;border-radius:28px;background:#ffffff;color:var(--d-txt);font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;text-align:left;position:relative;overflow:hidden}
+.tsw-doc *{box-sizing:border-box}
+.tsw-cab{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.tsw-logo{height:42px;width:auto;object-fit:contain}
+.tsw-tit{text-align:right}
+.tsw-tit span{display:block;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--d-acc)}
+.tsw-tit b{display:block;font-size:26px;font-weight:700;line-height:1.1}
+.tsw-tit small{font-size:12px;color:var(--d-mut)}
+.tsw-yo{display:flex;align-items:center;gap:16px;margin:18px 0 16px;padding:14px 16px;border-radius:20px;background:var(--d-bg)}
+.tsw-ph{width:84px;height:84px;border-radius:50%;object-fit:cover;object-position:top;background:#e9ecf2;flex:none}
+.tsw-ini{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;background:#e9ecf2;font-size:28px;font-weight:700;color:var(--d-mut);flex:none}
+.tsw-yo b{display:block;font-size:22px;font-weight:700;line-height:1.15}
+.tsw-yo span{display:block;font-size:13px;color:var(--d-mut);margin-top:2px}
+.tsw-ks{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tsw-k{padding:12px 12px 10px;border-radius:16px;border:1px solid var(--d-hair)}
+.tsw-k>span{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--d-mut)}
+.tsw-k>b{display:block;font-size:26px;font-weight:700;line-height:1.15;margin-top:4px;font-variant-numeric:tabular-nums}
+.tsw-k>b i{font-style:normal;font-size:13px;font-weight:600;color:var(--d-mut)}
+.tsw-k small{display:block;font-size:11.5px;color:var(--d-mut);line-height:1.35;margin-top:4px}
+.tsw-bar{position:relative;display:block;height:7px;border-radius:4px;background:var(--d-hair);margin-top:8px}
+.tsw-bar s{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--d-acc)}
+.tsw-bar u{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--d-txt);border-radius:1px}
+.tsw-s{margin-top:16px}
+.tsw-s h4{margin:0 0 10px;font-size:15px;font-weight:700}
+.tsw-s h4 small{font-size:11.5px;font-weight:400;color:var(--d-mut);margin-left:6px}
+.tsw-dias{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.tsw-d{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.tsw-v{font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums;min-height:15px}
+.tsw-col{position:relative;width:100%;height:96px;border-radius:9px;background:var(--d-bg);overflow:hidden}
+.tsw-col b{position:absolute;left:0;right:0;bottom:0;background:#6b8fd6;border-radius:9px 9px 0 0}
+.tsw-d.par .tsw-col b{background:var(--d-acc)}
+.tsw-d.fut .tsw-col b{background:transparent;border:1.5px dashed #9aa3b2;border-bottom:none}
+.tsw-d.fut .tsw-v{color:var(--d-mut);font-weight:400}
+.tsw-l{font-size:12px;font-weight:700}
+.tsw-md{font-size:10.5px;color:var(--d-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;min-height:14px}
+.tsw-d.par .tsw-md{color:var(--d-acc);font-weight:600}
+.tsw-rd{font-style:normal;display:grid;place-items:center;width:30px;height:22px;border-radius:11px;font-size:11.5px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.tsw-rd.ok{background:#16803c}.tsw-rd.warn{background:#a86b00}.tsw-rd.bad{background:#c42a22}
+.tsw-rd.na{background:var(--d-bg);color:var(--d-mut)}
+.tsw-rdl{font-size:10.5px;color:var(--d-mut);height:22px;display:grid;place-items:center}
+.tsw-obj{padding:12px 14px;border-radius:16px;background:var(--d-bg)}
+.tsw-obj span,.tsw-prox span{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--d-mut)}
+.tsw-obj b{display:block;font-size:18px;font-weight:700;margin-top:3px}
+.tsw-obj small,.tsw-prox small{display:block;font-size:12px;color:var(--d-mut);margin-top:2px}
+.tsw-prox{padding:12px 14px;border-radius:16px;border:1px solid var(--d-hair)}
+.tsw-prox b{display:block;font-size:18px;font-weight:700;margin-top:3px}
+.tsw-pie{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--d-hair);font-size:11.5px;color:var(--d-mut)}
+.tsw-hp{height:20px;width:auto}
+.tsw-wnav{margin-top:6px}
+.tsw-wnav span{flex:1;text-align:center;font-weight:600}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
