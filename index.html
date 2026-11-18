@@ -23454,6 +23454,42 @@ function rd14HTML(n,o){o=o||{};const s=rdJugSerie(n);
   return h+'</div>';
 }
 window.rdJugSerie=rdJugSerie;window.rdRacha=rdRacha;window.rd14HTML=rd14HTML;
+/* ═══ v804 · EL SUEÑO EN HORAS ═══
+   Daniel, 18/11/2026, eligió la propuesta 2. Medido antes: Maiko durmió menos
+   de 6,5 h en 20 de las últimas 28 noches (6,2 h de media), Paulo en 10 y Josu
+   en 8. El readiness lee las horas SÓLO contra lo que duerme cada uno (z-score
+   relativo; la parte absoluta del componente de wellness usa la escala 1–5 y
+   las horas no entran), así que quien duerme poco siempre parece «normal». **El
+   readiness no se toca** —es un cálculo bloqueado—: aquí se enseñan las horas
+   tal cual, con los cortes de los anillos de la ficha (7,5 y 6,5 h). */
+const SUE_OK=7.5,SUE_MAL=6.5;
+function sueSev(h){return h>=SUE_OK?'ok':h>=SUE_MAL?'warn':'bad';}
+function sueMapa(n){const m={};(STATE.wellness||[]).forEach(w=>{if(w&&w.name===n){const h=+w.horas_sueno;if(isFinite(h)&&h>0)m[w.dk]=h;}});return m;}
+const sueH=h=>(Math.round(h*10)/10).toFixed(1).replace('.',',');
+/* la fila de horas para la tira de 14 días de la ficha */
+function rd14Sueno(n){const m=sueMapa(n);return (s,fila)=>fila('Horas de sueño',s.map(d=>{const h=m[d.dk];
+  return '<i class="rd14-x'+(h!=null?' r-'+sueSev(h):' vac')+'" title="'+rd14Fd(d.dk)+(h!=null?' · '+sueH(h)+' h de sueño':' · sin su parte')+'">'+(h!=null?'<b>'+sueH(h)+'</b>':'')+'</i>';}).join(''));}
+/* el bloque del Parte wellness: cada jugador, sus noches de las últimas 4 semanas */
+function suenoParteAppend(){
+  const wrap=document.getElementById('parte-wrap');if(!wrap)return;
+  const old=document.getElementById('sue-panel');if(old)old.remove();
+  const fin=dkey(REF()),dks=dkRango(dkSumaDias(fin,-27),fin),E=bmEsc;
+  const L=Object.keys(STATE.players||{}).map(n=>{const m=sueMapa(n),v=dks.map(d=>m[d]).filter(x=>x!=null);
+    return {n,m,nv:v.length,med:v.length?v.reduce((x,y)=>x+y,0)/v.length:null,mal:v.filter(x=>x<SUE_MAL).length};})
+    .sort((a,b)=>(b.nv?1:0)-(a.nv?1:0)||b.mal-a.mal||(a.med||0)-(b.med||0)||a.n.localeCompare(b.n,'es'));
+  if(!L.some(x=>x.nv))return;
+  const q=n=>String(n).replace(/\\/g,'').replace(/'/g,"\\'");
+  const filas=L.map(x=>'<div class="sue-f"><button type="button" class="sue-n" onclick="openPlayer(\''+q(x.n)+'\')">'+E(x.n)+'</button>'
+    +'<span class="sue-m">'+(x.med!=null?'<b style="color:var(--'+sueSev(x.med)+'-text)">'+sueH(x.med)+' h</b> de media':'<span>sin dato</span>')+'</span>'
+    +'<span class="sue-k">'+(x.nv?x.mal+' de '+x.nv+(x.nv===1?' noche':' noches')+' bajo 6,5 h':'')+'</span>'
+    +'<span class="sue-c">'+dks.map(d=>{const h=x.m[d];return '<i class="'+(h!=null?'r-'+sueSev(h):'vac')+'" title="'+rd14Fd(d)+(h!=null?' · '+sueH(h)+' h':' · sin parte')+'"></i>';}).join('')+'</span></div>').join('');
+  const el=document.createElement('div');el.className='panel sue-panel';el.id='sue-panel';
+  el.innerHTML='<h2>Horas de sueño · últimas 4 semanas <span class="r muted">'+rd14Fd(dks[0])+' – '+rd14Fd(fin)+'</span></h2>'
+    +'<p class="sue-intro">El readiness compara las horas de cada uno con lo que duerme normalmente, así que a quien duerme poco siempre no se le nota. Aquí van en horas: verde desde 7,5 h, ámbar de 6,5 a 7,5 y rojo por debajo de 6,5, los cortes de los anillos de la ficha. Primero quien más noches lleva por debajo de 6,5 h.</p>'
+    +'<div class="sue-l">'+filas+'</div>';
+  wrap.appendChild(el);
+}
+window.suenoParteAppend=suenoParteAppend;window.rd14Sueno=rd14Sueno;
 function teamAcwrSeries(n){const byDk={};Object.keys(STATE.players).forEach(nm=>{try{acwrSeries(nm,'ua',REF()).slice(-(n||12)).forEach(d=>{if(!isNaN(d.ra))(byDk[d.dk]=byDk[d.dk]||[]).push(d.ra);});}catch(e){}});
   const dks=Object.keys(byDk).sort();return dks.slice(-(n||12)).map(dk=>mean(byDk[dk]));}
 function kpi(l,v,s,sev,opts){opts=opts||{};
@@ -35395,7 +35431,7 @@ function renderPlayerReadiness(name){
         <div class="rc-smalls">${cells}</div>
       </div>
       <div><div class="phys-sec" style="margin-top:0">Wellness · Jugador vs Equipo <span class="small muted">· menor = mejor (eje invertido)</span></div><div style="height:300px"><canvas id="ch-pl-radar"></canvas></div></div>
-    </div>${(typeof rd14HTML==='function')?rd14HTML(name,{extra:(typeof rd14Sueno==='function')?rd14Sueno(name):null}):''}`;
+    </div>${(typeof rd14HTML==='function')?rd14HTML(name,{extra:(typeof rd14Sueno==='function')?rd14Sueno(name):null,pie:' · las horas, verde desde 7,5 y rojo por debajo de 6,5'}):''}`;
   // radar jugador vs equipo (escala 1-5, eje invertido para que fuera=mejor)
   const AX5=[['fatiga','Fatiga'],['sueno','Sueño'],['doms','DOMS'],['mood','Ánimo'],['stress','Estrés']];
   /* el equipo, en el MISMO día que el jugador: sólo quien tiene parte de ese día */
@@ -47284,7 +47320,9 @@ html[data-theme="dark"] .wm-miss-pill i{background:#2a303c;color:#c7ccd4;border-
     y sin error no hay por dónde empezar a mirar. Se sigue capturando —que el
     añadido de abajo no dependa de que el principal haya ido bien— pero se
     avisa. */
- window.renderParte=function(){try{_renderParteOrig&&_renderParteOrig();}catch(e){console.error('bmnava · renderParte',e);}try{medWellMissAppend();}catch(e){console.error('bmnava · medWellMissAppend',e);}};
+ window.renderParte=function(){try{_renderParteOrig&&_renderParteOrig();}catch(e){console.error('bmnava · renderParte',e);}try{medWellMissAppend();}catch(e){console.error('bmnava · medWellMissAppend',e);}
+  /* v804 · el sueño en horas, fuera de #parte-card: no sale en la imagen del parte */
+  try{window.suenoParteAppend&&suenoParteAppend();}catch(e){console.error('bmnava · sueño',e);}};
  function medWellMissAppend(){
   var wrap=document.getElementById('parte-wrap');if(!wrap)return;
   var dk=selectedDk();var cfg=WM();var roster=Object.keys(STATE.players||{}).sort();
@@ -53035,7 +53073,9 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 </style>
 <style id="bm-v803">
 /* v803 · el readiness de cada jugador, día a día */
-.rd14{margin-top:14px;padding-top:12px;border-top:1px solid var(--hair)}
+.rd14{margin-top:14px;padding-top:12px;border-top:1px solid var(--hair);container-type:inline-size}
+/* en un panel estrecho (la ficha con la plantilla al lado) el rótulo sube encima: si no, las casillas no caben */
+@container (max-width:560px){.rd14 .rd14-f{grid-template-columns:minmax(0,1fr);gap:3px}.rd14 .rd14-f>em:empty{display:none}.rd14 .rd14-c{gap:2px}}
 .rd14.sr{margin-top:10px;padding-top:0;border-top:0}
 .rd14-h{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
 .rd14-h b{font-size:var(--fs-sm);font-weight:600;color:var(--txt)}
@@ -53058,6 +53098,26 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
   .rd14-f>em:empty{display:none}
   .rd14-c{gap:2px}
   .rd14-x b{letter-spacing:-.06em}
+}
+/* v804 · el sueño en horas */
+.sue-intro{margin:0 0 12px;font-size:var(--fs-sm);color:var(--muted);max-width:74ch;line-height:1.45}
+.sue-l{display:grid}
+.sue-f{display:grid;grid-template-columns:minmax(150px,200px) 116px 168px minmax(0,1fr);align-items:center;gap:12px;padding:5px 0;border-top:1px solid var(--hair)}
+.sue-f:first-child{border-top:0}
+.sue-n{all:unset;cursor:pointer;font-size:var(--fs-body);font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sue-n:hover{color:var(--accent)}.sue-n:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.sue-m{font-size:var(--fs-sm);color:var(--muted);font-variant-numeric:tabular-nums}.sue-m b{font-size:var(--fs-body);font-weight:600}
+.sue-k{font-size:var(--fs-sm);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sue-c{display:grid;grid-template-columns:repeat(28,minmax(0,1fr));gap:2px}
+.sue-c i{display:block;height:16px;border-radius:3px}
+.sue-c i.vac{border:1px dashed var(--hair)}
+.sue-c i.r-ok{background:color-mix(in srgb,var(--ok) 80%,var(--panel2))}
+.sue-c i.r-warn{background:color-mix(in srgb,var(--warn) 80%,var(--panel2))}
+.sue-c i.r-bad{background:color-mix(in srgb,var(--bad) 80%,var(--panel2))}
+@media (max-width:1100px){.sue-f{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}.sue-k{grid-column:1/-1}.sue-c{grid-column:1/-1}}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .sue-f{padding:8px 0}.sue-n{min-height:44px;display:flex;align-items:center}
+  .sue-c{gap:1px}.sue-c i{height:14px;border-radius:2px}
 }
 </style>
 <style id="bm-v741">
