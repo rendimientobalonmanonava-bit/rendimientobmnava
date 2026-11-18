@@ -17006,10 +17006,10 @@ function renderMapaPlantilla(){
   let cab='<div class="bmmp-nom bmmp-esq"></div>'+D.dks.map((dk,i)=>{const d=dkToDate(dk),w=d.getDay();
     const cls=['bmmp-h'];if(w===1)cls.push('lun');if(dk===D.hoy)cls.push('hoy');if(D.par[dk])cls.push('par');
     const lab=ancho==='s'?(w===1?String(d.getDate()):''):'<b>'+L[w]+'</b>'+d.getDate();
-    return '<div class="'+cls.join(' ')+'" title="'+E(bmInspFecha(dk)+(D.par[dk]?' · Partido · '+D.par[dk]:''))+'">'+lab+'</div>';}).join('')
+    return '<div class="'+cls.join(' ')+'" data-dk="'+dk+'" role="button" tabindex="0" title="'+E(bmInspFecha(dk)+(D.par[dk]?' · Partido · '+D.par[dk]:'')+' · ver el día')+'">'+lab+'</div>';}).join('')
     +FUT.map((dk,i)=>{const d=dkToDate(dk),w=d.getDay();const cls=['bmmp-h','fut'];if(i===0)cls.push('fut1');if(D.par[dk])cls.push('par');
       const lab=ancho==='s'?(w===1?String(d.getDate()):''):'<b>'+L[w]+'</b>'+d.getDate();
-      return '<div class="'+cls.join(' ')+'" title="'+E(bmInspFecha(dk)+' · planificado'+(D.par[dk]?' · Partido · '+D.par[dk]:''))+'">'+lab+'</div>';}).join('')+'<div class="bmmp-tot bmmp-esq">'+(BMMP.modo==='rec'?'Media · partes':'Carga · días')+'</div>';
+      return '<div class="'+cls.join(' ')+'" data-dk="'+dk+'" role="button" tabindex="0" title="'+E(bmInspFecha(dk)+' · planificado'+(D.par[dk]?' · Partido · '+D.par[dk]:'')+' · ver el día')+'">'+lab+'</div>';}).join('')+'<div class="bmmp-tot bmmp-esq">'+(BMMP.modo==='rec'?'Media · partes':'Carga · días')+'</div>';
   /* La fila del equipo, arriba y separada: es la referencia de todas las demás. */
   let filas='<div class="bmmp-nom bmmp-eqn"><i class="bmmp-eqi" aria-hidden="true"></i><span>Media del equipo</span></div>'
     +D.dks.map(dk=>{const v=bmMpVal(D.eq,dk),k=bmMpCelda(v,dk,D);k.cls.push('eq');
@@ -17043,7 +17043,7 @@ function renderMapaPlantilla(){
     +'<span><i class="bmmp-lc mo"></i>Con molestia</span><span><i class="bmmp-lc par"></i>Partido</span><span class="bmmp-vac"><i class="bmmp-lc"></i>'+(REC?'Sin parte':'Sin cuestionario')+'</span>'
     +(FUT.length?'<span><i class="bmmp-lc fut n1"></i>Planificado (los '+FUT.length+' días siguientes)</span>':'')+'</div></div>'
     +'<div class="bmmp-w"><div class="bmmp-r bmmp-'+ancho+'" style="--n:'+N+'">'+cab+filas+'</div></div>'
-    +'<p class="bmmp-pie">'+(FUT.length?'Los '+FUT.length+' días de la derecha, más tenues, son lo planificado en el calendario: su parte del plan, con su plan individual si lo tiene; arriba, el plan del día. Es lo que haría si hace lo que hay puesto, no una predicción, y no entra en el total. ':'')+(REC?'La recuperación es la que declara cada uno en el cuestionario de la mañana (la de la barra de 14 días del Resumen); la del equipo, la media de las filas de ese día sin los que están con la selección. ':'')+'Pasa el ratón por una casilla para ver el día; un clic abre su inspector y un clic en el nombre, su ficha. La ventana se cambia arriba (14 d · 28 d · 8 sem · Temporada).</p></div>';
+    +'<p class="bmmp-pie">'+(FUT.length?'Los '+FUT.length+' días de la derecha, más tenues, son lo planificado en el calendario: su parte del plan, con su plan individual si lo tiene; arriba, el plan del día. Es lo que haría si hace lo que hay puesto, no una predicción, y no entra en el total. ':'')+(REC?'La recuperación es la que declara cada uno en el cuestionario de la mañana (la de la barra de 14 días del Resumen); la del equipo, la media de las filas de ese día sin los que están con la selección. ':'')+'Pasa el ratón por una casilla para ver el día; un clic abre su inspector, un clic en el nombre, su ficha, y en la fecha de arriba, el resumen de ese día. La ventana se cambia arriba (14 d · 28 d · 8 sem · Temporada).</p></div>';
   BMMP.D=D;BMMP.orden=orden;
   bmMpCifras();
   const w=box.querySelector('.bmmp-w');if(w)w.scrollLeft=w.scrollWidth;
@@ -17081,6 +17081,7 @@ document.addEventListener('mousemove',e=>{
 document.addEventListener('click',e=>{
   if(!e.target||!e.target.closest)return;
   const mm=e.target.closest('#carga-mapa [data-mpm]');if(mm){bmMpModo(mm.dataset.mpm);return;}
+  const hd=e.target.closest('#carga-mapa .bmmp-h[data-dk]');if(hd){bmMpTip(null);bmDiaRes(hd.dataset.dk);return;}
   const nm=e.target.closest('#carga-mapa .bmmp-nom[data-n]');if(nm){openPlayer(nm.dataset.n);return;}
   const c=e.target.closest('#carga-mapa .bmmp-c');if(!c)return;
   const nom=(BMMP.orden||[])[+c.dataset.p];
@@ -17088,6 +17089,59 @@ document.addEventListener('click',e=>{
 });
 window.addEventListener('scroll',()=>{if(BMMP.sel){BMMP.sel=null;bmMpTip(null);}},{passive:true,capture:true});
 window.renderMapaPlantilla=renderMapaPlantilla;
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('#carga-mapa .bmmp-h[data-dk]')){e.preventDefault();bmDiaRes(e.target.dataset.dk);}});
+/* ═══ v808 · EL RESUMEN DE UN DÍA ═══
+   Daniel, 18/11/2026, propuesta 6 (8 en la lista). Un clic en la cabecera de
+   un día del mapa abre lo que pasó ese día: lo programado contra lo real
+   (`calDayPlan` contra `calRealDia`, la regla de la v737, con los colores de
+   `calDev`), los bloques que hubo y sobre cuántos va cada uno (`lbTeamDay`,
+   con los que no estaban programados dichos aparte), quién estaba fuera y
+   quién no rellenó el cuestionario, y las notas del día. **Ni un cálculo
+   nuevo**: es el panel del día del calendario, leído sin abrir el editor. */
+function bmDiaRes(dk){
+  const E=bmEsc,hoy=dkey(new Date()),ps=STATE.players||{};
+  let d=dkToDate(dk).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});d=d.charAt(0).toUpperCase()+d.slice(1);
+  let md=null;try{md=calMd(dk);}catch(e){}
+  const evs=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e));
+  const par=evs.find(evEsPartido);
+  const sec=(t,h,x)=>'<section class="bmdr-s"><h3>'+t+(x?'<span>'+x+'</span>':'')+'</h3>'+h+'</section>';
+  let h='<p class="bmdr-sub">'+[md&&md.txt&&md.txt!=='—'?md.txt:'',par?'Partido · '+E(evRival(par)||''):'',dk>hoy?'Planificado':dk===hoy?'Hoy':''].filter(Boolean).join(' · ')+'</p>';
+  /* lo programado */
+  const ev=evs.map(e=>{const T=(CAL_TYPES[e.type]||{}).lab||e.type,i=evIntens(e),I=(CAL_INT[i]||{});
+    const det=[e.time||'',evDur(e)?evDur(e)+'′':'',I.lab&&e.type!=='descanso'?'intensidad '+I.lab.toLowerCase():'',evContacto(e)&&e.type!=='descanso'?'contacto '+evContacto(e):''].filter(Boolean).join(' · ');
+    return '<div class="bmdr-l"><i style="background:'+((CAL_TYPES[e.type]||{}).col||'var(--muted)')+'"></i><b>'+E(e.type==='partido'?(evRival(e)||T):(e.title||T))+'</b><small>'+E(det)+'</small></div>';}).join('');
+  h+=sec('Programado',ev||'<p class="bmdr-nada">Nada programado en el calendario.</p>');
+  /* plan contra real */
+  const pl=calDayPlan(dk);let real=null;
+  try{const m=(STATE.calMeta||{})[dk];if(m&&m.real!=null&&m.real!=='')real=+m.real;else{const r=calRealDia(dk);if(r>0)real=r;}}catch(e){}
+  if(pl.n&&pl.planUA>0||real!=null){
+    const D=pl.n&&pl.planUA>0&&real!=null?calDev(pl.planUA,real):null,n0=v=>Math.round(v).toLocaleString('es-ES');
+    h+=sec('Carga',''
+      +'<div class="bmdr-pr"><div><em>Programado</em><b>'+(pl.n&&pl.planUA>0?n0(pl.planUA)+' UA':'—')+'</b></div><div><em>Real</em><b>'+(real!=null?n0(real)+' UA':(dk>hoy?'—':'sin cuestionarios'))+'</b></div>'
+      +(D?'<div><em>Desviación</em><b style="color:'+colTexto(D.col)+'">'+(D.pct>0?'+':D.pct<0?'−':'')+Math.abs(D.pct)+' %</b><small>'+E(D.lab)+'</small></div>':'')+'</div>');
+  }
+  /* bloques */
+  let t=null;try{t=lbTeamDay(dk);}catch(e){}
+  if(t){const pb=(()=>{try{return calBloquesPlan(dk);}catch(e){return new Set();}})(),NOM={pista:'Pista',gym:'Gimnasio',tec:'Tecnificación'};
+    const bl=['pista','gym','tec'].filter(b=>t[b]).map(b=>{const x=t[b];const fuera=b==='tec'||(pb.size&&!pb.has(b));
+      return '<div class="bmdr-l"><b>'+NOM[b]+'</b><small>'+[Math.round(x.uaSes)+' UA',x.nb+' de '+t.n,x.dur?Math.round(x.dur)+'′':'',x.rpe?'RPE '+fmt(x.rpe,1):''].filter(Boolean).join(' · ')
+        +(fuera?' · <span class="bmdr-mu">'+(b==='tec'?'tecnificación, fuera del %':'sin programar, fuera del %')+'</span>':'')+'</small></div>';}).join('');
+    if(bl)h+=sec('Bloques',bl,'la carga, sobre quien lo hizo');}
+  /* quién */
+  if(dk<=hoy){
+    const reales=new Set((STATE.rpe||[]).filter(r=>r&&r.dk===dk&&!r.bloqueConvocado&&!r.sinRegistro).map(r=>r.name));
+    const fuera=[],sin=[];
+    Object.keys(ps).sort((a,b)=>a.localeCompare(b,'es')).forEach(n=>{let st=null;try{const ev=effectiveStatus(n,dk);st=ev&&ev.status;}catch(e){}
+      if(st&&NOAV_ST.includes(st))fuera.push(cvCorto(n)+' ('+((PHYSTAT[st]||{}).lab||st).toLowerCase()+')');
+      else if(!reales.has(n)&&evs.some(e=>e.type!=='descanso'))sin.push(cvCorto(n));});
+    if(fuera.length||sin.length)h+=sec('Quién',(fuera.length?'<p class="bmdr-q"><b>Fuera:</b> '+E(fuera.join(', '))+'</p>':'')+(sin.length?'<p class="bmdr-q"><b>Sin cuestionario:</b> '+E(sin.join(', '))+'</p>':''));
+  }
+  /* notas */
+  try{const ns=notasLoad().filter(x=>x&&x.dk===dk);if(ns.length)h+=sec('Notas',ns.map(x=>'<div class="bmdr-l"><b>'+E(x.jugador?cvCorto(x.jugador):'Equipo')+'</b><small>'+E(x.txt||'')+(x.quien?' · '+E(x.quien):'')+'</small></div>').join(''));}catch(e){}
+  h+='<div class="bmdr-acc"><button type="button" class="btn ghost" onclick="bmHojaCierra(\'dia\');go(\'cal\');setTimeout(()=>{try{calOpenDay(\''+dk+'\');}catch(e){}},120)">Abrir el día en el calendario</button></div>';
+  bmHoja({id:'dia',titulo:d,html:'<div class="bmdr">'+h+'</div>',clase:'bm-diah'});
+}
+window.bmDiaRes=bmDiaRes;
 /* ═══ v793 · ORDENADOR · Alertas como Mail ═══
    Daniel, 17/11/2026, propuesta 2. Medido: 39 alertas en 15 tarjetas que dicen
    el TIPO («Sueño · Wellness») pero no la cifra, ni desde cuándo, ni contra
@@ -53179,6 +53233,32 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .cvd-l h3{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6e6e73}
 .cvd-j{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px solid #f0f0f3;font-size:16px}
 .cvd-j b{width:28px;text-align:right;font-weight:800;color:#3056c4;font-variant-numeric:tabular-nums}
+</style>
+<style id="bm-v808">
+/* v808 · el resumen de un día (hoja) */
+.bmdr{display:grid;gap:4px}
+.bmdr-sub{margin:-4px 0 6px;font-size:var(--fs-sm);color:var(--muted)}
+.bmdr-s{padding:10px 0;border-top:1px solid var(--hair)}
+.bmdr-s:first-of-type{border-top:0}
+.bmdr-s h3{margin:0 0 8px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);display:flex;gap:8px;align-items:baseline}
+.bmdr-s h3 span{text-transform:none;letter-spacing:0;font-weight:400}
+.bmdr-l{display:flex;align-items:baseline;gap:8px;padding:3px 0;flex-wrap:wrap}
+.bmdr-l>i{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
+.bmdr-l b{font-size:var(--fs-body);font-weight:600;color:var(--txt)}
+.bmdr-l small{font-size:var(--fs-sm);color:var(--muted);font-variant-numeric:tabular-nums}
+.bmdr-mu{color:var(--warn-text)}
+.bmdr-pr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.bmdr-pr em{display:block;font-style:normal;font-size:var(--fs-xs);color:var(--muted)}
+.bmdr-pr b{display:block;font-size:var(--fs-h2);font-weight:600;font-variant-numeric:tabular-nums;color:var(--txt)}
+.bmdr-pr small{font-size:var(--fs-xs);color:var(--muted)}
+.bmdr-q{margin:0 0 6px;font-size:var(--fs-sm);color:var(--txt);line-height:1.45}.bmdr-q b{font-weight:600}
+.bmdr-nada{margin:0;font-size:var(--fs-sm);color:var(--muted)}
+.bmdr-acc{padding-top:12px;border-top:1px solid var(--hair);display:flex;justify-content:flex-end}
+@media screen and (min-width:761px) and (pointer:fine){
+  #carga-mapa .bmmp-h[data-dk]:hover{color:var(--txt)}
+  #carga-mapa .bmmp-h[data-dk]:hover b{opacity:1}
+  #carga-mapa .bmmp-h[data-dk]:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px}
+}
 </style>
 <style id="bm-v803">
 /* v803 · el readiness de cada jugador, día a día */
