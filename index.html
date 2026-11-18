@@ -16831,12 +16831,14 @@ function bmShPinta(foco){
     c.addEventListener('click',bmShClic);
     c.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&String(e.key).toLowerCase()==='d'){const tr=e.target.closest('tr[data-i]');if(tr){e.preventDefault();e.stopPropagation();bmShDuplica(tr.dataset.dk,+tr.dataset.i);}}});}
   if(foco){const el=c.querySelector('tr[data-dk="'+foco[0]+'"][data-i="'+foco[1]+'"] [data-k="'+(foco[2]||'type')+'"]');if(el)setTimeout(()=>{try{el.focus();}catch(x){}},30);}
+  try{bmPrevSemana();}catch(e){console.error('bmnava · previsión',e);}
 }
 function bmShRecalcula(dk){
   const c=document.querySelector('#bmh-semana .bmh-cuerpo');if(!c)return;
   (BMSH.buf[dk]||[]).forEach((e,i)=>{const td=c.querySelector('tr[data-dk="'+dk+'"][data-i="'+i+'"] .bmsh-ua');if(td)td.textContent=bmShUA(e).toLocaleString('es-ES');});
   const cab=c.querySelector('tr.bmsh-dia[data-dk="'+dk+'"]');if(cab){const n=document.createElement('tbody');n.innerHTML=bmShDiaCab(dk);cab.replaceWith(n.firstChild);}
   const tot=BMSH.dks.reduce((s,d)=>s+(BMSH.buf[d]||[]).reduce((t,e)=>t+bmShUA(e),0),0);const b=c.querySelector('.bmsh-tt b');if(b)b.textContent=tot.toLocaleString('es-ES')+' UA';
+  clearTimeout(BMPV.ts);BMPV.ts=setTimeout(()=>{try{bmPrevSemana();}catch(e){}},120);
 }
 function bmShCambio(ev){
   const el=ev.target,k=el.dataset&&el.dataset.k,tr=el.closest('tr[data-i]');if(!k||!tr)return;
@@ -42589,10 +42591,16 @@ window.calRefMD=calRefMD;
        individualizada;
      · se proyecta sobre la misma serie diaria y el mismo cálculo que el ACWR de
        verdad (acwrDeSerie), no sobre una fórmula aparte. */
-function calProyeccionACWR(dk){
+function calProyeccionACWR(dk,hasta){
   const ciclo=calMicrociclo(dk||dkey(new Date()));
   const hoy=dkey(new Date());
-  const futuros=ciclo.dias.filter(d=>d.dk>hoy);
+  /* v813 · desde MAÑANA hasta el cierre de ese ciclo, aunque el ciclo empiece
+     más adelante: con un ciclo futuro faltaban los días de en medio y la
+     previsión salía de una serie con huecos. En el ciclo en curso es lo mismo
+     que antes. */
+  /* `hasta` corta la previsión en otro día (la hoja de la semana, en el domingo) */
+  const finC=hasta||(ciclo.dias.length?ciclo.dias[ciclo.dias.length-1].dk:hoy),porDk={};ciclo.dias.forEach(d=>{porDk[d.dk]=d;});
+  const futuros=finC>hoy?dkRango(dkSumaDias(hoy,1),finC).map(x=>porDk[x]||{dk:x,plan:(()=>{try{return calPlanUA(x);}catch(e){return 0;}})()}):[];
   const plan={};
   futuros.forEach(d=>{plan[d.dk]=d.plan||0;});
   const diasPlan=futuros.filter(d=>d.plan>0).length;
@@ -42624,6 +42632,86 @@ window.calProyeccionACWR=calProyeccionACWR;
 /* Dibujo del panel de microciclo. Dos lecturas en el mismo sitio: cómo queda la
    semana colocada respecto al partido, y dónde acaba el ACWR de cada jugador si
    se entrena lo que hay puesto. */
+/* ═══ v813 · PLANIFICAR VIENDO EL FUTURO ═══
+   Daniel, 18/11/2026, propuesta 1. Mientras se escribe una sesión —en el
+   editor del día del calendario o en la hoja de la semana— un panel enseña
+   dónde acaba el ACWR de cada jugador al cierre del ciclo, y se mueve con lo
+   que se escribe. **Es la proyección de siempre** (`calProyeccionACWR`, la del
+   microciclo, con su parte del plan y su plan individual): lo que se está
+   escribiendo se pone un instante en el calendario, se calcula y se quita EN
+   LA MISMA TAREA, así que nada se guarda ni se pinta con ello. Tarda 3 ms.
+   La banda es la de `CONFIG.load` y el color el de `acwrClass`. Se compara con
+   lo que ya había guardado, para que se vea qué cambia ESTA sesión. */
+function bmPrevCalc(cambios,dkRef,hasta){
+  const cal=STATE.calendar||(STATE.calendar={}),orig={};
+  Object.keys(cambios).forEach(dk=>{orig[dk]=Object.prototype.hasOwnProperty.call(cal,dk)?cal[dk]:undefined;cal[dk]=cambios[dk];});
+  let P=null;
+  try{P=calProyeccionACWR(dkRef,hasta);}catch(e){console.error('bmnava · previsión',e);}
+  finally{Object.keys(orig).forEach(dk=>{if(orig[dk]===undefined)delete cal[dk];else cal[dk]=orig[dk];});}
+  return P;
+}
+function bmPrevHTML(P,B,tit,ancho){
+  if(!P||!P.futuros||!P.futuros.length)return '<p class="bmpv-nada">La previsión es para los días que vienen: aquí no queda ningún día por delante.</p>';
+  const LO=CONFIG.load.acwrYellowLo,HI=CONFIG.load.acwrYellowHi,MIN=0.4,MAX=2.0,x=v=>Math.max(0,Math.min(100,(Math.max(MIN,Math.min(MAX,v))-MIN)/(MAX-MIN)*100));
+  const J=P.jug.filter(j=>isFinite(j.fin)&&j.rel);
+  const fuera=J.filter(j=>j.fin<LO||j.fin>HI);
+  const bF=B?B.jug.filter(j=>isFinite(j.fin)&&j.rel&&(j.fin<LO||j.fin>HI)).length:null;
+  const antes={};if(B)B.jug.forEach(j=>{antes[j.name]=j.fin;});
+  /* puntos sin montarse: cada uno en el primer carril donde no choca */
+  /* la separación mínima entre dos puntos, en % del ancho que hay (un punto mide ~32 px) */
+  const thr=ancho>120?34/(ancho-6)*100:4.6;
+  const carr=[];const pts=J.slice().sort((a,b)=>a.fin-b.fin).map(j=>{const px=x(j.fin);let k=0;while(carr[k]!=null&&px-carr[k]<thr)k++;carr[k]=px;return {j,px,k};});
+  const nk=Math.max(1,carr.length);
+  const ini=cvCorto;
+  const fin=P.futuros[P.futuros.length-1].dk;
+  const h='<div class="bmpv-cab"><b>'+(tit||'Cómo acaba el ciclo')+'</b><span>ACWR al '+bmInspFecha(fin)+' si cada uno hace lo que hay puesto</span></div>'
+    +'<div class="bmpv-k"><b class="'+(fuera.length?'mal':'')+'">'+fuera.length+'</b><span>'+(fuera.length===1?'jugador acaba':'jugadores acaban')+' fuera de 0,8–1,3'
+      +(bF!=null&&bF!==fuera.length?' · <em>'+(fuera.length>bF?'+':'−')+Math.abs(fuera.length-bF)+' con este cambio</em>':(bF!=null?' · igual que sin este cambio':''))+'</span></div>'
+    +'<div class="bmpv-g" style="--nk:'+nk+'"><i class="bmpv-banda" style="left:'+x(LO)+'%;width:'+(x(HI)-x(LO))+'%"></i>'
+      +[0.5,0.8,1,1.3,1.5,2].map(v=>'<u style="left:'+x(v)+'%">'+String(v).replace('.',',')+'</u>').join('')
+      +pts.map(o=>'<span class="bmpv-p '+acwrClass(o.j.fin)+'" style="left:'+o.px+'%;--k:'+o.k+'" title="'+bmEsc(o.j.name+' · ahora '+fmt(o.j.ahora,2)+' → '+fmt(o.j.fin,2))+'">'+bmEsc(String(ini(o.j.name)).split(' ')[0].slice(0,3))+'</span>').join('')+'</div>'
+    +(fuera.length?'<div class="bmpv-l">'+fuera.slice(0,8).map(j=>{const a=antes[j.name];const mv=a!=null&&Math.abs(a-j.fin)>=0.005;
+        return '<span><b>'+bmEsc(ini(j.name))+'</b> '+fmt(j.ahora,2)+' → <strong class="'+acwrClass(j.fin)+'">'+fmt(j.fin,2)+'</strong>'+(mv?' <em>(sin el cambio '+fmt(a,2)+')</em>':'')+(j.aj?' · plan propio':'')+'</span>';}).join('')
+      +(fuera.length>8?'<span>y '+(fuera.length-8)+' más</span>':'')+'</div>':'<p class="bmpv-ok">Todos acaban entre 0,8 y 1,3.</p>')
+    +'<p class="bmpv-pie">La carga planificada es la del equipo (o su plan individual, si lo tiene): es «si hace lo que hay puesto», no una predicción. Para ajustar a alguien, su plan individual en el día.</p>';
+  return h;
+}
+/* el editor del día del calendario: lo guardado del día más lo que hay en el formulario */
+const BMPV={sucio:false,t:0};
+function bmPrevDia(){
+  const b=document.getElementById('info-mbody'),dk=CAL_CUR;if(!b||!dk)return;
+  let box=b.querySelector('#bmpv');
+  if(dk<=dkey(new Date())){if(box)box.remove();return;}
+  if(!box){box=document.createElement('section');box.id='bmpv';box.className='bmpv';b.appendChild(box);}
+  const g=id=>(document.getElementById(id)||{}).value;
+  const guardado=((STATE.calendar||{})[dk]||[]).slice();
+  let lista=guardado;
+  const tipo=g('cal-type');
+  if(BMPV.sucio&&tipo&&tipo!=='descanso'&&tipo!=='evento'){
+    const dur=+(g('cal-dur')||0);
+    const ev={id:'__prev',type:tipo,intens:CAL_FORM.intens||2,dur,contacto:CAL_FORM.contacto!=null?CAL_FORM.contacto:3};
+    lista=guardado.filter(e=>!(CAL_EDIT&&e.id===CAL_EDIT)).concat(dur>0?[ev]:[]);
+  }
+  const P=bmPrevCalc({[dk]:lista},dk),B=BMPV.sucio?bmPrevCalc({[dk]:guardado},dk):null;
+  box.innerHTML=bmPrevHTML(P,B,null,box.clientWidth-32);
+}
+(function(){const _cb=calBody;calBody=function(dk){_cb(dk);BMPV.sucio=!!CAL_EDIT;try{bmPrevDia();}catch(e){console.error('bmnava · previsión',e);}};window.calBody=calBody;})();
+['input','change','click'].forEach(t=>document.addEventListener(t,e=>{
+  const b=document.getElementById('info-mbody');if(!b||!CAL_CUR||!e.target||!b.contains(e.target)||e.target.closest('#bmpv'))return;
+  if(!e.target.closest('#cal-type,#cal-dur,.cal-int-pill,.cal-ct-pill,.cal-dur-chip,[onclick*="calSetIntens"],[onclick*="calSetContacto"],[onclick*="calSetDur"]'))return;
+  BMPV.sucio=true;clearTimeout(BMPV.t);BMPV.t=setTimeout(()=>{try{bmPrevDia();}catch(x){}},120);},true));
+/* la hoja de la semana: los siete días tal y como están escritos */
+function bmPrevSemana(){
+  const c=document.querySelector('#bmh-semana .bmh-cuerpo');if(!c)return;
+  let box=c.querySelector('#bmpv-sem');
+  const hoy=dkey(new Date()),dks=BMSH.dks.filter(d=>d>hoy);
+  if(!dks.length){if(box)box.remove();return;}
+  if(!box){box=document.createElement('section');box.id='bmpv-sem';box.className='bmpv';const acc=c.querySelector('.bmsh-acc');if(acc)c.insertBefore(box,acc);else c.appendChild(box);}
+  const cambios={};BMSH.dks.forEach(d=>{cambios[d]=(BMSH.buf[d]||[]).map(e=>Object.assign({},e));});
+  const ult=BMSH.dks[6];
+  box.innerHTML=bmPrevHTML(bmPrevCalc(cambios,ult,ult),BMSH.sucio?bmPrevCalc({},ult,ult):null,'Cómo acaba la semana',box.clientWidth-32);
+}
+window.bmPrevSemana=bmPrevSemana;window.bmPrevDia=bmPrevDia;
 function renderCalMicro(){
   const box=document.getElementById('cal-micro-panel');if(!box)return;
   let P=null;
@@ -53373,6 +53461,28 @@ html[data-theme="dark"]{--tbm-bg:rgba(44,45,50,.95);--tbm-borde:rgba(255,255,255
 .cvd-l h3{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6e6e73}
 .cvd-j{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px solid #f0f0f3;font-size:16px}
 .cvd-j b{width:28px;text-align:right;font-weight:800;color:#3056c4;font-variant-numeric:tabular-nums}
+</style>
+<style id="bm-v813">
+/* v813 · planificar viendo el futuro */
+.bmpv{margin-top:16px;padding:14px 16px;border-radius:12px;background:var(--panel2);box-shadow:inset 0 0 0 .5px var(--line)}
+.bmpv-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.bmpv-cab b{font-size:var(--fs-body);font-weight:600;color:var(--txt)}
+.bmpv-cab span{font-size:var(--fs-sm);color:var(--muted)}
+.bmpv-k{display:flex;align-items:baseline;gap:8px;margin:8px 0 4px}
+.bmpv-k>b{font-size:var(--fs-h1);font-weight:700;font-variant-numeric:tabular-nums;color:var(--ok-text)}
+.bmpv-k>b.mal{color:var(--warn-text)}
+.bmpv-k>span{font-size:var(--fs-sm);color:var(--muted)}.bmpv-k em{font-style:normal;font-weight:600;color:var(--txt)}
+.bmpv-g{position:relative;height:calc(var(--nk) * 22px + 26px);margin:8px 2px 4px;border-bottom:1px solid var(--hair)}
+.bmpv-banda{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--ok) 14%,transparent);border-left:1px dashed color-mix(in srgb,var(--ok) 60%,transparent);border-right:1px dashed color-mix(in srgb,var(--ok) 60%,transparent)}
+.bmpv-g u{position:absolute;bottom:-18px;transform:translateX(-50%);text-decoration:none;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bmpv-p{position:absolute;bottom:calc(4px + var(--k) * 22px);transform:translateX(-50%);min-width:30px;height:19px;padding:0 5px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;color:#0d1117;background:color-mix(in srgb,var(--ok) 80%,var(--panel2));transition:left .25s cubic-bezier(.32,.72,0,1)}
+.bmpv-p.warn{background:color-mix(in srgb,var(--warn) 80%,var(--panel2))}.bmpv-p.bad{background:color-mix(in srgb,var(--bad) 80%,var(--panel2))}
+.bmpv-l{display:flex;flex-direction:column;gap:3px;margin-top:24px;font-size:var(--fs-sm);color:var(--muted);font-variant-numeric:tabular-nums}
+.bmpv-l b{color:var(--txt);font-weight:600}.bmpv-l strong{font-weight:600}.bmpv-l strong.warn{color:var(--warn-text)}.bmpv-l strong.bad{color:var(--bad-text)}.bmpv-l em{font-style:normal}
+.bmpv-ok{margin:24px 0 0;font-size:var(--fs-sm);color:var(--ok-text)}
+.bmpv-nada{margin:0;font-size:var(--fs-sm);color:var(--muted)}
+.bmpv-pie{margin:10px 0 0;font-size:var(--fs-xs);color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.bmpv-p{transition:none}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
