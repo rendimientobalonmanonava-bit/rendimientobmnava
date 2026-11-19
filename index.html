@@ -25119,6 +25119,51 @@ document.addEventListener('click',e=>{
   }
 },true);
 window.bmdsAbre=bmdsAbre;window.bmdsAnima=bmdsAnima;
+/* ═══ v848 · CAMBIAR DE DÍA CON DIRECCIÓN ═══
+   Daniel, 19/11/2026, propuesta 3. Con ‹ › o las flechas, la pantalla sólo se
+   atenuaba y se repintaba. Ahora, como al pasar de día en el Calendario de
+   Apple, lo de la pantalla entra un poco desde el lado del día —el siguiente
+   por la derecha, el anterior por la izquierda— y la fecha rueda: el día
+   siguiente sube desde abajo y el anterior baja desde arriba. El título de la
+   pantalla y la tira de la semana (móvil) se quedan quietos: no son el día.
+   Sólo cuando lo ha pedido quien mira (un toque, un clic o una tecla en el
+   último segundo y medio): el día que pone la aplicación sola no se anima. */
+const BMDIA={ult:null};
+function bmdiaUsuario(){return Date.now()-(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<1500&&!!window.__BM_LISTO;}
+function bmdiaEtiqueta(antes,dir){
+  const lab=document.getElementById('dp-label');if(!lab||!dir||bmReduce())return;
+  try{lab.animate([{transform:'translateY('+(dir*.6)+'em)',opacity:0},{transform:'none',opacity:1}],{duration:240,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}
+  if(!antes||antes===lab.textContent)return;
+  const r=lab.getBoundingClientRect();if(!r.width)return;
+  const cs=getComputedStyle(lab),g=document.createElement('span');g.textContent=antes;g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{position:'fixed',left:r.left+'px',top:r.top+'px',height:r.height+'px',lineHeight:cs.lineHeight,font:cs.font,letterSpacing:cs.letterSpacing,color:cs.color,whiteSpace:'nowrap',pointerEvents:'none',zIndex:'9999'});
+  document.body.appendChild(g);
+  try{const a=g.animate([{transform:'none',opacity:1},{transform:'translateY('+(-dir*.6)+'em)',opacity:0}],{duration:200,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'});a.onfinish=()=>g.remove();}catch(e){g.remove();}
+  setTimeout(()=>g.remove(),500);
+}
+function bmdiaContenido(dir){
+  if(!dir||bmReduce())return;
+  const v=document.querySelector('main>.view.on');if(!v)return;
+  [...v.children].forEach(el=>{
+    if(el.matches('.pagehead,.bm-sem,.ph-banner,script,style'))return;
+    const r=el.getBoundingClientRect();if(!r.height||r.bottom<0||r.top>(window.innerHeight||900))return;
+    const pos=getComputedStyle(el).position;if(pos==='fixed'||pos==='sticky')return;
+    try{el.animate([{transform:'translateX('+(dir*16)+'px)',opacity:.35},{transform:'none',opacity:1}],{duration:280,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}
+  });
+}
+function bmdiaInstala(){
+  const s=window.setRefDate;if(typeof s==='function'&&!s.__bmdia){
+    const w=function(v){const antes=dkey(REF());const r=s.apply(this,arguments);
+      try{if(v&&!window.__RD_CALC&&v!==antes&&bmdiaUsuario())bmdiaContenido(v>antes?1:-1);}catch(e){}return r;};
+    w.__bmdia=true;window.setRefDate=w;}
+  const d=window.dpSyncLabel;if(typeof d==='function'&&!d.__bmdia){
+    const w=function(){const lab=document.getElementById('dp-label');const antes=lab?lab.textContent:'';
+      const inp=document.getElementById('ref-date');const v0=BMDIA.ult;const r=d.apply(this,arguments);
+      try{const v=inp&&inp.value;if(v&&v0&&v!==v0&&bmdiaUsuario())bmdiaEtiqueta(antes,v>v0?1:-1);BMDIA.ult=v||BMDIA.ult;}catch(e){}return r;};
+    w.__bmdia=true;window.dpSyncLabel=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmdiaInstala,50));else setTimeout(bmdiaInstala,50);
+window.bmdiaInstala=bmdiaInstala;
 
 
 
