@@ -14271,8 +14271,47 @@ function tbMark(v){let eff=v==='estado'?'dispo':v;const ks=TABBAR.map(t=>t[0]);
   try{if(typeof bmPriPinta==='function')bmPriPinta();}catch(e){}
   try{const pi=document.getElementById('bm-pista');if(pi)pi.classList.remove('on');clearTimeout(window.__BMPI_T);window.__BMPI_T=setTimeout(()=>{if(typeof bmPistasMira==='function')bmPistasMira();},1300);}catch(e){}
   const fijo=ks.indexOf(eff)>=0;
+  const antes=document.querySelector('#tabbar .tb-cap .tb-i.on');
   document.querySelectorAll('#tabbar .tb-i').forEach(b=>{const on=fijo?b.dataset.v===eff:b.dataset.v==='_mas';
-    b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
+    b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  try{if(typeof bmTbMuelle==='function')bmTbMuelle(antes,document.querySelector('#tabbar .tb-cap .tb-i.on'));}catch(e){}}
+/* ═══ v844 · LA BARRA DE ABAJO COMO EN iOS 26 ═══
+   Daniel, 19/11/2026, propuesta 10. Medido: la pestaña elegida sólo cambiaba
+   de color en 0,15 s. Ahora la pastilla del activo se desliza desde la
+   pestaña de antes hasta la nueva con un muelle —un 3 % de rebote, no más:
+   lo justo para que se note que tiene masa— y el icono da un bote pequeño al
+   llegar. La pastilla que se mueve es una copia con el fondo y la esquina de
+   la de verdad (`getComputedStyle`), así que vale en los dos temas y con la
+   barra tumbada (v589); la de verdad se queda transparente mientras dura.
+   Con la barra encogida (v618), con «Más» abierto o con «Reducir
+   movimiento», nada de esto: la pestaña cambia como antes. Sólo en el móvil. */
+const BMTB_MUELLE='linear(0,0.046,0.154,0.292,0.437,0.574,0.694,0.794,0.873,0.932,0.974,1.002,1.019,1.028,1.031,1.031,1.028,1.023,1.019,1.014,1.011,1.007,1.005,1)';
+function bmTbMuelle(a,b){
+  if(!b||a===b)return;
+  try{if(!esMovil())return;}catch(e){return;}
+  let rm=false;try{rm=matchMedia('(prefers-reduced-motion:reduce)').matches;}catch(e){}if(rm)return;
+  const tb=document.getElementById('tabbar'),cap=b.closest('.tb-cap');
+  if(!tb||!cap||tb.classList.contains('tb-min')||document.body.classList.contains('sb-open'))return;
+  /* el bote del icono, aunque no haya de dónde venir */
+  const ic=b.querySelector('svg');
+  if(ic){try{ic.animate([{transform:'scale(1)'},{transform:'scale(.84)',offset:.28},{transform:'scale(1.1)',offset:.62},{transform:'scale(1)'}],{duration:420,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}}
+  if(!a||!a.isConnected||a.closest('.tb-cap')!==cap)return;
+  const rc=cap.getBoundingClientRect(),ra=a.getBoundingClientRect(),rb=b.getBoundingClientRect();
+  if(!ra.width||!rb.width||!rc.width)return;
+  const cs=getComputedStyle(b);if(!cs.backgroundColor||cs.backgroundColor==='rgba(0, 0, 0, 0)'&&cs.backgroundImage==='none')return;
+  cap.querySelectorAll('.tb-muelle').forEach(x=>x.remove());
+  const bl=cap.clientLeft,bt=cap.clientTop;
+  const g=document.createElement('i');g.className='tb-muelle';g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{left:(rb.left-rc.left-bl)+'px',top:(rb.top-rc.top-bt)+'px',width:rb.width+'px',height:rb.height+'px',
+    backgroundColor:cs.backgroundColor,backgroundImage:cs.backgroundImage,borderRadius:cs.borderRadius});
+  cap.appendChild(g);b.classList.add('tb-muelle-on');a.classList.add('tb-muelle-de');
+  const fin=()=>{g.remove();b.classList.remove('tb-muelle-on');a.classList.remove('tb-muelle-de');};
+  try{const an=g.animate([{transform:'translate('+(ra.left-rb.left)+'px,'+(ra.top-rb.top)+'px)',width:ra.width+'px',height:ra.height+'px'},{transform:'none',width:rb.width+'px',height:rb.height+'px'}],
+      {duration:480,easing:BMTB_MUELLE});an.onfinish=fin;an.oncancel=fin;}
+  catch(e){try{const an=g.animate([{transform:'translate('+(ra.left-rb.left)+'px,'+(ra.top-rb.top)+'px)'},{transform:'none'}],{duration:420,easing:'cubic-bezier(.3,1.25,.5,1)'});an.onfinish=fin;an.oncancel=fin;}catch(e2){fin();}}
+  setTimeout(fin,900);
+}
+window.bmTbMuelle=bmTbMuelle;
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('sb-open'))sbToggleMobile(false);});
 /* v539 · ¿Se está en el diseño de móvil? Es la misma condición que la regla de
    ancho del CSS: lo que sólo debe pasar en el teléfono pregunta aquí. */
@@ -61257,6 +61296,17 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
 .bm-mal{outline:2px solid var(--bad)!important;outline-offset:1px;animation:bmTiembla .36s cubic-bezier(.36,.07,.19,.97)}
 @keyframes bmTiembla{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(3px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
 @media (prefers-reduced-motion:reduce){.bm-mal{animation:none}}
+</style>
+<style id="bm-v844">
+/* v844 · la pastilla de la barra de abajo se desliza con muelle */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #tabbar .tb-cap{position:relative;isolation:isolate}
+  #tabbar .tb-cap .tb-i{z-index:1}
+  #tabbar .tb-cap .tb-muelle{position:absolute;z-index:0;pointer-events:none;display:block;margin:0;padding:0;box-sizing:border-box}
+  #tabbar .tb-cap .tb-i.tb-muelle-on{background:transparent!important}
+  /* la de antes suelta su pastilla en seco: la que se va es la copia */
+  #tabbar .tb-cap .tb-i.tb-muelle-de{transition:none!important;background:transparent!important}
+}
 </style>
 </body>
 </html>
