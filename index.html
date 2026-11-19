@@ -25653,6 +25653,97 @@ function bmHeroInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmHeroInstala,60));else setTimeout(bmHeroInstala,60);
 window.bmHeroAbre=bmHeroAbre;window.bmHeroSpot=bmHeroSpot;
+/* ═══ v857 · LAS PANTALLAS SE MONTAN EN CASCADA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 2 de la tanda «que se note». Medido: al
+   elegir una sección, la nueva aparecía entera de golpe bajo la que se
+   desvanecía (v838), y después cada cifra contaba y cada anillo se llenaba por
+   su cuenta. Ahora los bloques que se ven entran uno detrás de otro —el
+   título primero—, subiendo 14 px, con 32 ms entre uno y el siguiente y nunca
+   más de medio segundo en total: la pantalla se monta delante de ti, como en
+   las apps de Apple. Sólo lo que se ve (lo de más abajo ya estará quieto
+   cuando llegues), sólo al cambiar de sección desde el menú o la barra —atrás
+   y adelante siguen deslizándose (v838)— y nada con «Reducir movimiento». Se
+   lanza en el mismo instante en que se pinta la sección, así que no hay un
+   fotograma con todo a la vista antes de empezar. */
+const BMCAS={sel:'.pagehead,.panel,.cgr-card,.eq-tile,.kpi,.pcard,.acard,.bm-dest,.bm-prox,.asum,.fis-k,.tsum-t,.bd-res,.jl,.alert-filters'};
+function bmCascada(v){
+  if(!v||bmReduce()||window.__BM_HEROVT)return;
+  const H=window.innerHeight||900;
+  let els=[...v.querySelectorAll(BMCAS.sel)].filter(e=>{if(e.closest(BMG_DOC))return false;const r=e.getBoundingClientRect();return r.height>16&&r.width>40&&r.bottom>0&&r.top<H;});
+  els=els.filter(e=>!els.some(o=>o!==e&&o.contains(e)));
+  els.sort((a,b)=>{const ra=a.getBoundingClientRect(),rb=b.getBoundingClientRect();return (Math.round(ra.top/40)-Math.round(rb.top/40))||(ra.left-rb.left);});
+  els.slice(0,16).forEach((e,i)=>{
+    try{e.animate([{opacity:0,transform:'translateY(14px) scale(.985)'},{opacity:1,transform:'none'}],
+      {duration:380,delay:Math.min(i,10)*32,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}
+  });
+}
+function bmCascadaInstala(){
+  const f=window.go;if(typeof f!=='function'||f.__bmcas)return;
+  const w=function(v){
+    const antes=STATE.view;const r=f.apply(this,arguments);
+    try{
+      if(!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&window.__BM_LISTO&&STATE.view!==antes&&document.documentElement.dataset.nav==='tab')
+        bmCascada(document.querySelector('main>.view.on'));
+    }catch(_){}
+    return r;};
+  w.__bmcas=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.go=w;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmCascadaInstala,80));else setTimeout(bmCascadaInstala,80);
+window.bmCascada=bmCascada;
+/* ═══ v858 · LA BARRA LATERAL, VIVA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 3. Medido: la sección elegida cambiaba de
+   fila con un fundido de 0,15 s, y el resalte del ratón saltaba de una fila a
+   otra. Ahora la pastilla azul se DESLIZA hasta la sección nueva, con el mismo
+   muelle que la barra del móvil (v844), y la fila nueva se vuelve blanca al
+   llegar; y el resalte del ratón se mueve de fila en fila siguiéndolo, en vez
+   de encenderse y apagarse. Las dos piezas son capas propias por debajo de
+   los nombres: no se toca cómo se dibuja ninguna fila. Nada con «Reducir
+   movimiento». Sólo con ratón o trackpad. */
+const BMSBPIL={hov:null,t:null};
+function bmsbpVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmsbpNav(){const n=document.querySelector('#sidebar .sb-nav');if(n&&!n.classList.contains('sbp-on'))n.classList.add('sbp-on');return n;}
+function bmsbpCaja(el,nav){const r=el.getBoundingClientRect(),nr=nav.getBoundingClientRect();return {x:r.left-nr.left+nav.scrollLeft,y:r.top-nr.top+nav.scrollTop,w:r.width,h:r.height};}
+function bmsbpMueve(a,b){
+  if(!a||!b||a===b||!bmsbpVale())return;
+  const nav=bmsbpNav();if(!nav||!nav.contains(a)||!nav.contains(b))return;
+  const ca=bmsbpCaja(a,nav),cb=bmsbpCaja(b,nav);if(!ca.w||!cb.w)return;
+  nav.querySelectorAll('.sbp-sel').forEach(x=>x.remove());
+  const g=document.createElement('i');g.className='sbp-sel';g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{left:cb.x+'px',top:cb.y+'px',width:cb.w+'px',height:cb.h+'px'});
+  nav.appendChild(g);b.classList.add('sbp-llega');
+  const fin=()=>{g.remove();b.classList.remove('sbp-llega');};
+  try{const an=g.animate([{transform:'translate('+(ca.x-cb.x)+'px,'+(ca.y-cb.y)+'px)',width:ca.w+'px',height:ca.h+'px'},{transform:'none',width:cb.w+'px',height:cb.h+'px'}],
+    {duration:440,easing:typeof BMTB_MUELLE!=='undefined'?BMTB_MUELLE:'cubic-bezier(.32,.72,0,1)'});an.onfinish=fin;an.oncancel=fin;}catch(e){fin();}
+  setTimeout(fin,900);
+}
+function bmsbpInstala(){
+  const f=window.sbMark;if(typeof f!=='function'||f.__sbp)return;
+  const w=function(){const a=document.querySelector('#sidebar .sb-nav .sb-item.on');const r=f.apply(this,arguments);
+    try{const b=document.querySelector('#sidebar .sb-nav .sb-item.on');if(window.__BM_LISTO)bmsbpMueve(a,b);}catch(_){}return r;};
+  w.__sbp=true;window.sbMark=w;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmsbpInstala,0));else setTimeout(bmsbpInstala,0);
+/* el resalte que sigue al ratón */
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType&&e.pointerType!=='mouse')return;
+  const it=e.target&&e.target.closest&&e.target.closest('#sidebar .sb-nav .sb-item');
+  if(!it||!bmsbpVale())return;
+  const nav=bmsbpNav();if(!nav)return;
+  let h=nav.querySelector(':scope>.sbp-hov');
+  const c=bmsbpCaja(it,nav);
+  if(!h){h=document.createElement('i');h.className='sbp-hov';h.setAttribute('aria-hidden','true');nav.appendChild(h);
+    Object.assign(h.style,{width:c.w+'px',height:c.h+'px',transform:'translate('+c.x+'px,'+c.y+'px)'});void h.offsetWidth;}
+  const nuevo=!h.classList.contains('on');
+  if(nuevo){h.style.transition='none';Object.assign(h.style,{width:c.w+'px',height:c.h+'px',transform:'translate('+c.x+'px,'+c.y+'px)'});void h.offsetWidth;h.style.transition='';}
+  else Object.assign(h.style,{width:c.w+'px',height:c.h+'px',transform:'translate('+c.x+'px,'+c.y+'px)'});
+  h.classList.add('on');
+},{passive:true});
+document.addEventListener('pointerout',e=>{
+  const nav=document.querySelector('#sidebar .sb-nav');if(!nav)return;
+  const a=e.relatedTarget;if(a&&a.closest&&a.closest('#sidebar .sb-nav .sb-item'))return;
+  const h=nav.querySelector(':scope>.sbp-hov');if(h)h.classList.remove('on');
+},{passive:true});
+window.bmsbpMueve=bmsbpMueve;
 
 
 
@@ -62051,6 +62142,23 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
   html.bm-hero::view-transition-old(bm-nom){animation:bmhrNomSale .16s ease-out both}
   html.bm-hero::view-transition-new(bm-nom){animation:bmhrNomEntra .24s ease-out .14s both}
 }
+</style>
+<style id="bm-v858">
+/* v858 · la barra lateral, viva (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine){
+  html:root body #sidebar .sb-nav.sbp-on{position:relative;isolation:isolate}
+  html:root body #sidebar .sb-nav.sbp-on>.sb-item{position:relative;z-index:1}
+  html:root body #sidebar .sb-nav .sbp-sel{position:absolute;z-index:0;pointer-events:none;border-radius:8px;background:var(--accent);margin:0;display:block}
+  html:root body #sidebar .sb-nav .sbp-hov{position:absolute;left:0;top:0;z-index:0;pointer-events:none;border-radius:8px;background:var(--sbf-hover);opacity:0;display:block;
+    transition:transform .22s cubic-bezier(.32,.72,0,1),width .22s cubic-bezier(.32,.72,0,1),height .22s cubic-bezier(.32,.72,0,1),opacity .18s ease}
+  html:root body #sidebar .sb-nav .sbp-hov.on{opacity:1}
+  html:root body #sidebar .sb-nav.sbp-on .sb-item:not(.on):hover{background:none!important}
+  /* la fila nueva espera a la pastilla: hasta que llega, con sus colores de siempre */
+  html:root body #sidebar .sb-nav .sb-item.on.sbp-llega{background:none!important;color:var(--txt)!important;font-weight:500!important}
+  html:root body #sidebar .sb-nav .sb-item.on.sbp-llega>svg{color:var(--accent)!important}
+  html:root body #sidebar .sb-nav .sb-item.on.sbp-llega .sb-cnt{color:var(--muted)!important;opacity:1}
+}
+@media (prefers-reduced-motion:reduce){html:root body #sidebar .sb-nav .sbp-hov{transition:opacity .1s ease}}
 </style>
 </body>
 </html>
