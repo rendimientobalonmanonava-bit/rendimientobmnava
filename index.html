@@ -17288,6 +17288,7 @@ function ctCelda(x){
 }
 function renderCtCiclo(){
   const box=document.getElementById('ct-ciclo');if(!box)return;
+  if(window.__RD_CALC){ctDiferir();return;}
   const E=bmEsc,T=ctTabla(),n0=v=>Math.round(v).toLocaleString('es-ES');
   const cab='<h2>El ciclo, semana a semana <span class="r">la carga del equipo cada día, desde el 1 de julio</span></h2>';
   if(!T.some(s=>s.tot>0)){box.innerHTML='<div class="panel ctc">'+cab+'<p class="hint" style="margin:8px 0 0">Sin carga del equipo registrada desde el 1 de julio.</p></div>';return;}
@@ -17335,7 +17336,10 @@ document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
   const w=e.target.closest('#ct-ciclo [data-ctw]');if(w){BMCT.w=w.dataset.ctw;try{renderCtCiclo();if(window.renderCtVI)renderCtVI();}catch(x){}
     const v=document.getElementById('ct-vi');if(v&&v.getBoundingClientRect().top>innerHeight)toast('Semana del '+dkToDate(BMCT.w).getDate()+'/'+(dkToDate(BMCT.w).getMonth()+1)+' elegida · mírala en «Volumen contra intensidad»');}});
 window.ctTabla=ctTabla;
+function ctDiferir(){clearTimeout(ctDiferir._t);ctDiferir._t=setTimeout(function re(){if(window.__RD_CALC){ctDiferir._t=setTimeout(re,300);return;}
+  const p=document.getElementById('carga-temporada');if(p&&p.offsetParent)renderCargaTemporada();},300);}
 function renderCargaTemporada(){
+  if(window.__RD_CALC){ctDiferir();return;}
   try{renderCtCiclo();}catch(e){console.error('bmnava · el ciclo semana a semana',e);}
   try{if(window.renderCtBloques)renderCtBloques();}catch(e){console.error('bmnava · bloques',e);}
   try{if(window.renderCtVI)renderCtVI();}catch(e){console.error('bmnava · volumen e intensidad',e);}
@@ -17562,6 +17566,7 @@ function ctDiaTipo(){
 function ctViRef(T,x){const a=T.D.filter(y=>y.md===x.md&&y.dk<x.dk).map(y=>y.ua);return a.length>=MDH_MIN?{ref:a.reduce((s,v)=>s+v,0)/a.length,n:a.length}:null;}
 function renderCtVI(){
   const box=document.getElementById('ct-vi');if(!box)return;
+  if(window.__RD_CALC){ctDiferir();return;}
   const E=bmEsc,Y=BMVI.y,T=ctDiaTipo(),n0=v=>Math.round(v).toLocaleString('es-ES'),n1=v=>fmt(v,1);
   const cab='<h2>Volumen contra intensidad <span class="r">vuestro día tipo en cada posición del ciclo, desde el 1 de septiembre</span></h2>';
   if(!T.ps.length){box.innerHTML='<div class="panel ctv">'+cab+mdhSinPartidos()+'</div>';return;}
@@ -24452,7 +24457,9 @@ function bmrpInstala(){
       const r=f.apply(this,arguments);
       /* se anota al terminar y otra vez cuando la pantalla acaba de rellenarse:
          hay desplegables que se llenan justo después de pintar (Cargas) */
-      const anota=()=>{try{BMRP.k[fn]=window.__RD_CALC?null:bmrpClave(fn);}catch(e){}};
+      /* v833 · si se pintó durante el recorrido de la serie, lo pintado lleva la
+         fecha prestada aunque la clave se anote ya con la buena: no se da por bueno */
+      const c0=!!window.__RD_CALC,anota=()=>{try{BMRP.k[fn]=(c0||window.__RD_CALC)?null:bmrpClave(fn);}catch(e){}};
       anota();setTimeout(anota,0);setTimeout(anota,450);
       return r;};
     w.__bmrp=true;window[fn]=w;});
@@ -27998,6 +28005,15 @@ function loadWellnessPts(){const out=[];for(const nm in STATE.players){const p=S
 function drawLWScatter(id,xf,xlabel,infoId){const pts=loadWellnessPts().filter(o=>!isNaN(xf(o))&&o.readiness!=null).map(o=>({x:xf(o),y:o.readiness,n:o.name}));const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));const info=document.getElementById(infoId);if(info)info.innerHTML=`r = <b style="color:${colTexto('var(--'+(Math.abs(r)>=0.5?'accent':'ink')+')')}">${fmt(r,2)}</b> · r² = <b>${fmt(r*r,2)}</b> <span class="small muted">(${isNaN(r)?'—':rDesc(r)}; n=${pts.length})</span>`;killCharts([id]);const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,{type:'scatter',data:{datasets:[{data:pts,backgroundColor:rgba(PAL.data,.55),borderColor:PAL.data,pointRadius:5,pointHoverRadius:7}]},options:{...BASE,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.n+' ('+fmt(c.raw.x,2)+', '+fmt(c.raw.y,0)+')'}}},scales:{x:{...AX,title:{display:true,text:xlabel,color:'#8a93a0',font:{size:10}}},y:{...AX,min:0,max:100,title:{display:true,text:'Readiness',color:'#8a93a0',font:{size:10}}}}}});}
 function renderLoadWellness(){drawLWScatter('ch-lw-acwr',o=>o.acwr,'ACWR','lw-acwr-info');drawLWScatter('ch-lw-ua',o=>o.ua,'Carga semanal (UA)','lw-ua-info');}
 function renderCargaActive(){/* v792 · «Plantilla» es sólo del ordenador: si se quedó elegida y la ventana es de móvil, el Dashboard */
+  /* v833 · Mientras la serie de readiness de 14 días recorre los días,
+     STATE.refDate es PRESTADO (§2.1). Daniel, 19/11/2026: «no me aparecen las
+     últimas 2 semanas, la última es la de los Hispanos» — la tabla del ciclo se
+     había pintado con la fecha del 6/11 y se quedaba así. Cargas entera (el
+     Dashboard, la Temporada y la Plantilla leen REF()) espera a que el
+     recorrido acabe y entonces se pinta, si sigue a la vista. */
+  if(window.__RD_CALC){clearTimeout(renderCargaActive._t);renderCargaActive._t=setTimeout(function re(){
+      if(window.__RD_CALC){renderCargaActive._t=setTimeout(re,300);return;}
+      const v=document.getElementById('v-carga');if(v&&v.classList.contains('on'))renderCargaActive();},300);return;}
   if(FILTER.cargaTab==='mapa'&&(esMovil()||!bmEscFino())){FILTER.cargaTab='resumen';try{showCargaPane('resumen');syncCargasTabs();}catch(e){}}
   const t=FILTER.cargaTab||'resumen';
   /* v438 · El selector de ventana (14 d / 28 d / 8 sem / Temporada) es de toda
@@ -60542,8 +60558,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-19.2*/
-const VER_ACTUAL='2026-11-19.2';
+/*BUILD:2026-11-19.3*/
+const VER_ACTUAL='2026-11-19.3';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
