@@ -1678,6 +1678,39 @@ Daniel, 18/11/2026, tras pedir que se repasaran XPS, WIMU y Catapult para traer 
 
 **La v831 y la v832** se comprobaron con el calendario sembrado (partido cada sábado) a 1.745, 1.440 y 375 px en los dos temas: nada se sale, sin errores, toques de 44 px; las dos y el resumen del día dan la misma cifra y el mismo % para cada día de una semana (577 · 124 %, 711 · 74 %, 623 · 111 %, 620 · 82 %, 366 · 95 %).
 
+#### 6.25 Auditoría del 19/11/2026 (v833–v834)
+
+Daniel, 19/11/2026: *«quiero que hagas una auditoría en profundidad de la app, ya que hemos ido cambiando bastantes cosas … tómate todo el tiempo necesario»*. Se hizo con un banco de pruebas en la carpeta de trabajo (no en el repositorio): las hojas reales, y en memoria un calendario con partido cada sábado, minutos, pulsómetros y siete episodios médicos.
+
+**Qué se recorrió**
+- **Revisión estática**: 22 bloques `<script>` válidos; ninguna función declarada dos veces; ninguna llamada guardada (`window.x&&x()`) a algo que no existe; `go()` sólo a vistas reales; versión y marca iguales; las 6.829 reglas de los 237 bloques `<style>` las lee el navegador (ninguna descartada por un selector roto ni un comentario mal cerrado); los almacenes `bmnava_` contra las cuatro listas; todos los archivos que enlaza la página existen en el repositorio, y las 18 fotos de la plantilla, en grande y en miniatura.
+- **Barrido de 32 pantallas y pestañas** (las 13 vistas, las pestañas de Cargas, Pulsómetros, Estado, Médico, Fisioterapia, Perfil físico, Calendario mes y semana y las cinco de la ficha) en Chromium a 1.745 px en claro y en oscuro, a 1.100 px, a 375 px en los dos temas y tumbado a 852 × 393; y en el motor de Safari a 375 y a 1.440 px. En cada una: errores, una sola vista visible, nada que desborde, «NaN»/«undefined»/«[object Object]» en el texto visible, en los atributos y en las pestañas ocultas, paneles vacíos, imágenes rotas y que cada manejador en línea apunte a una función que exista.
+- **34 hojas, informes y formularios** abiertos uno a uno (resumen del día en cuatro tipos de día, comparar, los cuatro informes, bitácora, «Su semana», carta, notas, lo habitual, hoja de la semana, cerrar la sesión, datos que faltan, recordatorio, previa, editor del día, búsqueda, sesión de valoración, atajos, novedades, inspector, bloques y los formularios de lesión, tratamiento, valoración, parte y fisioterapia), en el ordenador y en el móvil.
+- **Once exportaciones a imagen** midiendo el lienzo y que no salga en blanco: parte, ficha, lámina A4 de la semana, Disponibilidad, informe de la semana, del jugador y del partido, comparar, «Su semana», carta y mapa.
+- **Coherencia de cifras**: la carga del día por `lbTeamDay`, `teamDayAgg` y `calDayIndiv` (la invariante de la v502) en ocho días; la carga de la semana por la tabla del ciclo, `ctSemanas` y el Dashboard en ocho semanas; el ACWR de los 18 en la rejilla y en la ficha; y los recuentos de disponibilidad de la tira contra `effectiveStatus`. Todo coincide.
+- **La fecha prestada (§2.1)**: entrar en cada pantalla MIENTRAS la serie de readiness recorre los días y comparar lo que queda al terminar con lo que se ve con la fecha buena.
+- **Contraste** de todas las pantallas en los dos temas, en el ordenador y en el móvil.
+- **Tiempos**: pintado completo 180 ms; cambiar de pantalla con repintado forzado, de 2 a 125 ms.
+
+**Lo que se encontró y se arregló**
+
+| Elemento | Regla |
+|---|---|
+| v833 · Cargas esperaba mal a la serie | Ver §6.24: la tabla del ciclo se quedaba con la fecha prestada |
+| v834 · Las demás pantallas, también | Con la prueba de la fecha prestada salieron **Pulsómetros (y Cargas › Pulso), Disponibilidad, Médico y Fisioterapia**: «17 respondidos» pasaba a «13», un 47 % a un 53 %, hasta que se volvía a entrar. `renderAll` se aplaza durante el recorrido, pero lo que pinta al navegar o al cambiar de pestaña no pasa por ahí. **El arreglo va en el envoltorio de pintado de cada pantalla** (`bmrpInstala`, v770), que es el único sitio que ve todas: lo pintado durante el recorrido se apunta (`BMRP.prest`) y, al acabar, `bmrpReponer` lo vuelve a pintar si sigue a la vista. *Comprobado en 26 pantallas: todas quedan igual que con la fecha buena* |
+| v834 · El informe del jugador no se abría | En ningún mes con datos si el jugador tenía un episodio cerrado sin `closeDk`: `ddmm(undefined)`. Todos los cierres de la app ponen la fecha, pero la propia función ya admitía episodios sin ella al filtrarlos. Ahora dice «cerrado» |
+| v834 · Médico en blanco | Una lesión sin lista de fases (`e.phases`) hacía fallar `renderMedico` y la lista entera desaparecía sin un error en consola —estaba dentro de un `try{}catch(e){}` vacío—. Se comprueba antes de leerla |
+| v834 · «Fuera · físico 1 — sin bajas» | El subtítulo de la tira del Resumen decía «sin bajas» con alguien fuera. Dice quién (hasta dos) y si hay otros motivos. **Sólo el texto**: la distribución del Resumen no se toca |
+| v834 · Texto sin escapar | La zona escrita en el estado del día entraba tal cual en el texto de las alertas («Con dolor (…)», «Sin entrenar (…)», «De baja (…)») y en el título de las bajas de la semana del calendario. Se escapa al crearla (`bmEsc`), regla de la v521 |
+| v834 · «Prever una ausencia» | La fecha propuesta salía de `toISOString`, en UTC: de 0:00 a 1:00 proponía hoy en vez de mañana. Pasa a `dkey` |
+| v834 · Inventario de Conexión | Faltaban cinco almacenes con datos tecleados a mano que sí estaban en la copia: isocinéticos, partidos medidos, volumen de gimnasio, correcciones de nivel y fases de valoración |
+| v834 · «sueño < 7» en ⌘K | Lo leía como el ítem del cuestionario (1–5) y salía la plantilla entera. Con un listón por encima de 5 se entiende como horas, y el ítem se rotula «Sueño (1–5)» |
+| v834 · Contraste | Las casillas «plan» de la tabla del ciclo (v831) quedaban a 3,8 en claro y 3,4 en oscuro, y en la vista de Alertas tipo Mail el número sobre rojo en oscuro a 3,0 y las iniciales de la fila elegida a 2,9 |
+
+**Lo que se comprobó y está bien, para no volver a mirarlo**: los manejadores en línea de las 32 pantallas resuelven; ninguna vista enseña «NaN» ni «undefined», tampoco en las pestañas ocultas; las once exportaciones dan imagen con contenido; las cifras de un mismo día o semana coinciden por todos los caminos.
+
+**Siguen abiertos, ya conocidos**: blanco sobre el rojo y el verde del semáforo (4,28 y 4,37, §8), las dos celdas del mapa de zonas de la ficha en oscuro (v469) y los `catch` vacíos (§8). **No se ha podido probar**: la sincronización entre equipos, el iPhone y el Mac de verdad, ni los datos del calendario, los minutos y los episodios reales, que viven en Supabase.
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1997,6 +2030,9 @@ No los repitas.
 | Una nube de puntos sobre un eje que no se mueve | El arreglo de la v828 fue primero un punto con nombre por posición del ciclo, y los siete caían juntos: el RPE medio del equipo apenas cambia de un día a otro. **Antes de elegir un gráfico de dispersión, mirar el recorrido real de cada eje**; si uno no se mueve, el dibujo sólo enseña el otro y una tabla de barras lo dice mejor |
 | Dos cuentas de «lo habitual» para el mismo día | La tabla nueva y el resumen del día comparaban al equipo con su MD habitual de dos formas (media de días del equipo contra media de días-jugador con la tecnificación dentro) y daban 620 UA al 82 % y 656 al 87 % del mismo jueves. Se vio comparando las dos salidas en la misma página, día a día. **Una comparación que sale en dos sitios se calcula en una función y las dos la llaman** |
 | Una pantalla nueva que lee `REF()` sin mirar `__RD_CALC` | La tabla del ciclo (v831) se pintaba con la fecha prestada de la serie de readiness y se quedaba ahí: Daniel la vio acabar dos semanas antes. §2.1 lo tiene escrito desde la v389 y el arreglo vivía en `renderAll`, así que **todo lo que pinta por otro camino** (cambiar de pestaña, `go`, un clic, un cambio de tamaño) se lo salta. **Una pantalla nueva que lea `REF()` espera a `__RD_CALC` en su propia función de pintar**, no confía en que la llame `renderAll` |
+| Probar con un valor que la función no conoce | El barrido de la auditoría llamó a `calSetMode('week')` y `('month')`: los modos son `'semana'` y `'mes'`, la función guardó el valor y pintó el mes, y la vista de semana salió «probada» dos veces sin haberse pintado. **Una prueba que pasa un valor inexistente no prueba nada**: antes de usar una función en una prueba, mirar qué valores admite, y comprobar que la pantalla que se cree estar midiendo es la que se ve |
+| El navegador de pruebas sirve una copia vieja de la página | Tras regenerar `prueba.html`, la prueba siguió fallando igual y pareció que el arreglo no servía: el navegador servía la página de su caché (el servidor local no manda cabeceras). Se vio porque la función nueva no existía en la página. **Cada recarga del banco lleva `?t=` distinto**, y antes de medir se comprueba que lo nuevo está cargado |
+| Una lista que el código da por hecha | `renderMedico` leía `e.phases.length` sin mirar si existía, en un bloque envuelto por `try{}catch(e){}` vacíos: una sola lesión sin fases dejaba Médico en blanco sin un error. Las comprobaciones de esa misma función, unas líneas más abajo, ya la tenían. **Si un campo se comprueba en un sitio, se comprueba en todos** |
 
 ---
 

@@ -14562,7 +14562,7 @@ const BMSQ_MET=[
   {k:'acwr',re:/^acwr$/,lab:'ACWR',v:p=>p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null,d:2},
   {k:'readiness',re:/^(readiness|rd|forma)$/,lab:'Readiness',v:p=>p.readiness!=null&&isFinite(p.readiness)?Math.round(p.readiness):null,d:0},
   {k:'fatiga',re:/^fatiga$/,lab:'Fatiga',w:'fatiga',d:1},
-  {k:'sueno',re:/^(sueno|calidad de sueno|calidad sueno)$/,lab:'Sueño',w:'sueno',d:1},
+  {k:'sueno',re:/^(sueno|calidad de sueno|calidad sueno)$/,lab:'Sueño (1–5)',w:'sueno',d:1},
   {k:'horas',re:/^(horas|horas de sueno|horas sueno)$/,lab:'Horas de sueño',w:'horas_sueno',d:1},
   {k:'doms',re:/^(doms|agujetas)$/,lab:'DOMS',w:'doms',d:1},
   {k:'estres',re:/^estres$/,lab:'Estrés',w:'stress',d:1},
@@ -14581,9 +14581,12 @@ function bmSpotPregunta(raw){
   const lab=st=>((PHYSTAT[st]||{}).lab||st);
   let m=q.match(/^(.+?)\s*(>=|<=|≥|≤|>|<|==|=|mayor o igual que|mayor o igual a|menor o igual que|menor o igual a|al menos|como mucho|mas de|menos de|mayor que|menor que|por encima de|por debajo de|igual a)\s*(-?\d+(?:[.,]\d+)?)$/);
   if(m){
-    const met=BMSQ_MET.find(x=>x.re.test(m[1].trim()));if(!met)return null;
+    let met=BMSQ_MET.find(x=>x.re.test(m[1].trim()));if(!met)return null;
     const op=(BMSQ_OP.find(o=>o[1].test(m[2].trim()))||[])[0];if(!op)return null;
     const lim=parseFloat(m[3].replace(',','.'));if(!isFinite(lim))return null;
+    /* v834 · «sueño < 7» son horas: el ítem del cuestionario va de 1 a 5 y con
+       un listón por encima de 5 salía la plantilla entera */
+    if(met.k==='sueno'&&lim>5)met=BMSQ_MET.find(x=>x.k==='horas');
     let tsa={};if(met.tsa){try{if(typeof buildTests==='function')buildTests();tsaRows().forEach(r=>{tsa[r.name]=r.t100;});}catch(e){}}
     const val=n=>{const p=ps[n];if(met.w){const w=p.last;return w&&w.dk===dkR&&w[met.w]!=null&&!isNaN(w[met.w])?+w[met.w]:null;}if(met.tsa)return tsa[n]!=null&&isFinite(tsa[n])?Math.round(tsa[n]):null;return met.v(p);};
     const cmp={'>':(a,b)=>a>b,'<':(a,b)=>a<b,'>=':(a,b)=>a>=b,'<=':(a,b)=>a<=b,'=':(a,b)=>Math.abs(a-b)<1e-9}[op];
@@ -55605,7 +55608,8 @@ button.ctw-c:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .ctw-c.v .ctw-d,.ctw-c.v .ctw-md,.ctw-c.v>b{color:#0d1117}
 .ctw-c.par>b{font-size:var(--fs-body);font-weight:600}
 .ctw-c.par .ctw-md{color:var(--acc-seg,var(--accent))}
-.ctw-c.fut small{font-size:var(--fs-xs);color:var(--muted);line-height:1.1}
+.ctw-c.fut small{font-size:var(--fs-xs);color:var(--txt);line-height:1.1}
+.ctw-c.fut .ctw-d,.ctw-c.fut .ctw-md{color:var(--txt)}
 .ctw-c.m0>b{font-size:var(--fs-body);font-weight:500;color:var(--muted)}
 .ctw-c.ct-dim{filter:grayscale(.9)}
 .ctw-ns{display:none}
@@ -56884,8 +56888,9 @@ html.bm-yendo main{opacity:.78;transition:opacity .1s ease-out}
   .bmal-ft b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bmal-ft small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bmal-n{font-style:normal;flex:none;min-width:22px;height:20px;padding:0 6px;border-radius:10px;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;color:#fff}
-  .bmal-n.sev-bad{background:var(--bad)}.bmal-n.sev-warn{background:var(--warn);color:var(--on-warn,#1d1d1f)}
+  .bmal-n.sev-bad{background:var(--bad);color:var(--on-bad,#fff)}.bmal-n.sev-warn{background:var(--warn);color:var(--on-warn,#1d1d1f)}
   .bmal-f.on .bmal-n{box-shadow:0 0 0 1.5px var(--on-accent)}
+  .bmal-f.on .bmj-av{color:var(--on-accent)}
   .bmal-det{padding:18px 22px;overflow:auto;max-height:calc(100vh - 230px);background:var(--panel)}
   .bmal-cab{display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap}
   .bmal-av{width:52px;height:52px;flex:none;font-size:16px}
@@ -60584,8 +60589,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-19.3*/
-const VER_ACTUAL='2026-11-19.3';
+/*BUILD:2026-11-19.4*/
+const VER_ACTUAL='2026-11-19.4';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
