@@ -25213,6 +25213,65 @@ function bmfaSale(ov){
   setTimeout(quita,400);
 }
 window.bmFormAnim=bmFormAnim;
+/* ═══ v850 · LA BARRA DE ARRIBA, VIVA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 5. Medido: la barra era igual con la página
+   arriba que a 900 px, y al cargar o actualizar el avance sólo se leía en el
+   pie de la barra lateral. Dos cosas, como en macOS y en Safari:
+   · cuando el contenido pasa por debajo, la barra marca su filo con una línea
+     fina y una sombra suave; arriba del todo, sin filo;
+   · al leer las hojas —al abrir la app y al actualizar—, una línea fina del
+     color de acción bajo la barra avanza con cada petición que termina y, al
+     acabar, se completa y se desvanece. No inventa un porcentaje: cuenta las
+     peticiones de esa lectura (las hojas, la sincronización) a medida que
+     vuelven. Sólo con ratón o trackpad; el móvil tiene «tirar para actualizar». */
+const BMPROG={on:false,ini:0,fin:0,el:null,t:null,sesion:0};
+function bmpgVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmpgBarra(){
+  const h=document.querySelector('header');if(!h)return null;
+  if(!BMPROG.el||!BMPROG.el.isConnected){const b=document.createElement('div');b.id='bm-prog';b.setAttribute('aria-hidden','true');b.innerHTML='<i></i>';h.appendChild(b);BMPROG.el=b;}
+  return BMPROG.el;
+}
+function bmpgPinta(){
+  const b=bmpgBarra();if(!b)return;const i=b.firstElementChild;
+  const total=Math.max(BMPROG.ini,3),hechas=BMPROG.fin;
+  const p=BMPROG.on?Math.min(.92,.08+.84*(hechas/total)):1;
+  i.style.width=(p*100).toFixed(1)+'%';b.classList.toggle('on',true);
+}
+function bmpgEmpieza(){
+  if(!bmpgVale())return;
+  clearTimeout(BMPROG.t);BMPROG.on=true;BMPROG.ini=0;BMPROG.fin=0;BMPROG.sesion++;
+  const b=bmpgBarra();if(!b)return;b.classList.remove('fin');const i=b.firstElementChild;i.style.transition='none';i.style.width='0%';void i.offsetWidth;i.style.transition='';
+  bmpgPinta();
+}
+function bmpgAcaba(){
+  if(!BMPROG.on)return;BMPROG.on=false;const b=bmpgBarra();if(!b)return;
+  bmpgPinta();b.classList.add('fin');
+  clearTimeout(BMPROG.t);BMPROG.t=setTimeout(()=>{b.classList.remove('on','fin');},650);
+}
+(function(){
+  const f=window.fetch;if(typeof f!=='function'||f.__bmpg)return;
+  const w=function(){
+    if(!BMPROG.on)return f.apply(this,arguments);
+    const ses=BMPROG.sesion;BMPROG.ini++;bmpgPinta();
+    const pr=f.apply(this,arguments);
+    const hecho=()=>{if(BMPROG.on&&ses===BMPROG.sesion){BMPROG.fin++;bmpgPinta();}};
+    pr.then(hecho,hecho);return pr;};
+  w.__bmpg=true;window.fetch=w;
+})();
+function bmpgInstala(){
+  const c=window.connect;if(typeof c==='function'&&!c.__bmpg){
+    const w=function(){bmpgEmpieza();let r;try{r=c.apply(this,arguments);}catch(e){bmpgAcaba();throw e;}
+      Promise.resolve(r).then(bmpgAcaba,bmpgAcaba);return r;};w.__bmpg=true;window.connect=w;}
+  const s=window.rfSet;if(typeof s==='function'&&!s.__bmpg){
+    const w=function(st){try{if(st==='load')bmpgEmpieza();else if(st==='ok'||st==='err')bmpgAcaba();}catch(e){}return s.apply(this,arguments);};w.__bmpg=true;window.rfSet=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmpgInstala,0));else setTimeout(bmpgInstala,0);
+/* el filo de la barra cuando el contenido pasa por debajo */
+(function(){let pend=false;
+  const mira=()=>{pend=false;document.documentElement.classList.toggle('bm-tb-filo',(window.scrollY||0)>2);};
+  window.addEventListener('scroll',()=>{if(pend)return;pend=true;requestAnimationFrame(mira);setTimeout(()=>{if(pend)mira();},120);},{passive:true});
+})();
+window.bmpgEmpieza=bmpgEmpieza;window.bmpgAcaba=bmpgAcaba;
 
 
 
@@ -61518,6 +61577,20 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
   /* la de antes suelta su pastilla en seco: la que se va es la copia */
   #tabbar .tb-cap .tb-i.tb-muelle-de{transition:none!important;background:transparent!important}
 }
+</style>
+<style id="bm-v850">
+/* v850 · la barra de arriba, viva (ordenador) */
+#bm-prog{display:none}
+@media (min-width:761px) and (pointer:fine){
+  header{transition:box-shadow var(--mov-2,250ms) var(--curva,ease)}
+  html.bm-tb-filo body header{box-shadow:0 .5px 0 var(--hair),0 8px 18px -14px rgba(0,0,0,.28)!important}
+  html[data-theme="dark"].bm-tb-filo body header{box-shadow:0 .5px 0 var(--hair),0 8px 18px -14px rgba(0,0,0,.7)!important}
+  #bm-prog{display:block;position:absolute;left:0;right:0;bottom:0;height:2px;pointer-events:none;opacity:0;transition:opacity .3s ease;z-index:2}
+  #bm-prog.on{opacity:1}
+  #bm-prog.fin{opacity:0;transition:opacity .35s ease .25s}
+  #bm-prog>i{display:block;height:100%;width:0;background:var(--accent);border-radius:0 2px 2px 0;transition:width .45s cubic-bezier(.32,.72,0,1)}
+}
+@media (prefers-reduced-motion:reduce){#bm-prog>i,header{transition:none!important}}
 </style>
 </body>
 </html>
