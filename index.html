@@ -17226,41 +17226,115 @@ function ctSemanas(){
   });
 }
 function ctPaso(mx){const p=[50,100,250,500,1000,2000];for(const x of p)if(mx/x<=6)return x;return 5000;}
+/* ═══ v831 · EL CICLO, SEMANA A SEMANA, COMO UNA TABLA ═══
+   Daniel, 19/11/2026, con la barra apilada de la v824 delante: «por los
+   colores y las formas no dicen nada; si las ve el entrenador no le saca
+   ninguna utilidad, y si me apuras, yo tampoco». Tenía razón: siete tonos de
+   azul para siete posiciones del ciclo no se distinguen, y una barra apilada
+   no deja leer ningún día. Ahora es una tabla: una fila por semana (la de
+   ahora arriba) y una columna por día, con LA CIFRA escrita y el color del
+   semáforo de carga —el mismo de «La plantilla, día a día» (v799), que eligió
+   Daniel: `nivelUA`, BAJA <600 · MEDIA 600–900 · ALTA >900, y el mismo
+   mezclado con el fondo—. La posición del ciclo va escrita en la casilla
+   (MD-3, MD-1…), no en un color. Se lee sin leyenda: «el viernes antes del
+   partido salió en rojo».
+   El partido no lleva semáforo: su carga del cuestionario no describe el
+   partido (v480) y juzgarlo con los cortes de un entrenamiento sería mentir;
+   va con el filo del color de acción y el rival. Lo que queda de la semana en
+   curso, lo planificado (`calPlanUA`), tenue, como en el mapa (v807).
+   A la derecha, la carga de la semana con su barra contra la media de las
+   semanas cerradas, el objetivo del bloque si lo hay (v826, `calDesvio`) y el
+   cambio sobre la semana anterior, en ámbar si sube más de `weekJump`: el
+   listón y el color del Dashboard. La semana en curso no se compara.
+   Pulsar un día abre su resumen; pulsar una semana la elige para «Volumen
+   contra intensidad», que la compara con vuestro día tipo. */
+const BMCT={w:null};
+const CT_DOW=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+function ctTabla(){
+  const refk=dkey(REF()),hoy=dkey(new Date()),w1=weekKey(REF()),wHoy=weekKey(new Date());
+  let S=[];try{S=cgSerieEquipo();}catch(e){}
+  const by={};S.forEach(d=>{if(d.dk>=TEMP_INICIO&&d.dk<=refk)by[d.dk]=d;});
+  let ps=[];try{ps=calPartidosDks();}catch(e){}
+  const cal=STATE.calendar||{},W=[];let ya=false;
+  for(let w=weekKey(dkToDate(TEMP_INICIO));w<=w1;w=dkSumaDias(w,7)){
+    const dias=dkRango(w,dkSumaDias(w,6)).map(dk=>{const d=by[dk],m=ps.length?calMd(dk,ps):null;
+      const ev=(cal[dk]||[]).find(evEsPartido);
+      let plan=null;const fut=dk>hoy;
+      if(fut&&w===wHoy){try{const p=calPlanUA(dk);if(p>0)plan=p;}catch(e){}}
+      return {dk,ua:d&&d.ua>0?d.ua:null,reg:!!(d&&!d.vacio),m,par:m&&m.md===0?(evRival(ev)||'Partido'):null,plan,fut};});
+    const reg=dias.some(x=>x.reg||x.ua);
+    if(!ya&&!reg)continue;   // las semanas de antes del primer registro no son un parón: son vacaciones
+    ya=true;
+    W.push({w,dias,tot:dias.reduce((a,x)=>a+(x.ua||0),0),parcial:dkSumaDias(w,6)>refk,reg});
+  }
+  W.forEach((s,i)=>{const p=W[i-1];s.chg=(!s.parcial&&p&&!p.parcial&&p.tot>0&&s.tot>0)?(s.tot/p.tot-1)*100:null;});
+  return W;
+}
+function ctCelda(x){
+  const E=bmEsc,n0=v=>Math.round(v).toLocaleString('es-ES'),dd=dkToDate(x.dk);
+  const nc=v=>'<span class="ctw-nl">'+n0(v)+'</span><span class="ctw-ns">'+Math.round(v)+'</span>';
+  let fe=dd.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'numeric'});fe=fe.charAt(0).toUpperCase()+fe.slice(1);
+  const md=x.m&&Math.abs(x.m.md)<=6&&x.m.md!==0?x.m.txt:'';
+  const tg=window.ctTagDia?ctTagDia(x.dk):'';
+  const dia='<i class="ctw-d">'+dd.getDate()+'</i>';
+  if(x.par){
+    return '<button type="button" class="ctw-c par'+tg+'" data-ctd="'+x.dk+'" title="'+E(fe+' · Partido · '+x.par+(x.ua?' · '+n0(x.ua)+' UA en el cuestionario':''))+'">'+dia+'<i class="ctw-md">Partido</i><b>'+E(x.par)+'</b></button>';}
+  if(x.ua){const nv=nivelUA(x.ua);
+    return '<button type="button" class="ctw-c v n'+nv+tg+'" data-ctd="'+x.dk+'" title="'+E(fe+(md?' · '+md:'')+' · '+n0(x.ua)+' UA · carga '+LV[nv][0].toLowerCase())+'">'+dia+(md?'<i class="ctw-md">'+md+'</i>':'')+'<b>'+nc(x.ua)+'</b></button>';}
+  if(x.fut&&x.plan){const nv=nivelUA(x.plan);
+    return '<div class="ctw-c fut n'+nv+'" title="'+E(fe+(md?' · '+md:'')+' · planificado '+n0(x.plan)+' UA')+'">'+dia+(md?'<i class="ctw-md">'+md+'</i>':'')+'<b>'+nc(x.plan)+'</b><small>plan</small></div>';}
+  if(x.reg)return '<button type="button" class="ctw-c m0'+tg+'" data-ctd="'+x.dk+'" title="'+E(fe+' · hay cuestionarios pero faltan los minutos: la carga no es calculable')+'">'+dia+(md?'<i class="ctw-md">'+md+'</i>':'')+'<b>min?</b></button>';
+  return '<div class="ctw-c vac" title="'+E(fe+(x.fut?'':' · sin registros'))+'">'+dia+(md?'<i class="ctw-md">'+md+'</i>':'')+'</div>';
+}
 function renderCtCiclo(){
   const box=document.getElementById('ct-ciclo');if(!box)return;
-  const E=bmEsc,S=ctSemanas();
-  const cab='<h2>El ciclo, semana a semana <span class="r">la carga del equipo, día a día, desde el 1 de julio</span></h2>';
-  if(!S.some(x=>x.tot>0)){box.innerHTML='<div class="panel ctc">'+cab+'<p class="hint" style="margin:8px 0 0">Sin carga del equipo registrada desde el 1 de julio.</p></div>';return;}
-  const ancho=Math.max(320,Math.round((box.clientWidth||box.parentElement.clientWidth||900)-44));
-  const H=250,PL=44,PR=8,PT=22,PB=26,n=S.length,cw=(ancho-PL-PR)/n,bw=Math.max(6,Math.min(46,cw*0.66));
-  let mx=Math.max(...S.map(x=>x.tot),1);
-  try{if(window.ctBloquesMax)mx=Math.max(mx,ctBloquesMax());}catch(e){}
-  const paso=ctPaso(mx),top=Math.ceil(mx*1.05/paso)*paso,y=v=>PT+(H-PT-PB)*(1-v/top);
-  let g='';
-  for(let v=0;v<=top;v+=paso)g+='<line class="ctc-gr" x1="'+PL+'" x2="'+(ancho-PR)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="ctc-ax" x="'+(PL-6)+'" y="'+(y(v)+4).toFixed(1)+'" text-anchor="end">'+v.toLocaleString('es-ES')+'</text>';
-  try{if(window.ctBloquesSVG)g+=ctBloquesSVG(S,{PL,cw,y,ancho,PR,H,PT,PB});}catch(e){}
-  const salto=cw<26?Math.ceil(26/cw):1;
-  S.forEach((s,i)=>{
-    const x0=PL+i*cw+(cw-bw)/2,d0=dkToDate(s.w),lab=d0.getDate()+'/'+(d0.getMonth()+1);
-    if(i%salto===0)g+='<text class="ctc-ax'+(s.parcial?' cur':'')+'" x="'+(x0+bw/2).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle">'+lab+'</text>';
-    if(!s.dias.length){g+='<text class="ctc-vac" x="'+(x0+bw/2).toFixed(1)+'" y="'+(y(0)-6).toFixed(1)+'" text-anchor="middle">'+(s.reg?'·':'—')+'</text>';return;}
-    let acc=0;const ult=s.dias.length-1;
-    s.dias.forEach((d,j)=>{const ya=y(acc+d.ua),yb=y(acc),h=Math.max(1,yb-ya-(j<ult?2:0));
-      const dd=dkToDate(d.dk);let t=dd.toLocaleDateString('es',{weekday:'short',day:'numeric',month:'numeric'});t=t.charAt(0).toUpperCase()+t.slice(1);
-      g+='<rect class="ctc-s c-'+d.cat+(window.ctTagDia?ctTagDia(d.dk):'')+'" x="'+x0.toFixed(1)+'" y="'+ya.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'"'+(j===ult?' rx="3"':'')+'><title>'+E(t+' · '+(d.m?d.m.txt:'sin partido cerca')+' · '+Math.round(d.ua).toLocaleString('es-ES')+' UA')+'</title></rect>';
-      acc+=d.ua;});
-    if(cw>=30)g+='<text class="ctc-tot'+(s.parcial?' cur':'')+'" x="'+(x0+bw/2).toFixed(1)+'" y="'+(y(s.tot)-5).toFixed(1)+'" text-anchor="middle">'+(s.tot>=1000?fmt(s.tot/1000,1)+'k':Math.round(s.tot))+'</text>';
+  const E=bmEsc,T=ctTabla(),n0=v=>Math.round(v).toLocaleString('es-ES');
+  const cab='<h2>El ciclo, semana a semana <span class="r">la carga del equipo cada día, desde el 1 de julio</span></h2>';
+  if(!T.some(s=>s.tot>0)){box.innerHTML='<div class="panel ctc">'+cab+'<p class="hint" style="margin:8px 0 0">Sin carga del equipo registrada desde el 1 de julio.</p></div>';return;}
+  const cer=T.filter(s=>!s.parcial&&s.tot>0),med=cer.length?cer.reduce((a,s)=>a+s.tot,0)/cer.length:null;
+  const maxS=cer.length?cer.reduce((a,s)=>s.tot>a.tot?s:a,cer[0]):null;
+  let mx=Math.max(1,...T.map(s=>s.tot));try{if(window.ctBloquesMax)mx=Math.max(mx,ctBloquesMax());}catch(e){}
+  mx*=1.04;
+  const WJ=((CONFIG.load&&CONFIG.load.weekJump)||0.15)*100;
+  if(!BMCT.w||!T.some(s=>s.w===BMCT.w)){const u=T.slice().reverse().find(s=>s.tot>0);BMCT.w=u?u.w:null;}
+  const ddmm=w=>{const d=dkToDate(w);return d.getDate()+'/'+(d.getMonth()+1);};
+  const pc=v=>(v/mx*100).toFixed(2)+'%';
+  let filas='',blqPrev=null;
+  T.slice().reverse().forEach(s=>{
+    const b=(typeof blqDe==='function')?blqDe(s.w):null;
+    if(b&&b!==blqPrev){filas+='<div class="ctw-blq"><b>'+E(b.nombre)+'</b> · objetivo '+n0(+b.min)+'–'+n0(+b.max)+' UA por semana</div>';}
+    blqPrev=b;
+    const sel=s.w===BMCT.w;
+    const D=(b&&!s.parcial&&s.tot>0&&window.calDesvio)?calDesvio(s.tot,+b.min,+b.max):null;
+    const band=b&&isFinite(+b.min)&&isFinite(+b.max)?'<i class="ctw-band" style="left:'+pc(+b.min)+';width:'+pc(+b.max-(+b.min))+'"></i>':'';
+    /* la barra va siempre en neutro: en esta tabla el rojo ya es «carga alta» de un día, y un color no puede decir dos cosas */
+    const fill=s.tot>0?'<i class="ctw-fill'+(s.parcial?' cur':'')+'" style="width:'+pc(s.tot)+'"></i>':'';
+    const vb=D?(D.dir<0?'bajo el objetivo':D.dir>0?'sobre el objetivo':'en el objetivo'):'';
+    const mk=med?'<i class="ctw-mk" style="left:'+pc(med)+'"></i>':'';
+    const pcs=s.chg==null?'':(s.chg>WJ?'↑ ':'')+(s.chg>0?'+':s.chg<0?'−':'')+Math.abs(Math.round(s.chg))+' %';
+    const chg=s.parcial?'<small class="cur">en curso</small>':(!pcs&&!vb?'<small>—</small>':'<small class="'+(s.chg>WJ?'sube':'')+'">'+pcs+(pcs&&vb?' · ':'')+vb+'</small>');
+    filas+='<div class="ctw-r'+(sel?' sel':'')+(s.parcial?' cur':'')+'">'
+      +'<button type="button" class="ctw-w" data-ctw="'+s.w+'" aria-pressed="'+sel+'" title="Elegir esta semana para compararla con vuestro día tipo"><b>'+ddmm(s.w)+'</b><small>'+(s.parcial?'en curso':(dkToDate(dkSumaDias(s.w,6)).getDate()+'/'+(dkToDate(dkSumaDias(s.w,6)).getMonth()+1)))+'</small></button>'
+      +s.dias.map(ctCelda).join('')
+      +'<div class="ctw-t" title="'+E((s.tot>0?n0(s.tot)+' UA':'sin carga calculable')+(pcs?' · '+pcs+' sobre la anterior':'')+(b?' · objetivo de «'+b.nombre+'»: '+n0(+b.min)+'–'+n0(+b.max)+(vb?' · '+vb:''):''))+'"><div class="ctw-tn"><b>'+(s.tot>0?n0(s.tot):(s.reg?'min?':'—'))+'</b>'+chg+'</div><div class="ctw-trk">'+band+fill+mk+'</div></div>'
+      +'</div>';
   });
-  const usadas=new Set();S.forEach(s=>s.dias.forEach(d=>usadas.add(d.cat)));
-  const ley=CT_CAT.filter(([k])=>usadas.has(k)).map(([k,l])=>'<span><i class="ctc-lc c-'+k+'"></i>'+l+'</span>').join('');
-  const cer=S.filter(s=>!s.parcial&&s.tot>0),med=cer.length?cer.reduce((a,s)=>a+s.tot,0)/cer.length:null,maxS=cer.length?cer.reduce((a,s)=>s.tot>a.tot?s:a,cer[0]):null;
-  const lee=med?'Media de las semanas cerradas: <b>'+Math.round(med).toLocaleString('es-ES')+' UA</b>'+(maxS?' · la más alta, la del '+dkToDate(maxS.w).getDate()+'/'+(dkToDate(maxS.w).getMonth()+1)+' con <b>'+Math.round(maxS.tot).toLocaleString('es-ES')+'</b>':''):'';
+  const lee=med?'Media de las semanas cerradas: <b>'+n0(med)+' UA</b>'+(maxS?' · la más alta, la del '+ddmm(maxS.w)+' con <b>'+n0(maxS.tot)+'</b>':''):'';
   const tg=(typeof BMTAG!=='undefined'&&BMTAG.sel)?'<p class="ctc-tg">Resaltados, los días con «'+E(BMTAG.sel)+'» <button type="button" class="ctc-tgx" data-tg="'+E(BMTAG.sel)+'">Quitar</button></p>':'';
-  box.innerHTML='<div class="panel ctc">'+cab+(lee?'<p class="ctc-lee">'+lee+'</p>':'')+tg+'<div class="ctc-ley">'+ley+(window.ctBloquesLey?ctBloquesLey():'')+'</div>'
-    +'<svg class="ctc-svg" viewBox="0 0 '+ancho+' '+H+'" width="100%" role="img" aria-label="Carga del equipo por semana desde el 1 de julio, partida por días según su posición en el ciclo">'+g+'</svg>'
-    +'<p class="ctc-pie">Cada barra es una semana (de lunes a domingo) y cada tramo un día, con la carga del equipo del Dashboard: la media de quien la registró. El color es su posición respecto al partido más cercano. La semana en curso va en gris en el eje. Una semana sin registros va vacía (—); con cuestionarios y sin minutos, un punto: la carga no es calculable.</p>'
-    +(window.ctBloquesPie?ctBloquesPie():'')+'</div>';
+  const ley='<span><i class="ctw-lc n0"></i>Baja · menos de 600</span><span><i class="ctw-lc n1"></i>Media · 600–900</span><span><i class="ctw-lc n2"></i>Alta · más de 900 UA</span>'
+    +'<span><i class="ctw-lc par"></i>Partido</span><span><i class="ctw-lc fut"></i>Planificado</span>'
+    +'<span><i class="ctw-lm"></i>Media de las semanas</span>'+((typeof blqOrden==='function')&&blqOrden().length?'<span><i class="ctw-lb"></i>Objetivo del bloque</span>':'');
+  box.innerHTML='<div class="panel ctc ctw">'+cab+(lee?'<p class="ctc-lee">'+lee+'</p>':'')+tg+'<div class="ctc-ley">'+ley+'</div>'
+    +'<div class="ctw-g" role="table" aria-label="Carga del equipo de cada día, semana a semana">'
+    +'<div class="ctw-r ctw-h"><span>Semana</span>'+CT_DOW.map(d=>'<span>'+d+'</span>').join('')+'<span class="ctw-ht">Carga de la semana · cambio sobre la anterior</span></div>'
+    +filas+'</div>'
+    +'<p class="ctc-pie">Cada casilla es un día con la carga del equipo del Dashboard (la media de quien la registró) y el color del semáforo de carga, el de «La plantilla, día a día». Encima, su posición respecto al partido más cercano. El partido no lleva color: su cuestionario no describe lo que pesa un partido. «min?» es un día con cuestionarios y sin minutos: la carga no es calculable. A la derecha, la carga de la semana; la raya es la media de las semanas cerradas, y el % sale en ámbar cuando sube más de un '+Math.round(WJ)+' % sobre la anterior. Si la semana es de un bloque, la franja gris de la barra es su objetivo y se dice si quedó dentro. Pulsa un día para verlo; pulsa una semana para compararla con vuestro día tipo, más abajo.</p></div>';
 }
+document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
+  const c=e.target.closest('#ct-ciclo [data-ctd]');if(c){bmDiaRes(c.dataset.ctd);return;}
+  const w=e.target.closest('#ct-ciclo [data-ctw]');if(w){BMCT.w=w.dataset.ctw;try{renderCtCiclo();if(window.renderCtVI)renderCtVI();}catch(x){}
+    const v=document.getElementById('ct-vi');if(v&&v.getBoundingClientRect().top>innerHeight)toast('Semana del '+dkToDate(BMCT.w).getDate()+'/'+(dkToDate(BMCT.w).getMonth()+1)+' elegida · mírala en «Volumen contra intensidad»');}});
+window.ctTabla=ctTabla;
 function renderCargaTemporada(){
   try{renderCtCiclo();}catch(e){console.error('bmnava · el ciclo semana a semana',e);}
   try{if(window.renderCtBloques)renderCtBloques();}catch(e){console.error('bmnava · bloques',e);}
@@ -17444,43 +17518,100 @@ window.tablaEntrega=tablaEntrega;window.tablaCSV=tablaCSV;window.tablaFilas=tabl
    que lo vuestro). Los minutos y el RPE son los del equipo del Dashboard
    (`cgSerieEquipo`). Si hay una etiqueta elegida en «Por etiqueta», sus días
    se resaltan también aquí. */
+/* ═══ v832 · VOLUMEN CONTRA INTENSIDAD · VUESTRO DÍA TIPO ═══
+   Daniel, 19/11/2026, con la nube de puntos de la v828 delante: «por los
+   colores y las formas no dicen nada». Siete tonos casi iguales para siete
+   posiciones del ciclo no se distinguen, y cien puntos sueltos no dicen qué
+   hacer. Se probó primero un punto con nombre por posición y tampoco servía:
+   el RPE medio del equipo apenas se mueve de un día a otro (de 6,4 a 6,8),
+   así que los siete días tipo caían uno encima de otro.
+   Ahora es una tabla de barras, una fila por posición del ciclo en su orden
+   (MD+1 … MD-1, Partido): su VOLUMEN (minutos) y su INTENSIDAD (RPE o
+   %Z4+Z5) en dos carriles con la misma escala para todas las filas. La raya
+   oscura es vuestro día tipo —la media de esos días— y la franja gris, la
+   mitad central de ellos; la barra en el color de acción, el día de la semana
+   elegida. Se lee de arriba abajo: «nuestro MD-1 es corto y de RPE medio, y
+   este viernes fue más largo». Al lado, su carga con el semáforo de la tabla
+   de arriba y la semana elegida contra el día tipo, con la regla de «Cada
+   sesión contra su MD» (v822): ±15 % es «como siempre», fuera va en ámbar con
+   su flecha; contra la media de los días ANTERIORES en esa posición, con 3
+   como mínimo.
+   **Nada nuevo**: las posiciones son `MD_ORDEN` desde `MD_REF_DESDE`, las de
+   `calRefMD` (los días de ciclos de más de una semana no entran); la carga,
+   los minutos y el RPE, los del equipo del Dashboard; el %Z4+Z5, de los días
+   con 3 pulsómetros o más (`calZonasDia`). La semana se elige aquí o
+   pulsándola en «El ciclo, semana a semana». */
 const BMVI={y:'rpe'};
+const VI_LAB=md=>md==='MD'?'Partido':md;
+function ctDiaTipo(){
+  const refk=dkey(REF());
+  let S=[];try{S=cgSerieEquipo();}catch(e){}
+  let ps=[];try{ps=calPartidosDks().filter(p=>p>=MD_REF_DESDE);}catch(e){}
+  const D=[];
+  if(ps.length)S.forEach(d=>{if(d.dk<MD_REF_DESDE||d.dk>refk||!(d.ua>0))return;const m=calMd(d.dk,ps);if(!m||MD_ORDEN.indexOf(m.txt)<0)return;
+    let z=null;try{const zz=calZonasDia(d.dk);if(zz&&zz.fuente==='polar'&&isFinite(zz.z4)&&isFinite(zz.z5))z=zz.z4+zz.z5;}catch(e){}
+    D.push({dk:d.dk,md:m.txt,ua:d.ua,dur:d.dur>0?d.dur:null,rpe:d.rpe>0?d.rpe:null,z});});
+  const media=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const q=(a,f)=>{if(a.length<MDH_MIN)return null;const b=a.slice().sort((x,y)=>x-y),h=(b.length-1)*f,lo=Math.floor(h),hi=Math.ceil(h);return b[lo]+(b[hi]-b[lo])*(h-lo);};
+  const P=MD_ORDEN.map(md=>{const L=D.filter(x=>x.md===md),f=k=>L.map(x=>x[k]).filter(v=>v!=null);
+    const st=k=>{const a=f(k);return {m:a.length>=1?media(a):null,n:a.length,q:[q(a,.25),q(a,.75)]};};
+    return {md,n:L.length,ua:st('ua'),dur:st('dur'),rpe:st('rpe'),z:st('z')};});
+  return {ps,D,P};
+}
+/* un día de la semana contra la media de los días ANTERIORES en su posición (la regla de v822) */
+function ctViRef(T,x){const a=T.D.filter(y=>y.md===x.md&&y.dk<x.dk).map(y=>y.ua);return a.length>=MDH_MIN?{ref:a.reduce((s,v)=>s+v,0)/a.length,n:a.length}:null;}
 function renderCtVI(){
   const box=document.getElementById('ct-vi');if(!box)return;
-  const E=bmEsc,Y=BMVI.y;
-  let S=[];try{S=cgSerieEquipo();}catch(e){}
-  let ps=[];try{ps=calPartidosDks();}catch(e){}
-  const P=S.filter(d=>d.dk>=TEMP_INICIO&&d.ua>0&&d.dur>0).map(d=>{let y=null;
-    if(Y==='rpe')y=d.rpe>0?d.rpe:null;else{let z=null;try{z=calZonasDia(d.dk);}catch(e){}y=z&&z.fuente==='polar'&&isFinite(z.z4)&&isFinite(z.z5)?z.z4+z.z5:null;}
-    const m=ps.length?calMd(d.dk,ps):null;return {dk:d.dk,x:d.dur,y,ua:d.ua,m,cat:ctCat(m)};}).filter(p=>p.y!=null);
+  const E=bmEsc,Y=BMVI.y,T=ctDiaTipo(),n0=v=>Math.round(v).toLocaleString('es-ES'),n1=v=>fmt(v,1);
+  const cab='<h2>Volumen contra intensidad <span class="r">vuestro día tipo en cada posición del ciclo, desde el 1 de septiembre</span></h2>';
+  if(!T.ps.length){box.innerHTML='<div class="panel ctv">'+cab+mdhSinPartidos()+'</div>';return;}
+  if(T.D.length<3){box.innerHTML='<div class="panel ctv">'+cab+'<p class="hint" style="margin:8px 0 0">Hacen falta días con carga registrada desde el 1 de septiembre.</p></div>';return;}
+  /* la semana elegida */
+  let W=BMCT.w;if(!W){const u=T.D[T.D.length-1];W=u?weekKey(dkToDate(u.dk)):weekKey(REF());BMCT.w=W;}
+  const wd=dkRango(W,dkSumaDias(W,6)),SW=T.D.filter(x=>wd.indexOf(x.dk)>=0);
+  const d0=dkToDate(W),wlab=d0.getDate()+'/'+(d0.getMonth()+1);
+  const dow=dk=>{let t=dkToDate(dk).toLocaleDateString('es',{weekday:'short'}).replace('.','');return t.charAt(0).toUpperCase()+t.slice(1);};
+  const yk=Y==='rpe'?'rpe':'z';
+  /* escalas comunes a todas las filas, desde cero */
+  const tope=(k,paso,minimo)=>{const v=[];T.P.forEach(P=>{if(P[k].m!=null)v.push(P[k].m);if(P[k].q[1]!=null)v.push(P[k].q[1]);});SW.forEach(x=>{if(x[k]!=null)v.push(x[k]);});return Math.max(minimo,Math.ceil(Math.max(0,...v)*1.05/paso)*paso);};
+  const XD=tope('dur',15,30),XY=Y==='rpe'?10:tope('z',5,10);
+  const pc=(v,mx)=>Math.max(0,Math.min(100,v/mx*100)).toFixed(2)+'%';
+  const carril=(S,ws,mx,fmtv,unidad)=>{
+    let h='<span class="ctv-trk">';
+    if(S.q[0]!=null)h+='<i class="ctv-band" style="left:'+pc(S.q[0],mx)+';width:'+pc(S.q[1]-S.q[0],mx)+'"></i>';
+    ws.forEach(x=>{h+='<i class="ctv-bar" style="width:'+pc(x.v,mx)+'" title="'+E(x.t+': '+fmtv(x.v)+unidad)+'"></i>';});
+    if(S.m!=null)h+='<i class="ctv-tk" style="left:'+pc(S.m,mx)+'"></i>';
+    return h+'</span>';};
+  let dentro=0,con=0;const fuera=[];
+  const filas=T.P.map(P=>{
+    const xs=SW.filter(x=>x.md===P.md);
+    const wsD=xs.filter(x=>x.dur!=null).map(x=>({v:x.dur,t:dow(x.dk)})),wsY=xs.filter(x=>x[yk]!=null).map(x=>({v:x[yk],t:dow(x.dk)}));
+    const vD=P.dur.m==null?'—':n0(P.dur.m)+'′',vY=P[yk].m==null?'—':(Y==='rpe'?n1(P[yk].m):n1(P[yk].m)+' %');
+    const nv=P.ua.m!=null&&P.md!=='MD'?nivelUA(P.ua.m):null;
+    const ua=P.ua.m==null?'—':(nv!=null?'<span class="ctv-pill n'+nv+'" title="'+E('Carga habitual de su '+VI_LAB(P.md)+': '+n0(P.ua.m)+' UA · '+LV[nv][0].toLowerCase())+'">'+n0(P.ua.m)+'</span>':'<span class="ctv-pill par" title="El partido no lleva semáforo: su cuestionario no describe lo que pesa">'+n0(P.ua.m)+'</span>');
+    /* los días de la semana que caen en esta posición y no tienen carga: se dicen, no se callan */
+    const refk=dkey(REF()),sin=wd.filter(dk=>{const m=calMd(dk,T.ps);return m&&m.txt===P.md&&!xs.some(x=>x.dk===dk);});
+    const sinH=sin.map(dk=>'<span class="ctv-sd ctv-sv"><em>'+dow(dk)+'</em><small class="ctv-na">'+(dk>refk?'por venir':'sin carga registrada')+'</small></span>').join('');
+    let sem=sinH||'<span class="ctv-na">—</span>';
+    if(xs.length){sem=sinH+xs.map(x=>{const r=ctViRef(T,x),Pp=r?mdhPct(x.ua,r):null;if(Pp){con++;if(Pp.est==='ok')dentro++;else fuera.push({md:P.md,d:Pp.p-100});}
+      const det=[x.dur!=null?n0(x.dur)+'′':'',x.rpe!=null?'RPE '+n1(x.rpe):'',x.z!=null?'Z4+Z5 '+n1(x.z)+' %':''].filter(Boolean).join(' · ');
+      return '<button type="button" class="ctv-sd" data-vd="'+x.dk+'" title="'+E(bmInspFecha(x.dk)+(det?' · '+det:'')+(r?' · contra '+n0(r.ref)+' UA, la media de los '+r.n+' '+VI_LAB(P.md)+' anteriores':' · sin 3 días anteriores con los que comparar'))+'"><em>'+dow(x.dk)+'</em><b>'+n0(x.ua)+' UA</b>'+(Pp?mdhChip(Pp):'<small class="ctv-na">sin referencia</small>')+'</button>';}).join('');}
+    return '<div class="ctv-tr'+(P.n<MDH_MIN?' poco':'')+'" role="row"><span class="ctv-md"><b>'+VI_LAB(P.md)+'</b><small>'+P.n+(P.n===1?' día':' días')+'</small></span>'
+      +'<span class="ctv-cell"><b>'+vD+'</b>'+carril(P.dur,wsD,XD,n0,'′')+'</span>'
+      +'<span class="ctv-cell"><b>'+vY+'</b>'+carril(P[yk],wsY,XY,n1,Y==='rpe'?'':' %')+'</span>'
+      +'<span class="ctv-ua">'+ua+'</span><span class="ctv-s">'+sem+'</span></div>';}).join('');
+  const resu=con?'<b>'+dentro+' de '+con+'</b> días de la semana del '+wlab+' como vuestro día tipo (entre el 85 y el 115 %)'+(fuera.length?' · fuera: '+fuera.map(f=>VI_LAB(f.md)+' al '+(f.d+100)+' %').join(' · '):''):'La semana del '+wlab+' todavía no tiene días con los que comparar.';
+  const ww=(()=>{try{return ctTabla().map(s=>s.w);}catch(e){return [];}})(),wi=ww.indexOf(W);
+  const nav='<div class="ctv-nav" role="group" aria-label="Semana"><button type="button" data-vw="-1"'+(wi<=0?' disabled':'')+' aria-label="Semana anterior">‹</button><span>Semana del <b>'+wlab+'</b></span><button type="button" data-vw="1"'+(wi<0||wi>=ww.length-1?' disabled':'')+' aria-label="Semana siguiente">›</button></div>';
   const seg='<div class="ctv-seg" role="group" aria-label="Intensidad"><button type="button" data-vy="rpe" aria-pressed="'+(Y==='rpe')+'"'+(Y==='rpe'?' class="on"':'')+'>RPE</button><button type="button" data-vy="z45" aria-pressed="'+(Y==='z45')+'"'+(Y==='z45'?' class="on"':'')+'>%Z4+Z5</button></div>';
-  const cab='<h2>Volumen contra intensidad <span class="r">un punto por día, desde el 1 de julio</span></h2>';
-  if(P.length<3){box.innerHTML='<div class="panel ctv">'+cab+seg+'<p class="hint" style="margin:8px 0 0">'+(Y==='z45'?'Hacen falta días con 3 pulsómetros o más y carga registrada.':'Hacen falta días con carga y minutos registrados.')+'</p></div>';return;}
-  const ancho=Math.max(300,Math.round((box.clientWidth||box.parentElement.clientWidth||900)-44)),H=300,PL=44,PR=12,PT=12,PB=34;
-  const xs=P.map(p=>p.x),ys=P.map(p=>p.y),q=a=>{const b=a.slice().sort((x,y)=>x-y),h=(b.length-1)/2;return (b[Math.floor(h)]+b[Math.ceil(h)])/2;};
-  const x1=Math.ceil(Math.max(...xs)*1.08/15)*15,y0=Y==='rpe'?Math.max(0,Math.floor(Math.min(...ys))-1):0,y1=Y==='rpe'?10:Math.ceil(Math.max(...ys)*1.12/5)*5;
-  const X=v=>PL+(ancho-PL-PR)*v/x1,Yp=v=>PT+(H-PT-PB)*(1-(v-y0)/(y1-y0));
-  let g='';
-  const stx=x1<=120?15:30;for(let v=0;v<=x1;v+=stx)g+='<line class="ctc-gr" x1="'+X(v).toFixed(1)+'" x2="'+X(v).toFixed(1)+'" y1="'+PT+'" y2="'+(H-PB)+'" opacity=".55"/><text class="ctc-ax" x="'+X(v).toFixed(1)+'" y="'+(H-PB+15)+'" text-anchor="middle">'+v+'</text>';
-  const sty=Y==='rpe'?1:(y1<=20?5:10);for(let v=y0;v<=y1;v+=sty)g+='<line class="ctc-gr" x1="'+PL+'" x2="'+(ancho-PR)+'" y1="'+Yp(v).toFixed(1)+'" y2="'+Yp(v).toFixed(1)+'"/><text class="ctc-ax" x="'+(PL-6)+'" y="'+(Yp(v)+4).toFixed(1)+'" text-anchor="end">'+v+(Y==='z45'?' %':'')+'</text>';
-  const mx=q(xs),my=q(ys);
-  g+='<line class="ctv-med" x1="'+X(mx).toFixed(1)+'" x2="'+X(mx).toFixed(1)+'" y1="'+PT+'" y2="'+(H-PB)+'"/><line class="ctv-med" x1="'+PL+'" x2="'+(ancho-PR)+'" y1="'+Yp(my).toFixed(1)+'" y2="'+Yp(my).toFixed(1)+'"/>';
-  g+='<text class="ctv-q" x="'+(ancho-PR-4)+'" y="'+(PT+12)+'" text-anchor="end">más largo y más duro</text><text class="ctv-q" x="'+(PL+6)+'" y="'+(PT+12)+'">más corto y más duro</text><text class="ctv-q" x="'+(PL+6)+'" y="'+(H-PB-6)+'">más corto y más suave</text><text class="ctv-q" x="'+(ancho-PR-4)+'" y="'+(H-PB-6)+'" text-anchor="end">más largo y más suave</text>';
-  g+='<text class="ctc-ax" x="'+(ancho-PR)+'" y="'+(H-4)+'" text-anchor="end">minutos de la sesión →</text>';
-  const tsel=(typeof BMTAG!=='undefined'&&BMTAG.sel)?new Set(((tagDias()[BMTAG.sel])||[]).map(x=>x.dk)):null;
-  /* los partidos y los días resaltados, encima */
-  const ord=P.slice().sort((a,b)=>(a.cat==='md')-(b.cat==='md')||(tsel?(tsel.has(a.dk)-tsel.has(b.dk)):0));
-  ord.forEach(p=>{const dd=dkToDate(p.dk);let t=dd.toLocaleDateString('es',{weekday:'short',day:'numeric',month:'numeric'});t=t.charAt(0).toUpperCase()+t.slice(1);
-    const cls='ctv-p c-'+p.cat+(tsel?(tsel.has(p.dk)?' ct-hl':' ct-dim'):'');
-    g+='<circle class="'+cls+'" data-vd="'+p.dk+'" cx="'+X(p.x).toFixed(1)+'" cy="'+Yp(p.y).toFixed(1)+'" r="5.5"><title>'+E(t+' · '+(p.m?p.m.txt:'sin partido cerca')+' · '+Math.round(p.x)+' min · '+(Y==='rpe'?'RPE '+fmt(p.y,1):'Z4+Z5 '+fmt(p.y,1)+' %')+' · '+Math.round(p.ua).toLocaleString('es-ES')+' UA')+'</title></circle>';});
-  const usadas=new Set(P.map(p=>p.cat));
-  const ley=CT_CAT.filter(([k])=>usadas.has(k)).map(([k,l])=>'<span><i class="ctc-lc ctv-lc c-'+k+'"></i>'+l+'</span>').join('');
-  box.innerHTML='<div class="panel ctv">'+cab+'<div class="ctv-top">'+seg+'<div class="ctc-ley">'+ley+'</div></div>'
-    +'<svg class="ctc-svg" viewBox="0 0 '+ancho+' '+H+'" width="100%" role="img" aria-label="Minutos contra '+(Y==='rpe'?'RPE':'porcentaje en Z4 y Z5')+' de cada día de entrenamiento">'+g+'</svg>'
-    +'<p class="ctc-pie">Cada punto es un día con carga del equipo: sus minutos medios contra su '+(Y==='rpe'?'RPE medio':'%Z4+Z5 (sólo los días con 3 pulsómetros o más)')+', los del Dashboard. Las rayas son vuestras medianas ('+Math.round(mx)+' min · '+(Y==='rpe'?'RPE '+fmt(my,1):fmt(my,1)+' %')+'): parten el plano en más largo o más corto y más duro o más suave que lo vuestro. El color, su posición en el ciclo. Pulsa un punto para ver el día.</p></div>';
+  const ley='<span><i class="ctv-lk"></i>Vuestro día tipo</span><span><i class="ctv-lb"></i>La mitad central de esos días</span><span><i class="ctv-lw"></i>Semana del '+wlab+'</span>';
+  box.innerHTML='<div class="panel ctv">'+cab+'<div class="ctv-top">'+nav+seg+'</div><p class="ctv-res">'+resu+'</p><div class="ctc-ley">'+ley+'</div>'
+    +'<div class="ctv-tab" role="table" aria-label="Día tipo de cada posición del ciclo y la semana del '+wlab+'"><div class="ctv-tr ctv-th" role="row"><span>Día del ciclo</span><span>Volumen · minutos <small>0–'+XD+'′</small></span><span>Intensidad · '+(Y==='rpe'?'RPE <small>0–10</small>':'%Z4+Z5 <small>0–'+XY+' %</small>')+'</span><span class="ctv-ua">Carga habitual</span><span class="ctv-s">Semana del '+wlab+' frente al día tipo</span></div>'+filas+'</div>'
+    +'<p class="ctc-pie">El día tipo es la media de vuestros días en esa posición del ciclo desde el 1 de septiembre, con la carga, los minutos y el RPE del equipo del Dashboard y el %Z4+Z5 de los días con 3 pulsómetros o más. Las barras van desde cero y con la misma escala en todas las filas, así que se comparan de arriba abajo; la franja gris es la mitad central de esos días (con 3 o más). La carga lleva el semáforo de la tabla de arriba, salvo el partido. La semana elegida se compara día a día con la media de los días anteriores en su posición, en % de lo habitual, como «Cada sesión contra su MD»: entre el 85 y el 115 % es «como siempre»; fuera, en ámbar con su flecha. Los días de ciclos de más de una semana no entran. Elige la semana con las flechas o pulsándola en la tabla de arriba.</p></div>';
 }
 document.addEventListener('click',e=>{if(!e.target||!e.target.closest)return;
   const b=e.target.closest('#ct-vi [data-vy]');if(b){BMVI.y=b.dataset.vy;renderCtVI();return;}
+  const n=e.target.closest('#ct-vi [data-vw]');if(n&&!n.disabled){const ww=ctTabla().map(s=>s.w),i=ww.indexOf(BMCT.w),j=i+(+n.dataset.vw);if(j>=0&&j<ww.length){BMCT.w=ww[j];try{renderCtCiclo();}catch(x){}renderCtVI();}return;}
   const p=e.target.closest('#ct-vi [data-vd]');if(p)bmDiaRes(p.getAttribute('data-vd'));});
 window.renderCtVI=renderCtVI;
 
@@ -40282,10 +40413,15 @@ function mdhDiaHTML(dk){
   if(!F.length)return null;
   F.sort((a,b)=>Math.abs(b.P.p-100)-Math.abs(a.P.p-100)||a.n.localeCompare(b.n,'es'));
   /* el equipo: la media de los que entrenaron con el grupo contra la de sus días anteriores en esa posición */
+  /* v832 · el equipo sale de la MISMA cuenta que «Volumen contra intensidad»
+     (`ctDiaTipo` + `ctViRef`): la carga del equipo del Dashboard ese día
+     contra la media de los días anteriores en esa posición. Antes se promediaba
+     aquí sobre los días-jugador, con la tecnificación dentro (§2.1: no entra en
+     ningún agregado de equipo), y las dos pantallas daban cifras distintas del
+     mismo día. */
   let eq='';
-  try{const hoyv=[],ant=[];Object.keys(I.jug).forEach(n=>(I.jug[n].a||[]).forEach(x=>{if(x.md!==c.txt||!x.grp)return;if(x.dk===dk)hoyv.push(x.v);else if(x.dk<dk)ant.push(x.v);}));
-    if(hoyv.length&&ant.length>=MDH_MIN){const a=hoyv.reduce((s,x)=>s+x,0)/hoyv.length,b=ant.reduce((s,x)=>s+x,0)/ant.length,P=mdhPct(a,{ref:b});
-      eq='<p class="mdhd-eq">Equipo: <b>'+Math.round(a).toLocaleString('es-ES')+' UA</b> por jugador '+mdhChip(P)+' <small>de su '+c.txt+' habitual, '+Math.round(b).toLocaleString('es-ES')+' UA</small></p>';}}catch(e){}
+  try{if(typeof ctDiaTipo==='function'){const T=ctDiaTipo(),x=T.D.find(y=>y.dk===dk),r=x&&ctViRef(T,x),P=r&&mdhPct(x.ua,r);
+    if(P)eq='<p class="mdhd-eq">Equipo: <b>'+Math.round(x.ua).toLocaleString('es-ES')+' UA</b> por jugador '+mdhChip(P)+' <small>de su '+c.txt+' habitual, '+Math.round(r.ref).toLocaleString('es-ES')+' UA</small></p>';}}catch(e){}
   const ok=F.filter(f=>f.P.est==='ok').length;
   return {md:c.txt,html:eq+'<div class="mdhd">'+F.map(f=>'<div title="'+E(f.src==='suya'?'Contra su propia media':f.src==='puesto'?'Contra la media de su puesto: tiene menos de 3 días suyos':'Contra la media del equipo')+'"><b>'+E(cvCorto(f.n))+'</b><small>'+Math.round(f.v).toLocaleString('es-ES')+'</small>'+mdhChip(f.P)+(f.src!=='suya'?'<em>'+(f.src==='puesto'?'puesto':'equipo')+'</em>':'')+'</div>').join('')+'</div>'
     +'<p class="mdhd-pie">'+ok+' de '+F.length+' dentro de ±15 % de lo suyo. Su media en esta posición del ciclo, con los días anteriores; con menos de 3 suyos, la de su puesto o la del equipo.</p>'};
@@ -55394,6 +55530,145 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .tsw-hp{height:20px;width:auto}
 .tsw-wnav{margin-top:6px}
 .tsw-wnav span{flex:1;text-align:center;font-weight:600}
+</style>
+<style id="bm-v831">
+/* v831 · el ciclo, semana a semana, como tabla */
+.ctw-g{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.ctw-r{display:grid;grid-template-columns:72px repeat(7,minmax(0,1fr)) minmax(170px,1.6fr);column-gap:4px;align-items:stretch}
+.ctw-h{font-size:var(--fs-xs);font-weight:600;color:var(--muted);padding-bottom:2px}
+.ctw-h span{padding:0 6px}
+.ctw-h .ctw-ht{padding-left:10px}
+.ctw-blq{font-size:var(--fs-sm);color:var(--muted);padding:10px 2px 2px}
+.ctw-blq b{color:var(--txt);font-weight:600}
+.ctw-w{all:unset;cursor:pointer;display:flex;flex-direction:column;justify-content:center;padding:0 8px;border-radius:8px;min-height:44px}
+.ctw-w b{font-size:var(--fs-body);font-weight:600;font-variant-numeric:tabular-nums}
+.ctw-w small{font-size:var(--fs-xs);color:var(--muted)}
+.ctw-w:hover{background:var(--seg-carril)}
+.ctw-w:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ctw-r.sel .ctw-w{background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+.ctw-r.sel .ctw-w b{color:var(--acc-seg,var(--accent))}
+.ctw-r.cur .ctw-w b{font-style:italic}
+.ctw-c{all:unset;box-sizing:border-box;position:relative;min-height:44px;border-radius:8px;background:var(--panel2);padding:4px 7px;display:flex;flex-direction:column;justify-content:flex-end;min-width:0;overflow:hidden}
+button.ctw-c{cursor:pointer}
+button.ctw-c:hover{box-shadow:0 0 0 2px var(--txt)}
+button.ctw-c:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ctw-c.v{--ctc:var(--ok);background:color-mix(in srgb,var(--ctc) 80%,var(--panel2))}
+.ctw-c.v.n1{--ctc:var(--warn)}.ctw-c.v.n2{--ctc:var(--bad)}
+.ctw-c.fut{--ctc:var(--ok);background:color-mix(in srgb,var(--ctc) 28%,var(--panel2));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ctc) 70%,var(--panel2))}
+.ctw-c.fut.n1{--ctc:var(--warn)}.ctw-c.fut.n2{--ctc:var(--bad)}
+.ctw-c.par{background:var(--panel2);box-shadow:inset 0 0 0 2px var(--accent)}
+.ctw-d{position:absolute;top:4px;right:7px;font-style:normal;font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.ctw-md{font-style:normal;font-size:var(--fs-xs);font-weight:600;color:var(--muted);line-height:1.2}
+.ctw-c>b{font-size:var(--fs-h2);font-weight:650;font-variant-numeric:tabular-nums;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt)}
+.ctw-c.v .ctw-d,.ctw-c.v .ctw-md,.ctw-c.v>b{color:#0d1117}
+.ctw-c.par>b{font-size:var(--fs-body);font-weight:600}
+.ctw-c.par .ctw-md{color:var(--acc-seg,var(--accent))}
+.ctw-c.fut small{font-size:var(--fs-xs);color:var(--muted);line-height:1.1}
+.ctw-c.m0>b{font-size:var(--fs-body);font-weight:500;color:var(--muted)}
+.ctw-c.ct-dim{filter:grayscale(.9)}
+.ctw-ns{display:none}
+.ctw-c.ct-hl{box-shadow:0 0 0 2px var(--txt)}
+.ctw-t{display:flex;flex-direction:column;justify-content:center;gap:5px;padding:2px 2px 2px 10px;min-width:0}
+.ctw-tn{display:flex;align-items:baseline;gap:8px;min-width:0}
+.ctw-tn b{font-size:var(--fs-body);font-weight:650;font-variant-numeric:tabular-nums}
+.ctw-tn small{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctw-tn small.sube{color:var(--warn-text);font-weight:600}
+.ctw-tn small.cur{font-style:italic}
+.ctw-trk{position:relative;height:10px;border-radius:5px;background:var(--seg-carril)}
+.ctw-band{position:absolute;top:-3px;bottom:-3px;background:color-mix(in srgb,var(--txt) 12%,transparent);border-left:1px solid var(--muted);border-right:1px solid var(--muted)}
+.ctw-fill{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--c-data)}
+.ctw-fill.cur{background:repeating-linear-gradient(135deg,var(--c-data) 0 3px,color-mix(in srgb,var(--c-data) 40%,var(--panel)) 3px 6px)}
+.ctw-mk{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--txt);border-radius:1px}
+.ctw-lc{display:inline-block;width:14px;height:12px;border-radius:3px;--ctc:var(--ok);background:color-mix(in srgb,var(--ctc) 80%,var(--panel2))}
+.ctw-lc.n1{--ctc:var(--warn)}.ctw-lc.n2{--ctc:var(--bad)}
+.ctw-lc.par{background:var(--panel2);box-shadow:inset 0 0 0 2px var(--accent)}
+.ctw-lc.fut{background:color-mix(in srgb,var(--warn) 28%,var(--panel2));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warn) 70%,var(--panel2))}
+.ctw-lm{display:inline-block;width:2px;height:14px;background:var(--txt);border-radius:1px}
+.ctw-lb{display:inline-block;width:14px;height:10px;background:color-mix(in srgb,var(--txt) 12%,transparent);border-left:1px solid var(--muted);border-right:1px solid var(--muted)}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .ctw-g{gap:3px}
+  .ctw-r{grid-template-columns:40px repeat(7,minmax(0,1fr)) 50px;column-gap:2px}
+  .ctw-h span{padding:0 2px;font-size:10.5px;text-align:center}
+  .ctw-h span:first-child{text-align:left}
+  .ctw-h .ctw-ht{font-size:0}
+  .ctw-h .ctw-ht::after{content:"Sem.";font-size:10.5px}
+  .ctw-w{padding:0 2px}
+  .ctw-w b{font-size:12px}
+  .ctw-w small{display:none}
+  .ctw-c{min-height:40px;padding:2px 3px;border-radius:6px;justify-content:center;align-items:center}
+  .ctw-c>b{font-size:11px;font-weight:650;letter-spacing:-.03em;text-align:center;max-width:100%;text-overflow:clip}
+  .ctw-nl{display:none}.ctw-ns{display:inline}
+  .ctw-c{padding:2px 1px}
+  .ctw-md,.ctw-d,.ctw-c.fut small{display:none}
+  .ctw-c.par>b{font-size:0}
+  .ctw-c.par>b::after{content:"P";font-size:12px;color:var(--acc-seg,var(--accent))}
+  .ctw-t{padding:0 0 0 4px;gap:3px}
+  .ctw-tn{flex-direction:column;gap:0;align-items:flex-end}
+  .ctw-tn b{font-size:11.5px}
+  .ctw-tn small{font-size:0}
+  .ctw-tn small.sube::after{content:"↑";font-size:11px}
+  .ctw-trk{height:6px}
+}
+</style>
+<style id="bm-v832">
+/* v832 · volumen contra intensidad · vuestro día tipo */
+.ctv-nav{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-body)}
+.ctv-nav b{font-weight:600}
+.ctv-nav button{all:unset;cursor:pointer;width:30px;height:30px;display:grid;place-items:center;border-radius:8px;font-size:18px;color:var(--acc-seg,var(--accent))}
+.ctv-nav button:hover{background:var(--seg-carril)}
+.ctv-nav button:disabled{color:var(--muted2);cursor:default;background:none}
+.ctv-nav button:focus-visible{outline:2px solid var(--accent)}
+.ctv-res{font-size:var(--fs-body);color:var(--muted);margin:2px 0 8px}
+.ctv-res b{color:var(--txt);font-weight:600}
+.ctv-lk{display:inline-block;width:3px;height:14px;border-radius:1.5px;background:var(--txt)}
+.ctv-lb{display:inline-block;width:18px;height:12px;border-radius:3px;background:color-mix(in srgb,var(--txt) 13%,transparent)}
+.ctv-lw{display:inline-block;width:18px;height:8px;border-radius:4px;background:var(--accent)}
+.ctv-tab{display:flex;flex-direction:column;margin-top:4px}
+.ctv-tr{display:grid;grid-template-columns:96px minmax(0,1fr) minmax(0,1fr) 92px minmax(200px,.9fr);column-gap:22px;align-items:center;min-height:52px;border-bottom:.5px solid var(--hair);font-variant-numeric:tabular-nums;font-size:var(--fs-body)}
+.ctv-th{min-height:30px;font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
+.ctv-th small{font-weight:400;color:var(--muted2)}
+.ctv-tr.poco .ctv-md b,.ctv-tr.poco .ctv-cell>b{color:var(--muted)}
+.ctv-md b{display:block;font-weight:650;font-size:var(--fs-h2)}
+.ctv-md small{display:block;font-size:var(--fs-xs);color:var(--muted)}
+.ctv-cell{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:10px;min-width:0}
+.ctv-cell>b{font-weight:600;text-align:right}
+.ctv-trk{position:relative;height:22px}
+.ctv-trk::before{content:"";position:absolute;left:0;right:0;top:10px;height:2px;border-radius:1px;background:var(--seg-carril)}
+.ctv-band{position:absolute;top:2px;bottom:2px;border-radius:4px;background:color-mix(in srgb,var(--txt) 13%,transparent)}
+.ctv-bar{position:absolute;left:0;top:7px;height:8px;border-radius:4px;background:var(--accent)}
+.ctv-bar+.ctv-bar{top:15px;height:5px;opacity:.7}
+.ctv-tk{position:absolute;top:0;bottom:0;width:3px;margin-left:-1.5px;border-radius:1.5px;background:var(--txt)}
+.ctv-ua{text-align:right}
+.ctv-pill{display:inline-block;min-width:52px;text-align:center;padding:4px 8px;border-radius:8px;font-weight:650;--ctc:var(--ok);background:color-mix(in srgb,var(--ctc) 80%,var(--panel2));color:#0d1117}
+.ctv-pill.n1{--ctc:var(--warn)}.ctv-pill.n2{--ctc:var(--bad)}
+.ctv-pill.par{background:var(--panel2);box-shadow:inset 0 0 0 2px var(--accent);color:var(--txt)}
+.ctv-s{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ctv-sd{all:unset;cursor:pointer;display:flex;align-items:baseline;gap:8px;white-space:nowrap;border-radius:6px;padding:2px 4px;margin:0 -4px}
+.ctv-sd:hover{background:var(--seg-carril)}
+.ctv-sv{cursor:default}.ctv-sv:hover{background:none}
+.ctv-sd:focus-visible{outline:2px solid var(--accent)}
+.ctv-sd em{font-style:normal;color:var(--muted);font-size:var(--fs-sm);min-width:28px}
+.ctv-sd b{font-weight:600}
+.ctv-na{color:var(--muted2);font-size:var(--fs-sm)}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .ctv-top{gap:8px}
+  .ctv-nav button{width:44px;height:44px}
+  .ctv-tr{grid-template-columns:58px minmax(0,1fr) minmax(0,1fr) 50px;grid-template-areas:"md d y ua" "s s s s";column-gap:8px;row-gap:2px;padding:6px 0;font-size:13px}
+  .ctv-th{grid-template-areas:"md d y ua"}
+  .ctv-th .ctv-s{display:none}
+  .ctv-md{grid-area:md}.ctv-tr>.ctv-cell:nth-child(2){grid-area:d}.ctv-tr>.ctv-cell:nth-child(3){grid-area:y}.ctv-ua{grid-area:ua}.ctv-s{grid-area:s}
+  .ctv-th>span:first-child{grid-area:md}  .ctv-th>span:nth-child(2){grid-area:d}.ctv-th>span:nth-child(3){grid-area:y}
+  .ctv-th small{display:none}
+  .ctv-md b{font-size:14px}
+  .ctv-cell{grid-template-columns:minmax(0,1fr);gap:2px}
+  .ctv-cell>b{text-align:left;font-size:12.5px}
+  .ctv-trk{height:16px}
+  .ctv-trk::before{top:7px}
+  .ctv-bar{top:4px}
+  .ctv-pill{min-width:0;padding:2px 5px;font-size:12px}
+  .ctv-s{flex-direction:row;flex-wrap:wrap;gap:4px 14px}
+  .ctv-sd{min-height:32px;align-items:center}
+}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
