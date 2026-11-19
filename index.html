@@ -17129,6 +17129,7 @@ function renderMapaPlantilla(){
   const RJ=bmMpRejilla(D,FUT,ancho),orden=RJ.orden;
   const desde=dkToDate(D.dks[0]),hasta=dkToDate(FUT.length?FUT[FUT.length-1]:D.fin);
   const REC=BMMP.modo==='rec';
+  let antesOla=null;try{antesOla=bmMpOlaAntes(box);}catch(_){}
   const modo='<div class="bmmp-modo" role="group" aria-label="Qué pinta el mapa"><button type="button" data-mpm="carga" aria-pressed="'+(!REC)+'"'+(!REC?' class="on"':'')+'>Carga</button><button type="button" data-mpm="rec" aria-pressed="'+REC+'"'+(REC?' class="on"':'')+'>Recuperación</button></div>';
   box.innerHTML='<div class="panel bmmp"><h2>La plantilla, día a día <span class="r">del '+desde.getDate()+'/'+(desde.getMonth()+1)+' al '+hasta.getDate()+'/'+(hasta.getMonth()+1)+'</span></h2>'
     +'<div class="bmmp-top">'+modo+'<button type="button" class="btn ghost bmmp-png" data-mpx="png" data-html2canvas-ignore="true">Exportar imagen</button>'
@@ -17145,6 +17146,41 @@ function renderMapaPlantilla(){
   try{const pb=document.createElement('div');pb.id='bmper';box.appendChild(pb);renderPer();}catch(e){console.error('bmnava · temporada por semanas',e);}
   bmMpCifras();
   const w=box.querySelector('.bmmp-w');if(w)w.scrollLeft=w.scrollWidth;
+  try{bmMpOla(box,antesOla);}catch(_){}
+}
+/* ═══ v876 · EL MAPA DE LA PLANTILLA CAMBIA EN OLA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 5. Al pasar de Carga a Recuperación, cambiar la
+   ventana o de día, las 600 casillas cambiaban de golpe. Ahora cada casilla pasa
+   de su color de antes al nuevo, columna a columna de izquierda a derecha, en
+   menos de medio segundo; la que no estaba antes (un día que entra) aparece con
+   un pequeño pulso. Sólo lo que se ve y sólo cuando lo has pedido tú: la
+   sincronización repinta sin ola. No cambia ningún color ni ninguna cifra: se
+   anima el paso entre los que el mapa ya pinta. */
+function bmMpOlaVale(box){
+  return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce()&&box&&box.offsetParent!==null
+    &&Date.now()-(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<900;
+}
+function bmMpOlaAntes(box){
+  if(!bmMpOlaVale(box))return null;
+  const w=box.querySelector('.bmmp-w');if(!w)return null;const W=w.getBoundingClientRect(),m=new Map();
+  box.querySelectorAll('.bmmp-c[data-dk]').forEach(c=>{const r=c.getBoundingClientRect();if(r.right<W.left||r.left>W.right||r.bottom<0||r.top>innerHeight)return;
+    m.set((c.dataset.eq?'eq':c.dataset.p)+'|'+c.dataset.dk+'|'+(c.dataset.f?'f':''),getComputedStyle(c).backgroundColor);});
+  return m;
+}
+function bmMpOla(box,antes){
+  if(!antes||!bmMpOlaVale(box))return;
+  const w=box.querySelector('.bmmp-w');if(!w)return;const W=w.getBoundingClientRect();
+  const cs=[...box.querySelectorAll('.bmmp-c[data-dk]')].map(c=>({c,r:c.getBoundingClientRect()})).filter(o=>o.r.right>=W.left&&o.r.left<=W.right&&o.r.bottom>=0&&o.r.top<=innerHeight);
+  if(!cs.length)return;
+  const x0=Math.min(...cs.map(o=>o.r.left)),x1=Math.max(...cs.map(o=>o.r.left)),sp=Math.max(1,x1-x0);
+  cs.forEach(({c,r})=>{
+    const d=Math.round((r.left-x0)/sp*420),k=(c.dataset.eq?'eq':c.dataset.p)+'|'+c.dataset.dk+'|'+(c.dataset.f?'f':'');
+    const viejo=antes.get(k),nuevo=getComputedStyle(c).backgroundColor;
+    try{
+      if(viejo==null)c.animate([{opacity:.1,transform:'scale(.7)'},{opacity:1,transform:'none'}],{duration:340,delay:d,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});
+      else if(viejo!==nuevo)c.animate([{backgroundColor:viejo},{backgroundColor:nuevo,offset:.6},{backgroundColor:nuevo}],{duration:420,delay:d,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'});
+    }catch(_){}
+  });
 }
 function bmMpTip(c,x,y){
   let t=document.getElementById('bmmp-tip');if(!t){t=document.createElement('div');t.id='bmmp-tip';t.setAttribute('aria-hidden','true');document.body.appendChild(t);}
