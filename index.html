@@ -6570,6 +6570,9 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
   var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   function salir(){
     if(fuera)return; fuera=true;
+    /* v862 · en el ordenador, el escudo vuela a su sitio en la barra lateral */
+    try{if(window.bmEntradaVuela&&window.bmEntradaVuela(document.getElementById('sp-logo'),el,true)){
+      setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},560);return;}}catch(e){}
     el.classList.add('sp-out');
     /* Con el lavado al 100% se retira del DOM y aparece la app ya pintada. */
     setTimeout(function(){
@@ -8643,7 +8646,8 @@ function syShowGate(){
         try{await syPendientes();}catch(e){}
         try{syDispRegistrar();}catch(e){}
         try{syVigilar();}catch(e){}
-        overlay.remove();
+        /* v862 · en el ordenador, la pantalla de acceso se va y su escudo vuela a la barra lateral */
+        try{if(window.bmEntradaVuela&&window.bmEntradaVuela(document.getElementById('sy-gate-escudo'),overlay,false))setTimeout(()=>overlay.remove(),560);else overlay.remove();}catch(_){overlay.remove();}
         resolve();
       }catch(e){
         showErr(e.message||'No se pudo iniciar sesión');
@@ -25920,6 +25924,37 @@ function bmorgInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmorgInstala,30));else setTimeout(bmorgInstala,30);
 window.bmorgInstala=bmorgInstala;
+/* ═══ v862 · ENTRAR EN LA APP (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 7. La pantalla de arranque (v272) terminaba
+   lavándose a blanco y la app aparecía tal cual; la de acceso desaparecía de
+   golpe. Ahora, en el ordenador, el escudo VUELA desde el centro hasta su
+   sitio en la barra lateral mientras la pantalla de arranque se desvanece, y
+   el Resumen se monta debajo en cascada (v857). Lo mismo al entrar con el
+   correo y la contraseña. No retrasa nada: ocurre cuando la app ya está lista,
+   en el mismo momento en que antes empezaba el lavado. En el móvil, como
+   estaba; con «Reducir movimiento», como estaba. */
+function bmEntradaVuela(img,capa,cascada){
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino())||bmReduce())return false;
+  const dst=[...document.querySelectorAll('#sidebar .sbm-escudo,#sidebar .sbm-id img')].find(x=>x.checkVisibility&&x.checkVisibility());
+  if(!img||!capa||!dst||!img.complete||!img.naturalWidth)return false;
+  const a=img.getBoundingClientRect(),b=dst.getBoundingClientRect();if(!a.width||!b.width)return false;
+  const g=img.cloneNode(false);g.removeAttribute('id');g.className='';g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{position:'fixed',left:a.left+'px',top:a.top+'px',width:a.width+'px',height:a.height+'px',margin:'0',zIndex:'100001',
+    pointerEvents:'none',transformOrigin:'0 0',animation:'none',transition:'none',opacity:'1',filter:getComputedStyle(img).filter});
+  document.body.appendChild(g);img.style.visibility='hidden';dst.style.visibility='hidden';
+  const fin=()=>{dst.style.visibility='';try{g.remove();}catch(_){}};
+  try{
+    const an=g.animate([{transform:'none'},{transform:'translate('+(b.left-a.left).toFixed(1)+'px,'+(b.top-a.top).toFixed(1)+'px) scale('+(b.width/a.width).toFixed(4)+','+(b.height/a.height).toFixed(4)+')',filter:'none'}],
+      {duration:720,easing:'cubic-bezier(.32,.72,0,1)',fill:'forwards'});
+    an.onfinish=fin;
+    capa.animate([{opacity:1},{opacity:0}],{duration:460,easing:'ease-out',fill:'forwards'});
+    capa.style.pointerEvents='none';
+  }catch(e){fin();return false;}
+  setTimeout(fin,1200);
+  if(cascada)setTimeout(()=>{try{bmCascada(document.querySelector('main>.view.on'));}catch(_){}},60);
+  return true;
+}
+window.bmEntradaVuela=bmEntradaVuela;
 
 
 
