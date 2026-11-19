@@ -16558,11 +16558,45 @@ function bmTlAlterna(on){
   BMTL.on=on==null?!BMTL.on:!!on;bmTlGuarda();
   const b=document.getElementById('bm-tl-btn');if(b){b.classList.toggle('on',BMTL.on);b.setAttribute('aria-pressed',BMTL.on?'true':'false');}
   let tl=document.getElementById('bm-tl');
-  if(!BMTL.on){if(tl)tl.remove();if(BMTL.tic){clearInterval(BMTL.tic);BMTL.tic=null;}bmTlCabecera();return;}
-  if(!tl){const h=document.querySelector('header');if(!h)return;tl=document.createElement('div');tl.id='bm-tl';tl.setAttribute('role','group');tl.setAttribute('aria-label','Línea de tiempo');h.appendChild(tl);bmTlEventos(tl);}
+  const anima=bmTlAnimaVale();
+  if(!BMTL.on){if(BMTL.tic){clearInterval(BMTL.tic);BMTL.tic=null;}if(tl){if(anima&&!tl.dataset.sale){bmTlPliega(tl);return;}if(!tl.dataset.sale)tl.remove();}bmTlCabecera();return;}
+  let nueva=false;
+  if(tl&&tl.dataset.sale){delete tl.dataset.sale;tl.getAnimations().forEach(a=>{try{a.cancel();}catch(_){}});tl.style.overflow='';}
+  if(!tl){const h=document.querySelector('header');if(!h)return;tl=document.createElement('div');tl.id='bm-tl';tl.setAttribute('role','group');tl.setAttribute('aria-label','Línea de tiempo');h.appendChild(tl);bmTlEventos(tl);nueva=true;}
   bmTlPinta(true);
+  if(nueva&&anima)bmTlDespliega(tl);
   if(!BMTL.tic)BMTL.tic=setInterval(()=>{if(BMTL.on&&!window.__RD_CALC&&bmTlClave()!==BMTL.clave)bmTlPinta(false);},1500);
   bmTlCabecera();
+}
+/* ═══ v879 · LA LÍNEA DE TIEMPO SE DESPLIEGA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 8. Con L o su botón, la línea de tiempo
+   aparecía de golpe bajo la barra y empujaba la página entera de un salto.
+   Ahora la barra crece con suavidad —la página baja acompañándola, porque la
+   cabecera está en el flujo— y los días entran uno detrás de otro, de izquierda
+   a derecha; al cerrarla, se recoge. Sólo cuando la abres o la cierras tú: al
+   abrir la app, si se quedó abierta, sale ya puesta. */
+function bmTlAnimaVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce()&&!!window.__BM_LISTO
+  &&Date.now()-(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<900;}
+function bmTlDespliega(tl){
+  const cs=getComputedStyle(tl),H=tl.offsetHeight,pt=cs.paddingTop,pb=cs.paddingBottom;
+  tl.style.overflow='hidden';
+  const fin=()=>{tl.style.overflow='';bmTlCabecera();};
+  try{const a=tl.animate([{height:'0px',paddingTop:'0px',paddingBottom:'0px',opacity:0},{height:H+'px',paddingTop:pt,paddingBottom:pb,opacity:1}],
+      {duration:340,easing:'cubic-bezier(.32,.72,0,1)'});a.onfinish=fin;a.oncancel=()=>{tl.style.overflow='';};}catch(_){fin();}
+  const ds=[...tl.querySelectorAll('.bmtl-d')];
+  ds.forEach((d,i)=>{try{d.animate([{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'none'}],
+      {duration:300,delay:90+Math.round(i*Math.min(10,320/Math.max(1,ds.length))),easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}});
+  try{const inf=tl.querySelector('.bmtl-info');if(inf)inf.animate([{opacity:0},{opacity:1}],{duration:260,delay:120,fill:'backwards'});}catch(_){}
+  setTimeout(()=>{if(tl.isConnected)tl.style.overflow='';bmTlCabecera();},700);
+}
+function bmTlPliega(tl){
+  tl.dataset.sale='1';
+  const cs=getComputedStyle(tl),H=tl.offsetHeight;
+  tl.style.overflow='hidden';
+  const fin=()=>{if(tl.dataset.sale){tl.remove();bmTlCabecera();}};
+  try{const a=tl.animate([{height:H+'px',paddingTop:cs.paddingTop,paddingBottom:cs.paddingBottom,opacity:1},{height:'0px',paddingTop:'0px',paddingBottom:'0px',opacity:0}],
+      {duration:260,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});a.onfinish=fin;}catch(_){fin();}
+  setTimeout(fin,600);
 }
 /* lo que se pega bajo la cabecera tiene que saber que ha crecido */
 function bmTlCabecera(){
