@@ -20378,7 +20378,7 @@ function bmFhAcciones(){
   const bs=bmFhBotones();if(!bs.length)return;
   const filas=bs.map((x,i)=>{const oc=x.getAttribute('onclick')||'';const d=BMFH_AC.find(a=>oc.indexOf(a[0]+'(')===0);
     const t=d?d[2]:(x.textContent||'').replace(/^[^A-Za-zÁÉÍÓÚÑáéíóúñ]+/,'').trim();
-    const sub=d?d[3]:(x.getAttribute('title')||'');
+    const sub=d?d[3]:(x.getAttribute('title')||x.getAttribute('data-bmtip')||'');
     return '<button type="button" class="bmh-fila" data-i="'+i+'"><span class="ic">'+(d?BMFH_IC[d[1]]:BMFH_IC.trat)+'</span><span class="tx">'+t+(sub?'<small>'+sub+'</small>':'')+'</span></button>';}).join('');
   const h=bmHoja({id:'fh-acc',titulo:'Registrar',html:'<div class="bmh-grupo">'+filas+'</div>'});
   h.querySelector('.bmh-cuerpo').onclick=e=>{const f=e.target.closest('.bmh-fila');if(!f)return;const x=bmFhBotones()[+f.dataset.i];
@@ -23884,7 +23884,7 @@ function bmxTexto(t){
     if(ti&&ti.textContent.trim()){n=x;txt=ti.textContent.trim();break;}
     if(x.getAttribute('title')){n=x;txt=x.getAttribute('title').trim();break;}
     if(x===sv)break;}}
-  if(!n){n=t.closest('[title]');if(n)txt=(n.getAttribute('title')||'').trim();}
+  if(!n){n=t.closest('[title],[data-bmtip]');if(n)txt=(n.getAttribute('title')||n.getAttribute('data-bmtip')||'').trim();}
   if(!n||txt.length<8)return null;
   const p=t.closest('button,a,[onclick],summary,label,input,select,textarea,[role="button"],[role="tab"]');
   if(p&&(p===n||n.contains(p)||p.contains(n)))return null;
@@ -24775,6 +24775,64 @@ function bmMovUna(st){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ap);else ap();
   try{matchMedia('(prefers-reduced-motion:reduce)').addEventListener('change',ap);}catch(e){}})();
 window.bmMovUna=bmMovUna;
+/* ═══ v840 · AYUDA AL PASAR EL RATÓN, COMO EN MACOS (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 6. Las explicaciones de la app viven en el
+   `title` de cada elemento —173 sólo en Cargas › Temporada, 94 en Nutrición, 73
+   en la ficha— y el globo del navegador tarda un segundo en salir, corta los
+   textos largos y no sigue el modo oscuro. Ahora el globo es propio: el MISMO
+   texto, a los 0,4 s (y casi al instante si ya había otro abierto, como en
+   macOS), con el aspecto de los menús (v752), del tema que toque, en varias
+   líneas y siempre dentro de la ventana. Al pasar el ratón por primera vez, el
+   `title` se mueve a `data-bmtip` —si se quedara, saldría además el del
+   navegador— y, si el elemento no tiene nombre, el texto pasa a
+   `aria-description` para el lector de pantalla. En los dibujos, el `<title>`
+   del SVG se aparta mientras el globo está abierto y vuelve al cerrarse. Se
+   cierra al mover el ratón fuera, al pulsar, al desplazar o con una tecla.
+   Sólo con ratón o trackpad; en el móvil sigue lo de tocar para leer (v585). */
+const BMTIP={el:null,t:0,ult:0,box:null,svgT:null,x:0,y:0,vis:false};
+function bmTipCaja(){if(!BMTIP.box||!BMTIP.box.isConnected){const b=document.createElement('div');b.id='bm-tip';b.setAttribute('role','tooltip');document.body.appendChild(b);BMTIP.box=b;}return BMTIP.box;}
+function bmTipOculta(){clearTimeout(BMTIP.t);
+  if(BMTIP.vis){BMTIP.vis=false;BMTIP.ult=Date.now();const b=BMTIP.box;if(b)b.classList.remove('on');}
+  const s=BMTIP.svgT;if(s){try{if(s.el.isConnected&&!s.ti.isConnected)s.el.insertBefore(s.ti,s.el.firstChild);}catch(e){}BMTIP.svgT=null;}
+  BMTIP.el=null;}
+function bmTipMuestra(txt){
+  const el=BMTIP.el;if(!el||!el.isConnected)return;
+  const b=bmTipCaja();b.textContent=txt;b.classList.add('on');BMTIP.vis=true;
+  const W=innerWidth,H=innerHeight,r=b.getBoundingClientRect();
+  let x=BMTIP.x+12,y=BMTIP.y+20;
+  if(x+r.width>W-8)x=Math.max(8,W-8-r.width);
+  if(y+r.height>H-8)y=Math.max(8,BMTIP.y-r.height-12);
+  b.style.left=Math.round(x)+'px';b.style.top=Math.round(y)+'px';
+}
+function bmTipPuede(){return !(typeof esMovil==='function'&&esMovil())&&typeof bmEscFino==='function'&&bmEscFino();}
+document.addEventListener('mouseover',e=>{
+  if(!bmTipPuede())return;
+  const t=e.target;if(!t||!t.closest)return;
+  let el=null,txt=null,ti=null;
+  if(t.closest('svg')){for(let x=t;x&&x.nodeType===1;x=x.parentNode){const c=x.children&&[...x.children].find(k=>k.tagName&&k.tagName.toLowerCase()==='title');if(c&&c.textContent.trim()){el=x;ti=c;break;}if(x.getAttribute('title')||x.getAttribute('data-bmtip')){el=x;break;}if(x.tagName&&x.tagName.toLowerCase()==='svg')break;}}
+  if(!el)el=t.closest('[title],[data-bmtip]');
+  if(!el){if(BMTIP.el)bmTipOculta();return;}
+  if(el===BMTIP.el)return;
+  bmTipOculta();
+  if(el.closest(BMG_DOC)||el.closest('#bm-tip'))return;
+  /* lo que ya abre su propia vista previa al pasar el ratón (un jugador, una sección del menú) no lleva además el globo */
+  if(el.closest('#bm-jl .jl-f[data-n],[onclick*="openPlayer("],#sidebar .sb-item'))return;
+  if(ti){txt=ti.textContent.trim();BMTIP.svgT={el,ti};ti.remove();}
+  else{const tt=el.getAttribute('title');if(tt!=null){el.setAttribute('data-bmtip',tt);el.removeAttribute('title');
+      if(tt&&!el.getAttribute('aria-label')&&!el.getAttribute('aria-description')&&!(el.textContent||'').trim())el.setAttribute('aria-label',tt);
+      else if(tt&&!el.getAttribute('aria-description'))el.setAttribute('aria-description',tt);}
+    txt=(el.getAttribute('data-bmtip')||'').trim();}
+  if(!txt){BMTIP.el=el;return;}
+  BMTIP.el=el;BMTIP.x=e.clientX;BMTIP.y=e.clientY;
+  const espera=(Date.now()-BMTIP.ult<700)?60:400;
+  BMTIP.t=setTimeout(()=>bmTipMuestra(txt),espera);
+},true);
+document.addEventListener('mousemove',e=>{if(BMTIP.el&&!BMTIP.vis){BMTIP.x=e.clientX;BMTIP.y=e.clientY;}},{passive:true,capture:true});
+document.addEventListener('mouseout',e=>{if(!BMTIP.el)return;const r=e.relatedTarget;if(r&&BMTIP.el.contains(r))return;if(e.target===BMTIP.el||BMTIP.el.contains(e.target))bmTipOculta();},true);
+['mousedown','wheel','keydown'].forEach(ev=>document.addEventListener(ev,()=>{if(BMTIP.el)bmTipOculta();},{passive:true,capture:true}));
+window.addEventListener('scroll',()=>{if(BMTIP.vis)bmTipOculta();},{passive:true,capture:true});
+window.bmTipOculta=bmTipOculta;
+
 
 
 
@@ -61032,6 +61090,16 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)verComprob
   *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
   ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}
 }
+</style>
+<style id="bm-v840">
+/* v840 · el globo de ayuda del ordenador */
+#bm-tip{position:fixed;left:0;top:0;z-index:100000;max-width:320px;padding:6px 9px;border-radius:7px;pointer-events:none;
+  font:400 12px/1.4 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;white-space:pre-line;overflow-wrap:anywhere;
+  background:var(--tip-bg,rgba(250,250,252,.98));color:var(--txt);box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 6px 18px rgba(0,0,0,.14);
+  opacity:0;transform:translateY(-2px);transition:opacity var(--mov-1,150ms) ease-out,transform var(--mov-1,150ms) ease-out;visibility:hidden}
+#bm-tip.on{opacity:1;transform:none;visibility:visible}
+html[data-theme="dark"] #bm-tip{--tip-bg:rgba(44,44,48,.98);box-shadow:0 0 0 .5px rgba(255,255,255,.14),0 8px 22px rgba(0,0,0,.45)}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){#bm-tip{display:none}}
 </style>
 </body>
 </html>
