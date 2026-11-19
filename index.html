@@ -14667,8 +14667,13 @@ function bmSpot(){
     +'<div class="bms-cuerpo"><div class="bms-lista" id="bms-lista" role="listbox"></div><div class="bms-pv" aria-live="polite"></div></div></div>';
   document.body.appendChild(v);
   const inp=v.querySelector('input'),lista=v.querySelector('.bms-lista'),pv=v.querySelector('.bms-pv');
-  const marca=()=>{lista.querySelectorAll('.bms-r').forEach((r,i)=>{const on=i===BMS.sel;r.classList.toggle('on',on);r.setAttribute('aria-selected',on?'true':'false');if(on)r.scrollIntoView({block:'nearest'});});
-    pv.innerHTML=bmsPrevia(BMS.vis[BMS.sel]);};
+  /* v877 · la selección se desliza de una fila a otra (la pieza de la v865) y la vista previa entra con un fundido */
+  const marca=()=>{const o0=lista.querySelector('.bms-r.on'),r0=o0&&o0.getBoundingClientRect(),st0=lista.scrollTop;
+    lista.querySelectorAll('.bms-r').forEach((r,i)=>{const on=i===BMS.sel;r.classList.toggle('on',on);r.setAttribute('aria-selected',on?'true':'false');if(on)r.scrollIntoView({block:'nearest'});});
+    pv.innerHTML=bmsPrevia(BMS.vis[BMS.sel]);
+    try{const n=lista.querySelector('.bms-r.on');if(o0&&n&&o0!==n&&o0.isConnected&&bmselVale()){const d=lista.scrollTop-st0;
+      bmselDesliza(lista,{left:r0.left,top:r0.top-d,width:r0.width,height:r0.height},n);
+      pv.animate([{opacity:.35,transform:'translateY(4px)'},{opacity:1,transform:'none'}],{duration:200,easing:'cubic-bezier(.32,.72,0,1)'});}}catch(_){}};
   const pinta=()=>{
     const idx=BMS.idx,q=normH(inp.value).trim();let grupos=[];
     if(!q){let rec=[];try{rec=(JSON.parse(localStorage.getItem(BMB_REC)||'[]')||[]).map(k=>idx.find(x=>x.k===k)).filter(Boolean);}catch(e){}
@@ -14683,9 +14688,14 @@ function bmSpot(){
     BMS.vis=[];let h='';
     grupos.forEach(([rot,xs])=>{if(!xs.length)return;h+='<div class="bms-rot" role="presentation">'+rot+'</div>';
       xs.forEach(x=>{const i=BMS.vis.length;BMS.vis.push(x);
-        h+='<div class="bms-r" role="option" id="bms-o'+i+'" data-i="'+i+'">'+bmsIcono(x)+'<span class="bms-t">'+bmEsc(x.l)+'</span>'+(x.s&&x.g!=='a'?'<span class="bms-s">'+bmEsc(x.s)+'</span>':'')+'</div>';});});
+        h+='<div class="bms-r" role="option" id="bms-o'+i+'" data-i="'+i+'" data-k="'+bmEsc(String(x.k||x.l||''))+'">'+bmsIcono(x)+'<span class="bms-t">'+bmEsc(x.l)+'</span>'+(x.s&&x.g!=='a'?'<span class="bms-s">'+bmEsc(x.s)+'</span>':'')+'</div>';});});
+    /* v877 · las filas que entran mientras escribes llegan en cascada; las que ya estaban se quedan quietas */
+    const k0=new Set([...lista.querySelectorAll('.bms-r[data-k]')].map(r=>r.dataset.k)),vacio=!lista.querySelector('.bms-r');
     lista.innerHTML=h||'<p class="bms-nada">Nada con «'+bmEsc(inp.value.trim())+'».</p>';
     BMS.sel=0;marca();
+    try{if(bmselVale()){let j=0;lista.querySelectorAll('.bms-r[data-k],.bms-rot').forEach(r=>{
+      if(r.classList.contains('bms-rot')?!vacio&&k0.size:k0.has(r.dataset.k))return;if(j>12)return;
+      r.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:260,delay:(j++)*18,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});});}}catch(_){}
   };
   const abre=x=>{if(!x)return;
     try{if(x.g!=='d'){const r=(JSON.parse(localStorage.getItem(BMB_REC)||'[]')||[]).filter(k=>k!==x.k);r.unshift(x.k);localStorage.setItem(BMB_REC,JSON.stringify(r.slice(0,5)));}}catch(e){}
@@ -63029,7 +63039,7 @@ html.bm-tema-vt::view-transition-new(root){z-index:2}
 /* v865 · la fila elegida se desliza (ordenador) */
 @media screen and (min-width:761px) and (pointer:fine){
   .bmsel-anda{isolation:isolate}
-  .bmsel-anda>.bmal-f,.bmsel-anda>.hsl-f,.bmsel-anda .bmal-f,.bmsel-anda .hsl-f{position:relative;z-index:1}
+  .bmsel-anda>.bmal-f,.bmsel-anda>.hsl-f,.bmsel-anda .bmal-f,.bmsel-anda .hsl-f,.bmsel-anda>.bms-r,.bmsel-anda>.bms-rot{position:relative;z-index:1}
   .bmsel-g{position:absolute;z-index:0;pointer-events:none;display:block;margin:0}
   .bmsel-llega{background:transparent!important;color:var(--txt)!important}
   .bmsel-llega small,.bmsel-llega b,.bmsel-llega span,.bmsel-llega .bmj-av{color:inherit!important}
