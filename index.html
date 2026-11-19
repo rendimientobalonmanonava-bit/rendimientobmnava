@@ -26733,6 +26733,61 @@ function bmampInstala(){
   if(typeof c==='function'&&!c.__bmvt){const w=function(){const p=BMAMP.el;if(!p)return c.apply(this,arguments);const self=this,args=arguments;bmampVT(()=>c.apply(self,args),p);};w.__bmvt=true;window.bmAmpCierra=w;}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmampInstala,0));else setTimeout(bmampInstala,0);
+/* ═══ v884 · EXPORTAR HACE UNA FOTO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 4. Al exportar el parte, la lámina, una ficha o
+   un informe, la hoja con la imagen salía sin nada que la uniera al bloque. Ahora,
+   al pulsar, un destello breve sobre el bloque —el disparo— y, cuando la imagen
+   está lista, vuela desde el bloque hasta la vista previa de la hoja. Si lo que se
+   exporta no está a la vista (una lámina que se monta aparte), vuela desde el botón
+   que se pulsó. El lote de las 18 fichas no hace nada de esto. */
+const BMEXF={id:null,r:null,t:0};
+function bmexfVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce()&&!window.__EXP_LOTE;}
+function bmexfVisible(r){return r&&r.width>40&&r.height>40&&r.bottom>0&&r.top<innerHeight&&r.right>0&&r.left<innerWidth;}
+function bmexfDestello(r){
+  const x=Math.max(0,r.left),y=Math.max(0,r.top),w=Math.min(innerWidth,r.right)-x,h=Math.min(innerHeight,r.bottom)-y;if(w<20||h<20)return;
+  const d=document.createElement('div');d.className='bm-exf';Object.assign(d.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px'});
+  document.body.appendChild(d);
+  try{const a=d.animate([{opacity:0},{opacity:.85,offset:.18},{opacity:0}],{duration:420,easing:'ease-out'});a.onfinish=()=>d.remove();}catch(_){d.remove();}
+  setTimeout(()=>d.remove(),900);
+}
+function bmexfVuela(h){
+  const src=BMEXF;BMEXF.id=null;if(!src.t||Date.now()-src.t>45000)return;
+  const img=h&&h.querySelector('.bmc-prev img');if(!img)return;
+  let r0=null;const el=src.id&&document.getElementById(src.id);
+  if(el&&el.isConnected){const rr=el.getBoundingClientRect();if(bmexfVisible(rr))r0=rr;}
+  if(!r0&&bmexfVisible(src.r))r0=src.r;
+  if(!r0&&src.o)r0={left:src.o.x-14,top:src.o.y-14,width:28,height:28};
+  if(!r0)return;
+  img.style.visibility='hidden';
+  const sale=()=>{
+    const caja=h.querySelector('.bmh-caja');
+    Promise.all((caja?caja.getAnimations():[]).map(a=>a.finished.catch(()=>{}))).then(()=>{
+      const r1=img.getBoundingClientRect();if(!r1.width||!h.isConnected){img.style.visibility='';return;}
+      const c=document.createElement('img');c.src=img.src;c.alt='';c.className='bm-exf-vuela';
+      Object.assign(c.style,{left:r1.left+'px',top:r1.top+'px',width:r1.width+'px',height:r1.height+'px',borderRadius:getComputedStyle(img).borderRadius});
+      document.body.appendChild(c);
+      const sx=r0.width/r1.width,sy=r0.height/r1.height;
+      const fin=()=>{img.style.visibility='';c.remove();};
+      try{const a=c.animate([{transform:'translate('+(r0.left-r1.left).toFixed(1)+'px,'+(r0.top-r1.top).toFixed(1)+'px) scale('+sx.toFixed(4)+','+sy.toFixed(4)+')',boxShadow:'0 0 0 rgba(0,0,0,0)'},
+        {boxShadow:'0 30px 60px rgba(0,0,0,.28)',offset:.6},{transform:'none',boxShadow:'0 6px 18px rgba(0,0,0,.12)'}],{duration:640,easing:'cubic-bezier(.32,.72,0,1)'});a.onfinish=fin;a.oncancel=fin;}catch(_){fin();}
+      setTimeout(fin,1400);});
+  };
+  if(img.complete&&img.naturalWidth)sale();else{img.addEventListener('load',sale,{once:true});setTimeout(()=>{if(img.style.visibility==='hidden'&&!(img.complete&&img.naturalWidth))img.style.visibility='';},2500);}
+}
+function bmexfInstala(){
+  const f=window.exportNodePNG;
+  if(typeof f==='function'&&!f.__bmexf){const w=function(id,fn,opts){
+      try{if(bmexfVale()&&!(opts&&opts.__ya)){const el=document.getElementById(id);const r=el&&el.isConnected?el.getBoundingClientRect():null;
+        BMEXF.id=id;BMEXF.r=r;BMEXF.t=Date.now();BMEXF.o=(typeof BMORG!=='undefined'&&BMORG.r&&Date.now()-BMORG.t<1500)?{x:BMORG.r.x,y:BMORG.r.y}:null;
+        if(bmexfVisible(r))bmexfDestello(r);}}catch(_){}
+      return f.apply(this,arguments);};
+    w.__bmexf=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.exportNodePNG=w;}
+  const hj=window.bmHoja;
+  if(typeof hj==='function'&&!hj.__bmexf){const w=function(o){const r=hj.apply(this,arguments);
+      try{if(o&&o.id==='comp'&&BMEXF.id&&bmexfVale())bmexfVuela(r||document.getElementById('bmh-comp'));}catch(_){}return r;};
+    w.__bmexf=true;Object.keys(hj).forEach(k=>{try{w[k]=hj[k];}catch(_){}});window.bmHoja=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmexfInstala,300));else setTimeout(bmexfInstala,300);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -58103,6 +58158,11 @@ html.bm-amp-vt body main .bm-amp{animation:none!important}
 html.bm-amp-vt::view-transition-group(bm-amp){animation-duration:.46s;animation-timing-function:cubic-bezier(.32,.72,0,1)}
 html.bm-amp-vt::view-transition-old(bm-amp),html.bm-amp-vt::view-transition-new(bm-amp){animation-duration:.3s;height:100%;object-fit:cover;object-position:0 0}
 html.bm-amp-vt::view-transition-old(root),html.bm-amp-vt::view-transition-new(root){animation-duration:.3s}
+</style>
+<style id="esc-v884">
+/* v884 · exportar hace una foto */
+.bm-exf{position:fixed;z-index:100001;pointer-events:none;background:#fff;border-radius:14px;opacity:0}
+.bm-exf-vuela{position:fixed;z-index:100002;pointer-events:none;margin:0;transform-origin:0 0;object-fit:contain;background:#fff}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
