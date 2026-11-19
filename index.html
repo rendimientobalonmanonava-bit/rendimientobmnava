@@ -27786,6 +27786,43 @@ function bmtlvMira(){
 }
 let BMTLV_T=0;
 new MutationObserver(()=>{if(BMTLV_T||!bmtlvVale())return;BMTLV_T=setTimeout(()=>{BMTLV_T=0;try{bmtlvMira();}catch(e){console.error('bmnava · camino de vuelta',e);}},60);}).observe(document.documentElement,{childList:true,subtree:true});
+/* ═══ v905 · EL READINESS DE 14 DÍAS ALREDEDOR DE LA FOTO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 3. Al pasar el ratón por la foto de la
+   cabecera de la ficha, detrás del jugador se dibuja un anillo de 14
+   segmentos, uno por día, cada uno con el color de su readiness —como el
+   historial de anillos del Apple Watch—, empezando arriba por el más antiguo
+   y acabando en hoy, que va más grueso. **Los datos son los de la tira de 14
+   días de la v803** (`rdJugSerie`) y el color, sus mismos cortes (`recSev`):
+   un día sin su parte va en gris, no en un color. La cabecera del ordenador
+   no tiene anillo desde la v683 (la foto va grande y sin fondo), así que el
+   anillo sólo aparece mientras el ratón está encima. Cada segmento dice su
+   día y su cifra en el globo. */
+function bmr14Vale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmr14SVG(n){
+  let s=null;try{s=rdJugSerie(n);}catch(e){}if(!s||!s.length)return '';
+  const N=s.length,cx=150,cy=138,R=128,sw=9,gap=4,E=bmEsc;
+  const WD=['dom','lun','mar','mié','jue','vie','sáb'];
+  const pt=a=>[cx+R*Math.cos(a*Math.PI/180),cy+R*Math.sin(a*Math.PI/180)];
+  let g='';
+  s.forEach((d,i)=>{const a0=-90+i*360/N+gap/2,a1=-90+(i+1)*360/N-gap/2;const [x0,y0]=pt(a0),[x1,y1]=pt(a1);
+    const sv=d.rd!=null?recSev(d.rd):null;const col=sv?'var(--'+sv+')':'var(--hair)';const L=(a1-a0)*Math.PI/180*R;const hoy=i===N-1;
+    let dia='';try{const dd=dkToDate(d.dk);dia=WD[dd.getDay()]+' '+rd14Fd(d.dk);}catch(_){dia=d.dk;}
+    g+='<path class="bmr14-s'+(hoy?' hoy':'')+'" d="M'+x0.toFixed(1)+' '+y0.toFixed(1)+' A'+R+' '+R+' 0 0 1 '+x1.toFixed(1)+' '+y1.toFixed(1)+'" stroke="'+col+'" stroke-width="'+(hoy?sw+4:sw)+'" fill="none" stroke-linecap="round" stroke-dasharray="'+L.toFixed(1)+'" style="--l:'+L.toFixed(1)+'"><title>'+E(dia+(hoy?' (hoy)':'')+' · '+(d.rd!=null?'readiness '+d.rd:'sin parte'))+'</title></path>';});
+  return '<svg class="bmr14" viewBox="0 0 300 300" aria-hidden="true">'+g+'<text x="150" y="'+(cy-R-14)+'" text-anchor="middle" font-size="11" font-weight="600" fill="var(--muted)">Readiness · últimos 14 días</text></svg>';
+}
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType==='touch'||!bmr14Vale()||!e.target||!e.target.closest)return;
+  const ph=e.target.closest('#v-jugador.on .phero .phe-ph');
+  document.querySelectorAll('#v-jugador .phe-ph.bmr14-on').forEach(x=>{if(x!==ph)x.classList.remove('bmr14-on');});
+  if(!ph||ph.classList.contains('bmr14-on'))return;
+  let sv=ph.querySelector(':scope>.bmr14');
+  if(!sv){const n=STATE.curPlayer;const h=n?bmr14SVG(n):'';if(!h)return;ph.insertAdjacentHTML('beforeend',h);sv=ph.querySelector(':scope>.bmr14');if(!sv)return;}
+  ph.classList.add('bmr14-on');
+  if(bmReduce())return;
+  [...sv.querySelectorAll('.bmr14-s')].forEach((p,i)=>{const L=parseFloat(p.style.getPropertyValue('--l'))||0;
+    try{p.animate([{strokeDashoffset:L},{strokeDashoffset:0}],{duration:360,delay:i*38,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}});
+},true);
+document.documentElement.addEventListener('mouseleave',()=>{document.querySelectorAll('#v-jugador .phe-ph.bmr14-on').forEach(x=>x.classList.remove('bmr14-on'));});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59404,6 +59441,16 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
     background:var(--panel);box-shadow:0 0 0 2.5px var(--c),0 3px 8px rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center}
   main .tlv .tlv-cara img{width:100%;height:100%;object-fit:cover}
   main .tlv .tlv-cara i{font-style:normal;font-size:10px;font-weight:700;color:var(--txt)}
+}
+</style>
+<style id="esc-v905">
+/* v905 · el readiness de 14 días alrededor de la foto (ordenador) */
+.bmr14{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #v-jugador .phero .phe-ph>.bmr14{display:block;position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0;transition:opacity .28s ease;overflow:visible;
+    filter:drop-shadow(0 2px 6px rgba(0,0,0,.10))}
+  #v-jugador .phero .phe-ph.bmr14-on>.bmr14{opacity:1}
+  #v-jugador .phero .phe-ph>.bmr14 .bmr14-s{pointer-events:visibleStroke}
 }
 </style>
 <style id="bm-v808">
