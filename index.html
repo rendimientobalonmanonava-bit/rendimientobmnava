@@ -27578,6 +27578,63 @@ document.addEventListener('pointerover',e=>{
 },true);
 document.addEventListener('pointerleave',e=>{if(e.target&&e.target.classList&&e.target.classList.contains('bmmp-w'))bmmiraQuita();},true);
 window.addEventListener('resize',()=>{BMMIRA.filas=null;});
+/* ═══ v901 · SU TEMPORADA, EN REPRODUCCIÓN (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 5. En «Su temporada» de la ficha, un botón
+   «▶ Reproducir» pasa la temporada desde el 1 de julio en unos siete
+   segundos: un telón del color del panel se retira de izquierda a derecha al
+   ritmo de los días, una línea marca el día que va pasando con su fecha
+   encima, la lectura de debajo dice lo de ese día (la misma de pasar el
+   ratón) y cada molestia o baja da un pulso al llegar, sobre la carga que la
+   precedía. Para enseñársela al jugador en una reunión. Otro clic o Esc la
+   para y lo enseña todo. **El dibujo y los datos no cambian**: el telón es
+   una capa encima y se quita al terminar, a más tardar medio segundo después
+   aunque el navegador no pinte, y si el gráfico se repinta. Nada con
+   «Reducir movimiento». */
+const BMPLAY={on:false,fin:null};
+function bmplayVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmplayBoton(){
+  if(!bmplayVale())return;const p=document.querySelector('#pl-temporada .pltp');if(!p)return;const h=p.querySelector(':scope>h2');if(!h||h.querySelector('.pltp-play'))return;
+  const b=document.createElement('button');b.type='button';b.className='pltp-play';b.setAttribute('data-html2canvas-ignore','true');b.innerHTML='<i aria-hidden="true"></i><span>Reproducir</span>';
+  b.setAttribute('aria-label','Reproducir la temporada día a día');h.appendChild(b);}
+function bmplayPara(){if(BMPLAY.fin)BMPLAY.fin();}
+function bmplayArranca(){
+  if(BMPLAY.on){bmplayPara();return;}
+  const p=document.querySelector('#pl-temporada .pltp'),svg=p&&p.querySelector('.pltp-svg');if(!svg)return;
+  const vb=(svg.getAttribute('viewBox')||'').split(/\s+/).map(Number);const W=vb[2],H=vb[3];if(!W||!H)return;
+  const band=[...svg.querySelectorAll('rect')].find(r=>r.getAttribute('fill')==='var(--ok)'&&r.getAttribute('opacity')==='.10');if(!band)return;
+  const x0=+band.getAttribute('x'),iw=+band.getAttribute('width'),x1=x0+iw;
+  const lee=p.querySelector('.pltp-lee'),lee0=lee?lee.innerHTML:'';
+  const NS='http://www.w3.org/2000/svg';
+  const telon=document.createElementNS(NS,'rect');telon.setAttribute('class','pltp-telon');telon.setAttribute('y','0');telon.setAttribute('height',String(H));telon.setAttribute('fill','var(--panel)');
+  const linea=document.createElementNS(NS,'line');linea.setAttribute('class','pltp-cab');linea.setAttribute('y1','4');linea.setAttribute('y2',String(H-14));linea.setAttribute('stroke','var(--accent)');linea.setAttribute('stroke-width','2');
+  const fecha=document.createElementNS(NS,'text');fecha.setAttribute('class','pltp-fecha');fecha.setAttribute('y','11');fecha.setAttribute('text-anchor','middle');fecha.setAttribute('font-size','11');fecha.setAttribute('font-weight','700');fecha.setAttribute('fill','var(--acc-seg,var(--accent))');
+  [telon,linea,fecha].forEach(e=>{e.setAttribute('data-html2canvas-ignore','true');svg.appendChild(e);});
+  /* las molestias y bajas: los sombreados de arriba abajo, por su x */
+  const somb=[...svg.querySelectorAll('rect')].filter(r=>{const o=r.getAttribute('opacity');return (o==='0.16'||o==='0.11')&&+r.getAttribute('height')>40;}).map(r=>({r,x:+r.getAttribute('x'),hecho:false}));
+  const ini=TEMP_INICIO,ds=dkRango(ini,dkey(REF())),N=ds.length,bw=iw/N;
+  const btn=p.querySelector('.pltp-play');if(btn){btn.classList.add('on');btn.querySelector('span').textContent='Parar';btn.setAttribute('aria-label','Parar la reproducción');}
+  BMPLAY.on=true;const D=Math.max(4500,Math.min(9000,N*48));const t0=performance.now();let ult=-1,acabado=false;
+  const pon=x=>{telon.setAttribute('x',x.toFixed(1));telon.setAttribute('width',Math.max(0,W-x).toFixed(1));linea.setAttribute('x1',x.toFixed(1));linea.setAttribute('x2',x.toFixed(1));
+    const i=Math.max(0,Math.min(N-1,Math.floor((x-x0)/bw)));if(i!==ult){ult=i;const q=ds[i].split('-');fecha.textContent=(+q[2])+'/'+(+q[1]);
+      fecha.setAttribute('x',Math.max(x0+16,Math.min(W-20,x)).toFixed(1));
+      try{const r=svg.getBoundingClientRect();svg.dispatchEvent(new MouseEvent('mousemove',{bubbles:true,clientX:r.left+(x0+(i+.5)*bw)/W*r.width,clientY:r.top+r.height/2}));}catch(_){}}
+    somb.forEach(o=>{if(!o.hecho&&x>=o.x){o.hecho=true;try{o.r.animate([{opacity:.62},{opacity:+o.r.getAttribute('opacity')}],{duration:900,easing:'ease-out'});}catch(_){}}});};
+  const fin=()=>{if(acabado)return;acabado=true;BMPLAY.on=false;BMPLAY.fin=null;[telon,linea,fecha].forEach(e=>{try{e.remove();}catch(_){}});
+    if(lee)lee.innerHTML=lee0;const c=svg.querySelector('.pltp-cur');if(c)c.setAttribute('opacity','0');
+    if(btn&&btn.isConnected){btn.classList.remove('on');btn.querySelector('span').textContent='Reproducir';btn.setAttribute('aria-label','Reproducir la temporada día a día');}};
+  BMPLAY.fin=fin;pon(x0);
+  const paso=now=>{if(acabado)return;if(!svg.isConnected){fin();return;}const t=(now-t0)/D;if(t>=1){pon(x1);setTimeout(fin,500);return;}pon(x0+iw*t);requestAnimationFrame(paso);};
+  requestAnimationFrame(paso);setTimeout(fin,D+900);
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#pl-temporada .pltp-play');if(!b)return;e.preventDefault();e.stopPropagation();bmplayArranca();},true);
+document.addEventListener('keydown',e=>{if(BMPLAY.on&&e.key==='Escape'){e.preventDefault();e.stopPropagation();bmplayPara();}},true);
+function bmplayInstala(){
+  const f=window.renderPlTemporada;if(typeof f!=='function'||f.__bmplay)return;
+  const w=function(){bmplayPara();const r=f.apply(this,arguments);try{bmplayBoton();}catch(e){}return r;};
+  w.__bmplay=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.renderPlTemporada=w;
+  try{bmplayBoton();}catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmplayInstala,60));else setTimeout(bmplayInstala,60);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59138,6 +59195,19 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   #carga-mapa .bmmp-mira-h{color:var(--acc-seg,var(--accent))!important;font-weight:700}
   #carga-mapa .bmmp-mira-c{outline:2px solid var(--accent);outline-offset:-1px;position:relative;z-index:4}
   @media (prefers-reduced-motion:reduce){#carga-mapa .bmmira-f,#carga-mapa .bmmira-c,#carga-mapa .bmmp-nom .bmmp-av{transition:none}}
+}
+</style>
+<style id="esc-v901">
+/* v901 · su temporada, en reproducción (ordenador) */
+.pltp-play{display:none}
+@media screen and (min-width:761px) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  #pl-temporada .pltp>h2:has(.pltp-play){display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  #pl-temporada .pltp-play{display:inline-flex;align-items:center;gap:6px;margin-left:auto;align-self:center;padding:4px 12px 4px 10px;border:none;border-radius:999px;
+    background:var(--seg-carril,var(--panel2));color:var(--txt);font:inherit;font-size:12.5px;font-weight:600;cursor:default}
+  #pl-temporada .pltp-play:hover{background:color-mix(in srgb,var(--accent) 12%,var(--panel2))}
+  #pl-temporada .pltp-play:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  #pl-temporada .pltp-play i{width:9px;height:10px;background:var(--acc-seg,var(--accent));clip-path:polygon(0 0,100% 50%,0 100%)}
+  #pl-temporada .pltp-play.on i{width:9px;height:9px;clip-path:none;border-radius:1.5px}
 }
 </style>
 <style id="bm-v808">
