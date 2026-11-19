@@ -25204,7 +25204,7 @@ function bmFormAnim(){
   BMFA.ids.forEach(id=>{const ov=document.getElementById(id);if(!ov)return;
     const vis=getComputedStyle(ov).display!=='none';const ya=!!BMFA.est[id];
     if(vis===ya)return;BMFA.est[id]=vis;
-    if(bmReduce())return;
+    if(bmReduce()||window.__BM_DIAVT)return;   /* v860 · lo lleva una transición de vista */
     if(vis){ov._bmDisp=getComputedStyle(ov).display;ov._bmBg=getComputedStyle(ov).backgroundColor;
       try{ov.animate([{backgroundColor:'rgba(0,0,0,0)'},{backgroundColor:ov._bmBg}],{duration:220,easing:'ease-out'});}catch(e){}
       const m=bmfaModal(ov);if(m)try{m.animate([{opacity:0,transform:'translateY(-14px) scale(.98)'},{opacity:1,transform:'none'}],{duration:260,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}
@@ -25805,6 +25805,67 @@ function bmZoomEscInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmZoomEscInstala,120));else setTimeout(bmZoomEscInstala,120);
 window.bmvCarta=bmvCarta;window.bmZoomDestino=bmZoomDestino;
+/* ═══ v860 · EL DÍA DEL CALENDARIO NACE DE SU CASILLA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 5. Al pulsar un día del mes, el editor del día
+   aparecía en el centro de la pantalla. Ahora la casilla crece hasta
+   convertirse en el editor —como abrir un evento en el Calendario del Mac— y,
+   al cerrarlo, el editor se encoge de vuelta en su casilla. **Sólo es la
+   animación**: el Calendario se pinta igual que siempre. Vale para todo lo
+   que abre el editor de un día desde una casilla o una fila (el mes, la
+   semana, las próximas sesiones); si la casilla ya no está a la vista al
+   cerrar, se cierra como cualquier formulario (v849). */
+const BMDIAZ={dk:null};
+function bmDiaFuente(){
+  try{
+    if(Date.now()-BMV.ts>900||!BMV.t||!BMV.t.closest)return null;
+    const c=BMV.t.closest('main [onclick*="calTocaDia("],main [onclick*="calOpenDay("],main [data-dk][onclick]');if(!c)return null;
+    const r=c.getBoundingClientRect();if(r.width<30||r.height<24)return null;return c;
+  }catch(e){return null;}
+}
+function bmDiaCelda(dk){
+  const v=document.querySelector('main>.view.on');if(!v||!dk)return null;const H=window.innerHeight||900;
+  for(const c of v.querySelectorAll('[onclick*="calTocaDia(\''+dk+'\'"],[onclick*="calOpenDay(\''+dk+'\'"],.cal-cell[data-dk="'+dk+'"]')){
+    const r=c.getBoundingClientRect();if(c.checkVisibility&&c.checkVisibility()&&r.width>=30&&r.bottom>0&&r.top<H)return c;}
+  return null;
+}
+function bmDiaVT(cambia,viejo,nuevo,atr){
+  const html=document.documentElement;window.__BM_DIAVT=1;html.classList.add('bm-dia-vt');html.classList.toggle('bm-dia-atr',!!atr);
+  let n=null,hecho=false;
+  const fin=()=>{window.__BM_DIAVT=0;html.classList.remove('bm-dia-vt','bm-dia-atr');[viejo,n].forEach(x=>{try{if(x)x.style.viewTransitionName='';}catch(_){}});};
+  try{
+    viejo.style.viewTransitionName='bm-dia';
+    const vt=document.startViewTransition(()=>{hecho=true;viejo.style.viewTransitionName='';cambia();n=nuevo();if(n)n.style.viewTransitionName='bm-dia';});
+    setTimeout(()=>{if(!hecho)try{vt.skipTransition();}catch(_){}},650);
+    vt.finished.then(fin,fin);try{vt.ready.catch(()=>{});vt.updateCallbackDone.catch(()=>{});}catch(_){}
+  }catch(e){fin();cambia();}
+}
+function bmDiaZoomInstala(){
+  const f=window.calOpenDay;
+  if(typeof f==='function'&&!f.__bmdz){
+    const w=function(dk){
+      const src=(!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&typeof bmHeroPuede==='function'&&bmHeroPuede())?bmDiaFuente():null;
+      const ov=document.getElementById('info-overlay');
+      if(!src||(ov&&getComputedStyle(ov).display!=='none'))return f.apply(this,arguments);
+      const self=this,args=arguments;BMDIAZ.dk=dk;
+      bmDiaVT(()=>f.apply(self,args),src,()=>document.querySelector('#info-overlay .info-modal'),false);
+    };
+    w.__bmdz=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.calOpenDay=w;}
+  const c=window.closeInfoEdit;
+  if(typeof c==='function'&&!c.__bmdz){
+    const w=function(){
+      try{
+        const ov=document.getElementById('info-overlay'),m=ov&&ov.querySelector('.info-modal');
+        const dk=BMDIAZ.dk;BMDIAZ.dk=null;
+        if(dk&&m&&getComputedStyle(ov).display!=='none'&&!esMovil()&&bmHeroPuede()&&(typeof CAL_CUR==='undefined'||CAL_CUR===dk)){
+          const cel=bmDiaCelda(dk);
+          if(cel){const self=this,args=arguments;bmDiaVT(()=>c.apply(self,args),m,()=>bmDiaCelda(dk),true);return;}
+        }
+      }catch(_){}
+      return c.apply(this,arguments);};
+    w.__bmdz=true;window.closeInfoEdit=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmDiaZoomInstala,0));else setTimeout(bmDiaZoomInstala,0);
+window.bmDiaZoomInstala=bmDiaZoomInstala;
 
 
 
@@ -62223,6 +62284,21 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
   html:root body #sidebar .sb-nav .sb-item.on.sbp-llega .sb-cnt{color:var(--muted)!important;opacity:1}
 }
 @media (prefers-reduced-motion:reduce){html:root body #sidebar .sb-nav .sbp-hov{transition:opacity .1s ease}}
+</style>
+<style id="bm-v860">
+/* v860 · el día del calendario nace de su casilla (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine){
+  html.bm-dia-vt::view-transition-group(bm-dia){animation-duration:.44s;animation-timing-function:cubic-bezier(.32,.72,0,1);z-index:3}
+  html.bm-dia-vt::view-transition-image-pair(bm-dia){border-radius:14px;overflow:hidden}
+  html.bm-dia-vt::view-transition-old(bm-dia),html.bm-dia-vt::view-transition-new(bm-dia){height:100%;width:100%;object-fit:fill}
+  /* la casilla se aparta enseguida: estirada al tamaño del editor sería un borrón */
+  html.bm-dia-vt::view-transition-old(bm-dia){animation:bmdzFuera .12s ease-out both}
+  html.bm-dia-vt::view-transition-new(bm-dia){animation:bmdzDentro .22s ease-out .05s both}
+  html.bm-dia-vt::view-transition-old(root){animation:none;opacity:1}
+  html.bm-dia-vt::view-transition-new(root){animation:bmdzDentro .28s ease-out both}
+}
+@keyframes bmdzFuera{to{opacity:0}}
+@keyframes bmdzDentro{from{opacity:0}}
 </style>
 </body>
 </html>
