@@ -27099,6 +27099,38 @@ document.addEventListener('pointermove',e=>{
   bmplxCorre();
 },{passive:true});
 document.documentElement.addEventListener('mouseleave',()=>{if(BMPLX.el){BMPLX.tx=0;BMPLX.ty=0;bmplxCorre();}});
+/* ═══ v892 · LA CARTA DEL JUGADOR CON BRILLO HOLOGRÁFICO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 4. En la hoja de la carta (v766), al mover el
+   ratón por encima, la carta se inclina un poco hacia él y un reflejo
+   tornasolado la recorre, como un cromo; al salir, vuelve plana. **La imagen
+   que se exporta no cambia**: se monta aparte desde `cjHTML` (`cjExporta`), y
+   el reflejo es una capa que html2canvas ignora. Nada con «Reducir
+   movimiento». */
+const BMHOLO={d:null,tx:.5,ty:.5,x:.5,y:.5,on:false,raf:0};
+function bmholoVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmholoPaso(){BMHOLO.raf=0;const d=BMHOLO.d;if(!d||!d.isConnected){BMHOLO.d=null;return;}
+  BMHOLO.x+=(BMHOLO.tx-BMHOLO.x)*0.16;BMHOLO.y+=(BMHOLO.ty-BMHOLO.y)*0.16;
+  const fin=Math.abs(BMHOLO.tx-BMHOLO.x)<0.002&&Math.abs(BMHOLO.ty-BMHOLO.y)<0.002;if(fin){BMHOLO.x=BMHOLO.tx;BMHOLO.y=BMHOLO.ty;}
+  const rx=(0.5-BMHOLO.y)*7,ry=(BMHOLO.x-0.5)*9;
+  d.style.transform=(Math.abs(rx)<0.01&&Math.abs(ry)<0.01)?'':'perspective(1100px) rotateX('+rx.toFixed(2)+'deg) rotateY('+ry.toFixed(2)+'deg)';
+  const h=d.querySelector(':scope>.cj-holo');
+  if(h){h.style.setProperty('--hx',(BMHOLO.x*100).toFixed(1)+'%');h.style.setProperty('--hy',(BMHOLO.y*100).toFixed(1)+'%');}
+  if(!fin)BMHOLO.raf=requestAnimationFrame(bmholoPaso);}
+function bmholoCorre(){if(!BMHOLO.raf)BMHOLO.raf=requestAnimationFrame(bmholoPaso);}
+function bmholoSale(){if(!BMHOLO.d)return;const h=BMHOLO.d.querySelector(':scope>.cj-holo');if(h)h.classList.remove('on');BMHOLO.on=false;BMHOLO.tx=.5;BMHOLO.ty=.5;bmholoCorre();}
+document.addEventListener('pointermove',e=>{
+  if(e.pointerType==='touch'||!bmholoVale())return;
+  const d=e.target&&e.target.closest?e.target.closest('#bmh-carta.on .cj-vista .cj-doc'):null;
+  if(!d){if(BMHOLO.on)bmholoSale();return;}
+  if(d!==BMHOLO.d){BMHOLO.d=d;BMHOLO.x=BMHOLO.y=.5;}
+  let h=d.querySelector(':scope>.cj-holo');
+  if(!h){h=document.createElement('div');h.className='cj-holo';h.setAttribute('aria-hidden','true');h.setAttribute('data-html2canvas-ignore','true');d.appendChild(h);}
+  const p=d.parentElement,r=(p||d).getBoundingClientRect(),w=d.offsetWidth*(r.width/(p?p.offsetWidth||r.width:r.width)),hh=r.height;
+  BMHOLO.tx=Math.max(0,Math.min(1,(e.clientX-r.left)/(w||r.width)));BMHOLO.ty=Math.max(0,Math.min(1,(e.clientY-r.top)/(hh||1)));
+  if(!BMHOLO.on){BMHOLO.on=true;void h.offsetWidth;h.classList.add('on');}
+  bmholoCorre();
+},{passive:true});
+document.documentElement.addEventListener('mouseleave',bmholoSale);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -58539,6 +58571,21 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   html body #v-jugador .phero .phero-photo{translate:calc(var(--plx,0)*16px) calc(var(--ply,0)*9px)}
   html body #v-jugador .phero .phe-dorsal{translate:clamp(0px,calc(var(--plx,0)*12px),12px) calc(var(--ply,0)*-12px)}
   html body #v-jugador .phero{background:radial-gradient(240px 240px at calc(100% - 150px + var(--plx,0)*34px) calc(62% + var(--ply,0)*22px),var(--hero-luz),transparent 72%),linear-gradient(160deg,var(--panel) 30%,var(--hero-a) 100%)!important}
+}
+</style>
+<style id="esc-v892">
+/* v892 · la carta con brillo holográfico (ordenador) */
+.cj-holo{display:none}
+@media screen and (min-width:761px) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  #bmh-carta .cj-vista{overflow:visible}
+  #bmh-carta .cj-vista .cj-doc{will-change:transform;transform-style:preserve-3d}
+  #bmh-carta .cj-holo{display:block;position:absolute;inset:0;z-index:20;pointer-events:none;border-radius:inherit;opacity:0;transition:opacity .35s ease}
+  #bmh-carta .cj-holo.on{opacity:1}
+  #bmh-carta .cj-holo::before{content:"";position:absolute;inset:0;border-radius:inherit;mix-blend-mode:color-dodge;opacity:.32;
+    background:linear-gradient(115deg,transparent 18%,rgba(255,70,170,.6) 32%,rgba(70,200,255,.6) 44%,rgba(255,226,90,.55) 55%,rgba(110,255,170,.5) 66%,transparent 82%);
+    background-size:260% 260%;background-position:var(--hx,50%) var(--hy,50%)}
+  #bmh-carta .cj-holo::after{content:"";position:absolute;inset:0;border-radius:inherit;mix-blend-mode:overlay;
+    background:radial-gradient(circle at var(--hx,50%) var(--hy,50%),rgba(255,255,255,.42),rgba(255,255,255,.10) 26%,transparent 56%)}
 }
 </style>
 <style id="bm-v808">
