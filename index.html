@@ -27341,6 +27341,97 @@ document.addEventListener('gesturestart',e=>{if(!bmpzVale())return;const ch=bmpz
 document.addEventListener('gesturechange',e=>{if(!BMPZ.g)return;e.preventDefault();const s=e.scale||1;if(s>0){bmpzZoom(BMPZ.g,BMPZ.s0/s,e.clientX);BMPZ.s0=s;}},{passive:false,capture:true});
 document.addEventListener('gestureend',e=>{if(!BMPZ.g)return;e.preventDefault();BMPZ.g=null;},{passive:false,capture:true});
 document.addEventListener('dblclick',e=>{if(!bmpzVale())return;const ch=bmpzChart(e.target);if(!ch||!ch.$bmz)return;e.preventDefault();const n=ch.data.labels.length;bmpzAplica(ch,0,n-1,!bmReduce());},true);
+/* ═══ v897 · LA PLANTILLA EN LA PISTA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 1. En Disponibilidad, una segunda forma de ver
+   el tablero «La plantilla hoy»: una pista de balonmano con cada jugador en su
+   puesto (`posDetailOf`: portero, extremos, laterales, central y pivote), su
+   cara con el aro del color de su estado y, encima de cada puesto, cuántos
+   están disponibles de los que hay. Para ver de un vistazo cuántos quedan en
+   cada puesto, que es la pregunta de la convocatoria.
+   **No calcula nada**: cada cara se COPIA del tablero que acaba de pintar
+   `renderAvail` —su aro, su estado— y «disponible» es estar en un grupo que
+   no sea «No disponibles» ni «Fuera por otros motivos», los mismos grupos de
+   las cifras de arriba. El tablero de siempre sigue saliendo por defecto; la
+   pista se elige con «Por estado · En la pista» y se recuerda en ese equipo
+   (`bmnava-dispovista`, con guion). Al cambiar de vista, cada cara vuela de
+   un sitio al otro; si cambia el estado de alguien con la pista a la vista,
+   su aro pasa al color nuevo. Sólo en el ordenador. */
+const BMBDP={k:'bmnava-dispovista'};
+const BMBDP_POS=[['Portero',50,84],['Extremo izq.',10,72],['Lateral izq.',24,25],['Central',50,12],['Lateral der.',76,25],['Extremo der.',90,72],['Pivote',50,41]];
+function bmbdpVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmbdpVista(){try{return localStorage.getItem(BMBDP.k)==='pista'?'pista':'estado';}catch(e){return 'estado';}}
+function bmbdpNom(b){const o=b.getAttribute('onclick')||'';const m=o.match(/openPlayer\('((?:[^'\\]|\\.)*)'/);return m?m[1].replace(/\\(.)/g,'$1'):'';}
+function bmbdpCancha(){
+  const L='var(--bdp-linea)';
+  return '<svg class="bdp-svg" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">'
+    +'<rect x="2" y="2" width="996" height="556" rx="16" fill="var(--bdp-campo)" stroke="'+L+'" stroke-width="2"/>'
+    +'<path d="M-25 558A450 450 0 0 1 425 108L575 108A450 450 0 0 1 1025 558" fill="none" stroke="'+L+'" stroke-width="2" stroke-dasharray="10 9"/>'
+    +'<path d="M125 558A300 300 0 0 1 425 258L575 258A300 300 0 0 1 875 558Z" fill="var(--bdp-area)" stroke="'+L+'" stroke-width="2.5"/>'
+    +'<line x1="475" y1="208" x2="525" y2="208" stroke="'+L+'" stroke-width="2.5"/>'
+    +'<line x1="491" y1="358" x2="509" y2="358" stroke="'+L+'" stroke-width="2"/>'
+    +'<line x1="425" y1="556" x2="575" y2="556" stroke="var(--muted)" stroke-width="7" stroke-linecap="round"/>'
+    +'</svg>';
+}
+function bmbdpPinta(bd){
+  if(!bd||!bmbdpVale())return;
+  const h=bd.querySelector(':scope>.bd-h');if(!h)return;
+  /* los jugadores del tablero: su cara, su estado y si está disponible */
+  const J=[];
+  bd.querySelectorAll(':scope>.bd-g').forEach(g=>{
+    const i=g.querySelector('.bd-g-h i'),col=i?(i.getAttribute('style')||''):'';const fuera=/--bad|7c9cbf/i.test(col);
+    g.querySelectorAll('.bd-cara,.bd-pill').forEach(b=>{const n=bmbdpNom(b),av=b.querySelector('.bd-av');if(!n||!av)return;
+      const em=b.querySelector('.bd-t em');J.push({n,av,fuera,lab:em?em.textContent:'Disponible'});});});
+  if(!J.length)return;
+  let ctl=h.querySelector('.bd-vista');
+  if(!ctl){ctl=document.createElement('div');ctl.className='bd-vista';ctl.setAttribute('role','group');ctl.setAttribute('aria-label','Cómo ver la plantilla');
+    ctl.innerHTML='<button type="button" data-bdv="estado">Por estado</button><button type="button" data-bdv="pista">En la pista</button>';h.appendChild(ctl);}
+  const vista=bmbdpVista();bd.dataset.vista=vista;
+  ctl.querySelectorAll('button').forEach(b=>{const on=b.dataset.bdv===vista;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');});
+  const E=bmEsc,esc=n=>String(n).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const pos=n=>{try{return posDetailOf(n)||'';}catch(e){return '';}};
+  const cara=j=>{const c=j.av.cloneNode(true);c.removeAttribute('id');
+    return '<button type="button" class="bdp-j'+(j.fuera?' bdp-fuera':'')+'" data-n="'+E(j.n)+'" onclick="openPlayer(\''+esc(j.n)+'\')" title="'+E(j.n+' · '+j.lab)+'" aria-label="'+E(j.n+', '+j.lab)+'">'+c.outerHTML+'<span class="bdp-n">'+E(String(j.n).split(' ')[0])+'</span></button>';};
+  const usados=new Set();
+  let slots='';
+  BMBDP_POS.forEach(([P,x,y])=>{const L=J.filter(j=>pos(j.n)===P).sort((a,b)=>(a.fuera-b.fuera)||a.n.localeCompare(b.n,'es'));if(!L.length)return;L.forEach(j=>usados.add(j.n));
+    const d=L.filter(j=>!j.fuera).length;
+    slots+='<div class="bdp-s" style="left:'+x+'%;top:'+y+'%"><div class="bdp-st">'+E(P)+' <b>'+d+'/'+L.length+'</b></div><div class="bdp-fs">'+L.map(cara).join('')+'</div></div>';});
+  const resto=J.filter(j=>!usados.has(j.n));
+  let pi=bd.querySelector(':scope>.bd-pista');
+  if(!pi){pi=document.createElement('div');pi.className='bd-pista';const al=bd.querySelector(':scope>.bd-al');bd.insertBefore(pi,al||null);}
+  pi.innerHTML='<div class="bdp-c">'+bmbdpCancha()+slots+'</div>'
+    +(resto.length?'<div class="bdp-resto"><span>Sin puesto en la plantilla</span>'+resto.map(cara).join('')+'</div>':'')
+    +'<p class="bdp-pie">Encima de cada puesto, cuántos están disponibles de los que hay. El aro es el color de su estado, el del tablero.</p>';
+}
+function bmbdpCaras(){const m=new Map();document.querySelectorAll('#v-estado .dsp-bd .bd-av').forEach(a=>{const b=a.closest('.bd-cara,.bd-pill,.bdp-j');if(!b)return;const r=a.getBoundingClientRect();if(!r.width)return;const n=b.dataset.n||bmbdpNom(b);if(n)m.set(n,{r,c:a.style.borderColor});});return m;}
+function bmbdpCambia(v){
+  const bd=document.querySelector('#v-estado .dsp-bd');if(!bd)return;
+  try{localStorage.setItem(BMBDP.k,v);}catch(e){}
+  const antes=bmbdpCaras();bmbdpPinta(bd);
+  if(bmReduce())return;
+  const despues=bmbdpCaras();let i=0;
+  despues.forEach((d,n)=>{const a=antes.get(n);if(!a)return;const el=[...document.querySelectorAll('#v-estado .dsp-bd .bd-av')].find(x=>{const b=x.closest('.bd-cara,.bd-pill,.bdp-j');return b&&(b.dataset.n||bmbdpNom(b))===n&&x.getBoundingClientRect().width;});if(!el)return;
+    const dx=a.r.left-d.r.left,dy=a.r.top-d.r.top,s=a.r.width/d.r.width;
+    el.animate([{transform:'translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) scale('+s.toFixed(3)+')'},{transform:'none'}],{duration:620,delay:Math.min(i++,17)*14,easing:typeof BMTB_MUELLE!=='undefined'?BMTB_MUELLE:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});});
+  const otra=bd.querySelector(v==='pista'?':scope>.bd-pista .bdp-svg':':scope>.bd-g');
+  if(otra)otra.animate([{opacity:0},{opacity:1}],{duration:360,easing:'ease-out'});
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#v-estado .dsp-bd .bd-vista [data-bdv]');if(!b)return;e.preventDefault();if(b.classList.contains('on'))return;bmbdpCambia(b.dataset.bdv);});
+function bmbdpInstala(){
+  const f=window.renderAvail;if(typeof f!=='function'||f.__bmbdp)return;
+  const w=function(){
+    const pista=bmbdpVista()==='pista'&&!!document.querySelector('#v-estado .dsp-bd .bd-pista');
+    const col0=new Map();if(pista)document.querySelectorAll('#v-estado .dsp-bd .bdp-j').forEach(b=>{const a=b.querySelector('.bd-av');if(a)col0.set(b.dataset.n,a.style.borderColor);});
+    const r=f.apply(this,arguments);
+    try{const bd=document.querySelector('#v-estado .dsp-bd');bmbdpPinta(bd);
+      if(pista&&!bmReduce())document.querySelectorAll('#v-estado .dsp-bd .bdp-j').forEach(b=>{const a=b.querySelector('.bd-av'),c0=col0.get(b.dataset.n);if(!a||!c0||c0===a.style.borderColor)return;
+        a.animate([{borderColor:c0,transform:'scale(1)'},{transform:'scale(1.18)',offset:.4},{borderColor:a.style.borderColor,transform:'none'}],{duration:700,easing:'cubic-bezier(.32,.72,0,1)'});});
+    }catch(e){console.error('bmnava · la plantilla en la pista',e);}
+    return r;};
+  w.__bmbdp=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.renderAvail=w;
+  try{const bd=document.querySelector('#v-estado .dsp-bd');if(bd)bmbdpPinta(bd);}catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmbdpInstala,40));else setTimeout(bmbdpInstala,40);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -58847,6 +58938,35 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   #bm-zoom-t{display:block;position:fixed;z-index:60;pointer-events:none;transform:translateX(-100%);padding:5px 10px;border-radius:999px;white-space:nowrap;
     background:var(--txt);color:var(--bg);font-size:12px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.18);opacity:0;transition:opacity .2s ease}
   #bm-zoom-t.on{opacity:.92}
+}
+</style>
+<style id="esc-v897">
+/* v897 · la plantilla en la pista (ordenador) */
+.bd-vista,.bd-pista{display:none}
+:root{--bdp-campo:color-mix(in srgb,var(--accent) 4%,var(--panel2));--bdp-area:color-mix(in srgb,var(--accent) 10%,var(--panel2));--bdp-linea:color-mix(in srgb,var(--muted) 55%,transparent)}
+@media screen and (min-width:761px) and (pointer:fine){
+  #v-estado .dsp-bd>.bd-h:has(.bd-vista){justify-content:flex-start;flex-wrap:wrap}
+  #v-estado .dsp-bd .bd-vista{display:inline-flex;margin-left:auto;padding:2px;border-radius:8px;background:var(--seg-carril,var(--panel2))}
+  #v-estado .dsp-bd .bd-vista button{all:unset;cursor:default;padding:4px 12px;border-radius:6px;font-size:12.5px;font-weight:500;color:var(--txt)}
+  #v-estado .dsp-bd .bd-vista button.on{background:var(--seg-on,var(--panel));box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600}
+  #v-estado .dsp-bd .bd-vista button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #v-estado .dsp-bd[data-vista="pista"]>.bd-g{display:none!important}
+  #v-estado .dsp-bd[data-vista="pista"]>.bd-pista{display:block;flex:0 0 100%;padding-top:16px}
+  .bd-pista .bdp-c{position:relative;width:100%;max-width:900px;margin:0 auto;aspect-ratio:1000/560}
+  .bd-pista .bdp-svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .bd-pista .bdp-s{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px}
+  .bd-pista .bdp-st{font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap;background:color-mix(in srgb,var(--bdp-campo) 85%,transparent);padding:1px 7px;border-radius:999px}
+  .bd-pista .bdp-st b{color:var(--txt);font-variant-numeric:tabular-nums}
+  .bd-pista .bdp-fs{display:flex;gap:6px}
+  .bd-pista .bdp-j{display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px;border:none;border-radius:10px;background:none;font:inherit;color:var(--txt);cursor:default}
+  .bd-pista .bdp-j .bd-av{width:44px;height:44px;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .bd-pista .bdp-n{font-size:11.5px;font-weight:600;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bd-pista .bdp-fuera .bdp-n{color:var(--muted)}
+  .bd-pista .bdp-j:hover .bdp-n{color:var(--acc-seg,var(--accent))}
+  .bd-pista .bdp-j:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .bd-pista .bdp-resto{display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:900px;margin:12px auto 0}
+  .bd-pista .bdp-resto>span{font-size:12px;color:var(--muted);margin-right:4px}
+  .bd-pista .bdp-pie{max-width:900px;margin:10px auto 0;font-size:12px;color:var(--muted)}
 }
 </style>
 <style id="bm-v808">
