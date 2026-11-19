@@ -24266,21 +24266,57 @@ window.addEventListener('popstate',e=>{
     for(let n=el;n&&n!==document.body;n=n.parentElement){
       if(n.scrollWidth>n.clientWidth+6){const o=getComputedStyle(n).overflowX;if(o==='auto'||o==='scroll')return;}
     }
-    zona=el.closest('[data-dz]');x0=t.clientX;y0=t.clientY;t0=Date.now();
+    zona=el.closest('[data-dz]');x0=t.clientX;y0=t.clientY;t0=Date.now();sigue=null;mov=[];
   },{passive:true});
+  /* v843 · El contenido sigue al dedo mientras se arrastra de lado, como al
+     pasar páginas en iOS, con resistencia donde no hay nada más allá. Al
+     soltar pasado el umbral —o rápido— la pestaña se va hacia su lado y entra
+     la vecina (v837); si no, vuelve a su sitio. */
+  let sigue=null,mov=[],ultX=0,ultT=0,vel=0;
+  const mover=z=>{const id=z.id;
+    if(id==='v-jugador')return [...document.querySelectorAll('#v-jugador .plt-pane.on')];
+    if(id==='v-estado')return [...document.querySelectorAll('#v-estado > [id^="estado-"]')].filter(x=>x.style.display!=='none'&&x.checkVisibility&&x.checkVisibility());
+    if(id==='cal-body')return [z];
+    return [...z.querySelectorAll(':scope>[data-mt]')].filter(x=>x.checkVisibility&&x.checkVisibility());};
+  /* sólo la barra que se ve: donde el título la sustituye (Estado, v604) no se desliza, como antes */
+  const barraDe=z=>[...document.querySelectorAll(z.dataset.dz)].find(b=>b.checkVisibility?b.checkVisibility():b.offsetParent)||null;
+  const vecino=(z,sig)=>{if(z.dataset.dz==='cal')return true;const barra=barraDe(z);if(!barra)return false;
+    const bs=[...barra.querySelectorAll('button')];const i=bs.findIndex(b=>b.classList.contains('on'));return i>=0&&!!bs[i+(sig?1:-1)];};
+  const pinta=(dx)=>{mov.forEach(m=>{m.style.transform='translateX('+dx+'px)';m.style.opacity=String(Math.max(.55,1-Math.abs(dx)/(window.innerWidth*1.4)));});};
+  const suelta=(dx,anim)=>{mov.forEach(m=>{if(anim){m.style.transition='transform .3s cubic-bezier(.32,.72,0,1),opacity .3s ease';requestAnimationFrame(()=>{m.style.transform='';m.style.opacity='';});setTimeout(()=>{m.style.transition='';m.style.willChange='';},320);}
+    else{m.style.transition='';m.style.transform='';m.style.opacity='';m.style.willChange='';}});};
+  document.addEventListener('touchmove',e=>{
+    if(!zona||e.touches.length!==1)return;
+    let rm=false;try{rm=matchMedia('(prefers-reduced-motion:reduce)').matches;}catch(_){}if(rm)return;
+    const t=e.touches[0],dx=t.clientX-x0,dy=t.clientY-y0;
+    if(sigue===null){if(Math.abs(dx)<10&&Math.abs(dy)<10)return;sigue=Math.abs(dx)>Math.abs(dy)*1.6&&(zona.dataset.dz==='cal'||!!barraDe(zona));if(sigue){mov=mover(zona);mov.forEach(m=>{m.style.willChange='transform';m.style.transition='';});}}
+    if(!sigue||!mov.length)return;
+    const sig=dx<0,hay=vecino(zona,sig);
+    const d=hay?dx:dx*0.25;   /* sin pestaña al otro lado, cuesta: el rebote de iOS */
+    pinta(d);const ahora=Date.now();if(ultT){vel=(t.clientX-ultX)/Math.max(1,ahora-ultT);}ultX=t.clientX;ultT=ahora;
+  },{passive:true});
+  document.addEventListener('touchcancel',()=>{if(mov.length)suelta(0,true);zona=null;sigue=null;mov=[];},{passive:true});
   document.addEventListener('touchend',e=>{
-    const z=zona;zona=null;if(!z||!z.isConnected)return;
-    const t=e.changedTouches&&e.changedTouches[0];if(!t)return;
+    const z=zona;zona=null;const m=mov;const seguia=sigue;sigue=null;
+    if(!z||!z.isConnected){if(m.length){mov=m;suelta(0,true);mov=[];}return;}
+    const t=e.changedTouches&&e.changedTouches[0];if(!t){mov=m;suelta(0,true);mov=[];return;}
     const dx=t.clientX-x0,dy=t.clientY-y0;
-    if(Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*2.2||Date.now()-t0>700)return;
+    const rapido=Math.abs(vel)>0.45&&Math.abs(dx)>30;vel=0;ultT=0;
+    const vale=(Math.abs(dx)>=70||rapido)&&(seguia||Math.abs(dx)>=Math.abs(dy)*2.2)&&Date.now()-t0<=(seguia?4000:700)&&vecino(z,dx<0);
+    if(!vale){mov=m;suelta(0,!!m.length);mov=[];return;}
+    /* se va hacia su lado y, al soltar la marca, entra la vecina */
+    mov=m;suelta(0,false);mov=[];
     const sig=dx<0;   /* hacia la izquierda = lo siguiente */
+    /* lo nuevo entra desde donde se soltó lo de antes, no desde 18 px */
+    window.__BM_TABDEDO=Math.min(140,Math.max(24,Math.abs(dx)*.6));setTimeout(()=>{window.__BM_TABDEDO=0;},600);
     try{
       if(z.dataset.dz==='cal'){
         if(typeof CALMODE!=='undefined'&&CALMODE==='semana'){sig?calWeekNext():calWeekPrev();}
         else{sig?calNext():calPrev();}
+        if(window.bmTabEntra&&seguia)bmTabEntra([document.getElementById('cal-body')],sig?1:-1);
         return;
       }
-      const barra=[...document.querySelectorAll(z.dataset.dz)].find(b=>b.checkVisibility?b.checkVisibility():b.offsetParent);
+      const barra=barraDe(z);
       if(!barra)return;
       const bs=[...barra.querySelectorAll('button')];const i=bs.findIndex(b=>b.classList.contains('on'));
       const d=bs[i+(sig?1:-1)];if(i>=0&&d)d.click();
@@ -24706,8 +24742,10 @@ document.addEventListener('click',e=>{
 /* el contenido de la pestaña nueva entra por su lado */
 function bmTabEntra(els,dir){
   if(!dir||bmReduce())return;
+  /* v843 · tras arrastrar con el dedo, desde más lejos: la página anterior se fue con él */
+  const dist=window.__BM_TABDEDO||18;window.__BM_TABDEDO=0;
   (els||[]).forEach(el=>{if(!el||!el.getBoundingClientRect().height)return;
-    try{el.animate([{opacity:0,transform:'translateX('+(dir*18)+'px)'},{opacity:1,transform:'none'}],{duration:260,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}});
+    try{el.animate([{opacity:dist>18?.35:0,transform:'translateX('+(dir*dist)+'px)'},{opacity:1,transform:'none'}],{duration:dist>18?320:260,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}});
 }
 const BMTAB_PANEL={
   cargasTab:()=>[document.getElementById('carga-'+(FILTER.cargaTab||'resumen'))],
