@@ -27432,6 +27432,84 @@ function bmbdpInstala(){
   try{const bd=document.querySelector('#v-estado .dsp-bd');if(bd)bmbdpPinta(bd);}catch(e){}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmbdpInstala,40));else setTimeout(bmbdpInstala,40);
+/* ═══ v898 · EL RADAR CRECE DESDE JULIO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 2. En la ficha › Físico, el polígono de hoy
+   del radar de capacidades sale de la forma de su primera valoración de la
+   temporada (la línea discontinua) y se estira hasta la de ahora: el progreso
+   se ve moverse. Sin valoración anterior, crece desde el centro. En Comparar,
+   al cambiar de jugador, cada forma se transforma en la del nuevo en vez de
+   redibujarse de golpe; al abrir, crecen desde el centro.
+   Se anima al llegar a la vista (una pestaña que se abre, o bajando) o justo
+   después de hacer algo; un repintado que no has pedido no anima nada. **El
+   dato manda**: la forma de hoy vuelve a su sitio al acabar la animación, a
+   más tardar medio segundo después aunque el navegador no pinte, y antes de
+   exportar cualquier imagen, así que nunca se queda dibujada la forma vieja
+   como si fuera la de hoy. Nada con «Reducir movimiento». */
+const BMRAD={act:new Set()};
+function bmradVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+const bmradP=s=>String(s||'').trim().split(/\s+/).filter(Boolean).map(p=>p.split(',').map(Number));
+const bmradS=a=>a.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+function bmradEase(t){const c1=1.15,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);}
+function bmradRecienPedido(){return Date.now()-(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<1500;}
+function bmradVisible(el){if(!el||!el.isConnected)return false;if(el.checkVisibility&&!el.checkVisibility())return false;const r=el.getBoundingClientRect();return r.width>0&&r.bottom>0&&r.top<innerHeight;}
+/* Prepara un polígono (y sus puntos) para ir de `desde` a su forma actual, que
+   es la del dato. Devuelve la función que lo arranca. */
+function bmradPrepara(poly,desde,circs,dur,delay){
+  const orig=poly.getAttribute('points'),hasta=bmradP(orig);if(!hasta.length||!desde||desde.length!==hasta.length)return null;
+  const cfin=circs.map(c=>[c.getAttribute('cx'),c.getAttribute('cy')]);const conPuntos=circs.length===hasta.length;
+  let fin=false,io=null;
+  const pon=e=>{const cur=desde.map((p,i)=>[p[0]+(hasta[i][0]-p[0])*e,p[1]+(hasta[i][1]-p[1])*e]);poly.setAttribute('points',bmradS(cur));
+    if(conPuntos)circs.forEach((c,i)=>{c.setAttribute('cx',cur[i][0].toFixed(1));c.setAttribute('cy',cur[i][1].toFixed(1));});};
+  const termina=()=>{if(fin)return;fin=true;BMRAD.act.delete(termina);if(io)io.disconnect();poly.setAttribute('points',orig);circs.forEach((c,i)=>{c.setAttribute('cx',cfin[i][0]);c.setAttribute('cy',cfin[i][1]);});};
+  BMRAD.act.add(termina);pon(0);
+  const arranca=()=>{if(fin)return;if(io){io.disconnect();io=null;}const t0=performance.now()+(delay||0);
+    const paso=now=>{if(fin)return;const t=(now-t0)/dur;if(t<0){requestAnimationFrame(paso);return;}if(t>=1){termina();return;}pon(bmradEase(t));requestAnimationFrame(paso);};
+    requestAnimationFrame(paso);setTimeout(termina,(delay||0)+dur+500);};
+  return {arranca,termina,observa:el=>{if(!('IntersectionObserver' in window)){termina();return;}io=new IntersectionObserver(es=>{if(es.some(x=>x.isIntersecting))arranca();},{threshold:0});io.observe(el);}};
+}
+/* ahora si se ve y lo has pedido tú; al llegar a la vista si aún no se ve; nada si ya se veía */
+function bmradSegun(svg,piezas){
+  if(!piezas.length)return;
+  if(bmradVisible(svg)){if(bmradRecienPedido())piezas.forEach(x=>x.arranca());else piezas.forEach(x=>x.termina());return;}
+  piezas.forEach(x=>x.observa(svg));
+}
+function bmradFicha(){
+  if(!bmradVale())return;const svg=document.querySelector('#pl-radar .plr-c svg');if(!svg)return;
+  const pols=[...svg.querySelectorAll('polygon')];
+  const ahora=pols.find(p=>p.getAttribute('fill')==='var(--plr-now)');if(!ahora)return;
+  const ini=pols.find(p=>p.getAttribute('stroke')==='var(--muted2)');
+  const circs=[...svg.querySelectorAll('circle')].filter(c=>c.getAttribute('fill')==='var(--accent)');
+  const n=bmradP(ahora.getAttribute('points')).length;
+  const desde=ini?bmradP(ini.getAttribute('points')):Array.from({length:n},()=>[200,156]);
+  const x=bmradPrepara(ahora,desde,circs,ini?1150:850,140);if(x)bmradSegun(svg,[x]);
+}
+const BMRAD_COL=['var(--accent)','var(--cmp-b)'];
+function bmradCmpForma(){const svg=document.querySelector('#cmp-cuerpo .cmp-radar svg');if(!svg)return null;const o={};
+  BMRAD_COL.forEach(c=>{const p=[...svg.querySelectorAll('polygon')].find(x=>x.getAttribute('stroke')===c);if(p)o[c]=bmradP(p.getAttribute('points'));});return o;}
+function bmradCmp(antes,abre){
+  if(!bmradVale())return;const svg=document.querySelector('#cmp-cuerpo .cmp-radar svg');if(!svg)return;
+  const piezas=[];
+  BMRAD_COL.forEach(c=>{const p=[...svg.querySelectorAll('polygon')].find(x=>x.getAttribute('stroke')===c);if(!p)return;
+    const circs=[...svg.querySelectorAll('circle')].filter(x=>x.getAttribute('fill')===c);const n=bmradP(p.getAttribute('points')).length;
+    const desde=(!abre&&antes&&antes[c]&&antes[c].length===n)?antes[c]:Array.from({length:n},()=>[200,156]);
+    if(!abre&&antes&&antes[c]&&bmradS(antes[c])===bmradS(bmradP(p.getAttribute('points'))))return;
+    const x=bmradPrepara(p,desde,circs,abre?900:760,abre?(c===BMRAD_COL[0]?0:90):0);if(x)piezas.push(x);});
+  bmradSegun(svg,piezas);
+}
+function bmradInstala(){
+  const f=window.renderPlRadar;
+  if(typeof f==='function'&&!f.__bmrad){const w=function(){BMRAD.act.forEach(t=>{try{const s=document.querySelector('#pl-radar svg');if(s)t();}catch(_){}});const r=f.apply(this,arguments);try{bmradFicha();}catch(e){}return r;};
+    w.__bmrad=true;window.renderPlRadar=w;}
+  const c=window.cmpPinta;
+  if(typeof c==='function'&&!c.__bmrad){const w=function(){
+      const antes=bmradCmpForma(),abre=!document.querySelector('#cmp-cuerpo .cmp-radar');
+      const r=c.apply(this,arguments);try{bmradCmp(antes,abre);}catch(e){}return r;};
+    Object.keys(c).forEach(k=>{try{w[k]=c[k];}catch(_){}});w.__bmrad=true;window.cmpPinta=w;}
+  const x=window.exportNodePNG;
+  if(typeof x==='function'&&!x.__bmrad){const w=function(){[...BMRAD.act].forEach(t=>{try{t();}catch(_){}});return x.apply(this,arguments);};
+    Object.keys(x).forEach(k=>{try{w[k]=x[k];}catch(_){}});w.__bmrad=true;window.exportNodePNG=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmradInstala,60));else setTimeout(bmradInstala,60);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
