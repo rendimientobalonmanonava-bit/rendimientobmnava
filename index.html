@@ -25786,8 +25786,9 @@ function bmCascadaInstala(){
   const w=function(v){
     const antes=STATE.view;const r=f.apply(this,arguments);
     try{
-      if(!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&window.__BM_LISTO&&STATE.view!==antes&&document.documentElement.dataset.nav==='tab')
+      if(!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&window.__BM_LISTO&&STATE.view!==antes&&document.documentElement.dataset.nav==='tab'){
         bmCascada(document.querySelector('main>.view.on'));
+        try{bmdbEntra(document.querySelector('main>.view.on'));}catch(_){}}
     }catch(_){}
     return r;};
   w.__bmcas=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.go=w;
@@ -26269,6 +26270,105 @@ document.addEventListener('change',e=>{
   requestAnimationFrame(()=>bmhnavAnima(document.getElementById(id),0));
 },true);
 window.bmhnavAnima=bmhnavAnima;
+/* ═══ v872 · LAS BARRAS DE LAS TABLAS CRECEN · v873 · Y LOS DIBUJOS SE DIBUJAN (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuestas 1 y 2 de «vamos a hacer la mejor app».
+   Medido: unas 170 barras dibujadas dentro de tablas (33 en el Dashboard de
+   Cargas, 44 en Disponibilidad, 37 en Temporada, 30 en la ficha › Carga, 22
+   en Pulsómetros) y los dibujos hechos a mano de la ficha («Su temporada»,
+   «Su carga contra su normal») aparecían ya terminados. Ahora crecen desde
+   cero en ola —cada barra un poco después de la anterior— y las líneas se
+   trazan, con el mismo lenguaje que los gráficos (v868). **Cuándo**: lo que se
+   pinta a la vista justo después de que hagas algo (cambiar de sección, de
+   pestaña, de día, abrir una ficha) crece en ese momento; lo que se pinta más
+   abajo crece cuando llegas a ello. Un repintado que no has pedido —la
+   sincronización cada 25 s— no anima nada. El Resumen, el Calendario y los
+   documentos, como estaban. No se toca cómo se pinta ninguna barra: se mira
+   lo que el código ya ha puesto y se anima con `transform`. */
+const BMDB={obs:null,vistos:new WeakSet()};
+function bmdbVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmdbReciente(){return Date.now()-(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<900;}
+function bmdbFuera(el){return !el.isConnected||!!el.closest(BMG_DOC+',#v-equipo,#v-cal,.bmsel-g,.bmseg-g,.sbp-sel,.sbp-hov,#bm-tl,header');}
+function bmdbOrigen(el){
+  const p=el.parentElement;if(!p)return 'left';
+  const r=el.getBoundingClientRect(),q=p.getBoundingClientRect();
+  if(Math.abs(r.left-q.left)<2.5)return 'left';
+  if(Math.abs(r.right-q.right)<2.5)return 'right';
+  return 'center';
+}
+/* las barras de una caja, en ola */
+function bmdbBarras(caja){
+  const bs=[...caja.querySelectorAll('[style*="width:"]')].filter(e=>{
+    if(BMDB.vistos.has(e)||e.closest('svg')||bmdbFuera(e))return false;
+    const st=e.getAttribute('style')||'';if(!/(^|;|\s)width:\s*[\d.]+%/.test(st))return false;
+    if((e.textContent||'').trim().length>6||e.querySelector('[style*="width:"],img,svg,button,input'))return false;  /* una barra, no una columna con texto */
+    const r=e.getBoundingClientRect();if(!(r.width>=1&&r.height>=3&&r.height<=40))return false;
+    const cs=getComputedStyle(e);return (cs.backgroundColor&&!/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor))||(cs.backgroundImage&&cs.backgroundImage!=='none');});
+  bs.forEach((e,i)=>{BMDB.vistos.add(e);const o=bmdbOrigen(e);
+    try{e.animate([{transform:'scaleX(0)',transformOrigin:o+' center'},{transform:'scaleX(1)',transformOrigin:o+' center'}],
+      {duration:560,delay:Math.min(i,24)*16,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}});
+  return bs.length;
+}
+/* los dibujos SVG: columnas que crecen desde su base, filas desde su inicio, líneas que se trazan */
+function bmdbSvg(sv){
+  if(BMDB.vistos.has(sv)||bmdbFuera(sv))return 0;BMDB.vistos.add(sv);
+  const R=sv.getBoundingClientRect();if(R.width<160||R.height<40)return 0;
+  const rs=[...sv.querySelectorAll('rect')].filter(r=>{const b=r.getBoundingClientRect();return b.width>0&&b.height>0&&b.width<R.width*.6&&b.height<R.height*.85;});
+  rs.sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left);
+  /* la orientación la dice el dibujo, no la forma de cada barra: si varias comparten
+     el suelo son columnas (crecen hacia arriba, aunque una semana floja sea más ancha
+     que alta); si comparten el borde izquierdo, filas */
+  const bb=rs.map(r=>r.getBoundingClientRect()),cnt=(f)=>{const m=new Map();bb.forEach(b=>{const k=Math.round(f(b));m.set(k,(m.get(k)||0)+1);});return m;};
+  const suelos=cnt(b=>b.bottom),izqs=cnt(b=>b.left);
+  rs.forEach((r,i)=>{const b=bb[i];const ns=suelos.get(Math.round(b.bottom))||0,ni=izqs.get(Math.round(b.left))||0;
+    const alta=ns>=3?true:(ni>=3?false:b.height>=b.width);
+    r.style.transformBox='fill-box';
+    try{r.animate(alta?[{transform:'scaleY(0)',transformOrigin:'50% 100%'},{transform:'scaleY(1)',transformOrigin:'50% 100%'}]
+                     :[{transform:'scaleX(0)',transformOrigin:'0% 50%'},{transform:'scaleX(1)',transformOrigin:'0% 50%'}],
+      {duration:520,delay:Math.round(i*Math.min(14,600/Math.max(1,rs.length))),easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}});
+  [...sv.querySelectorAll('path,polyline')].forEach(pa=>{   /* las rectas (rejilla, referencias) no se trazan: sólo las líneas de datos */
+    try{const cs=getComputedStyle(pa);if(cs.stroke==='none'||cs.fill!=='none')return;
+      const pb=pa.getBoundingClientRect();if(pb.width<3||pb.height<3)return;
+      if(cs.strokeDasharray&&cs.strokeDasharray!=='none')return;   /* las rayas discontinuas se quedan como están */
+      const L=pa.getTotalLength?pa.getTotalLength():0;if(!L||L<40)return;
+      pa.animate([{strokeDasharray:L+' '+L,strokeDashoffset:L},{strokeDasharray:L+' '+L,strokeDashoffset:0}],{duration:800,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'});}catch(_){}});
+  return rs.length;
+}
+function bmdbCaja(c){bmdbBarras(c);c.querySelectorAll('svg').forEach(bmdbSvg);}
+function bmdbObs(){
+  if(BMDB.obs||!('IntersectionObserver' in window))return BMDB.obs;
+  BMDB.obs=new IntersectionObserver(es=>{es.forEach(en=>{if(!en.isIntersecting||en.intersectionRatio<.12)return;BMDB.obs.unobserve(en.target);if(en.target.isConnected&&bmdbVale())bmdbCaja(en.target);});},{threshold:[0,.12,.4]});
+  return BMDB.obs;
+}
+function bmdbMira(nodos){
+  if(!bmdbVale())return;
+  const H=window.innerHeight||900,cajas=new Set();
+  nodos.forEach(n=>{if(n.nodeType!==1||!n.isConnected)return;
+    const c=n.closest('.panel,.cgr-card')||n;
+    if(c.closest('main')&&!bmdbFuera(c))cajas.add(c);});
+  cajas.forEach(c=>{
+    if(!c.isConnected||!c.querySelector('[style*="width:"],svg'))return;
+    const r=c.getBoundingClientRect();if(!r.height)return;
+    const visible=r.bottom>0&&r.top<H;
+    if(visible){if(bmdbReciente())bmdbCaja(c);}
+    else{const ob=bmdbObs();if(ob)ob.observe(c);}
+  });
+}
+(function(){
+  let pend=[],t=null;
+  const mo=new MutationObserver(ms=>{
+    if(!bmdbVale())return;
+    ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1)pend.push(n);}));
+    if(pend.length){const a=pend;pend=[];bmdbMira(a);}   /* en el mismo momento: antes de que se pinte */
+  });
+  const ini=()=>{const m=document.querySelector('main');if(m)mo.observe(m,{childList:true,subtree:true});};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else ini();
+})();
+/* entrar en una sección o pestaña sin repintar (v770) también cuenta: se mira lo que hay a la vista */
+function bmdbEntra(v){if(!v||!bmdbVale())return;const H=window.innerHeight||900;
+  v.querySelectorAll('.panel,.cgr-card').forEach(c=>{const r=c.getBoundingClientRect();if(!r.height)return;
+    if(r.bottom>0&&r.top<H){c.querySelectorAll('[style*="width:"]').forEach(e=>BMDB.vistos.delete(e));c.querySelectorAll('svg').forEach(e=>BMDB.vistos.delete(e));bmdbCaja(c);}
+    else{const ob=bmdbObs();if(ob)ob.observe(c);}});}
+window.bmdbEntra=bmdbEntra;
 /* ═══ v870 · LAS CARAS INVITAN A PULSARLAS (ORDENADOR) ═══
    Daniel, 19/11/2026, propuesta 7. Al pasar el ratón, una cara no
    reaccionaba aunque al pulsarla volara hasta la ficha (v856). Ahora se
