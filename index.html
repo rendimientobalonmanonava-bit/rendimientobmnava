@@ -25465,6 +25465,33 @@ document.addEventListener('touchcancel',()=>{if(BMSCR.on)bmscrFin(BMSCR.x0,false
 /* el clic que el navegador pueda mandar después de arrastrar no cuenta: ya se eligió al soltar */
 document.addEventListener('click',e=>{if(Date.now()-BMSCR.cancela<450&&e.isTrusted&&e.target&&e.target.closest&&e.target.closest('#tabbar,'+BMSEG_SEL)){e.stopImmediatePropagation();e.preventDefault();}},true);
 window.bmscrFin=bmscrFin;
+/* ═══ v854 · LA FOTO DE LA FICHA SE ESTIRA AL TIRAR (MÓVIL) ═══
+   Daniel, 19/11/2026, propuesta 9. Arriba del todo de la ficha, al tirar hacia
+   abajo para actualizar (v542), la foto del jugador crece con el dedo desde su
+   base, como la cabecera de los perfiles de iOS, y al soltar vuelve a su
+   tamaño con suavidad. Actualizar sigue siendo lo mismo: esto sólo acompaña al
+   gesto. `--tira` es una variable de la cabecera; quien la usa es el CSS. */
+(function(){
+  let y0=null,x0=0,h=null,act=false;
+  const suelta=()=>{if(!h)return;const e=h;h=null;e.classList.add('bm-tira-suelta');e.style.setProperty('--tira','0');setTimeout(()=>e.classList.remove('bm-tira-suelta'),420);};
+  document.addEventListener('touchstart',e=>{
+    y0=null;act=false;
+    if(!esMovil()||e.touches.length!==1||(window.scrollY||0)>0||STATE.view!=='jugador'||bmReduce())return;
+    const t=e.target;if(!t||!t.closest||t.closest('#plt-bar,input,textarea,select,[data-sw],header,#tabbar'))return;
+    const ph=document.querySelector('#v-jugador .phero');if(!ph)return;
+    h=ph;y0=e.touches[0].clientY;x0=e.touches[0].clientX;
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(y0==null||!h)return;
+    const t=e.touches[0],dy=t.clientY-y0,dx=Math.abs(t.clientX-x0);
+    if(!act){if(dy<-4||dx>26||(window.scrollY||0)>0){y0=null;suelta();return;}if(dy>10&&dy>dx*1.6)act=true;else return;}
+    const v=Math.round(Math.min(110,Math.max(0,dy)*.55));
+    if(h._tira!==v){h._tira=v;h.style.setProperty('--tira',String(v));}
+  },{passive:true});
+  const fin=()=>{y0=null;act=false;suelta();};
+  document.addEventListener('touchend',fin,{passive:true});
+  document.addEventListener('touchcancel',fin,{passive:true});
+})();
 
 
 
@@ -61826,6 +61853,13 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
   .bm-scr-g.bm-scr-velo{background:color-mix(in srgb,var(--txt) 9%,transparent)!important}
   .bm-scr-anda>.bm-scr-de{background:transparent!important;box-shadow:none!important}
   .bm-scr-anda>.bm-scr-sobre{transform:scale(1.06);transition:transform .18s cubic-bezier(.32,.72,0,1)}
+}
+</style>
+<style id="bm-v854">
+/* v854 · la foto de la ficha se estira al tirar (móvil) */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #v-jugador .phero .phe-ph{transform:translateY(calc(var(--hp,0)*36px)) scale(calc(1 - var(--hp,0)*.07 + var(--tira,0)/300))}
+  #v-jugador .phero.bm-tira-suelta .phe-ph{transition:transform .4s cubic-bezier(.32,.72,0,1)}
 }
 </style>
 </body>
