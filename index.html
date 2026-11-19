@@ -27725,6 +27725,58 @@ document.addEventListener('pointerover',e=>{
   const r=e.target.closest('.fis-zr');if(r){const sp=r.querySelector('.fis-zt span');const k=sp&&bmdolClaveZona(sp.textContent);bmdolLuz(mapa,k?new Set([k]):null);return;}
   bmdolLuz(mapa,null);
 },true);
+/* ═══ v904 · EL CAMINO DE VUELTA CON SU CARA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 8. En el cronograma médico del equipo (Médico),
+   en cada lesión ABIERTA, la cara del jugador se coloca en su punto de hoy
+   sobre la barra de sus fases, con el aro del color de la fase en la que está;
+   lo que le falta hasta la vuelta prevista va en una línea discontinua y la
+   vuelta prevista lleva una banderita con su fecha. Al llegar a la vista, la
+   cara viaja desde el día de la lesión hasta hoy y lo recorrido se rellena.
+   **No calcula ninguna posición**: las lee de los marcadores que el propio
+   cronograma ya pinta (la lesión, la línea de hoy y la vuelta prevista), así
+   que no puede discrepar de ellos; la fase y los días salen del episodio.
+   Sin vuelta prevista, no hay banderita ni línea. Nada con «Reducir
+   movimiento» (la cara sale ya en su sitio). */
+function bmtlvVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmtlvX(el){if(!el)return null;const v=parseFloat(el.style.left);return isFinite(v)?v:null;}
+function bmtlvFila(tr){
+  tr.dataset.bmtlv='1';
+  const m=(tr.getAttribute('onclick')||'').match(/medTimelineSelect\('([^']+)'\)/);if(!m)return null;
+  const e=((STATE.med&&STATE.med.inj)||[]).find(x=>x&&String(x.id)===m[1]);if(!e)return null;
+  const abierto=e.open!==false&&!e.closeDk&&!e.competitiveDischargeReal;if(!abierto)return null;
+  const xh=bmtlvX(tr.querySelector(':scope>.tl-today')),xi=bmtlvX(tr.querySelector(':scope>.tl-mk.inj'));if(xh==null)return null;
+  const xr=bmtlvX(tr.querySelector(':scope>.tl-mk.rtpest'));
+  const E=bmEsc,n=e.name||'';const cf=(e.phases||[])[e.phaseIdx]||{};const col=cf.color||'#8c1d34';
+  let dias=0;try{dias=Math.max(0,Math.round((dkToDate(dkey(new Date()))-dkToDate(e.dk))/864e5));}catch(_){}
+  const rtp=e.competitiveDischargeEstimated||e.rtp||'';let falta=null;try{if(rtp)falta=Math.round((dkToDate(rtp)-dkToDate(dkey(new Date())))/864e5);}catch(_){}
+  const fd=dk=>{const q=String(dk).split('-');return (+q[2])+'/'+(+q[1]);};
+  let foto='';try{foto=(window.photoFor&&photoFor(n))||'';}catch(_){}
+  const tip=n+' · día '+dias+(cf.nom?' · '+cf.nom:'')+(rtp?(falta!=null&&falta>=0?' · faltan '+falta+' días para la vuelta prevista ('+fd(rtp)+')':' · vuelta prevista '+fd(rtp)+', ya pasada'):'');
+  let h='';
+  if(xi!=null&&xh>xi)h+='<div class="tlv-hecho" style="left:'+xi+'px;width:'+(xh-xi)+'px;--c:'+E(col)+'"></div>';
+  if(xr!=null&&xr>xh)h+='<div class="tlv-falta" style="left:'+xh+'px;width:'+(xr-xh)+'px"></div><div class="tlv-meta" style="left:'+xr+'px" title="Vuelta prevista '+E(fd(rtp))+'"><i></i><span>'+E(fd(rtp))+'</span></div>';
+  h+='<div class="tlv-cara" style="left:'+xh+'px;--c:'+E(col)+'" title="'+E(tip)+'" aria-label="'+E(tip)+'">'+(foto?'<img src="'+E(foto)+'" alt="">':'<i>'+E(String(n).split(' ').map(w=>w.charAt(0)).slice(0,2).join(''))+'</i>')+'</div>';
+  const w=document.createElement('div');w.className='tlv';w.setAttribute('aria-hidden','false');w.innerHTML=h;tr.appendChild(w);
+  return {w,xi,xh};
+}
+function bmtlvAnima(o){
+  if(!o||bmReduce())return;const cara=o.w.querySelector('.tlv-cara'),hecho=o.w.querySelector('.tlv-hecho'),meta=o.w.querySelector('.tlv-meta'),falta=o.w.querySelector('.tlv-falta');
+  const d=o.xi!=null?o.xh-o.xi:0;
+  try{if(cara)cara.animate([{transform:'translate(-50%,-50%) translateX('+(-d)+'px) scale(.7)',opacity:.4},{opacity:1,offset:.2},{transform:'translate(-50%,-50%)',opacity:1}],{duration:Math.min(1400,500+d*3),easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});
+    if(hecho)hecho.animate([{transform:'scaleX(0)'},{transform:'none'}],{duration:Math.min(1400,500+d*3),easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});
+    if(falta)falta.animate([{opacity:0},{opacity:1}],{duration:400,delay:700,fill:'backwards'});
+    if(meta)meta.animate([{transform:'translateX(-50%) scale(.2)',opacity:0},{transform:'translateX(-50%) scale(1.18)',opacity:1,offset:.6},{transform:'translateX(-50%)',opacity:1}],{duration:520,delay:820,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}
+}
+function bmtlvMira(){
+  if(!bmtlvVale())return;
+  const filas=[...document.querySelectorAll('main .tl-row:not(.tl-axis)>.tl-track:not([data-bmtlv])')];if(!filas.length)return;
+  const hechos=filas.map(bmtlvFila).filter(Boolean);if(!hechos.length)return;
+  const cont=hechos[0].w.closest('.tl-row');const vis=typeof bmradVisible==='function'?bmradVisible(cont):false;
+  if(vis){if(typeof bmradRecienPedido==='function'&&bmradRecienPedido())hechos.forEach((o,i)=>setTimeout(()=>bmtlvAnima(o),i*90));return;}
+  if('IntersectionObserver' in window){hechos.forEach((o,i)=>{const io=new IntersectionObserver(es=>{if(es.some(x=>x.isIntersecting)){io.disconnect();setTimeout(()=>bmtlvAnima(o),i*60);}},{threshold:.5});io.observe(o.w.closest('.tl-row'));});}
+}
+let BMTLV_T=0;
+new MutationObserver(()=>{if(BMTLV_T||!bmtlvVale())return;BMTLV_T=setTimeout(()=>{BMTLV_T=0;try{bmtlvMira();}catch(e){console.error('bmnava · camino de vuelta',e);}},60);}).observe(document.documentElement,{childList:true,subtree:true});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59325,6 +59377,24 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   main .fis-mapa .bmdol-n{border-radius:4px;transition:color .15s ease}
   main .fis-mapa .bmdol-n:hover{color:var(--acc-seg,var(--accent));text-decoration:underline;text-underline-offset:2px}
   @media (prefers-reduced-motion:reduce){main .fis-mapa .bm-hot,main .fis-mapa .fis-zr{transition:none}}
+}
+</style>
+<style id="esc-v904">
+/* v904 · el camino de vuelta con su cara (ordenador) */
+.tlv{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  main .tl-track>.tlv{display:block;position:absolute;inset:0;pointer-events:none;z-index:5}
+  main .tlv .tlv-hecho{position:absolute;top:22px;height:3px;border-radius:2px;background:var(--c);opacity:.85;transform-origin:left center}
+  main .tlv .tlv-falta{position:absolute;top:16px;height:0;border-top:2px dashed var(--muted2)}
+  main .tlv .tlv-meta{position:absolute;top:2px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:auto}
+  main .tlv .tlv-meta i{width:14px;height:14px;background:var(--ok);
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 21V4'/%3E%3Cpath d='M5 4h11l-2 4 2 4H5'/%3E%3C/svg%3E") center/contain no-repeat;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 21V4'/%3E%3Cpath d='M5 4h11l-2 4 2 4H5'/%3E%3C/svg%3E") center/contain no-repeat}
+  main .tlv .tlv-meta span{font-size:10px;font-weight:700;color:var(--ok-text);background:var(--panel);padding:0 3px;border-radius:4px;line-height:1.2}
+  main .tlv .tlv-cara{position:absolute;top:50%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;overflow:hidden;pointer-events:auto;
+    background:var(--panel);box-shadow:0 0 0 2.5px var(--c),0 3px 8px rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center}
+  main .tlv .tlv-cara img{width:100%;height:100%;object-fit:cover}
+  main .tlv .tlv-cara i{font-style:normal;font-size:10px;font-weight:700;color:var(--txt)}
 }
 </style>
 <style id="bm-v808">
