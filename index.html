@@ -25272,6 +25272,59 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   window.addEventListener('scroll',()=>{if(pend)return;pend=true;requestAnimationFrame(mira);setTimeout(()=>{if(pend)mira();},120);},{passive:true});
 })();
 window.bmpgEmpieza=bmpgEmpieza;window.bmpgAcaba=bmpgAcaba;
+/* ═══ v851 · UN AVISO AL USAR UN ATAJO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 6. Al pulsar 3, L, H, ⌃⌘S o las flechas, la
+   pantalla cambiaba sin decir qué tecla se había usado. Ahora sale un instante,
+   en el centro, lo que ha hecho: «Cargas», «Jueves 20 nov», «Barra lateral
+   oculta», «Inspector · Alex Ugalde»… como los avisos de volumen o de brillo
+   del Mac. **No sabe nada de cada atajo**: antes de la tecla mira dónde se
+   está —la sección, el día, la barra lateral, la línea de tiempo y el
+   inspector— y después dice lo que ha cambiado; si lo que ha pasado es que se
+   ha abierto una hoja, la hoja ya es el aviso y no sale nada. Nunca al
+   escribir en un campo. Sólo con ratón o trackpad. */
+const BMHUD={el:null,t:null};
+function bmhudFoto(){
+  let ins=false,insN='';try{ins=!!BMIN.on;insN=BMIN.n||'';}catch(e){}
+  let tl=false;try{tl=!!BMTL.on;}catch(e){}
+  const v=STATE.view==='estado'?((typeof ESTADO_TAB!=='undefined'&&ESTADO_TAB)||'dispo'):STATE.view;
+  return {v,jug:STATE.view==='jugador'?STATE.curPlayer:'',dk:dkey(REF()),sb:document.body.classList.contains('sb-min'),tl,ins,insN};
+}
+function bmhudNombre(v){
+  const it=document.querySelector('#sidebar .sb-item[data-v="'+v+'"]');
+  let t=it?((it.querySelector('.sb-lbl,span')||it).textContent||'').replace(/\s*\d+\s*$/,'').trim():'';
+  return t||({jugador:'Ficha del jugador',estado:'Estado del equipo'}[v]||v);
+}
+function bmhudMuestra(txt,sub){
+  if(!txt)return;
+  if(!BMHUD.el||!BMHUD.el.isConnected){const d=document.createElement('div');d.id='bm-hud';d.setAttribute('role','status');d.setAttribute('aria-live','polite');document.body.appendChild(d);BMHUD.el=d;}
+  const d=BMHUD.el;d.innerHTML='<b>'+bmEsc(txt)+'</b>'+(sub?'<small>'+bmEsc(sub)+'</small>':'');
+  d.classList.add('on');clearTimeout(BMHUD.t);BMHUD.t=setTimeout(()=>d.classList.remove('on'),1100);
+}
+function bmhudCompara(a,b){
+  if(!b)return null;
+  if(b.ins!==a.ins||(b.ins&&b.insN!==a.insN))return b.ins?['Inspector',b.insN]:['Inspector cerrado'];
+  if(b.v!==a.v)return b.v==='jugador'&&b.jug?[b.jug,'Ficha del jugador']:[bmhudNombre(b.v)];
+  if(b.v==='jugador'&&b.jug!==a.jug&&b.jug)return [b.jug];
+  if(b.sb!==a.sb)return [b.sb?'Barra lateral oculta':'Barra lateral visible'];
+  if(b.tl!==a.tl)return [b.tl?'Línea de tiempo':'Sin línea de tiempo'];
+  if(b.dk!==a.dk){const d=dkToDate(b.dk);let t=d.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'short'}).replace(/[.,]/g,'');t=t.charAt(0).toUpperCase()+t.slice(1);
+    return [t,b.dk===dkey(new Date())?'Hoy':''];}
+  return null;
+}
+document.addEventListener('keydown',e=>{
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino()))return;
+  if(e.repeat&&!/^Arrow/.test(e.key))return;
+  const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;
+  if(e.metaKey&&!(e.ctrlKey&&/^s$/i.test(e.key)))return;   /* ⌘K, ⌘Z… tienen su propia respuesta */
+  if(/^(Escape|Tab|Enter|Shift|Alt|Meta|Control| )$/.test(e.key))return;
+  let capa=false;try{capa=bmCapaAbierta();}catch(x){}if(capa)return;
+  let a;try{a=bmhudFoto();}catch(x){return;}
+  let dicho=false;
+  const mira=()=>{if(dicho)return;let c=false;try{c=bmCapaAbierta();}catch(x){}if(c){dicho=true;return;}
+    let r=null;try{r=bmhudCompara(a,bmhudFoto());}catch(x){}if(r){dicho=true;bmhudMuestra(r[0],r[1]);}};
+  setTimeout(mira,60);setTimeout(mira,320);
+},true);
+window.bmhudMuestra=bmhudMuestra;
 
 
 
@@ -61591,6 +61644,24 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
   #bm-prog>i{display:block;height:100%;width:0;background:var(--accent);border-radius:0 2px 2px 0;transition:width .45s cubic-bezier(.32,.72,0,1)}
 }
 @media (prefers-reduced-motion:reduce){#bm-prog>i,header{transition:none!important}}
+</style>
+<style id="bm-v851">
+/* v851 · el aviso de un atajo (ordenador) */
+#bm-hud{display:none}
+@media (min-width:761px) and (pointer:fine){
+  #bm-hud{display:flex;flex-direction:column;align-items:center;gap:2px;position:fixed;left:calc(50% + var(--sbw,220px)/2);top:42%;transform:translate(-50%,-50%) scale(.94);
+    min-width:150px;max-width:420px;padding:14px 22px;border-radius:16px;text-align:center;pointer-events:none;z-index:9000;opacity:0;
+    background:var(--hud-bg);color:var(--hud-txt);-webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6);
+    box-shadow:0 12px 36px rgba(0,0,0,.18),0 0 0 .5px var(--hair);transition:opacity .25s ease,transform .25s cubic-bezier(.32,.72,0,1)}
+  #bm-hud.on{opacity:1;transform:translate(-50%,-50%) scale(1);transition:opacity .12s ease,transform .2s cubic-bezier(.32,.72,0,1)}
+  #bm-hud b{font-size:17px;font-weight:600;letter-spacing:-.01em}
+  #bm-hud small{font-size:12px;color:var(--hud-sub)}
+  body.sb-min #bm-hud{left:calc(50% + 32px)}
+}
+:root{--hud-bg:rgba(246,246,248,.88);--hud-txt:#1d1d1f;--hud-sub:#5f6168}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--hud-bg:rgba(44,44,48,.88);--hud-txt:#f5f5f7;--hud-sub:#a8aab2}}
+:root[data-theme="dark"]{--hud-bg:rgba(44,44,48,.88);--hud-txt:#f5f5f7;--hud-sub:#a8aab2}
+@media (prefers-reduced-motion:reduce){#bm-hud,#bm-hud.on{transition:opacity .12s ease!important;transform:translate(-50%,-50%)!important}}
 </style>
 </body>
 </html>
