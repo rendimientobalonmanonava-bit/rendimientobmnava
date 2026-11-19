@@ -15894,7 +15894,9 @@ document.addEventListener('visibilitychange',()=>{try{bmInsignia();}catch(e){}})
     /* v679 · las tarjetas que se pulsan, marcadas para que respondan al ratón */
     try{bmTarjetasT();}catch(e){}
     /* v820 · el icono de cada cabecera */
-    try{bmCabIconos();}catch(e){}},120);};
+    try{bmCabIconos();}catch(e){}
+    /* v838 · las tarjetas del Resumen que llevan a otra pantalla crecen hasta ella */
+    try{bmZoomMarca();}catch(e){}},120);};
   const arma=()=>{const m=document.querySelector('main');if(!m)return;
     new MutationObserver(pasa).observe(m,{childList:true,subtree:true});
     new MutationObserver(pasa).observe(document.head,{childList:true});
@@ -20199,7 +20201,11 @@ function bmInterruptores(){
    DENTRO de la tarjeta sigue haciendo lo suyo. Sin «menos movimiento». */
 let BMZ={};
 function bmZoomMarca(){
-  if(!esMovil())return;
+  if(!esMovil()){
+    /* v838 · en el ordenador sólo lo que ya llevaba a otra pantalla: los recuadros de cifras no se hacen pulsables */
+    if(!(typeof bmEscFino==='function'&&bmEscFino()))return;
+    document.querySelectorAll('#v-equipo .ath[onclick]:not([data-bmz]),#v-equipo div.panel[onclick*="go("]:not([data-bmz])').forEach(e=>{e.dataset.bmz='oc';});
+    return;}
   document.querySelectorAll('#v-equipo .ath[onclick]:not([data-bmz]),#v-equipo div.panel[onclick*="go("]:not([data-bmz]),#v-estado .bd-al[onclick]:not([data-bmz])').forEach(e=>{e.dataset.bmz='oc';});
   document.querySelectorAll('#v-equipo .eq-tile:not([data-bmz])').forEach(e=>{
     const t=(e.textContent||'').trim();
@@ -20207,7 +20213,7 @@ function bmZoomMarca(){
     e.dataset.bmz=d?'go:'+d:'-';if(d){e.setAttribute('role','button');e.tabIndex=0;}
   });
 }
-function bmZoomPuede(){return esMovil()&&!!document.startViewTransition&&!matchMedia('(prefers-reduced-motion:reduce)').matches;}
+function bmZoomPuede(){return (esMovil()||(typeof bmEscFino==='function'&&bmEscFino()))&&!!document.startViewTransition&&!matchMedia('(prefers-reduced-motion:reduce)').matches;}
 function bmZoom(card,run){
   if(!bmZoomPuede()){run();return;}
   const de=STATE.view;let dst=null;
@@ -20253,7 +20259,7 @@ function bmZoomVuelve(v,e){
   return true;
 }
 document.addEventListener('click',e=>{
-  if(!esMovil()||e.defaultPrevented||window.__BM_LP)return;
+  if(!(esMovil()||(typeof bmEscFino==='function'&&bmEscFino()))||e.defaultPrevented||window.__BM_LP)return;
   const c=e.target&&e.target.closest?e.target.closest('[data-bmz]'):null;if(!c||c.dataset.bmz==='-')return;
   const dentro=e.target.closest('button,a,input,select,textarea,label,[onclick],[role="button"]');
   if(dentro&&dentro!==c)return;
@@ -24707,6 +24713,37 @@ function bmtabInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmtabInstala,0));else setTimeout(bmtabInstala,0);
 window.bmTabEntra=bmTabEntra;window.bmReduce=bmReduce;
+/* ═══ v838 · CAMBIAR DE PANTALLA COMO EN UNA APP NATIVA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 4. Medido: en el ordenador la pantalla que se
+   iba desaparecía en seco y la nueva entraba con un fundido de 0,25 s, así que
+   durante un instante no había nada. Ahora se cruzan, con la misma técnica del
+   móvil (v594): la que se va se queda pintada, fija donde estaba, y se
+   desvanece encima mientras la nueva llega. Lo que se elige en el menú lateral
+   o en la barra es una SECCIÓN y se cruza sin moverse (macOS no desliza entre
+   secciones); un paso adelante —abrir una ficha, un enlace dentro de una
+   pantalla— entra desde la derecha, y atrás o adelante del historial (v835),
+   cada uno desde su lado. Y las tarjetas del Resumen que ya llevan a una
+   sección («A vigilar», los paneles con enlace) crecen hasta ella, como en el
+   móvil (v610): **no se hace pulsable nada que no lo fuera**. Nada con
+   «Reducir movimiento». */
+function bmvSaleEsc(dest){
+  if(!window.__BM_LISTO||window.__BM_ZOOM||window.__RD_CALC)return;
+  if(!(typeof bmEscFino==='function'&&bmEscFino()))return;
+  const nav=bmvSentido();document.documentElement.dataset.nav=nav;
+  bmvLimpia();
+  if(bmReduce())return;
+  const v=document.querySelector('main .view.on');if(!v||v.id==='v-'+dest)return;
+  const r=v.getBoundingClientRect(),vh=window.innerHeight||900;
+  const top=Math.max(0,r.top),dentro=Math.max(0,-r.top);
+  v._bmvCss=v.getAttribute('style')||'';
+  v.style.cssText=v._bmvCss+';position:fixed;left:'+r.left+'px;width:'+r.width+'px;top:'+top+'px;height:'+(vh-top)+'px;overflow:hidden;margin:0';
+  v.classList.add('vw-sale');try{v.scrollTop=dentro;}catch(e){}
+  BMV2.v=v;document.documentElement.classList.add('vw-anda','vw-esc');
+  BMV2.t=setTimeout(()=>{document.documentElement.classList.remove('vw-esc');bmvLimpia();},360);
+}
+document.addEventListener('click',e=>{if(e.target&&e.target.closest&&e.target.closest('#sidebar,#bm-tbs,header,#bm-tbm,.bm-spot,#bm-spot'))window.__BM_NAVCLIC=Date.now();},true);
+window.bmvSaleEsc=bmvSaleEsc;
+
 
 
 
@@ -24812,6 +24849,8 @@ function writeHash(push,y0){
      pantalla sigue al dedo y al soltar pasado un tercio —o rápido— vuelve. */
 function bmvSentido(){
   if(window.__BM_POP)return window.__BM_POPDIR||'atr';
+  /* v838 · en el ordenador, lo que se elige en el menú o en la barra es una sección, no un paso adelante */
+  if(!esMovil()&&Date.now()-(window.__BM_NAVCLIC||0)<400)return 'tab';
   if(window.__BM_TAB||document.body.classList.contains('sb-open'))return 'tab';
   return 'ade';
 }
@@ -24822,7 +24861,8 @@ function bmvLimpia(){
   if(v){v.classList.remove('vw-sale');v.style.cssText=v._bmvCss||'';try{v.scrollTop=0;}catch(e){}}
 }
 function bmvSale(dest){
-  if(!esMovil()||!window.__BM_LISTO||window.__BM_ZOOM)return;
+  if(!esMovil()){try{bmvSaleEsc(dest);}catch(e){console.error('bmnava · transición del ordenador',e);}return;}
+  if(!window.__BM_LISTO||window.__BM_ZOOM)return;
   const nav=bmvSentido();
   document.documentElement.dataset.nav=nav;
   bmvLimpia();
@@ -55927,6 +55967,22 @@ button.ctw-c:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   .ctv-s{flex-direction:row;flex-wrap:wrap;gap:4px 14px}
   .ctv-sd{min-height:32px;align-items:center}
 }
+</style>
+<style id="esc-v838">
+/* v838 · el cambio de pantalla en el ordenador */
+@media (min-width:761px) and (pointer:fine){
+  html.vw-anda.vw-esc .view.vw-sale{display:block!important;z-index:3;pointer-events:none;background:var(--bg)}
+  html.vw-anda.vw-esc[data-nav="tab"] .view.vw-sale{animation:vwEscFunde .18s ease-out forwards}
+  html.vw-anda.vw-esc[data-nav="ade"] .view.vw-sale{animation:vwEscSaleIzq .26s cubic-bezier(.32,.72,0,1) forwards}
+  html.vw-anda.vw-esc[data-nav="ade"] .view.on{animation:vwEscEntraDer .32s cubic-bezier(.32,.72,0,1)}
+  html.vw-anda.vw-esc[data-nav="atr"] .view.vw-sale{animation:vwEscSaleDer .26s cubic-bezier(.32,.72,0,1) forwards}
+  html.vw-anda.vw-esc[data-nav="atr"] .view.on{animation:vwEscEntraIzq .32s cubic-bezier(.32,.72,0,1)}
+}
+@keyframes vwEscFunde{to{opacity:0}}
+@keyframes vwEscSaleIzq{to{opacity:0;transform:translateX(-28px)}}
+@keyframes vwEscSaleDer{to{opacity:0;transform:translateX(28px)}}
+@keyframes vwEscEntraDer{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:none}}
+@keyframes vwEscEntraIzq{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
