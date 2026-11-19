@@ -1773,6 +1773,25 @@ Daniel, 19/11/2026, rechazó una tanda de detalles de uso —*«no son cosas que
 
 **Lo que NO está probado**: con el ratón y la pantalla del Mac de Daniel —sobre todo cómo se ve cada transición a velocidad real— y el círculo del tema en el iPhone.
 
+#### 6.29 Una delicatessen en el ordenador (v864–v871)
+
+Daniel, 19/11/2026: *«dame más mejoras de este estilo para el ordenador, que hagan de la experiencia de usuario una auténtica delicatessen»*. Ocho propuestas medidas en lo que más se usa; respuesta: *«Vamos con las 8»*. Todas del ordenador (ratón o trackpad); ninguna toca una cifra ni la distribución de una pantalla, y ninguna corre con «Reducir movimiento».
+
+| Elemento | Regla |
+|---|---|
+| v864 · El calendario pasa páginas | Al pasar de mes o de semana la rejilla cambiaba de golpe. `calNext`/`calPrev`/`calToday` y `calWeekNext`/`calWeekPrev`/`calWeekToday` envueltos (`bmcalPasa`): una copia de la página de antes, **dentro del mismo `#cal-body`** —así conserva su aspecto—, se va mientras la nueva llega: en vertical el mes, en horizontal la semana. Con la propiedad `translate`, que se suma al `transform` con el que la lámina de la semana se escala (v434). Sólo animación |
+| v865 · Las listas de dos paneles | En Alertas (v793) y en la lista de sesiones de Pulsómetros (v744, con 1.560 px o más) el detalle cambiaba de golpe. `bmalPinta` y `hrListaElige` envueltos: el detalle entra desde abajo si bajas por la lista y desde arriba si subes; la fila elegida se desliza con el muelle (`bmselDesliza`, una copia de su fondo) y la nueva espera con sus colores de siempre (`bmsel-llega`). Con el teclado igual que con el ratón |
+| v866 · La vista rápida sale del jugador | `bmPrevia` y `bmPreviaCierra` envueltos: la tarjeta crece desde la cara, la fila o la casilla de origen —lo que hay bajo el ratón con la barra espaciadora (`BMQL.el`) o lo que se pulsó con el botón derecho (`BMQZ`)— y vuelve a ella al cerrarse |
+| v867 · Las hojas pasan con dirección | Con ‹ › dentro de una hoja (informes, «Su semana», bitácora), lo siguiente entra por la derecha y lo anterior por la izquierda, bloque a bloque, y la fila de las flechas se queda quieta. **La dirección sale del botón** (sus flechas o su nombre, `bmhnavDir`) y se apunta en la fase de captura, porque después el botón ya no está en la hoja: se repinta. Se anima justo antes del siguiente fotograma. Un desplegable de la hoja (el jugador en Comparar), un fundido corto |
+| v868 · Gráficos con trazo | Complemento `bmTrazo`: las barras crecen en ola (un retraso por barra) y las líneas se dibujan de izquierda a derecha («línea progresiva» de Chart.js), también al llegar a ellas (v847, que olvida por dónde iba la línea antes de redibujar). **Y se corrigió la v778**: el gráfico se «transformaba» desde la versión anterior aunque ésta se hubiera pintado con la pantalla oculta —al arrancar, al volver a una sección—, así que casi nunca se veía su primera animación. Ahora sólo se transforma lo que se estaba viendo (`vis` al destruirse). El Resumen y el Calendario, como estaban (v755) |
+| v869 · Gráficos con foco | Complemento `bmFoco` y un envoltorio de `Chart.BarElement.prototype.draw`: al pasar el ratón, la barra del día que miras se queda en color y las demás bajan al 32 %; la burbuja se desliza (0,22 s) en vez de saltar. Mismas exclusiones que la v868 |
+| v870 · Las caras invitan a pulsarlas | Sólo CSS: la cara de lo que abre una ficha (`main [onclick*="openPlayer("]`, la plantilla de al lado) se levanta un 7 % con un muelle y una sombra al pasar el ratón, y se hunde al pulsarla |
+| v871 · Las pestañas se montan | `bmTabEntra` (v837): en el ordenador, la pestaña nueva se monta en cascada como una sección (`bmCascada`, v857, que ahora dice cuántos bloques ha animado); si no tiene bloques, el desplazamiento de siempre. Se llama en el mismo instante —no en el siguiente turno— para que no haya un fotograma con todo a la vista |
+
+**Cómo se comprobó.** Cada una en la copia de prueba, a cámara lenta donde había movimiento (animaciones pausadas en un instante fijo y la captura). Las 32 rutas a 1.745 px en los dos temas y el móvil: una vista, nada se sale, sin errores; y en el motor de Safari, el calendario, las listas, las hojas y las pestañas, sin errores.
+
+**Lo que NO está probado**: a velocidad real con el ratón de Daniel, y la lista de sesiones de Pulsómetros con datos reales.
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1807,6 +1826,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **Lo de la v864–v871**: que Daniel note en su Mac el calendario que pasa páginas, las listas, la vista rápida, las hojas con dirección, los gráficos con trazo y foco, las caras y las pestañas (§6.29)
 - **Lo de la v856–v863**: que Daniel abra la app en su Mac y diga si se nota: la cara que vuela a la ficha y vuelve, las secciones que se montan, la barra lateral, el día del calendario, las hojas, la entrada y el tema en círculo (§6.28)
 - **Lo de la v846–v855**: que Daniel note en su iPhone la pantalla que se aleja, arrastrar la selección, la foto que se estira y el zoom del mes, y en su Mac los formularios, la barra viva y el aviso de atajos (§6.27)
 - **Lo de la v835–v845**: que Daniel note en su Mac atrás y adelante con el trackpad, el globo de ayuda y «Guardado» en los botones, y en el iPhone el arrastre de pestañas y la barra de abajo (§6.26)
@@ -2105,6 +2125,8 @@ No los repitas.
 | Medir una hoja mientras sube | Para saber si una hoja era alta se usaba su rectángulo, y mientras sube está desplazada hacia abajo: en el motor de Safari, con la ventana oculta, la animación no avanza y la hoja nunca llegaba al 60 %. **El alto de algo que se anima con `transform` se mide con `offsetHeight`**, que no cuenta la animación |
 | Proponer como nuevo algo que ya está hecho, y no medir si luce | El zoom de la cara existía desde la v782 y se le volvió a proponer a Daniel como idea; medido a cámara lenta, dos transiciones chocaban y no se veía. **Antes de proponer una animación, se busca si existe y se mira a cámara lenta**: pausar las animaciones de la transición en un instante fijo y hacer una captura es la forma de ver lo que pasa en 0,4 s |
 | Decir que algo no existe tras mirarlo cuando ya se ha ido | «No hay pantalla de arranque en el ordenador» salió de buscar `#splash` después de que la app terminase de cargar: se retira sola del DOM. Existía (v272). **Lo que se quita al terminar se busca en el código, no en el DOM de después** |
+| Una transformación desde algo que nadie vio | La v778 hacía que un gráfico repintado partiera de su versión anterior, y casi siempre la anterior se había pintado con la pantalla oculta (al arrancar, al volver a una sección): el gráfico se «transformaba» desde la nada y su primera animación no se veía nunca. Se vio al ir a añadirle el trazo (v868) y no aparecer. **Animar «desde lo de antes» sólo vale si lo de antes estaba a la vista** |
+| Leer el botón pulsado después de que su manejador repinte | En la v867 la dirección de las flechas se leía en la fase de burbuja y el botón ya no estaba en la hoja: el manejador la había repintado entera. **Lo que hay que saber del elemento pulsado se apunta en la fase de captura** |
 
 ---
 
