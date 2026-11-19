@@ -25994,6 +25994,102 @@ function bmTemaInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmTemaInstala,0));else setTimeout(bmTemaInstala,0);
 window.bmTemaCirculo=bmTemaCirculo;
+/* ═══ v864 · EL CALENDARIO PASA PÁGINAS (ORDENADOR) ═══
+   Daniel, 19/11/2026, primera propuesta de la tanda «delicatessen». Medido: al
+   pasar de mes o de semana la rejilla cambiaba de golpe —ninguna animación—.
+   Ahora la página de antes se va y la nueva llega: el mes se desliza hacia
+   arriba (el siguiente sube desde abajo) o hacia abajo, como el Calendario del
+   Mac, y la semana hacia un lado o hacia el otro. **Sólo animación**: el
+   Calendario se pinta igual que siempre. La página que se va es una copia de
+   la de antes, dentro del mismo contenedor —así conserva su aspecto—, que se
+   quita al terminar. Se usa la propiedad `translate`, que se suma al
+   `transform` con el que la lámina de la semana se escala (v434). */
+function bmcalPagina(){const b=document.getElementById('cal-body');if(!b)return null;
+  return [...b.querySelectorAll('.cal-grid,#cal-wk-a4,.sa-page--inline,.cw-grid')].find(e=>e.checkVisibility&&e.checkVisibility())||null;}
+function bmcalPasa(fn,self,args,dir,eje){
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino())||bmReduce()||!dir)return fn.apply(self,args);
+  const b=document.getElementById('cal-body'),p0=bmcalPagina();
+  if(!b||!p0)return fn.apply(self,args);
+  const br=b.getBoundingClientRect(),pr=p0.getBoundingClientRect();
+  const g=p0.cloneNode(true);[g,...g.querySelectorAll('[id]')].forEach(x=>x.removeAttribute('id'));g.setAttribute('aria-hidden','true');g.inert=true;
+  const r=fn.apply(self,args);
+  try{
+    const b2=document.getElementById('cal-body'),p1=bmcalPagina();if(!b2||!p1)return r;
+    if(getComputedStyle(b2).position==='static')b2.style.position='relative';
+    const b2r=b2.getBoundingClientRect();
+    Object.assign(g.style,{position:'absolute',left:(pr.left-b2r.left)+'px',top:(pr.top-b2r.top)+'px',width:pr.width+'px',margin:'0',pointerEvents:'none',zIndex:'2'});
+    b2.appendChild(g);
+    const d=eje==='y'?'0 '+(dir*-34)+'px':(dir*-46)+'px 0',e=eje==='y'?'0 '+(dir*34)+'px':(dir*46)+'px 0';
+    const a=g.animate([{translate:'0 0',opacity:1},{translate:d,opacity:0}],{duration:260,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'});
+    a.onfinish=()=>g.remove();setTimeout(()=>g.remove(),600);
+    p1.animate([{translate:e,opacity:0},{translate:'0 0',opacity:1}],{duration:380,delay:40,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});
+  }catch(_){try{g.remove();}catch(__){}}
+  return r;
+}
+function bmcalInstala(){
+  const env=(n,dirFn,eje)=>{const f=window[n];if(typeof f!=='function'||f.__bmcal)return;
+    const w=function(){let dir=0;try{dir=dirFn();}catch(_){}return bmcalPasa(f,this,arguments,dir,eje);};w.__bmcal=true;window[n]=w;};
+  env('calNext',()=>1,'y');env('calPrev',()=>-1,'y');
+  env('calToday',()=>{const t=new Date();return Math.sign((t.getFullYear()*12+t.getMonth())-(CALVIEW.y*12+CALVIEW.m));},'y');
+  env('calWeekNext',()=>1,'x');env('calWeekPrev',()=>-1,'x');
+  env('calWeekToday',()=>{const a=calWeekStart(new Date()),b=CALWEEK||a;return Math.sign(a-b);},'x');
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmcalInstala,0));else setTimeout(bmcalInstala,0);
+/* ═══ v865 · LAS LISTAS DE DOS PANELES (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 2. En Alertas (v793) y en la lista de sesiones
+   de Pulsómetros (v744) el detalle cambiaba de golpe al elegir otra fila. Ahora
+   el detalle entra desde abajo si bajas por la lista y desde arriba si subes,
+   y la fila elegida se desliza con el muelle de la barra lateral (v858) hasta
+   la nueva —con el teclado igual que con el ratón—. No se toca cómo se dibuja
+   ninguna fila: la pastilla que viaja es una copia de su fondo. */
+function bmselDesliza(L,r0,nueva){
+  if(!L||!r0||!nueva)return;
+  if(getComputedStyle(L).position==='static')L.style.position='relative';
+  L.classList.add('bmsel-anda');
+  const lr=L.getBoundingClientRect(),r1=nueva.getBoundingClientRect(),cs=getComputedStyle(nueva);
+  const pos=r=>({x:r.left-lr.left+L.scrollLeft-L.clientLeft,y:r.top-lr.top+L.scrollTop-L.clientTop});
+  const a=pos(r0),b=pos(r1);
+  const g=document.createElement('i');g.className='bmsel-g';g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{left:b.x+'px',top:b.y+'px',width:r1.width+'px',height:r1.height+'px',background:cs.backgroundColor,borderRadius:cs.borderRadius});
+  L.appendChild(g);nueva.classList.add('bmsel-llega');
+  const fin=()=>{g.remove();nueva.classList.remove('bmsel-llega');};
+  try{const an=g.animate([{transform:'translate('+(a.x-b.x)+'px,'+(a.y-b.y)+'px)',height:r0.height+'px'},{transform:'none',height:r1.height+'px'}],
+    {duration:400,easing:typeof BMTB_MUELLE!=='undefined'?BMTB_MUELLE:'cubic-bezier(.32,.72,0,1)'});an.onfinish=fin;an.oncancel=fin;}catch(_){fin();}
+  setTimeout(fin,800);
+}
+function bmselEntra(els,dir){
+  if(!dir)return;
+  els.forEach(e=>{if(!e||!e.getBoundingClientRect().height)return;
+    try{e.animate([{translate:'0 '+(dir*18)+'px',opacity:0},{translate:'0 0',opacity:1}],{duration:320,easing:'cubic-bezier(.32,.72,0,1)'});}catch(_){}});
+}
+function bmselVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmselInstala(){
+  /* Alertas, vista de dos paneles */
+  const pa=window.bmalPinta;if(typeof pa==='function'&&!pa.__bmsel){
+    const w=function(){
+      const L0=document.querySelector('#v-alertas .bmal-lista'),o=L0&&L0.querySelector('.bmal-f.on');
+      const r0=o&&o.getBoundingClientRect(),k0=o&&o.dataset.al,fs0=L0?[...L0.querySelectorAll('.bmal-f')].map(x=>x.dataset.al):[];
+      const r=pa.apply(this,arguments);
+      try{if(bmselVale()&&k0){const L=document.querySelector('#v-alertas .bmal-lista'),n=L&&L.querySelector('.bmal-f.on');
+        if(n&&n.dataset.al!==k0){const dir=fs0.indexOf(n.dataset.al)>fs0.indexOf(k0)?1:-1;
+          bmselDesliza(L,r0,n);bmselEntra([document.querySelector('#v-alertas .bmal-det')],dir);}}}catch(_){}
+      return r;};
+    w.__bmsel=true;window.bmalPinta=w;}
+  /* Pulsómetros, lista de sesiones */
+  const ph=window.hrListaElige;if(typeof ph==='function'&&!ph.__bmsel){
+    const w=function(k){
+      const L0=document.getElementById('hr-seslista'),o=L0&&L0.querySelector('.hsl-f.on');
+      const r0=o&&o.getBoundingClientRect(),fs=L0?[...L0.querySelectorAll('.hsl-f')]:[],i0=o?fs.indexOf(o):-1;
+      const r=ph.apply(this,arguments);
+      try{if(bmselVale()&&o){const L=document.getElementById('hr-seslista'),n=L&&L.querySelector('.hsl-f.on');
+        if(n&&n!==o||n&&i0>=0&&[...L.querySelectorAll('.hsl-f')].indexOf(n)!==i0){const i1=[...L.querySelectorAll('.hsl-f')].indexOf(n);
+          bmselDesliza(L,r0,n);const pane=document.getElementById('hr-pane-equipo');
+          bmselEntra(pane?[...pane.children].filter(c=>c.id!=='hr-seslista'&&!c.contains(L)&&c.getBoundingClientRect().top<window.innerHeight):[],i1>i0?1:-1);}}}catch(_){}
+      return r;};
+    w.__bmsel=true;window.hrListaElige=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmselInstala,0));else setTimeout(bmselInstala,0);
+window.bmselDesliza=bmselDesliza;
 
 
 
@@ -62433,6 +62529,17 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
 html.bm-tema-vt *,html.bm-tema-vt *::before,html.bm-tema-vt *::after{transition:none!important}
 html.bm-tema-vt::view-transition-old(root),html.bm-tema-vt::view-transition-new(root){animation:none;mix-blend-mode:normal}
 html.bm-tema-vt::view-transition-new(root){z-index:2}
+</style>
+<style id="bm-v865">
+/* v865 · la fila elegida se desliza (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine){
+  .bmsel-anda{isolation:isolate}
+  .bmsel-anda>.bmal-f,.bmsel-anda>.hsl-f,.bmsel-anda .bmal-f,.bmsel-anda .hsl-f{position:relative;z-index:1}
+  .bmsel-g{position:absolute;z-index:0;pointer-events:none;display:block;margin:0}
+  .bmsel-llega{background:transparent!important;color:var(--txt)!important}
+  .bmsel-llega small,.bmsel-llega b,.bmsel-llega span,.bmsel-llega .bmj-av{color:inherit!important}
+  .bmsel-llega .bmal-n{box-shadow:none!important}
+}
 </style>
 </body>
 </html>
