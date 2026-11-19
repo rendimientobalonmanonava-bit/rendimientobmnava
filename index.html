@@ -10819,6 +10819,12 @@ function invRender(){
     {k:'bmnava_notas',    lab:'Notas en los gráficos',             porMes:false},
     {k:'bmnava_objetivos',lab:'Objetivos individuales',            porMes:false},
     {k:'bmnava_bloques',  lab:'Bloques de la temporada',           porMes:false},
+    /* v834 · estaban en la copia de seguridad (§9) pero no aquí, y son datos tecleados a mano */
+    {k:'bmnava_iso',      lab:'Pruebas isocinéticas',              porMes:false},
+    {k:'bmnava_partidos', lab:'Partidos medidos (Polar)',          porMes:false},
+    {k:'bmnava_gymvol',   lab:'Volumen de gimnasio · BuilderPro',  porMes:false},
+    {k:'bmnava_sesniv',   lab:'Nivel de sesión corregido a mano',  porMes:false},
+    {k:'bmnava_vhfases',  lab:'Fase de cada valoración',           porMes:false},
     {k:'bmnava_fisiotpl', lab:'Plantillas de fisioterapia',        porMes:false},
     {k:'bmnava_photos',   lab:'Fotos',                             porMes:false},
     {k:'bmnava_info',     lab:'Datos personales',                  porMes:false}
@@ -11852,9 +11858,9 @@ for(const nm in STATE.players){const pp=STATE.players[nm];let cr=null;try{cr=loa
   if(!isNaN(mono)&&mono>2)A.push({name:nm,pos:pp.pos,type:'Monotonía alta',sev:mono>2.5?'bad':'warn',val:fmt(mono,2),z:NaN,rel:true,mdx:pp.mdx,date:'',mod:'Carga'});}
 try{buildTests();const rows=tsaRows();const n=rows.length;rows.forEach(r=>{if(tsaTier(r.rank,n)==='bad')A.push({name:r.name,pos:r.pos,type:'Perfil físico en tercio bajo',sev:'warn',val:r.t100==null?'—':String(r.t100),z:NaN,rel:true,mdx:'',date:'',mod:'Físico'});});}catch(e){}
 try{buildPhysio();const _td=new Date();for(const name in STATE.players){const evs=physioEvents(name);if(!evs||!evs.length)continue;const p=STATE.players[name];const srt=evs.slice().sort((a,b)=>a.dk<b.dk?-1:1);const _tdk=dkey(_td);const cs=effectiveStatus(name,_tdk);const last=srt[srt.length-1];
-  if(cs&&cs.status==='baja')A.push({name,pos:p.pos,type:'De baja'+(cs.zone?' ('+cs.zone+(cs.side?' '+cs.side:'')+')':''),sev:'bad',val:'—',z:NaN,rel:true,mdx:p.mdx,date:cs.dk,mod:'Físico'});
-  else if(cs&&cs.status==='noentto')A.push({name,pos:p.pos,type:'Sin entrenar'+(cs.zone?' ('+cs.zone+')':''),sev:'warn',val:'—',z:NaN,rel:true,mdx:p.mdx,date:cs.dk,mod:'Físico'});
-  else if(cs&&cs.status==='dolor')A.push({name,pos:p.pos,type:'Con dolor'+(cs.zone?' ('+cs.zone+(cs.side?' '+cs.side:'')+')':''),sev:'warn',val:'—',z:NaN,rel:true,mdx:p.mdx,date:cs.dk,mod:'Físico'});
+  if(cs&&cs.status==='baja')A.push({name,pos:p.pos,type:'De baja'+(cs.zone?' ('+bmEsc(cs.zone+(cs.side?' '+cs.side:''))+')':''),sev:'bad',val:'—',z:NaN,rel:true,mdx:p.mdx,date:cs.dk,mod:'Físico'});
+  else if(cs&&cs.status==='noentto')A.push({name,pos:p.pos,type:'Sin entrenar'+(cs.zone?' ('+bmEsc(cs.zone)+')':''),sev:'warn',val:'—',z:NaN,rel:true,mdx:p.mdx,date:cs.dk,mod:'Físico'});
+  else if(cs&&cs.status==='dolor')A.push({name,pos:p.pos,type:'Con dolor'+(cs.zone?' ('+bmEsc(cs.zone+(cs.side?' '+cs.side:''))+')':''),sev:'warn',val:'—',z:NaN,rel:true,mdx:p.mdx,date:cs.dk,mod:'Físico'});
   let lastBaja=-1;srt.forEach((e,i)=>{if(e.status==='baja')lastBaja=i;});
   if(lastBaja>=0){let ret=null;for(let k=lastBaja+1;k<srt.length;k++){if(!['baja','noentto'].includes(srt[k].status)){ret=srt[k];break;}}if(ret){const dret=Math.round((_td-ret.date)/864e5);if(dret>=0&&dret<=21)A.push({name,pos:p.pos,type:'Vuelve de lesión · carga progresiva',sev:'warn',val:'—',z:NaN,rel:true,mdx:p.mdx,date:ret.dk,mod:'Físico'});}}
   const byReg={};srt.filter(e=>['trat','noentto','baja'].includes(e.status)).forEach(e=>{const r=zoneRegion(e.zone);if(!r)return;(byReg[r]=byReg[r]||[]).push(e);});
@@ -13461,7 +13467,8 @@ function renderMedico(){medDbLoad();
   const p=STATE.players[e.name]||{};const ph=p.avatar||window.__AVATAR__;
   const st=e.status&&PHYSTAT[e.status]?PHYSTAT[e.status]:null;
   const days=medDaysBetween(e.dk,e.closeDk||medToday());
-  const fase=e.kind==='lesion'&&e.phases.length?('F'+(e.phaseIdx+1)+' · '+(e.phases[e.phaseIdx]||{}).nom):'';
+  /* v834 · un episodio sin lista de fases (de otra versión, o reconstruido) no puede dejar Médico en blanco */
+  const fase=e.kind==='lesion'&&e.phases&&e.phases.length?('F'+(e.phaseIdx+1)+' · '+(e.phases[e.phaseIdx]||{}).nom):'';
   return '<div class="medcard'+(e.id===MED_SEL?' on':'')+'" onclick="MED_SEL=\''+e.id+'\';renderMedico()">'
    +'<span class="mc-days">'+days+' d</span>'
    +'<div class="mc-top"><img src="'+ph+'"><div><div class="mc-nm">'+medEsc(e.name)+'</div><div class="mc-ti">'+medEsc(e.title)+'</div></div></div>'
@@ -13588,7 +13595,7 @@ function medDetailHtml(e){if(!e)return '';
   +'<button class="med-chipbtn" onclick="medDelete(\''+e.id+'\')" style="color:var(--bad-text)">Eliminar</button>'
   +'</div>';
  let phasesHtml='';
- if(e.kind==='lesion'&&e.phases.length){
+ if(e.kind==='lesion'&&e.phases&&e.phases.length){
   const stepper='<div class="med-step">'+e.phases.map((f,i)=>{
    const cls=i<e.phaseIdx?'done':(i===e.phaseIdx?'cur':'');
    return '<div class="ms-it '+cls+'" onclick="medGoPhase(\''+e.id+'\','+i+')"><div class="ms-dot">'+(i<e.phaseIdx?'✓':(i+1))+'</div><div class="ms-lab">'+medEsc(f.nom)+'</div><div class="ms-sub">'+medEsc(f.sub||'')+'</div></div>';
@@ -21475,7 +21482,7 @@ function ijHTML(D,doc){
       if(x.prev!=null){const d=x.v-x.prev;const mejor=x.def.lowerBetter?d<0:d>0;const c=Math.abs(d)<1e-9||neu.indexOf(x.k)>=0?'var(--muted)':(mejor?'var(--ok-text)':'var(--warn-text)');
         dl='<em style="color:'+c+'">'+(d>0?'▲ +':d<0?'▼ −':'= ')+fmt(Math.abs(d),2)+'</em>';}
       return '<div class="ij-f"><span>'+ddmm(x.dk)+'</span><b>'+E(x.def.name)+'</b><strong>'+fmt(x.v,2)+E(u)+'</strong>'+dl+'</div>';}).join('')+'</section>':'';
-  const sal=D.salud.length?'<section class="ij-s"><h3>Salud</h3>'+D.salud.map(x=>'<div class="ij-f"><span>'+ddmm(x.dk)+'</span><b>'+E(x.tit)+(x.zona?' · '+E(x.zona):'')+'</b><em>'+(x.open?'abierto':'alta '+ddmm(x.cierre))+'</em></div>').join('')+'</section>':'';
+  const sal=D.salud.length?'<section class="ij-s"><h3>Salud</h3>'+D.salud.map(x=>'<div class="ij-f"><span>'+ddmm(x.dk)+'</span><b>'+E(x.tit)+(x.zona?' · '+E(x.zona):'')+'</b><em>'+(x.open?'abierto':(x.cierre?'alta '+ddmm(x.cierre):'cerrado'))+'</em></div>').join('')+'</section>':'';
   return '<div class="ij-ks">'+kp+'</div>'+sem+'<div class="ij-dos">'+par+pru+sal+'</div>'
     +'<p class="ij-pie">Carga = RPE × minutos. Su día normal: la mediana de sus días con carga de esta temporada; un día sin cuestionario no cuenta como cero.</p>';
 }
@@ -24430,7 +24437,7 @@ function go(v){const _y0=window.scrollY||0;try{bmScSale(_y0);}catch(e){}const ES
    tiene contenido, no se repinta. Cualquier llamada desde dentro de la
    pantalla —cambiar un filtro, guardar algo— pinta como siempre y anota la
    nueva clave. Ante la duda, repinta: una clave de más sólo cuesta tiempo. */
-const BMRP={k:{},go:false,saltos:0};
+const BMRP={k:{},go:false,saltos:0,prest:new Set()};
 const BMRP_F={renderLoad:'v-carga',renderHR:'v-hr',renderCalendar:'v-cal',renderTests:'v-tests',renderPlayersGrid:'v-jugadores',renderNutri:'v-nutri',
   renderAvail:'estado-dispo',renderParte:'estado-parte',renderFisio:'estado-fisio',renderMedico:'estado-medico'};
 const bmrpLS=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
@@ -24449,6 +24456,20 @@ function bmrpClave(fn){
   try{if(BMRP_EXTRA[fn])x+='|'+BMRP_EXTRA[fn]();}catch(e){x+='|?'+Date.now();}
   return BM_DV+'|'+(STATE.refDate?STATE.refDate.getTime():0)+'|'+dkey(new Date())+'|'+(document.documentElement.getAttribute('data-theme')||'')+'|'+(esMovil()?'m':'e')+'|'+Math.round(innerWidth/40)+'|'+(STATE.mode||'')+'|'+x;
 }
+/* v834 · La auditoría del 19/11/2026 entró en cada pantalla MIENTRAS la serie
+   de readiness de 14 días recorría los días (§2.1) y comparó lo que quedaba al
+   terminar con lo que se ve con la fecha buena: Pulsómetros, Disponibilidad,
+   Médico y Fisioterapia se quedaban pintados con el día prestado —«17
+   respondidos» pasaba a «13», un 47 % a un 53 %— hasta que se volvía a entrar.
+   `renderAll` ya se aplazaba, pero lo que pinta al navegar o al cambiar de
+   pestaña no pasa por ahí. Cada función de pintar de pantalla lleva ya este
+   envoltorio, así que es el único sitio que lo ve todo: lo pintado durante el
+   recorrido se apunta y, al acabar, se vuelve a pintar si sigue a la vista. */
+function bmrpReponer(){
+  const L=[...BMRP.prest];BMRP.prest.clear();
+  L.forEach(fn=>{try{const el=document.getElementById(BMRP_F[fn]);if(!el||!el.checkVisibility||!el.checkVisibility())return;const f=window[fn];if(typeof f==='function')f();}catch(e){console.error('bmnava · repintar tras la serie',fn,e);}});
+}
+window.bmrpReponer=bmrpReponer;
 function bmrpInstala(){
   Object.keys(BMRP_F).forEach(fn=>{const f=window[fn];if(typeof f!=='function'||f.__bmrp)return;
     const w=function(){
@@ -24460,6 +24481,8 @@ function bmrpInstala(){
       /* v833 · si se pintó durante el recorrido de la serie, lo pintado lleva la
          fecha prestada aunque la clave se anote ya con la buena: no se da por bueno */
       const c0=!!window.__RD_CALC,anota=()=>{try{BMRP.k[fn]=(c0||window.__RD_CALC)?null:bmrpClave(fn);}catch(e){}};
+      /* v834 · y se apunta para volver a pintarla cuando el recorrido acabe (`bmrpReponer`) */
+      if(c0)BMRP.prest.add(fn);
       anota();setTimeout(anota,0);setTimeout(anota,450);
       return r;};
     w.__bmrp=true;window[fn]=w;});
@@ -24791,6 +24814,8 @@ function teamReadinessSerieAsync(n){
        en la caché, se le da ese turno. La caché evita que este repintado
        vuelva a lanzar el recorrido. */
     if(window.__RD_PEND){window.__RD_PEND=false;try{renderAll();}catch(e){}}
+    /* v834 · las pantallas que se pintaron durante el recorrido, otra vez con la fecha buena */
+    try{if(typeof bmrpReponer==='function')bmrpReponer();}catch(e){}
     /* v738 · una ficha abierta mientras la serie recorría los días se pintó con
        un día prestado: se repinta con el de verdad */
     try{if(typeof fichaRepinta==='function')fichaRepinta();}catch(e){}
@@ -33542,7 +33567,7 @@ function renderAvail(){try{setTimeout(()=>{try{renderDispoPart();}catch(e){conso
   const lowPills=lowR.map(n=>`<span class="wpill" onclick="openPlayer('${esc(n)}')"><span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--${STATE.players[n].sev})"></span>${n} <b style="color:${colTexto('var(--'+(STATE.players[n].sev)+')')}">${STATE.players[n].readiness}</b></span>`).join('')||'<span class="small muted">Sin readiness en zona de aviso.</span>';
   const zoneBars=regS.length?regS.map(([r,c])=>`<div class="avz-row"><div class="avz-lab">${regLbl[r]||r}</div><div class="avz-track"><div class="avz-bar" style="width:${Math.round(c/regMax*100)}%"></div></div><div class="mono" style="text-align:right">${c}</div></div>`).join(''):'<div class="small muted">Sin incidencias.</div>';
   const posOutRows=Object.keys(posOut).length?Object.entries(posOut).sort((a,b)=>b[1]-a[1]).map(([p,c])=>`<div class="pos-baja-row"><span>${p}</span><b style="color:var(--bad-text)">${c}</b></div>`).join(''):'<div class="small" style="color:var(--ok-text)">Sin bajas por posición.</div>';
-  const tmr=new Date(today);tmr.setDate(tmr.getDate()+1);const tmrk=tmr.toISOString().slice(0,10);
+  const tmr=new Date(today);tmr.setDate(tmr.getDate()+1);const tmrk=dkey(tmr);/* v834 · en hora local: toISOString es UTC y de 0:00 a 1:00 daba hoy */
   const planRows=plans.length?plans.map(o=>{const st=PHYSTAT[o.e.status]||{lab:o.e.status,c:'var(--muted)'};const d=o.e.date.toLocaleDateString('es',{weekday:'short',day:'2-digit',month:'short'});const del=o.e.user?`<button class="phys-del" onclick="event.stopPropagation();availDelPlan('${esc(o.n)}','${o.e._id}')">✕</button>`:'';return `<div class="plan-row"><span class="phys-date" style="width:86px">${d}</span><b style="flex:1">${o.n}</b><span class="tag" style="border-color:${st.c};color:${colTexto(st.c)}">${st.lab}</span><span class="small muted">${o.e.zone||o.e.note||''}</span>${del}</div>`;}).join(''):'<div class="small muted">Sin previsiones. Marca abajo a quien no vaya a entrenar mañana.</div>';
   const psel=roster.map(n=>`<option>${n}</option>`).join('');
   const planForm=`<div class="plan-form">
@@ -42138,10 +42163,10 @@ function renderTeamStrip(){
   const psEq=ps.filter(p=>!(typeof conLaSeleccion==='function'&&conLaSeleccion(p.name,dkSt)));
   const rdyM=mean(psEq.map(p=>p.readiness).filter(x=>x!=null));
   const acM=mean(psEq.map(p=>p.acwr?p.acwr.ratio:NaN).filter(x=>!isNaN(x)));
-  let disp=0,care=0,fisico=0,otro=0;
+  let disp=0,care=0,fisico=0,otro=0;const fisN=[];
   ps.forEach(p=>{let st=null;try{const ev=effectiveStatus(p.name,dkSt);st=ev&&ev.status;}catch(e){}
     if(!st||st==='disp'||st==='partido')disp++;
-    else if(NOAV_FIS_ST.indexOf(st)>=0)fisico++;
+    else if(NOAV_FIS_ST.indexOf(st)>=0){fisico++;fisN.push(p.name);}
     else if(NOFIS_ST.indexOf(st)>=0)otro++;
     else care++;});
   /* v502 · el recuento del parte ya descuenta a los de seleccion (v500) y aqui
@@ -42175,7 +42200,8 @@ function renderTeamStrip(){
     ${t('Readiness medio',isNaN(rdyM)?'—':Math.round(rdyM),'del equipo',isNaN(rdyM)?'muted':(rdyM>=75?'ok':rdyM>=55?'warn':'bad'),ser.rdy)}
     ${t('Disponibles',disp+' <small>/ '+ps.length+'</small>','sin limitación',disp===ps.length?'ok':'txt',ser.disp)}
     ${t('Con molestia',care,care?'siguen entrenando':'ninguno',care?'warn':'ok',ser.care)}
-    ${t('Fuera · físico',fisico,otro?otro+' fuera por otro motivo':'sin bajas',fisico?'bad':'ok',ser.fis)}
+    ${t('Fuera · físico',fisico,/* v834 · con alguien fuera decía «sin bajas»: ahora dice quién (hasta dos) y si hay otros motivos */
+      [fisico?(fisico<=2?fisN.map(n=>bmEsc(typeof cvCorto==='function'?cvCorto(n):n.split(' ')[0])).join(', '):'no entrenan'):(otro?'':'sin bajas'),otro?otro+' fuera por otro motivo':''].filter(Boolean).join(' · '),fisico?'bad':'ok',ser.fis)}
     ${t('ACWR medio',isNaN(acM)?'—':acM.toFixed(2).replace('.',','),riesgo?riesgo+' por encima de 1,5':'ninguno en pico',isNaN(acM)?'muted':(acM>1.5||acM<0.8?'bad':acM>1.3?'warn':'ok'),ser.acwr)}
     ${t('Wellness hoy',pctW+'<small>%</small>',respHoy+' de '+nEq+' han respondido'+(selHoy.length?' · '+selHoy.length+' con la selección':''),pctW>=80?'ok':pctW>=50?'warn':'bad',ser.well)}
   </div>`;
@@ -44824,7 +44850,7 @@ function calDiaCol(dk,i,real,mdMap,todayDk,wdL){
         <div class="cw-load-row"><span>Real</span><b style="color:var(--c-data,#3f5572)">${rv!=null?rv+' UA':'—'}</b></div>
         ${dev?`<div class="cw-dev" style="--vc:${dev.col}">${dev.arrow} ${dev.pct>0?'+':''}${dev.pct}%</div>`:''}
       </div>
-      ${bajas.length?`<div class="cw-bajas" title="${bajas.map(b=>b.name+(b.zone?' ('+b.zone+')':'')).join(', ')}">⚕ ${bajas.length} baja${bajas.length>1?'s':''}</div>`:''}
+      ${bajas.length?`<div class="cw-bajas" title="${bmEsc(bajas.map(b=>b.name+(b.zone?' ('+b.zone+')':'')).join(', '))}">⚕ ${bajas.length} baja${bajas.length>1?'s':''}</div>`:''}
     </div>`;
 }
 function renderCalWeek(box){
