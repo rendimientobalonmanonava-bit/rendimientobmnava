@@ -25325,6 +25325,56 @@ document.addEventListener('keydown',e=>{
   setTimeout(mira,60);setTimeout(mira,320);
 },true);
 window.bmhudMuestra=bmhudMuestra;
+/* ═══ v852 · LA PANTALLA SE ALEJA AL ABRIR UNA HOJA (MÓVIL) ═══
+   Daniel, 19/11/2026, propuesta 7. Al abrir un formulario o una hoja alta, el
+   fondo sólo se oscurecía. Ahora, como en iOS, la app de detrás encoge un poco
+   y se queda como una tarjeta con las esquinas redondeadas sobre negro, y
+   vuelve a su sitio al cerrarla. Sólo con las hojas altas —más de un 60 % de
+   la pantalla—: una hoja a media altura (v607), un menú o una pregunta no la
+   empujan, igual que en iOS. Se encogen a la vez la página, la cabecera, la
+   barra de abajo y los botones flotantes, cada uno con su punto de giro en el
+   mismo sitio de la pantalla para que se muevan como una sola pieza; las
+   esquinas las dibuja un marco fijo por encima (`#bm-marco`). Nada con
+   «Reducir movimiento» ni con una tabla a pantalla completa (v588). */
+const BMHON={on:false,t:null,piezas:'main,header,#tabbar,#bm-pri,#bm-atras'};
+function bmHondoAlto(){
+  const H=window.innerHeight||800;
+  /* lo que se VE de la hoja: una a media altura (v607) puede medir más y estar desplazada hacia abajo */
+  const alta=el=>{if(!el)return false;const r=el.getBoundingClientRect();return Math.min(r.bottom,H)-Math.max(r.top,0)>=H*.6;};
+  for(const h of document.querySelectorAll('.bmh.on.vis')){const c=h.querySelector('.bmh-caja');if(!c||c.classList.contains('bm-medio'))continue;if(alta(c))return true;}
+  for(const id of ['ph-overlay','med-overlay','info-overlay']){const o=document.getElementById(id);if(!o||getComputedStyle(o).display==='none')continue;
+    const m=[...o.children].find(x=>x.nodeType===1);if(m&&!m.classList.contains('bm-medio')&&alta(m))return true;}
+  const dr=document.getElementById('drawer'),dov=document.getElementById('drawer-ov');
+  if(dr&&dov&&dov.classList.contains('on')&&!dr.classList.contains('bm-medio')&&alta(dr))return true;
+  if(document.body.classList.contains('sb-open')){const sb=document.getElementById('sidebar');if(alta(sb))return true;}
+  return false;
+}
+function bmHondo(){
+  let quiere=false;
+  try{quiere=esMovil()&&!bmReduce()&&!document.querySelector('.bm-tv')&&bmHondoAlto();}catch(e){}
+  if(quiere===BMHON.on)return;
+  BMHON.on=quiere;const html=document.documentElement;
+  if(quiere){
+    const W=window.innerWidth||375;
+    document.querySelectorAll(BMHON.piezas).forEach(el=>{const r=el.getBoundingClientRect();el.style.transformOrigin=(W/2-r.left).toFixed(1)+'px '+(-r.top).toFixed(1)+'px';});
+    let m=document.getElementById('bm-marco');if(!m){m=document.createElement('div');m.id='bm-marco';m.setAttribute('aria-hidden','true');document.body.appendChild(m);}
+    html.classList.add('bm-hondo-anda');void m.offsetWidth;html.classList.add('bm-hondo');
+  }else{
+    html.classList.remove('bm-hondo');clearTimeout(BMHON.t);
+    BMHON.t=setTimeout(()=>{if(!BMHON.on)html.classList.remove('bm-hondo-anda');},420);
+  }
+}
+function bmHondoPronto(){bmTrasPintar(bmHondo);setTimeout(bmHondo,340);}
+function bmHondoInstala(){
+  ['bmHoja','bmHojaCierra','sbToggleMobile'].forEach(n=>{const f=window[n];if(typeof f!=='function'||f.__bmhon)return;
+    const w=function(){const r=f.apply(this,arguments);try{bmHondoPronto();}catch(e){}return r;};w.__bmhon=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(e){}});window[n]=w;});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmHondoInstala,0));else setTimeout(bmHondoInstala,0);
+/* tirar de una hoja a media altura hasta arriba (o al revés) también cuenta */
+document.addEventListener('pointerup',()=>{if(esMovil())setTimeout(()=>{try{bmHondo();}catch(e){}},360);},{passive:true,capture:true});
+/* al entrar en un campo, la hoja a media altura se abre entera (v607) */
+document.addEventListener('focusin',()=>{if(esMovil())setTimeout(()=>{try{bmHondo();}catch(e){}},380);},true);
+window.bmHondo=bmHondo;
 
 
 
@@ -33351,6 +33401,8 @@ function modalLockSync(){
   try{if(typeof bmEscSync==='function')bmEscSync();}catch(e){}
   /* v849 · los formularios entran y salen como hojas de macOS */
   try{if(typeof bmFormAnim==='function')bmFormAnim();}catch(e){}
+  /* v852 · y en el móvil, la pantalla de detrás se aleja */
+  try{if(typeof bmHondoPronto==='function')bmHondoPronto();}catch(e){}
   const abierto=modalAnyOpen();
   if(abierto===document.body.classList.contains('modal-open'))return;
   document.body.classList.toggle('modal-open',abierto);
@@ -61662,6 +61714,18 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--hud-bg:rgba(44,44,48,.88);--hud-txt:#f5f5f7;--hud-sub:#a8aab2}}
 :root[data-theme="dark"]{--hud-bg:rgba(44,44,48,.88);--hud-txt:#f5f5f7;--hud-sub:#a8aab2}
 @media (prefers-reduced-motion:reduce){#bm-hud,#bm-hud.on{transition:opacity .12s ease!important;transform:translate(-50%,-50%)!important}}
+</style>
+<style id="bm-v852">
+/* v852 · la pantalla se aleja al abrir una hoja (móvil) */
+#bm-marco{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  html.bm-hondo-anda :is(main,header,#tabbar,#bm-pri,#bm-atras){transition:transform .4s cubic-bezier(.32,.72,0,1),border-radius .4s cubic-bezier(.32,.72,0,1);will-change:transform}
+  html.bm-hondo :is(main,header,#tabbar,#bm-pri,#bm-atras){transform:translateY(calc(env(safe-area-inset-top,0px) + 10px)) scale(.93)}
+  html.bm-hondo-anda #bm-marco{display:block;position:fixed;inset:0;pointer-events:none;z-index:999;border-radius:14px;
+    box-shadow:0 0 0 120vmax #000;transform-origin:50% 0;transform:none;opacity:0;
+    transition:transform .4s cubic-bezier(.32,.72,0,1),opacity .3s ease}
+  html.bm-hondo #bm-marco{opacity:1;transform:translateY(calc(env(safe-area-inset-top,0px) + 10px)) scale(.93)}
+}
 </style>
 </body>
 </html>
