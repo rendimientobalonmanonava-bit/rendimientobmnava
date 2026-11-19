@@ -24679,11 +24679,24 @@ function bmsegAnima(c0,key,pt,from,intento){
   setTimeout(fin,700);
 }
 document.addEventListener('click',e=>{
+  if(window.__BM_SEGPASA)return;   /* v841 · el clic que se devuelve después de marcar */
   const b=e.target&&e.target.closest&&e.target.closest('button,[role="tab"]');if(!b)return;
   const c=b.parentElement;if(!c||!c.matches||!c.matches(BMSEG_SEL))return;
   const hs=bmsegBotones(c);if(hs.length<2)return;
   const old=bmsegElegido(c);if(old.length!==1||old[0]===b)return;
-  window.__BM_TABDIR=hs.indexOf(b)>hs.indexOf(old[0])?1:-1;clearTimeout(window.__BM_TABDIR_T);window.__BM_TABDIR_T=setTimeout(()=>{window.__BM_TABDIR=null;},500);
+  const dir=hs.indexOf(b)>hs.indexOf(old[0])?1:-1;
+  window.__BM_TABDIR=dir;clearTimeout(window.__BM_TABDIR_T);window.__BM_TABDIR_T=setTimeout(()=>{window.__BM_TABDIR=null;},500);
+  /* v841 · En el ordenador, en las barras que no se repintan enteras, la marca
+     se mueve y el contenido se atenúa EN EL MISMO CLIC, y lo que pinta la
+     pestaña va en el fotograma siguiente (la regla del menú lateral, v771). */
+  if(!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&e.isTrusted&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&!e.altKey&&c.matches(BMSEG_YA)&&c.getBoundingClientRect().width){
+    e.stopImmediatePropagation();e.preventDefault();
+    try{bmsegYa(c,old[0],b);}catch(err){}
+    document.documentElement.classList.add('bm-yendo');
+    const ini={bubbles:true,cancelable:true,button:e.button,clientX:e.clientX,clientY:e.clientY};
+    bmTrasPintar(()=>{window.__BM_SEGPASA=true;window.__BM_TABDIR=dir;
+      try{b.dispatchEvent(new MouseEvent('click',ini));}finally{window.__BM_SEGPASA=false;document.documentElement.classList.remove('bm-yendo');}});
+    return;}
   if(bmReduce())return;
   const r=old[0].getBoundingClientRect();if(!r.width)return;
   const cb=b.getBoundingClientRect();
@@ -24832,6 +24845,39 @@ document.addEventListener('mouseout',e=>{if(!BMTIP.el)return;const r=e.relatedTa
 ['mousedown','wheel','keydown'].forEach(ev=>document.addEventListener(ev,()=>{if(BMTIP.el)bmTipOculta();},{passive:true,capture:true}));
 window.addEventListener('scroll',()=>{if(BMTIP.vis)bmTipOculta();},{passive:true,capture:true});
 window.bmTipOculta=bmTipOculta;
+/* ═══ v841 · RESPONDER EN EL MISMO INSTANTE DEL CLIC (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 7. El menú lateral ya respondía al momento
+   (v771); las pestañas de la barra de arriba —Cargas, Estado, Pulsómetros,
+   Perfil físico, la ficha— no: el clic dejaba la pantalla quieta lo que
+   tardase en pintarse (80–110 ms). Ahora la marca se desliza y lo de debajo se
+   atenúa en el mismo clic, y la pestaña se pinta en el fotograma siguiente.
+   La marca se mueve con `transform`, que el navegador anima aunque esté
+   ocupado pintando, así que no se congela a mitad. **Se midió preparar la
+   pantalla al pasar el ratón por el menú**: calentando los cálculos sólo se
+   ganaba un 10–15 % (Cargas de 94 a 80 ms), así que no se hace. */
+const BMSEG_YA='#bm-tbs,.seg,.estado-seg,.tsm-bar,#plt-bar,.cal-modetog';
+function bmsegYa(c,oldB,newB){
+  const fr=oldB.getBoundingClientRect(),to=newB.getBoundingClientRect();
+  const cs=getComputedStyle(oldB);
+  const f={bg:cs.backgroundColor,bi:cs.backgroundImage,r:cs.borderRadius,sh:cs.boxShadow,bb:cs.borderBottomWidth+' '+cs.borderBottomStyle+' '+cs.borderBottomColor};
+  /* las clases cambian ya: el texto de la elegida se ve en su sitio desde el primer instante */
+  oldB.classList.remove('on');newB.classList.add('on');
+  if(oldB.hasAttribute('aria-pressed'))oldB.setAttribute('aria-pressed','false');if(newB.hasAttribute('aria-pressed'))newB.setAttribute('aria-pressed','true');
+  if(oldB.hasAttribute('aria-selected'))oldB.setAttribute('aria-selected','false');if(newB.hasAttribute('aria-selected'))newB.setAttribute('aria-selected','true');
+  if(bmReduce()||!fr.width||!to.width)return;
+  const cr=c.getBoundingClientRect(),dx=c.scrollLeft-c.clientLeft-cr.left,dy=c.scrollTop-c.clientTop-cr.top;
+  const est=c.getAttribute('style');if(getComputedStyle(c).position==='static')c.style.position='relative';
+  c.classList.add('bmseg-anda');
+  const g=document.createElement('i');g.className='bmseg-g';g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{position:'absolute',left:(fr.left+dx)+'px',top:(fr.top+dy)+'px',width:fr.width+'px',height:fr.height+'px',backgroundColor:f.bg,backgroundImage:f.bi,borderRadius:f.r,boxShadow:f.sh,borderBottom:f.bb,boxSizing:'border-box',zIndex:'0',pointerEvents:'none',margin:'0',padding:'0',display:'block',transformOrigin:'0 0'});
+  c.appendChild(g);
+  let hecho=false;const fin=()=>{if(hecho)return;hecho=true;g.remove();c.classList.remove('bmseg-anda');if(est==null)c.removeAttribute('style');else c.setAttribute('style',est);};
+  try{const a=g.animate([{transform:'none'},{transform:'translate('+(to.left-fr.left)+'px,'+(to.top-fr.top)+'px) scale('+(to.width/fr.width)+','+(to.height/fr.height)+')'}],
+    {duration:300,easing:'cubic-bezier(.32,.72,0,1)',fill:'forwards'});a.onfinish=fin;a.oncancel=fin;}catch(e){fin();}
+  setTimeout(fin,700);
+}
+window.bmsegYa=bmsegYa;
+
 
 
 
@@ -61100,6 +61146,12 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)verComprob
 #bm-tip.on{opacity:1;transform:none;visibility:visible}
 html[data-theme="dark"] #bm-tip{--tip-bg:rgba(44,44,48,.98);box-shadow:0 0 0 .5px rgba(255,255,255,.14),0 8px 22px rgba(0,0,0,.45)}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){#bm-tip{display:none}}
+</style>
+<style id="bm-v841">
+/* v841 · mientras la marca viaja, la pestaña elegida no pinta su fondo */
+.bmseg-anda{isolation:isolate}
+.bmseg-anda>button,.bmseg-anda>[role="tab"]{position:relative;z-index:1}
+.bmseg-anda>.on,.bmseg-anda>[aria-pressed="true"],.bmseg-anda>[aria-selected="true"]{background:transparent!important;box-shadow:none!important;border-bottom-color:transparent!important}
 </style>
 </body>
 </html>
