@@ -26634,6 +26634,84 @@ function bmdgInstala(){const f=window.renderAvail;if(typeof f!=='function'||f.__
     const r=f.apply(this,arguments);try{if(antes&&antes.size)bmdgAnima(antes);}catch(_){}return r;};
   w.__bmdg=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.renderAvail=w;}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmdgInstala,200));else setTimeout(bmdgInstala,200);
+/* ═══ v882 · LO QUE ACABAS DE GUARDAR SE ILUMINA EN SU SITIO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 2. Al guardar un tratamiento, un parte, una nota
+   o una lesión, el botón decía «Guardado» (v842) pero nada señalaba dónde había
+   quedado. Ahora la fila o la tarjeta nueva de la pantalla que estás viendo se
+   enciende un momento con el color de acción y se apaga despacio, como Mail al
+   mover un mensaje. **Cómo sabe cuál es**, sin tocar ningún formulario: al
+   pulsar «Guardar» se apunta el texto de cada elemento de lista de la pantalla
+   (lo que se repite entre hermanos: filas, tarjetas, pastillas) y, al repintarse,
+   lo que no estaba antes es lo nuevo. Se queda con lo de fuera (la fila, no sus
+   celdas) y sólo lo ilumina si son una o dos cosas a la vista: si cambia media
+   pantalla —otro día, otra sesión— no ilumina nada, porque no sabría qué es. */
+const BMGU={antes:null,t:0,añ:[],tok:0};
+function bmguVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmguTxt(e){return (e.textContent||'').replace(/\s+/g,' ').trim().slice(0,240);}
+function bmguItems(root){
+  const out=[];if(!root||root.nodeType!==1)return out;
+  const ps=[root,...root.querySelectorAll('*')];
+  for(const p of ps){const ch=p.children;if(!ch||ch.length<2||ch.length>500||p.closest('svg,select,option,.bmh,header,nav'))continue;
+    const g=new Map();for(const c of ch){const k=c.tagName+'.'+(typeof c.className==='string'?c.className.trim().split(/\s+/)[0]:'');g.set(k,(g.get(k)||[]).concat([c]));}
+    g.forEach(l=>{if(l.length>=2)l.forEach(c=>{const t=bmguTxt(c);if(t.length>=6)out.push({e:c,t,n:l.length});});});}
+  return out;
+}
+const BMGU_MO=new MutationObserver(ms=>{if(!BMGU.antes||Date.now()-BMGU.t>2000)return;ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1)BMGU.añ.push(n);}));});
+function bmguArma(){const m=document.querySelector('main');if(m)BMGU_MO.observe(m,{childList:true,subtree:true});}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmguArma);else bmguArma();
+function bmguColor(){const v=document.querySelector('main>.view.on')||document.body;const c=getComputedStyle(v).getPropertyValue('--accent').trim()||'#3056c4';
+  const d=document.createElement('i');d.style.color=c;document.body.appendChild(d);const rgb=getComputedStyle(d).color;d.remove();const m=rgb.match(/\d+(\.\d+)?/g)||[48,86,196];return m.slice(0,3).join(',');}
+function bmguIlumina(e,delay){
+  const rgb=bmguColor(),bg=getComputedStyle(e).backgroundColor;
+  try{e.animate([{backgroundColor:'rgba('+rgb+',.16)',boxShadow:'inset 0 0 0 1.5px rgba('+rgb+',.55)'},
+    {backgroundColor:'rgba('+rgb+',.16)',boxShadow:'inset 0 0 0 1.5px rgba('+rgb+',.55)',offset:.3},
+    {backgroundColor:bg,boxShadow:'inset 0 0 0 1.5px rgba('+rgb+',0)'}],{duration:2200,delay,easing:'ease-out',fill:'backwards'});}catch(_){}
+}
+function bmguMira(tok,caja){
+  if(tok!==BMGU.tok||!BMGU.antes)return;
+  const v=document.querySelector('main>.view.on');const añ=BMGU.añ.splice(0);const antes=BMGU.antes;BMGU.antes=null;
+  if(!v||!añ.length)return;
+  /* sólo si se guardó: la hoja se cerró o salió un aviso de éxito (la regla de la v842) */
+  const av=(typeof BMOK!=='undefined'?BMOK.avisos:[]).filter(x=>x.t>=BMGU.t-20);
+  const mal=av.some(x=>BMOK_MAL.test(x.m)&&!BMOK_BIEN.test(x.m)),bien=av.some(x=>BMOK_BIEN.test(x.m));
+  const cerrada=!caja||!caja.isConnected||!bmokVisible(caja);if(mal||!(bien||cerrada))return;
+  const H=innerHeight;let nuevos=[];
+  let raices=[...new Set(añ.filter(n=>n.isConnected&&v.contains(n)).map(n=>n.parentElement||n))];
+  raices=raices.filter(r=>!raices.some(o=>o!==r&&o.contains(r)));
+  let todos=[];raices.forEach(r=>{todos=todos.concat(bmguItems(r));});
+  todos=todos.filter((x,i,a)=>a.findIndex(y=>y.e===x.e)===i);
+  todos.forEach(x=>{x.nuevo=!antes.has(x.t);});
+  const cabe=e=>{const r=e.getBoundingClientRect();return r.width>=120&&r.height>=16&&r.height<=420&&r.bottom>0&&r.top<H;};
+  /* lo nuevo de verdad es lo más interior: un grupo que sólo ha perdido o ganado
+     a alguien cambia de texto, pero lo que hay dentro ya estaba */
+  todos.filter(x=>x.nuevo).forEach(x=>{
+    const dentro=todos.filter(y=>y!==x&&x.e.contains(y.e));
+    if(dentro.some(y=>y.nuevo))return;
+    if(dentro.length&&dentro.every(y=>!y.nuevo))return;
+    let c=x;if(!cabe(c.e)){c=todos.filter(y=>y!==x&&y.e.contains(x.e)&&cabe(y.e)).sort((a,b)=>a.e.contains(b.e)?1:-1)[0];}
+    if(c&&cabe(c.e))nuevos.push(c);});
+  nuevos=nuevos.filter((x,i,a)=>a.findIndex(y=>y.e===x.e)===i);
+  nuevos=nuevos.filter(x=>!nuevos.some(y=>y!==x&&y.e.contains(x.e)));
+  /* si en el formulario había un jugador, lo suyo primero */
+  const quien=(BMGU.nombres||[]);if(quien.length){const suyos=nuevos.filter(x=>quien.some(q=>x.t.indexOf(q)>=0));if(suyos.length)nuevos=suyos;}
+  if(!nuevos.length||nuevos.length>6)return;
+  nuevos.sort((a,b)=>b.n-a.n);
+  const espera=document.querySelector('.bmh.on,#ph-overlay.on')?320:120;
+  nuevos.slice(0,3).forEach((x,i)=>bmguIlumina(x.e,espera+i*90));
+}
+document.addEventListener('click',e=>{
+  if(!bmguVale()||!e.target||!e.target.closest)return;
+  const b=e.target.closest('button');if(!b)return;
+  const txt=(b.textContent||'').replace(/^[^A-Za-zÁÉÍÓÚÑáéíóúñ]+/,'').trim();if(!BMOK_BOTON.test(txt))return;
+  const caja=bmokCaja(b);if(!caja)return;
+  const v=document.querySelector('main>.view.on');if(!v)return;
+  BMGU.antes=new Set(bmguItems(v).map(x=>x.t));BMGU.t=Date.now();BMGU.añ=[];const tok=++BMGU.tok;
+  /* el jugador del formulario: su nombre entero, o nombre y primer apellido, o su nombre de pila si nadie más lo lleva */
+  try{const txt=caja.textContent+' '+[...caja.querySelectorAll('select')].map(x=>x.selectedOptions&&x.selectedOptions[0]?x.selectedOptions[0].textContent:'').join(' ')+' '+[...caja.querySelectorAll('input')].map(x=>x.value||'').join(' ');
+    const ns=Object.keys(STATE.players||{}),pila=n=>n.split(' ')[0];
+    BMGU.nombres=[];ns.forEach(n=>{const dos=n.split(' ').slice(0,2).join(' ');if(txt.indexOf(n)>=0||txt.indexOf(dos)>=0){BMGU.nombres.push(dos);if(ns.filter(m=>pila(m)===pila(n)).length===1)BMGU.nombres.push(pila(n));}});}catch(_){BMGU.nombres=[];}
+  setTimeout(()=>{try{bmguMira(tok,caja);}catch(err){console.error('bmnava · lo guardado',err);}},700);
+},true);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
