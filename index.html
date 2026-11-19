@@ -26556,6 +26556,40 @@ function bmcuMira(nodos){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else ini();
 })();
 window.bmcuEntra=bmcuEntra;
+/* ═══ v878 · LOS MENÚS, VIVOS (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 7. En los menús de la app —el «⋯» de la barra,
+   «Añadir datos», el clic derecho— el resalte saltaba de una fila a otra. Ahora
+   es una pieza que se desliza bajo el ratón y con las flechas, en 0,15 s, y la
+   fila se pone en blanco cuando el resalte llega a ella (antes, el texto blanco
+   quedaría sobre el fondo claro del menú). Sobre un separador o un rótulo, el
+   resalte se apaga, como en macOS. Las acciones, el teclado y los colores son
+   los de siempre: sólo cambia cómo se mueve el resalte. */
+const BMMV={cur:null,t:null};
+function bmmvVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmmvMenu(el){return el&&el.closest?el.closest('#bm-mm,#bm-tbm'):null;}
+function bmmvMueve(m,b){
+  if(!bmmvVale())return;
+  let p=m.querySelector(':scope>.bmmm-pill');const nuevo=!p;
+  if(!p){p=document.createElement('i');p.className='bmmm-pill';p.setAttribute('aria-hidden','true');m.insertBefore(p,m.firstChild);m.classList.add('bmmm-vivo');}
+  if(BMMV.cur===b&&p.classList.contains('on'))return;
+  if(BMMV.cur&&BMMV.cur!==b)BMMV.cur.classList.remove('bmmm-on');
+  BMMV.cur=b;clearTimeout(BMMV.t);
+  const salta=nuevo||!p.classList.contains('on')||bmReduce();
+  if(salta)p.style.transition='none';
+  p.style.transform='translate('+b.offsetLeft+'px,'+b.offsetTop+'px)';p.style.width=b.offsetWidth+'px';p.style.height=b.offsetHeight+'px';
+  p.classList.add('on');
+  if(salta){void p.offsetWidth;p.style.transition='';b.classList.add('bmmm-on');}
+  else BMMV.t=setTimeout(()=>{if(BMMV.cur===b)b.classList.add('bmmm-on');},70);
+}
+function bmmvSuelta(m){clearTimeout(BMMV.t);const p=m&&m.querySelector(':scope>.bmmm-pill');if(p)p.classList.remove('on');if(BMMV.cur)BMMV.cur.classList.remove('bmmm-on');BMMV.cur=null;}
+document.addEventListener('pointerover',e=>{const m=bmmvMenu(e.target);if(!m||e.pointerType==='touch')return;
+  const b=e.target.closest('button');if(b&&m.contains(b)&&!b.disabled)bmmvMueve(m,b);else if(!b)bmmvSuelta(m);},true);
+document.addEventListener('pointerout',e=>{const m=bmmvMenu(e.target);if(!m)return;
+  if((!e.relatedTarget||!m.contains(e.relatedTarget))&&!(document.activeElement&&document.activeElement!==m&&m.contains(document.activeElement)))bmmvSuelta(m);},true);
+document.addEventListener('focusin',e=>{const m=bmmvMenu(e.target);if(!m)return;const b=e.target.closest('button');if(b&&!b.disabled)bmmvMueve(m,b);},true);
+/* con las flechas, también aunque la ventana no tenga el foco del sistema (entonces no llega `focusin`) */
+document.addEventListener('keydown',e=>{if(e.key!=='ArrowDown'&&e.key!=='ArrowUp')return;const m=document.querySelector('#bm-mm,#bm-tbm');if(!m)return;
+  setTimeout(()=>{const a=document.activeElement;if(a&&a.tagName==='BUTTON'&&m.contains(a)&&!a.disabled)bmmvMueve(m,a);},0);},true);
 /* ═══ v870 · LAS CARAS INVITAN A PULSARLAS (ORDENADOR) ═══
    Daniel, 19/11/2026, propuesta 7. Al pasar el ratón, una cara no
    reaccionaba aunque al pulsarla volara hasta la ficha (v856). Ahora se
@@ -57853,6 +57887,21 @@ button.ctw-c:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   @media (max-width:1100px){#bm-fcab .fc-k:nth-child(3){display:none}}
 }
 @media (prefers-reduced-motion:reduce){#bm-fcab,#bm-fcab.on{transition:none}}
+</style>
+<style id="esc-v878">
+/* v878 · el resalte de los menús se desliza (ordenador, ratón o trackpad) */
+@media (min-width:761px) and (pointer:fine){
+  .bmmm-pill{position:absolute;left:0;top:0;z-index:0;display:block;pointer-events:none;border-radius:5px;background:var(--accent);opacity:0;
+    transition:transform .15s cubic-bezier(.32,.72,0,1),width .15s cubic-bezier(.32,.72,0,1),height .15s cubic-bezier(.32,.72,0,1),opacity .09s linear}
+  .bmmm-pill.on{opacity:1}
+  .bmmm-vivo button{position:relative;z-index:1}
+  .bm-mm.bmmm-vivo button:hover,.bm-mm.bmmm-vivo button:focus-visible,#bm-tbm.bmmm-vivo button:hover,#bm-tbm.bmmm-vivo button:focus-visible{background:none;color:var(--txt)}
+  .bm-mm.bmmm-vivo button:hover i,.bm-mm.bmmm-vivo button:focus-visible i{color:var(--muted);opacity:1}
+  .bm-mm.bmmm-vivo button:hover kbd,.bm-mm.bmmm-vivo button:focus-visible kbd,#bm-tbm.bmmm-vivo button:hover kbd,#bm-tbm.bmmm-vivo button:focus-visible kbd{color:var(--muted);opacity:1}
+  .bmmm-vivo button.bmmm-on{color:var(--on-accent,#fff)!important}
+  .bmmm-vivo button.bmmm-on i,.bmmm-vivo button.bmmm-on kbd{color:inherit!important;opacity:.85!important}
+}
+@media (prefers-reduced-motion:reduce){.bmmm-pill{transition:none}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
