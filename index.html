@@ -27069,6 +27069,36 @@ document.addEventListener('pointermove',e=>{
 document.documentElement.addEventListener('mouseleave',bmluzApaga);
 window.addEventListener('blur',bmluzApaga);
 window.addEventListener('scroll',()=>{if(BMLUZ.card&&!BMLUZ.raf)BMLUZ.raf=requestAnimationFrame(bmluzPinta);},{passive:true,capture:true});
+/* ═══ v891 · LA FOTO DE LA FICHA CON PROFUNDIDAD (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 3. Al mover el ratón por la cabecera de la
+   ficha, sus capas se desplazan a distinta velocidad, como los iconos del
+   Apple TV: la foto sin fondo se acerca hacia el ratón, el dorsal grande de
+   detrás se mueve menos y nunca hacia las cifras (en reposo ya está pegado a
+   ellas), y la luz que hay detrás de la foto se mueve
+   un poco. El texto y las cifras se quedan quietos, que es lo que se lee. Con
+   la propiedad `translate`, que se SUMA a la que ya llevan (la lección de la
+   v880), y siguiendo al ratón con un muelle suave; al salir, vuelve a su
+   sitio. Nada con «Reducir movimiento». */
+const BMPLX={el:null,tx:0,ty:0,x:0,y:0,raf:0};
+function bmplxVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmplxPaso(){BMPLX.raf=0;const el=BMPLX.el;if(!el||!el.isConnected){BMPLX.el=null;BMPLX.x=BMPLX.y=0;return;}
+  BMPLX.x+=(BMPLX.tx-BMPLX.x)*0.14;BMPLX.y+=(BMPLX.ty-BMPLX.y)*0.14;
+  const fin=Math.abs(BMPLX.tx-BMPLX.x)<0.002&&Math.abs(BMPLX.ty-BMPLX.y)<0.002;if(fin){BMPLX.x=BMPLX.tx;BMPLX.y=BMPLX.ty;}
+  el.style.setProperty('--plx',BMPLX.x.toFixed(3));el.style.setProperty('--ply',BMPLX.y.toFixed(3));
+  if(!fin)BMPLX.raf=requestAnimationFrame(bmplxPaso);
+  else if(!BMPLX.tx&&!BMPLX.ty){el.style.removeProperty('--plx');el.style.removeProperty('--ply');}}
+function bmplxCorre(){if(!BMPLX.raf)BMPLX.raf=requestAnimationFrame(bmplxPaso);}
+document.addEventListener('pointermove',e=>{
+  if(e.pointerType==='touch'||!bmplxVale())return;
+  const h=e.target&&e.target.closest?e.target.closest('#v-jugador.on .phero'):null;
+  if(!h){if(BMPLX.el&&(BMPLX.tx||BMPLX.ty)){BMPLX.tx=0;BMPLX.ty=0;bmplxCorre();}return;}
+  if(h!==BMPLX.el){if(BMPLX.el&&BMPLX.el.isConnected){BMPLX.el.style.removeProperty('--plx');BMPLX.el.style.removeProperty('--ply');}BMPLX.el=h;BMPLX.x=BMPLX.y=0;}
+  const r=h.getBoundingClientRect();if(!r.width)return;
+  BMPLX.tx=Math.max(-1,Math.min(1,(e.clientX-(r.left+r.width/2))/(r.width/2)));
+  BMPLX.ty=Math.max(-1,Math.min(1,(e.clientY-(r.top+r.height/2))/(r.height/2)));
+  bmplxCorre();
+},{passive:true});
+document.documentElement.addEventListener('mouseleave',()=>{if(BMPLX.el){BMPLX.tx=0;BMPLX.ty=0;bmplxCorre();}});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -58501,6 +58531,14 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
     background:radial-gradient(300px circle at var(--lx,50%) var(--ly,50%),var(--luz-borde),transparent 72%);
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
     mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
+}
+</style>
+<style id="esc-v891">
+/* v891 · la foto de la ficha con profundidad (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  html body #v-jugador .phero .phero-photo{translate:calc(var(--plx,0)*16px) calc(var(--ply,0)*9px)}
+  html body #v-jugador .phero .phe-dorsal{translate:clamp(0px,calc(var(--plx,0)*12px),12px) calc(var(--ply,0)*-12px)}
+  html body #v-jugador .phero{background:radial-gradient(240px 240px at calc(100% - 150px + var(--plx,0)*34px) calc(62% + var(--ply,0)*22px),var(--hero-luz),transparent 72%),linear-gradient(160deg,var(--panel) 30%,var(--hero-a) 100%)!important}
 }
 </style>
 <style id="bm-v808">
