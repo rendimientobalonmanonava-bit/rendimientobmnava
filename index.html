@@ -27924,6 +27924,39 @@ function bmhpInstala(){
     w.__bmhp=true;Object.keys(c).forEach(k=>{try{w[k]=c[k];}catch(_){}});window.bmHojaCierra=w;}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmhpInstala,120));else setTimeout(bmhpInstala,120);
+/* ═══ v908 · LA TABLA DEL CICLO CON MIRA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 8. En Cargas › Temporada, la tabla «El ciclo,
+   semana a semana» recibe la misma lectura que el mapa de la plantilla (v900):
+   al pasar el ratón por un día, su semana se ilumina y se levanta, las
+   casillas de ese día de la semana llevan un filo y su nombre en la cabecera
+   se marca. Y al llegar a la vista, las casillas se rellenan en ola, en
+   diagonal desde la semana de arriba. **No se mete nada en la tabla** —sus
+   filas tienen reglas de primera y última—: todo son clases sobre lo que ya
+   hay. El color de cada casilla no cambia. Nada con «Reducir movimiento». */
+function bmctmVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmctmQuita(){document.querySelectorAll('.ctw-mira-f,.ctw-mira-k,.ctw-mira-c,.ctw-mira-h').forEach(e=>e.classList.remove('ctw-mira-f','ctw-mira-k','ctw-mira-c','ctw-mira-h'));}
+function bmctmPon(c){
+  bmctmQuita();const r=c.parentElement,g=r&&r.parentElement;if(!r||!g)return;
+  const i=[...r.children].indexOf(c);r.classList.add('ctw-mira-f');c.classList.add('ctw-mira-c');
+  g.querySelectorAll(':scope>.ctw-r').forEach(f=>{const x=f.children[i];if(!x)return;if(f.classList.contains('ctw-h'))x.classList.add('ctw-mira-h');else if(x.classList.contains('ctw-c')&&x!==c)x.classList.add('ctw-mira-k');});}
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType==='touch'||!bmctmVale()||!e.target||!e.target.closest)return;
+  const c=e.target.closest('#v-carga .ctw-g>.ctw-r>.ctw-c');
+  if(!c){if(document.querySelector('.ctw-mira-f')&&!e.target.closest('#v-carga .ctw-g'))bmctmQuita();return;}
+  if(!c.classList.contains('ctw-mira-c'))bmctmPon(c);
+},true);
+document.addEventListener('pointerleave',e=>{if(e.target&&e.target.classList&&e.target.classList.contains('ctw-g'))bmctmQuita();},true);
+function bmctmOla(g){
+  g.dataset.bmola='1';if(!bmctmVale()||bmReduce())return;
+  const filas=[...g.querySelectorAll(':scope>.ctw-r:not(.ctw-h)')];if(!filas.length)return;
+  const anima=()=>{let fi=0;filas.forEach(f=>{const cs=[...f.children].filter(x=>x.classList.contains('ctw-c'));if(!cs.length)return;
+      cs.forEach(c=>{const k=[...f.children].indexOf(c);try{c.animate([{opacity:0,transform:'scale(.7)'},{opacity:1,transform:'scale(1.04)',offset:.7},{opacity:1,transform:'none'}],{duration:420,delay:Math.min(900,(fi+k)*22),easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}});fi++;});};
+  const vis=typeof bmradVisible==='function'?bmradVisible(g):false;
+  if(vis){if(typeof bmradRecienPedido==='function'&&bmradRecienPedido())anima();return;}
+  if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>{if(es.some(x=>x.isIntersecting)){io.disconnect();anima();}},{threshold:.15});io.observe(g);}
+}
+let BMCTM_T=0;
+new MutationObserver(()=>{if(BMCTM_T||!bmctmVale())return;BMCTM_T=setTimeout(()=>{BMCTM_T=0;document.querySelectorAll('#v-carga .ctw-g:not([data-bmola])').forEach(g=>{try{bmctmOla(g);}catch(e){console.error('bmnava · ola del ciclo',e);}});},40);}).observe(document.documentElement,{childList:true,subtree:true});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59592,6 +59625,17 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   .bmh.bmh-sobre>.bmh-fondo{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(0,0,0,.16)}
   html[data-theme="dark"] .bmh.bmh-atras>.bmh-caja{filter:brightness(.78)}
   @media (prefers-reduced-motion:reduce){.bmh>.bmh-caja{transition:none}.bmh.bmh-atras>.bmh-caja{scale:none;translate:none}}
+}
+</style>
+<style id="esc-v908">
+/* v908 · la tabla del ciclo con mira (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine){
+  #v-carga .ctw-g>.ctw-r{border-radius:10px;transition:background .15s ease,box-shadow .18s ease,translate .18s cubic-bezier(.32,.72,0,1)}
+  #v-carga .ctw-g>.ctw-r.ctw-mira-f{background:color-mix(in srgb,var(--accent) 8%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 34%,transparent),0 6px 16px rgba(0,0,0,.10);translate:0 -1px;position:relative;z-index:1}
+  #v-carga .ctw-g .ctw-c.ctw-mira-k{outline:2px solid color-mix(in srgb,var(--accent) 42%,transparent);outline-offset:0}
+  #v-carga .ctw-g .ctw-c.ctw-mira-c{outline:2px solid var(--accent);outline-offset:1px}
+  #v-carga .ctw-g .ctw-mira-h{color:var(--acc-seg,var(--accent));font-weight:700}
+  @media (prefers-reduced-motion:reduce){#v-carga .ctw-g>.ctw-r{transition:none}#v-carga .ctw-g>.ctw-r.ctw-mira-f{translate:none}}
 }
 </style>
 <style id="bm-v808">
