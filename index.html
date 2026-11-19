@@ -25866,6 +25866,60 @@ function bmDiaZoomInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmDiaZoomInstala,0));else setTimeout(bmDiaZoomInstala,0);
 window.bmDiaZoomInstala=bmDiaZoomInstala;
+/* ═══ v861 · LAS HOJAS SALEN DEL BOTÓN QUE LAS ABRE (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 6. El informe de la semana, comparar, la
+   bitácora, la carta, «Su semana», la previa del partido… aparecían en el
+   centro con un pequeño fundido, vinieran de donde vinieran. Ahora crecen
+   DESDE el botón, la fila del menú o la tarjeta que las ha abierto —como
+   macOS al abrir algo desde su icono— y, al cerrarse, vuelven a encogerse
+   hacia ese mismo sitio. El punto de salida se apunta al pulsar (`pointerdown`),
+   así que vale aunque el menú que tenía la fila ya se haya cerrado. Lo que se
+   abre con el teclado sale como siempre. Sólo con ratón o trackpad; nada con
+   «Reducir movimiento». */
+const BMORG={r:null,t:0};
+document.addEventListener('pointerdown',e=>{
+  try{const t=e.target&&e.target.closest&&e.target.closest('button,a,[role="menuitem"],[role="button"],[onclick],.bms-r,[data-bmz],[data-dk],[data-n]');
+    if(!t){BMORG.r=null;return;}const r=t.getBoundingClientRect();BMORG.r={x:r.left+r.width/2,y:r.top+r.height/2};BMORG.t=Date.now();}catch(_){}
+},{capture:true,passive:true});
+function bmorgVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmorgInstala(){
+  const f=window.bmHoja;
+  if(typeof f==='function'&&!f.__bmorg){
+    const w=function(o){
+      const id='bmh-'+((o&&o.id)||'x');const ya=document.getElementById(id);const abierta=!!(ya&&ya.classList.contains('on'));
+      const r=f.apply(this,arguments);
+      try{
+        const h=r||document.getElementById(id),c=h&&h.querySelector('.bmh-caja');
+        if(c&&!abierta&&bmorgVale()&&BMORG.r&&Date.now()-BMORG.t<900){
+          c.getAnimations().forEach(a=>a.cancel());
+          const dx=BMORG.r.x-window.innerWidth/2,dy=BMORG.r.y-window.innerHeight/2;
+          h._bmOrg={dx,dy};
+          c.animate([{transform:'translate(-50%,-50%) translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) scale(.12)',opacity:0},
+                     {opacity:1,offset:.35},
+                     {transform:'translate(-50%,-50%)',opacity:1}],{duration:440,easing:'cubic-bezier(.32,.72,0,1)'});
+        }else if(h&&!abierta)h._bmOrg=null;
+      }catch(_){}
+      return r;};
+    w.__bmorg=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.bmHoja=w;}
+  const c=window.bmHojaCierra;
+  if(typeof c==='function'&&!c.__bmorg){
+    const w=function(id){
+      try{
+        const k=id||(typeof BMH!=='undefined'&&BMH.pila&&BMH.pila[BMH.pila.length-1]);
+        const h=k&&document.getElementById(k),cj=h&&h.querySelector('.bmh-caja');
+        if(h&&cj&&h.classList.contains('on')&&h._bmOrg&&bmorgVale()){
+          const o=h._bmOrg;h._bmOrg=null;
+          const a=cj.animate([{transform:'translate(-50%,-50%)',opacity:1},
+                              {opacity:1,offset:.55},
+                              {transform:'translate(-50%,-50%) translate('+o.dx.toFixed(1)+'px,'+o.dy.toFixed(1)+'px) scale(.12)',opacity:0}],{duration:280,easing:'cubic-bezier(.4,0,.9,.6)',fill:'forwards'});
+          setTimeout(()=>{try{a.cancel();}catch(_){}},420);
+        }
+      }catch(_){}
+      return c.apply(this,arguments);};
+    w.__bmorg=true;window.bmHojaCierra=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmorgInstala,30));else setTimeout(bmorgInstala,30);
+window.bmorgInstala=bmorgInstala;
 
 
 
