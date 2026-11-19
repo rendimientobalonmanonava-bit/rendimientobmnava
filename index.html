@@ -23455,6 +23455,41 @@ const bmMorphPlugin={id:'bmMorph',
     ch.config.options=o;
   }catch(e){}}
 };
+/* ═══ v847 · LOS GRÁFICOS SE DIBUJAN CUANDO LLEGAS A ELLOS ═══
+   Daniel, 19/11/2026, propuesta 2 de la segunda tanda de respuesta. Medido: en
+   Cargas los 4 gráficos nacen por debajo de lo que se ve al entrar, en
+   Pulsómetros 2 de 3 y en la ficha el único que hay; su entrada (v778) ocurría
+   donde nadie la veía. Ahora un gráfico que nace fuera de la pantalla —o en
+   una pestaña oculta— se vuelve a dibujar desde la base la primera vez que
+   entra a la vista (`reset` + `update`, lo mismo de su primera vez). Los que
+   se transforman desde el anterior (v778) no: ya enseñan el cambio. Fuera: los
+   documentos, los micrográficos, lo que no anima y «Reducir movimiento». */
+const BMLLE={obs:null};
+function bmlleObs(){
+  if(BMLLE.obs||!('IntersectionObserver' in window))return BMLLE.obs;
+  BMLLE.obs=new IntersectionObserver(es=>{es.forEach(en=>{
+    if(!en.isIntersecting||en.intersectionRatio<.2)return;
+    const cv=en.target;BMLLE.obs.unobserve(cv);
+    const c=window.Chart&&Chart.getChart(cv);if(!c||!c.$bmLlega)return;c.$bmLlega=false;
+    try{c.reset();c.update();}catch(e){}
+  });},{threshold:[0,.2,.5]});
+  return BMLLE.obs;
+}
+const bmLlegaPlugin={id:'bmLlega',
+  afterInit(ch){try{
+    const cv=ch.canvas;if(!cv||!cv.closest||cv.closest(BMG_DOC+',#bm-gv'))return;
+    const o=ch.config.options||{};if(o.animation===false)return;
+    if(o.animations&&o.animations.x&&typeof o.animations.x.from==='function')return;   /* se transforma (v778) */
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const r=cv.getBoundingClientRect(),H=window.innerHeight||800;
+    const visto=r.width>0&&r.height>0&&r.bottom>0&&r.top<H*.92;
+    if(visto)return;
+    const h=cv.height/(window.devicePixelRatio||1);if(r.width&&(r.height<70||r.width<120))return;
+    if(!r.width&&h&&h<70)return;
+    const ob=bmlleObs();if(!ob)return;
+    ch.$bmLlega=true;ob.observe(cv);
+  }catch(e){}}
+};
 /* la hoja de notas de un día */
 /* ═══ v817 · NOTAS DIRIGIDAS ENTRE EL CUERPO TÉCNICO ═══
    Daniel, 18/11/2026, propuesta 5. Una nota puede avisar a alguien —el
@@ -26021,6 +26056,7 @@ function buildChartTheme(){
     if(!Chart.registry.plugins.get('bmMacGraf'))Chart.register(bmMacGrafPlugin);
     if(!Chart.registry.plugins.get('bmNotas'))Chart.register(bmNotasPlugin);
     if(!Chart.registry.plugins.get('bmMorph'))Chart.register(bmMorphPlugin);
+    if(!Chart.registry.plugins.get('bmLlega'))Chart.register(bmLlegaPlugin);
     if(!Chart.registry.plugins.get('bmCursor'))Chart.register(bmCursorPlugin);
     if(!Chart.registry.plugins.get('bmPartidos'))Chart.register(bmPartidosPlugin);
   }
