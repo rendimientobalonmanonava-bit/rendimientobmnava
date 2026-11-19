@@ -26870,6 +26870,34 @@ function bmsbInstala(){
     w.__bmsb=true;window.bmMenuCuentas=w;}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmsbInstala,0));else setTimeout(bmsbInstala,0);
+/* ═══ v888 · LA SESIÓN QUE ARRASTRAS CAE EN SU DÍA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 8. Al soltar una sesión en otro día del mes
+   (v762), el calendario se repintaba y la sesión aparecía en su casilla de golpe.
+   Ahora cae desde donde la sueltas hasta su sitio, con un pequeño rebote y una
+   sombra que se apaga al posarse; lo que se pega con ⌘V entra con un pulso. Se
+   apuntan las sesiones que había en el día de destino antes de soltar, y la que
+   no estaba es la nueva (nace con id nuevo, v762). */
+const BMCD={};
+function bmcdIds(dk){const c=document.querySelector('#v-cal .cal-cell[data-dk="'+dk+'"]');return new Set(c?[...c.querySelectorAll('.cal-chip[data-ev]')].map(x=>x.dataset.ev):[]);}
+function bmcdNuevos(dk,antes){const c=document.querySelector('#v-cal .cal-cell[data-dk="'+dk+'"]');return c?[...c.querySelectorAll('.cal-chip[data-ev]')].filter(x=>!antes.has(x.dataset.ev)):[];}
+function bmcdVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+window.addEventListener('drop',e=>{
+  if(!bmcdVale()||typeof BMCA==='undefined'||!BMCA.src)return;
+  const c=e.target&&e.target.closest&&e.target.closest('#v-cal .cal-cell[data-dk]');if(!c||c.dataset.dk===BMCA.src.dk)return;
+  const dk=c.dataset.dk,antes=bmcdIds(dk),x=e.clientX,y=e.clientY;
+  setTimeout(()=>{try{bmcdNuevos(dk,antes).forEach((ch,i)=>{const r=ch.getBoundingClientRect();
+    const dx=x-(r.left+r.width/2),dy=y-(r.top+r.height/2);
+    ch.animate([{transform:'translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) scale(1.12)',boxShadow:'0 14px 30px rgba(0,0,0,.25)',zIndex:5},
+      {transform:'none',boxShadow:'0 0 0 rgba(0,0,0,0)',zIndex:5}],{duration:520,delay:i*40,easing:typeof BMTB_MUELLE!=='undefined'?BMTB_MUELLE:'cubic-bezier(.32,.72,0,1)'});});}catch(_){}},0);
+},true);
+function bmcdInstala(){
+  const f=window.bmcaPega;if(typeof f!=='function'||f.__bmcd)return;
+  const w=function(dk){const antes=dk?bmcdIds(dk):null;const r=f.apply(this,arguments);
+    try{if(antes&&bmcdVale())bmcdNuevos(dk,antes).forEach((ch,i)=>ch.animate([{transform:'scale(.5)',opacity:0},{transform:'scale(1.08)',opacity:1,offset:.6},{transform:'none'}],{duration:420,delay:i*60,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'}));}catch(_){}
+    return r;};
+  w.__bmcd=true;window.bmcaPega=w;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmcdInstala,0));else setTimeout(bmcdInstala,0);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
