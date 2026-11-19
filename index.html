@@ -25779,6 +25779,7 @@ function bmCascada(v){
     try{e.animate([{opacity:0,transform:'translateY(14px) scale(.985)'},{opacity:1,transform:'none'}],
       {duration:380,delay:Math.min(i,10)*32,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}
   });
+  try{if(window.bmcuEntra)bmcuEntra(v);}catch(_){}
   return Math.min(els.length,16);
 }
 function bmCascadaInstala(){
@@ -26420,6 +26421,95 @@ setTimeout(()=>{
     const w=function(){const r=o.apply(this,arguments);try{BMFC.firma='';bmFcab();}catch(_){}return r;};w.__bmfc=1;window[f]=w;});
 },0);
 window.bmFcab=bmFcab;
+/* ═══ v875 · LAS CIFRAS GRANDES CUENTAN EN TODAS LAS PANTALLAS (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 4. Medido: sólo Pulsómetros contaba sus cifras
+   (las que llevan `data-count`, v381); las de la ficha, Alertas, Fisioterapia,
+   Cargas o la deuda de Nutrición salían quietas. Ahora toda cifra grande
+   (20 px o más) de una pantalla cuenta desde cero al entrar en ella —por el
+   menú, una pestaña o al abrir una ficha— y, si cambias de día o de jugador sin
+   salir, **rueda** desde la de antes hasta la nueva con la pieza de la v639.
+   **Se escribe con su formato** (coma decimal, punto de miles, signo y unidad)
+   en cada fotograma, así que nunca se ve un número con punto. Lo que llega más
+   abajo cuenta al llegar a ello. Un repintado que no has pedido —la
+   sincronización— no anima nada. Fuera el Resumen, el Calendario, los
+   documentos y lo que ya cuenta por su cuenta (`data-count`). Se escribe en el
+   propio nodo de texto, así que los observadores de la página ni se enteran. */
+const BMCU={prev:new Map(),obs:null,vista:0,ultVista:null};
+const BMCU_RE=/^([−\-+]?)(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?(\s?(?:%|€|UA|min|h|kg|cm|s|d))?$/;
+function bmcuVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmcuParse(t){const m=BMCU_RE.exec(t);if(!m)return null;const ent=m[2],dec=m[3]||'';
+  const a=parseFloat(ent.replace(/\./g,'')+(dec?'.'+dec:''));if(!isFinite(a))return null;
+  const neg=m[1]==='−'||m[1]==='-';return {v:neg?-a:a,signo:m[1],miles:ent.indexOf('.')>=0,dec:dec.length,suf:m[4]||''};}
+function bmcuFmt(p,v){let s=Math.abs(v).toFixed(p.dec);let [e,d]=s.split('.');if(p.miles)e=e.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  const neg=v<0&&parseFloat(s)!==0;return (neg?(p.signo==='-'?'-':'−'):(p.signo==='+'?'+':''))+e+(d?','+d:'')+p.suf;}
+function bmcuCands(root){
+  const out=[];if(!root||root.nodeType!==1)return out;
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>{const t=n.nodeValue.trim();return t&&t.length<=12&&/\d/.test(t)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT;}});
+  let n;while((n=w.nextNode())){const el=n.parentElement;if(!el||el.childNodes.length!==1)continue;
+    const t=n.nodeValue.trim(),p=bmcuParse(t);if(!p)continue;
+    if(el.closest('svg,'+BMG_DOC+',#v-equipo,#v-cal,[data-count],.bmr-d,input,select,textarea,button,option,header,nav,#bm-fcab,.phe-dorsal,#bm-tl,.bm-hud'))continue;
+    if((parseFloat(getComputedStyle(el).fontSize)||0)<20)continue;
+    out.push({el,n,t,p});}
+  return out;
+}
+function bmcuClave(el){
+  const v=el.closest('main>.view');let a=el.parentElement;while(a&&!a.id&&a!==v)a=a.parentElement;
+  const ruta=[];for(let e=el;e&&e!==a;e=e.parentElement){let i=0,x=e;while((x=x.previousElementSibling))i++;ruta.push(i);}
+  return (v?v.id:'')+'#'+(a&&a.id||'')+'/'+ruta.join('.');
+}
+function bmcuCuenta(c,desde){
+  const {el,t,p}=c;el.__bmcu=Date.now();const tok=el.__bmcu;
+  const n=el.firstChild;if(!n||n.nodeType!==3)return;
+  const v0=desde||0,v1=p.v;if(v0===v1)return;
+  const T=Math.min(900,560+String(Math.round(Math.abs(v1))).length*60),t0=performance.now();
+  el.style.fontVariantNumeric='tabular-nums';
+  n.nodeValue=bmcuFmt(p,v0);
+  const fin=()=>{if(el.__bmcu===tok&&el.firstChild===n)n.nodeValue=t;};
+  const paso=now=>{if(el.__bmcu!==tok||!n.isConnected)return;const k=Math.max(0,Math.min(1,(now-t0)/T));
+    if(k>=1){fin();return;}n.nodeValue=bmcuFmt(p,v0+(v1-v0)*(1-Math.pow(1-k,3)));requestAnimationFrame(paso);};
+  requestAnimationFrame(paso);
+  setTimeout(fin,T+250);   /* con la ventana en segundo plano no hay fotogramas: la cifra buena llega igual */
+}
+function bmcuRueda(c,de){
+  const {el,t,p}=c;const q=bmcuParse(de);if(!q)return bmcuCuenta(c,0);
+  el.__bmcu=Date.now();el.style.fontVariantNumeric='tabular-nums';
+  try{bmrRueda(el,de,t,p.v>=q.v);}catch(_){el.textContent=t;}
+}
+function bmcuObs(){
+  if(BMCU.obs||!('IntersectionObserver' in window))return BMCU.obs;
+  BMCU.obs=new IntersectionObserver(es=>es.forEach(en=>{if(!en.isIntersecting)return;const el=en.target;BMCU.obs.unobserve(el);
+    if(!el.isConnected||!bmcuVale()||Date.now()-(el.__bmcu||0)<1200)return;
+    const t=(el.textContent||'').trim(),p=bmcuParse(t);if(p&&el.__bmcuT===t)bmcuCuenta({el,t,p},0);}),{threshold:.6});
+  return BMCU.obs;
+}
+function bmcuVisible(el){const r=el.getBoundingClientRect(),H=window.innerHeight||900;return r.height>0&&r.bottom>0&&r.top<H;}
+/* entrar en una sección o una pestaña: todo cuenta desde cero */
+function bmcuEntra(root){
+  if(!bmcuVale()||!root)return;BMCU.vista=Date.now();BMCU.ultVista=STATE.view;
+  bmcuCands(root).forEach(c=>{BMCU.prev.set(bmcuClave(c.el),c.t);
+    if(Date.now()-(c.el.__bmcu||0)<1200)return;
+    if(bmcuVisible(c.el))bmcuCuenta(c,0);else{c.el.__bmcuT=c.t;const o=bmcuObs();if(o)o.observe(c.el);}});
+}
+/* lo que se pinta de nuevo: al entrar, desde cero; dentro de la misma pantalla (otro día, otro jugador), rueda */
+function bmcuMira(nodos){
+  if(!bmcuVale())return;
+  if(STATE.view!==BMCU.ultVista){BMCU.ultVista=STATE.view;BMCU.vista=Date.now();}
+  const pedido=Date.now()-(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<900,entrando=Date.now()-BMCU.vista<1200;
+  const vistos=new Set();
+  nodos.forEach(n=>{if(n.nodeType!==1||!n.isConnected||!n.closest('main'))return;
+    bmcuCands(n).forEach(c=>{if(vistos.has(c.el))return;vistos.add(c.el);
+      const k=bmcuClave(c.el),antes=BMCU.prev.get(k);BMCU.prev.set(k,c.t);
+      if(!pedido||Date.now()-(c.el.__bmcu||0)<300)return;
+      if(!bmcuVisible(c.el)){if(antes!==c.t){c.el.__bmcuT=c.t;const o=bmcuObs();if(o)o.observe(c.el);}return;}
+      if(entrando||antes==null)bmcuCuenta(c,0);
+      else if(antes!==c.t)bmcuRueda(c,antes);});});
+}
+(function(){
+  const mo=new MutationObserver(ms=>{if(!bmcuVale())return;const a=[];ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1)a.push(n);}));if(a.length)bmcuMira(a);});
+  const ini=()=>{const m=document.querySelector('main');if(m)mo.observe(m,{childList:true,subtree:true});};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else ini();
+})();
+window.bmcuEntra=bmcuEntra;
 /* ═══ v870 · LAS CARAS INVITAN A PULSARLAS (ORDENADOR) ═══
    Daniel, 19/11/2026, propuesta 7. Al pasar el ratón, una cara no
    reaccionaba aunque al pulsarla volara hasta la ficha (v856). Ahora se
@@ -26950,9 +27040,9 @@ function bmrClave(el,attr){
   const i=[...c.querySelectorAll('['+attr+']')].indexOf(el);
   return i<0?null:c.id+'|'+attr+'|'+i;
 }
-function bmrRueda(el,de,a){
+function bmrRueda(el,de,a,sentido){
   const n=Math.max(de.length,a.length),D=de.padStart(n,' '),A=a.padStart(n,' ');
-  const sube=parseFloat(a)>=parseFloat(de);
+  const sube=sentido!=null?!!sentido:parseFloat(a)>=parseFloat(de);
   let h='',j=0;
   for(let i=0;i<n;i++){
     const x=D[i],y=A[i];
