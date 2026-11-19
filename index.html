@@ -26914,6 +26914,112 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){if(typeof document.startViewTransition!=='function'||document.startViewTransition.__bmvt)return;
   const o=document.startViewTransition;const w=function(){const vt=o.apply(document,arguments);try{vt.ready.catch(()=>{});}catch(_){}return vt;};
   w.__bmvt=true;document.startViewTransition=w;})();
+/* ═══ v889 · EL SALUDO DE CADA MAÑANA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 1. La primera vez que se abre la app cada día,
+   en el centro de la ventana y sobre la app desenfocada: el saludo (con el
+   nombre de quien usa ese equipo, si lo ha dicho, `notaYo`), la fecha en
+   grande, el readiness, los disponibles, los que tienen molestia y el próximo
+   partido; y a los tres segundos —o con un clic, una tecla o la rueda— la
+   tarjeta se ENCOGE hasta «el día de un vistazo» de la barra lateral, con cada
+   cifra volando a su sitio, como el «Hola» de un Mac nuevo. **No calcula nada**:
+   las cifras se leen de esa misma tarjeta (`#sb-hoy`, que a su vez las lee de
+   la tira del Resumen), así que no pueden discrepar. Sólo una vez al día por
+   equipo (`bmnava-saludo`, con guion: no se sincroniza), sólo si se está
+   mirando hoy, con los datos ya cargados y sin nada abierto, y no si ya se ha
+   empezado a usar la app mientras cargaba. «Qué hay de nuevo» espera a que
+   termine. Nada con «Reducir movimiento». */
+const BMSAL={k:'bmnava-saludo',t0:Date.now(),on:false,tm:null,n:0,pausa:false};
+function bmsalHoy(){return dkey(new Date());}
+function bmsalPendiente(){
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino())||bmReduce())return false;
+  try{if(localStorage.getItem(BMSAL.k)===bmsalHoy())return false;}catch(e){return false;}
+  return true;
+}
+function bmsalListo(){
+  if(!window.__BM_LISTO||window.__RD_CALC||document.visibilityState!=='visible')return false;
+  if(STATE.mode==='demo')return false;
+  const sp=document.getElementById('splash');if(sp&&sp.isConnected&&sp.offsetParent!==null&&getComputedStyle(sp).display!=='none')return false;
+  const gt=document.getElementById('sy-gate');if(gt&&gt.offsetParent!==null)return false;
+  if(typeof BMH!=='undefined'&&BMH.pila&&BMH.pila.length)return false;
+  if(document.body.classList.contains('modal-open')||document.querySelector('#bm-pres.on,#bm-prev.on,#bm-spot'))return false;
+  if(!STATE.refDate||dkey(STATE.refDate)!==bmsalHoy())return false;
+  const w=document.getElementById('sb-hoy');if(!w||!w.querySelector('.sbh-c b')||!(w.checkVisibility?w.checkVisibility():w.offsetParent))return false;
+  return true;
+}
+function bmsalMira(){
+  if(BMSAL.on||!bmsalPendiente())return;
+  /* si ya se ha empezado a usar la app mientras cargaba, hoy no se interrumpe */
+  if((typeof BMPRE_U!=='undefined'?BMPRE_U:0)>BMSAL.t0+400)return;
+  if(!bmsalListo()){if(++BMSAL.n<50)setTimeout(bmsalMira,500);return;}
+  setTimeout(()=>{if(!BMSAL.on&&bmsalPendiente()&&bmsalListo()&&(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<=BMSAL.t0+400)bmSaludo();},700);
+}
+function bmSaludo(){
+  const w=document.getElementById('sb-hoy');if(!w||BMSAL.on)return false;
+  const E=bmEsc;
+  const cs=[...w.querySelectorAll('.sbh-c')].map(c=>{const b=c.querySelector('b'),l=c.querySelector('small');return {v:b?b.textContent.trim():'',col:b?b.style.color:'',l:l?l.textContent.trim():''};}).filter(x=>x.v);
+  const pe=w.querySelector('.sbh-par');
+  const par=pe?{riv:(pe.querySelector('span')||{}).textContent||'',cu:(pe.querySelector('b')||{}).textContent||'',fe:(pe.querySelector('em')||{}).textContent||''}:null;
+  const ne=w.querySelector('.sbh-nota span');const nota=ne?ne.textContent.trim():'';
+  const hr=new Date().getHours(),sal=hr>=6&&hr<14?'Buenos días':hr>=14&&hr<21?'Buenas tardes':'Buenas noches';
+  let yo='';try{const k=notaYo(),r=NOTA_ROLES.find(x=>x.k===k);yo=r?r.n:'';}catch(e){}
+  const d=new Date(),WD=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'],MS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const fecha=WD[d.getDay()]+', '+d.getDate()+' de '+MS[d.getMonth()];
+  const o=document.createElement('div');o.id='bm-sal';o.setAttribute('role','status');o.setAttribute('aria-live','polite');
+  o.innerHTML='<div class="bmsal-fondo"></div><div class="bmsal-c">'
+    +'<p class="bmsal-h">'+E(sal+(yo?', '+yo:''))+'</p><h2 class="bmsal-f">'+E(fecha)+'</h2>'
+    +'<div class="bmsal-cs">'+cs.map((x,i)=>'<div class="bmsal-k"><b data-i="'+i+'" style="color:'+E(x.col||'var(--txt)')+'">'+E(x.v)+'</b><small>'+E(x.l)+'</small></div>').join('')+'</div>'
+    +(par?'<div class="bmsal-par"><i aria-hidden="true"></i><div><small>Próximo partido</small><b>'+E(par.riv)+'</b></div><div class="bmsal-par-r"><b>'+E(par.cu)+'</b><small>'+E(par.fe)+'</small></div></div>':'')
+    +(nota?'<p class="bmsal-nota">✎ '+E(nota)+'</p>':'')
+    +'<p class="bmsal-pie">Haz clic o pulsa una tecla para empezar</p></div>';
+  document.body.appendChild(o);
+  BMSAL.on=true;try{localStorage.setItem(BMSAL.k,bmsalHoy());}catch(e){}
+  w.style.visibility='hidden';
+  const c=o.querySelector('.bmsal-c'),f=o.querySelector('.bmsal-fondo');
+  try{f.animate([{opacity:0},{opacity:1}],{duration:420,easing:'ease-out'});
+    c.animate([{opacity:0,transform:'translate(-50%,-50%) scale(.94)'},{opacity:1,transform:'translate(-50%,-50%)'}],{duration:560,easing:'cubic-bezier(.32,.72,0,1)'});
+    [...c.querySelectorAll('.bmsal-h,.bmsal-f,.bmsal-k,.bmsal-par,.bmsal-nota')].forEach((x,i)=>x.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'none'}],{duration:480,delay:120+i*60,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'}));
+  }catch(e){}
+  const corre=()=>{clearTimeout(BMSAL.tm);BMSAL.tm=setTimeout(()=>{if(!BMSAL.pausa)bmSaludoFin();},3400);};corre();
+  c.addEventListener('mouseenter',()=>{BMSAL.pausa=true;clearTimeout(BMSAL.tm);});
+  c.addEventListener('mouseleave',()=>{BMSAL.pausa=false;clearTimeout(BMSAL.tm);BMSAL.tm=setTimeout(bmSaludoFin,1400);});
+  o.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();bmSaludoFin();});
+  o.addEventListener('wheel',e=>{e.preventDefault();bmSaludoFin();},{passive:false});
+  return true;
+}
+function bmSaludoFin(){
+  if(!BMSAL.on)return;BMSAL.on=false;clearTimeout(BMSAL.tm);
+  const o=document.getElementById('bm-sal'),w=document.getElementById('sb-hoy');if(!o){if(w)w.style.visibility='';return;}
+  const quita=()=>{try{o.remove();}catch(_){}if(w)w.style.visibility='';};
+  const vis=w&&w.isConnected&&(w.checkVisibility?w.checkVisibility({visibilityProperty:false}):true);
+  if(!document.startViewTransition||!vis||bmReduce()){
+    try{const a=o.animate([{opacity:1},{opacity:0}],{duration:260,easing:'ease-in',fill:'forwards'});a.onfinish=quita;}catch(_){quita();}setTimeout(quita,400);return;}
+  const html=document.documentElement,c=o.querySelector('.bmsal-c');
+  const bs=[...o.querySelectorAll('.bmsal-k b')],ws=[...w.querySelectorAll('.sbh-c b')];
+  const pe=o.querySelector('.bmsal-par'),pw=w.querySelector('.sbh-par');
+  const nombra=(el,n)=>{if(el)el.style.viewTransitionName=n;};
+  nombra(c,'bm-salc');bs.forEach((b,i)=>{if(ws[i])nombra(b,'bm-sal-'+i);});if(pe&&pw)nombra(pe,'bm-salp');
+  html.classList.add('bm-sal-vt');
+  const limpia=()=>{html.classList.remove('bm-sal-vt');if(w){w.style.viewTransitionName='';ws.forEach(b=>{b.style.viewTransitionName='';});if(pw)pw.style.viewTransitionName='';}};
+  let vt;
+  try{vt=document.startViewTransition(()=>{quita();nombra(w,'bm-salc');bs.forEach((b,i)=>{if(ws[i])nombra(ws[i],'bm-sal-'+i);});if(pe&&pw)nombra(pw,'bm-salp');});}
+  catch(e){quita();limpia();return;}
+  vt.finished.finally(limpia);
+  setTimeout(limpia,1600);
+}
+document.addEventListener('keydown',e=>{if(!BMSAL.on)return;
+  if(e.key==='Escape'||e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();}
+  bmSaludoFin();},true);
+/* «Qué hay de nuevo» espera a que termine el saludo */
+function bmsalInstala(){
+  const f=window.bmNovedadesMacSiToca;
+  if(typeof f==='function'&&!f.__bmsal){const w=function(){
+      if(BMSAL.on||(bmsalPendiente()&&Date.now()-BMSAL.t0<26000&&(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<=BMSAL.t0+400)){setTimeout(()=>window.bmNovedadesMacSiToca(),1800);return;}
+      return f.apply(this,arguments);};
+    w.__bmsal=true;window.bmNovedadesMacSiToca=w;}
+  setTimeout(bmsalMira,1500);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmsalInstala,0));else setTimeout(bmsalInstala,0);
+window.bmSaludo=bmSaludo;window.bmSaludoFin=bmSaludoFin;
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -58298,6 +58404,40 @@ html.bm-amp-vt::view-transition-old(root),html.bm-amp-vt::view-transition-new(ro
 /* v884 · exportar hace una foto */
 .bm-exf{position:fixed;z-index:100001;pointer-events:none;background:#fff;border-radius:14px;opacity:0}
 .bm-exf-vuela{position:fixed;z-index:100002;pointer-events:none;margin:0;transform-origin:0 0;object-fit:contain;background:#fff}
+</style>
+<style id="esc-v889">
+/* v889 · el saludo de cada mañana (ordenador) */
+#bm-sal{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #bm-sal{display:block;position:fixed;inset:0;z-index:10060;cursor:default}
+  #bm-sal .bmsal-fondo{position:absolute;inset:0;background:var(--bmh-velo,rgba(0,0,0,.3));-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5)}
+  #bm-sal .bmsal-c{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:min(580px,calc(100vw - 80px));box-sizing:border-box;padding:34px 36px 24px;border-radius:26px;
+    background:var(--panel);box-shadow:0 0 0 .5px var(--hair),0 34px 90px rgba(0,0,0,.30),0 6px 18px rgba(0,0,0,.10)}
+  #bm-sal .bmsal-h{margin:0;font-size:15px;font-weight:600;color:var(--acc-seg,var(--accent))}
+  #bm-sal .bmsal-f{margin:4px 0 22px;font-size:36px;font-weight:700;letter-spacing:-.028em;line-height:1.08;color:var(--txt)}
+  #bm-sal .bmsal-cs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  #bm-sal .bmsal-k{padding:16px 16px 14px;border-radius:16px;background:var(--panel2)}
+  #bm-sal .bmsal-k b{display:block;width:max-content;font-size:42px;font-weight:700;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums}
+  #bm-sal .bmsal-k small{display:block;margin-top:8px;font-size:13px;font-weight:500;color:var(--muted)}
+  #bm-sal .bmsal-par{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;margin-top:12px;padding:14px 16px;border-radius:16px;background:var(--panel2)}
+  #bm-sal .bmsal-par>i{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+  #bm-sal .bmsal-par small{display:block;font-size:12px;color:var(--muted)}
+  #bm-sal .bmsal-par b{display:block;font-size:17px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bm-sal .bmsal-par-r{text-align:right}
+  #bm-sal .bmsal-par-r b{color:var(--acc-seg,var(--accent));font-size:15px}
+  #bm-sal .bmsal-nota{margin:12px 0 0;font-size:13px;font-weight:600;color:var(--txt)}
+  #bm-sal .bmsal-pie{margin:18px 0 0;font-size:12px;color:var(--muted);text-align:center}
+  html.bm-sal-vt::view-transition-group(bm-salc),html.bm-sal-vt::view-transition-group(bm-salp),
+  html.bm-sal-vt::view-transition-group(bm-sal-0),html.bm-sal-vt::view-transition-group(bm-sal-1),html.bm-sal-vt::view-transition-group(bm-sal-2){animation-duration:.66s;animation-timing-function:cubic-bezier(.32,.72,0,1)}
+  html.bm-sal-vt::view-transition-old(bm-sal-0),html.bm-sal-vt::view-transition-new(bm-sal-0),html.bm-sal-vt::view-transition-old(bm-sal-1),html.bm-sal-vt::view-transition-new(bm-sal-1),
+  html.bm-sal-vt::view-transition-old(bm-sal-2),html.bm-sal-vt::view-transition-new(bm-sal-2),html.bm-sal-vt::view-transition-old(bm-salp),html.bm-sal-vt::view-transition-new(bm-salp){height:100%;width:100%;object-fit:contain}
+  html.bm-sal-vt::view-transition-old(root),html.bm-sal-vt::view-transition-new(root){animation-duration:.44s}
+  html.bm-sal-vt::view-transition-old(bm-salc),html.bm-sal-vt::view-transition-old(bm-salp){animation-name:bmsalViejo}
+  html.bm-sal-vt::view-transition-new(bm-salc),html.bm-sal-vt::view-transition-new(bm-salp){animation-name:bmsalNuevo}
+}
+@keyframes bmsalViejo{0%,42%{opacity:1}100%{opacity:0}}
+@keyframes bmsalNuevo{0%,48%{opacity:0}100%{opacity:1}}
+@media (prefers-reduced-transparency:reduce){#bm-sal .bmsal-fondo{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
