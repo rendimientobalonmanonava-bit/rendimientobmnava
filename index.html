@@ -14288,6 +14288,7 @@ function tbMark(v){let eff=v==='estado'?'dispo':v;const ks=TABBAR.map(t=>t[0]);
 const BMTB_MUELLE='linear(0,0.046,0.154,0.292,0.437,0.574,0.694,0.794,0.873,0.932,0.974,1.002,1.019,1.028,1.031,1.031,1.028,1.023,1.019,1.014,1.011,1.007,1.005,1)';
 function bmTbMuelle(a,b){
   if(!b||a===b)return;
+  if(window.__BM_TBDEDO)return;   /* v853 · la pastilla ya la ha llevado el dedo */
   try{if(!esMovil())return;}catch(e){return;}
   let rm=false;try{rm=matchMedia('(prefers-reduced-motion:reduce)').matches;}catch(e){}if(rm)return;
   const tb=document.getElementById('tabbar'),cap=b.closest('.tb-cap');
@@ -24342,6 +24343,7 @@ window.addEventListener('popstate',e=>{
     const t=e.touches[0],el=e.target;
     if(t.clientX<26||t.clientX>window.innerWidth-26)return;
     if(!el||!el.closest||el.closest('[data-sw],input,textarea,select,.med-overlay,.drawer,#sidebar,#tabbar,header,canvas'))return;
+    try{if(el.closest(BMSEG_SEL))return;}catch(_){}   /* v853 · sobre una barra de pestañas se arrastra la selección */
     for(let n=el;n&&n!==document.body;n=n.parentElement){
       if(n.scrollWidth>n.clientWidth+6){const o=getComputedStyle(n).overflowX;if(o==='auto'||o==='scroll')return;}
     }
@@ -25375,6 +25377,94 @@ document.addEventListener('pointerup',()=>{if(esMovil())setTimeout(()=>{try{bmHo
 /* al entrar en un campo, la hoja a media altura se abre entera (v607) */
 document.addEventListener('focusin',()=>{if(esMovil())setTimeout(()=>{try{bmHondo();}catch(e){}},380);},true);
 window.bmHondo=bmHondo;
+/* ═══ v853 · ARRASTRAR LA SELECCIÓN CON EL DEDO (MÓVIL) ═══
+   Daniel, 19/11/2026, propuesta 8. Como en iOS 26: en la barra de abajo y en
+   las pestañas de cada pantalla, se pone el dedo y se desliza por encima; la
+   pastilla le sigue, la pestaña que queda debajo se marca —con un toque de
+   vibración al cruzar a otra— y al soltar se elige. Un toque normal sigue
+   siendo un toque: sólo se arrastra cuando el dedo se mueve de lado más de
+   8 px. La pastilla es una copia de la de verdad (su fondo, su esquina y su
+   sombra), así que vale en los dos temas. Fuera: las barras que se desplazan
+   de lado (ahí el dedo mueve la barra), la barra de abajo encogida (v618) y
+   «Reducir movimiento». */
+const BMSCR={b:null,x0:0,y0:0,on:false,g:null,sel:null,sobre:null,bs:[],tb:false,cancela:0};
+function bmscrBarra(t){
+  const tb=t.closest('#tabbar .tb-cap');if(tb){const tbar=document.getElementById('tabbar');if(tbar&&tbar.classList.contains('tb-min'))return null;return tb;}
+  let c=null;try{c=t.closest(BMSEG_SEL);}catch(e){}
+  if(!c||c.scrollWidth>c.clientWidth+4)return null;
+  return c;
+}
+function bmscrBotones(c){return [...c.children].filter(x=>(x.tagName==='BUTTON'||x.getAttribute('role')==='tab')&&x.getBoundingClientRect().width);}
+function bmscrDebajo(x){let m=null,d=1e9;BMSCR.bs.forEach(b=>{const r=b.getBoundingClientRect();const c=r.left+r.width/2;const k=x>=r.left&&x<=r.right?0:Math.abs(x-c);if(k<d){d=k;m=b;}});return m;}
+function bmscrPon(x){
+  const c=BMSCR.b,g=BMSCR.g;if(!c||!g)return;
+  const cr=c.getBoundingClientRect(),b=bmscrDebajo(x);if(!b)return;
+  const br=b.getBoundingClientRect(),w=br.width;
+  const min=BMSCR.bs[0].getBoundingClientRect().left,max=BMSCR.bs[BMSCR.bs.length-1].getBoundingClientRect().right;
+  const izq=Math.max(min,Math.min(max-w,x-w/2));
+  g.style.left=(izq-cr.left-c.clientLeft+c.scrollLeft)+'px';g.style.width=w+'px';
+  g.style.top=(br.top-cr.top-c.clientTop)+'px';g.style.height=br.height+'px';
+  if(b!==BMSCR.sobre){if(BMSCR.sobre)BMSCR.sobre.classList.remove('bm-scr-sobre');b.classList.add('bm-scr-sobre');BMSCR.sobre=b;try{bmVibra();}catch(e){}}
+}
+function bmscrEmpieza(x){
+  const c=BMSCR.b;const sel=BMSCR.bs.find(b=>b.classList.contains('on')||b.getAttribute('aria-pressed')==='true'||b.getAttribute('aria-selected')==='true');
+  if(!sel)return false;
+  const cs=getComputedStyle(sel);
+  if(getComputedStyle(c).position==='static')c.style.position='relative';
+  const g=document.createElement('i');g.className='bm-scr-g';g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{backgroundColor:cs.backgroundColor,backgroundImage:cs.backgroundImage,borderRadius:cs.borderRadius,boxShadow:cs.boxShadow});
+  /* si lo elegido no tiene fondo propio (sólo cambia de color), la pastilla es un velo */
+  if((cs.backgroundColor==='rgba(0, 0, 0, 0)'||cs.backgroundColor==='transparent')&&cs.backgroundImage==='none')g.classList.add('bm-scr-velo');
+  c.appendChild(g);c.classList.add('bm-scr-anda');sel.classList.add('bm-scr-de');
+  BMSCR.g=g;BMSCR.sel=sel;BMSCR.on=true;bmscrPon(x);return true;
+}
+function bmscrFin(x,vale){
+  const c=BMSCR.b,g=BMSCR.g,sel=BMSCR.sel;
+  const dest=vale?bmscrDebajo(x):sel;
+  BMSCR.on=false;BMSCR.b=null;
+  if(BMSCR.sobre)BMSCR.sobre.classList.remove('bm-scr-sobre');BMSCR.sobre=null;
+  const limpia=()=>{try{g&&g.remove();}catch(e){}if(c){c.classList.remove('bm-scr-anda');}if(sel)sel.classList.remove('bm-scr-de');};
+  if(!g||!dest){limpia();return;}
+  const cr=c.getBoundingClientRect(),dr=dest.getBoundingClientRect();
+  const l=dr.left-cr.left-c.clientLeft+c.scrollLeft;
+  try{const a=g.animate([{left:g.style.left,width:g.style.width},{left:l+'px',width:dr.width+'px'}],{duration:320,easing:typeof BMTB_MUELLE!=='undefined'?BMTB_MUELLE:'cubic-bezier(.32,.72,0,1)',fill:'forwards'});
+    a.onfinish=limpia;}catch(e){limpia();}
+  setTimeout(limpia,600);
+  if(dest!==sel){
+    const hs=BMSCR.bs,dir=hs.indexOf(dest)>hs.indexOf(sel)?1:-1;
+    BMSCR.cancela=Date.now();
+    window.__BM_SEGPASA=true;window.__BM_TBDEDO=true;window.__BM_TABDIR=dir;
+    try{dest.click();}finally{window.__BM_SEGPASA=false;setTimeout(()=>{window.__BM_TBDEDO=false;},60);}
+    try{bmVibra();}catch(e){}
+  }
+}
+document.addEventListener('touchstart',e=>{
+  BMSCR.b=null;BMSCR.on=false;
+  if(!esMovil()||e.touches.length!==1||bmReduce())return;
+  const t=e.target;if(!t||!t.closest)return;
+  const c=bmscrBarra(t);if(!c)return;
+  const bs=bmscrBotones(c);if(bs.length<2)return;
+  BMSCR.b=c;BMSCR.bs=bs;BMSCR.x0=e.touches[0].clientX;BMSCR.y0=e.touches[0].clientY;BMSCR.tb=!!c.closest('#tabbar');
+},{passive:true,capture:true});
+document.addEventListener('touchmove',e=>{
+  if(!BMSCR.b||e.touches.length!==1)return;
+  const x=e.touches[0].clientX,y=e.touches[0].clientY;
+  if(!BMSCR.on){const dx=x-BMSCR.x0,dy=y-BMSCR.y0;
+    if(Math.abs(dy)>12&&Math.abs(dy)>Math.abs(dx)){BMSCR.b=null;return;}
+    if(Math.abs(dx)<8)return;
+    if(!bmscrEmpieza(x)){BMSCR.b=null;return;}}
+  if(e.cancelable)e.preventDefault();
+  bmscrPon(x);
+},{passive:false,capture:true});
+document.addEventListener('touchend',e=>{
+  if(!BMSCR.b)return;
+  if(!BMSCR.on){BMSCR.b=null;return;}
+  const t=e.changedTouches&&e.changedTouches[0];bmscrFin(t?t.clientX:BMSCR.x0,true);
+},{passive:true,capture:true});
+document.addEventListener('touchcancel',()=>{if(BMSCR.on)bmscrFin(BMSCR.x0,false);BMSCR.b=null;},{passive:true,capture:true});
+/* el clic que el navegador pueda mandar después de arrastrar no cuenta: ya se eligió al soltar */
+document.addEventListener('click',e=>{if(Date.now()-BMSCR.cancela<450&&e.isTrusted&&e.target&&e.target.closest&&e.target.closest('#tabbar,'+BMSEG_SEL)){e.stopImmediatePropagation();e.preventDefault();}},true);
+window.bmscrFin=bmscrFin;
 
 
 
@@ -61725,6 +61815,17 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
     box-shadow:0 0 0 120vmax #000;transform-origin:50% 0;transform:none;opacity:0;
     transition:transform .4s cubic-bezier(.32,.72,0,1),opacity .3s ease}
   html.bm-hondo #bm-marco{opacity:1;transform:translateY(calc(env(safe-area-inset-top,0px) + 10px)) scale(.93)}
+}
+</style>
+<style id="bm-v853">
+/* v853 · arrastrar la selección con el dedo (móvil) */
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bm-scr-anda{isolation:isolate}
+  .bm-scr-anda>button,.bm-scr-anda>[role="tab"]{position:relative;z-index:1}
+  .bm-scr-g{position:absolute;z-index:0;pointer-events:none;display:block;margin:0;padding:0;box-sizing:border-box}
+  .bm-scr-g.bm-scr-velo{background:color-mix(in srgb,var(--txt) 9%,transparent)!important}
+  .bm-scr-anda>.bm-scr-de{background:transparent!important;box-shadow:none!important}
+  .bm-scr-anda>.bm-scr-sobre{transform:scale(1.06);transition:transform .18s cubic-bezier(.32,.72,0,1)}
 }
 </style>
 </body>
