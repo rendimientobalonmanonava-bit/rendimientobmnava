@@ -24929,6 +24929,11 @@ document.addEventListener('click',e=>{
 /* el contenido de la pestaña nueva entra por su lado */
 function bmTabEntra(els,dir){
   if(!dir||bmReduce())return;
+  /* v871 · en el ordenador, la pestaña nueva se monta como una sección (v857): sus bloques entran uno detrás de otro */
+  if(!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&typeof bmCascada==='function'){
+    let n=0;(els||[]).forEach(el=>{if(el&&el.getBoundingClientRect().height)n+=bmCascada(el)||0;});
+    if(n>0){window.__BM_TABDEDO=0;return;}
+  }
   /* v843 · tras arrastrar con el dedo, desde más lejos: la página anterior se fue con él */
   const dist=window.__BM_TABDEDO||18;window.__BM_TABDEDO=0;
   (els||[]).forEach(el=>{if(!el||!el.getBoundingClientRect().height)return;
@@ -24946,7 +24951,11 @@ const BMTAB_PANEL={
 function bmtabInstala(){
   Object.keys(BMTAB_PANEL).forEach(fn=>{const f=window[fn];if(typeof f!=='function'||f.__bmtab)return;
     const w=function(){const dir=window.__BM_TABDIR;window.__BM_TABDIR=null;const r=f.apply(this,arguments);
-      if(dir){const args=arguments;setTimeout(()=>{try{bmTabEntra(BMTAB_PANEL[fn].apply(null,args),dir);}catch(e){}},0);}return r;};
+      if(dir){const args=arguments;
+        /* v871 · en el ordenador, en el mismo instante: un fotograma con todo a la vista antes de la cascada sería un parpadeo */
+        if(!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()){try{bmTabEntra(BMTAB_PANEL[fn].apply(null,args),dir);}catch(e){}}
+        else setTimeout(()=>{try{bmTabEntra(BMTAB_PANEL[fn].apply(null,args),dir);}catch(e){}},0);}
+      return r;};
     w.__bmtab=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(e){}});window[fn]=w;});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmtabInstala,0));else setTimeout(bmtabInstala,0);
@@ -25754,7 +25763,7 @@ window.bmHeroAbre=bmHeroAbre;window.bmHeroSpot=bmHeroSpot;
    fotograma con todo a la vista antes de empezar. */
 const BMCAS={sel:'.pagehead,.panel,.cgr-card,.eq-tile,.kpi,.pcard,.acard,.bm-dest,.bm-prox,.asum,.fis-k,.tsum-t,.bd-res,.jl,.alert-filters'};
 function bmCascada(v){
-  if(!v||bmReduce()||window.__BM_HEROVT)return;
+  if(!v||bmReduce()||window.__BM_HEROVT)return 0;
   const H=window.innerHeight||900;
   let els=[...v.querySelectorAll(BMCAS.sel)].filter(e=>{if(e.closest(BMG_DOC))return false;const r=e.getBoundingClientRect();return r.height>16&&r.width>40&&r.bottom>0&&r.top<H;});
   els=els.filter(e=>!els.some(o=>o!==e&&o.contains(e)));
@@ -25763,6 +25772,7 @@ function bmCascada(v){
     try{e.animate([{opacity:0,transform:'translateY(14px) scale(.985)'},{opacity:1,transform:'none'}],
       {duration:380,delay:Math.min(i,10)*32,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}
   });
+  return Math.min(els.length,16);
 }
 function bmCascadaInstala(){
   const f=window.go;if(typeof f!=='function'||f.__bmcas)return;
@@ -26252,6 +26262,13 @@ document.addEventListener('change',e=>{
   requestAnimationFrame(()=>bmhnavAnima(document.getElementById(id),0));
 },true);
 window.bmhnavAnima=bmhnavAnima;
+/* ═══ v870 · LAS CARAS INVITAN A PULSARLAS (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 7. Al pasar el ratón, una cara no
+   reaccionaba aunque al pulsarla volara hasta la ficha (v856). Ahora se
+   levanta un poco con un muelle y se le marca la sombra; al pulsar, se hunde
+   antes de salir volando. Sólo las caras que abren la ficha: en el Resumen,
+   Disponibilidad, Alertas, la plantilla de al lado de la ficha… Nada con
+   «Reducir movimiento». Es sólo CSS. */
 
 
 
@@ -62710,6 +62727,17 @@ html.bm-tema-vt::view-transition-new(root){z-index:2}
 @media screen and (min-width:761px) and (pointer:fine){
   #bm-prev.bmp-zoom.on .bmp-tarjeta{animation:none}
   #bm-prev.bmp-zoom.sale .bmp-tarjeta{animation:none}
+}
+</style>
+<style id="bm-v870">
+/* v870 · las caras invitan a pulsarlas (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  main [onclick*="openPlayer("] img,#bm-jl [data-n] img{transition:transform .38s cubic-bezier(.34,1.56,.64,1),filter .3s ease}
+  main [onclick*="openPlayer("]:hover img,#bm-jl [data-n]:hover img{transform:scale(1.07) translateY(-1px);filter:drop-shadow(0 6px 10px rgba(0,0,0,.18))}
+  main [onclick*="openPlayer("]:active img,#bm-jl [data-n]:active img{transform:scale(.94);transition-duration:.12s;filter:none}
+  html[data-theme="dark"] main [onclick*="openPlayer("]:hover img,html[data-theme="dark"] #bm-jl [data-n]:hover img{filter:drop-shadow(0 6px 12px rgba(0,0,0,.5))}
+  /* los documentos y la ficha no: su foto no es un botón */
+  main #v-jugador .phero img{transform:none!important;filter:none!important}
 }
 </style>
 </body>
