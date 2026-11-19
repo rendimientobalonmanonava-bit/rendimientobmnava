@@ -26802,6 +26802,38 @@ function bmexfInstala(){
     w.__bmexf=true;Object.keys(hj).forEach(k=>{try{w[k]=hj[k];}catch(_){}});window.bmHoja=w;}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmexfInstala,300));else setTimeout(bmexfInstala,300);
+/* ═══ v886 · EL INSPECTOR PASA DE JUGADOR COMO UNA HOJA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 6. Con ‹ › en el inspector (⌥ + clic, I), el
+   contenido cambiaba de golpe; y la primera vez que se abría aparecía sin su
+   entrada, porque se creaba y se encendía en el mismo fotograma. Ahora entra
+   deslizándose desde el borde también la primera vez, y al pasar de jugador el
+   siguiente llega por la derecha y el anterior por la izquierda, con su cara
+   creciendo un poco al llegar. */
+const BMINV={dir:0,t:0};
+document.addEventListener('pointerdown',e=>{const b=e.target&&e.target.closest&&e.target.closest('#bm-insp [data-ia="prev"],#bm-insp [data-ia="sig"]');if(b){BMINV.dir=b.dataset.ia==='sig'?1:-1;BMINV.t=Date.now();}},true);
+document.addEventListener('keydown',e=>{if(!document.body.classList.contains('bm-insp-on'))return;if(e.key==='ArrowRight'||e.key==='ArrowDown'){BMINV.dir=1;BMINV.t=Date.now();}else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){BMINV.dir=-1;BMINV.t=Date.now();}},true);
+function bminvInstala(){
+  const f=window.bmInspAbre;if(typeof f!=='function'||f.__bminv)return;
+  const w=function(n){
+    const ya=!!document.getElementById('bm-insp'),abierto=ya&&document.body.classList.contains('bm-insp-on'),n0=typeof BMIN!=='undefined'?BMIN.n:null;
+    const r=f.apply(this,arguments);
+    try{
+      if(esMovil()||bmReduce())return r;
+      const a=document.getElementById('bm-insp');if(!a)return r;
+      if(!abierto){/* que la entrada se vea también la primera vez */
+        document.body.classList.remove('bm-insp-on');void a.offsetWidth;document.body.classList.add('bm-insp-on');}
+      else if(n0&&n&&n0!==n){
+        let dir=Date.now()-BMINV.t<1200?BMINV.dir:0;
+        if(!dir){try{const l=bmfLista();dir=l.indexOf(n)>l.indexOf(n0)?1:-1;}catch(_){dir=1;}}
+        const c=a.querySelector('.bmin-cuerpo');
+        if(c)c.animate([{transform:'translateX('+(dir*30)+'px)',opacity:0},{transform:'none',opacity:1}],{duration:320,easing:'cubic-bezier(.32,.72,0,1)'});
+        const av=a.querySelector('.bmin-av');if(av)av.animate([{transform:'scale(.82)'},{transform:'none'}],{duration:420,delay:40,easing:typeof BMTB_MUELLE!=='undefined'?BMTB_MUELLE:'ease-out',fill:'backwards'});
+      }
+    }catch(_){}
+    return r;};
+  w.__bminv=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.bmInspAbre=w;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bminvInstala,0));else setTimeout(bminvInstala,0);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
