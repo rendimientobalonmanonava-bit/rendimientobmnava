@@ -24112,7 +24112,7 @@ window.addEventListener('keydown',e=>{
   }
 });
 window.addEventListener('popstate',e=>{
-  if(!esMovil())return;
+  if(!esMovil()){try{bmhPop(e);}catch(err){console.error('bmnava · atrás',err);}return;}
   if(window.__BM_VUELVE){window.__BM_VUELVE=false;return;}
   /* Había algo abierto: se cierra y se deshace el paso atrás, para quedarse en
      la pantalla en la que se estaba. */
@@ -24502,6 +24502,77 @@ function bmrpInstala(){
 function bmrpFichaClave(){return BM_DV+'|'+(STATE.refDate?STATE.refDate.getTime():0)+'|'+dkey(new Date())+'|'+(document.documentElement.getAttribute('data-theme')||'')+'|'+(esMovil()?'m':'e')+'|'+Math.round(innerWidth/40);}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bmrpInstala);else setTimeout(bmrpInstala,0);
 window.bmrpInstala=bmrpInstala;
+/* ═══ v835 · ATRÁS Y ADELANTE EN EL ORDENADOR ═══
+   Daniel, 19/11/2026, propuesta 1 de la tanda de transiciones: medido, cuatro
+   cambios de pantalla en el ordenador no dejaban ni una entrada en el
+   historial, así que «atrás» de Safari, el gesto de dos dedos del trackpad, el
+   botón lateral del ratón y ⌘[ no volvían a la pantalla anterior. En el móvil
+   ya funcionaba (v539). Ahora, en el ordenador, cada cambio de sección, de
+   pestaña (Cargas, Pulsómetros, Perfil físico, Médico, Fisioterapia, Mes o
+   Semana) y de jugador en la ficha es un paso: atrás te devuelve a donde
+   estabas, con su pestaña y su altura de página. **El día no es un paso** —es
+   el contexto, no un sitio— y sigue reemplazando, como en el móvil. Dos
+   cambios seguidos en menos de 0,4 s (entrar en Cargas y elegir su pestaña
+   desde el menú del título) cuentan como uno. En el móvil no cambia nada: las
+   pestañas de una pantalla no son pasos en iOS. */
+const BMHIS={t:0,i:0,rest:false};
+function bmhLS(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
+function bmhSub(v){
+  try{
+    if(v==='carga')return {t:FILTER.cargaTab||'resumen'};
+    if(v==='hr')return {m:bmhLS('bmnava_hrmodo')||'equipo'};
+    if(v==='tests')return {m:bmhLS('bmnava_tsamodo')||'equipo'};
+    if(v==='medico')return {t:typeof MED_TAB!=='undefined'?MED_TAB:'resumen'};
+    if(v==='fisio')return {t:typeof FIS_TAB!=='undefined'?FIS_TAB:'hoy'};
+    if(v==='cal')return {m:typeof CALMODE!=='undefined'?CALMODE:'mes'};
+    if(v==='jugador')return {pl:STATE.curPlayer||'',t:typeof PL_TAB!=='undefined'?PL_TAB:'hoy'};
+  }catch(e){}
+  return null;
+}
+function bmhAplica(v,sub){
+  if(!sub)return;
+  if(v==='carga'&&sub.t&&FILTER.cargaTab!==sub.t)cargasTab(sub.t);
+  else if(v==='hr'&&sub.m&&bmhLS('bmnava_hrmodo')!==sub.m)hrModo(sub.m);
+  else if(v==='tests'&&sub.m&&bmhLS('bmnava_tsamodo')!==sub.m)tsaModo(sub.m);
+  else if(v==='medico'&&sub.t&&MED_TAB!==sub.t)medTab(sub.t);
+  else if(v==='fisio'&&sub.t&&FIS_TAB!==sub.t&&window.fisTab)fisTab(sub.t);
+  else if(v==='cal'&&sub.m&&CALMODE!==sub.m)calSetMode(sub.m);
+  else if(v==='jugador'&&sub.t&&PL_TAB!==sub.t)plTab(sub.t);
+}
+function bmhPaso(v,antes){
+  if(esMovil()||!window.__BM_LISTO||window.__BM_POP||window.__RD_CALC||BMHIS.rest||window.__BM_NOHIST)return;
+  if(STATE.view!==v){/* cambió de pantalla dentro: go() ya dejó la entrada, se le pone su subestado */
+    try{history.replaceState(Object.assign({},history.state||{},{v:STATE.view,sub:bmhSub(STATE.view)}),'');}catch(e){}return;}
+  const ahora=bmhSub(v);if(JSON.stringify(ahora)===JSON.stringify(antes))return;
+  const st=history.state||{};
+  if(Date.now()-BMHIS.t<400){try{history.replaceState(Object.assign({},st,{v,sub:ahora}),'');}catch(e){}return;}
+  try{history.replaceState(Object.assign({},st,{v,sub:antes,y:window.scrollY||0,i:st.i||0}),'');}catch(e){}
+  const i=(st.i||0)+1;BMHIS.i=i;BMHIS.t=Date.now();
+  try{history.pushState({v,sub:ahora,i,push:1},'',location.hash);}catch(e){}
+}
+function bmhPop(e){
+  if(window.__BM_VUELVE){window.__BM_VUELVE=false;return;}
+  /* con algo abierto encima, «atrás» lo cierra y se queda donde está */
+  if(typeof bmCierraCapa==='function'&&bmCierraCapa()){window.__BM_VUELVE=true;try{history.forward();}catch(_){}setTimeout(()=>{window.__BM_VUELVE=false;},700);return;}
+  const st=e.state||{},r=readHash(),v=st.v||(r&&r.view);if(!v)return;
+  window.__BM_POPDIR=(st.i!=null&&st.i>BMHIS.i)?'ade':'atr';BMHIS.i=st.i||0;
+  BMHIS.rest=true;window.__BM_POP=true;
+  try{
+    if(v==='jugador'&&st.sub&&st.sub.pl&&(STATE.view!=='jugador'||STATE.curPlayer!==st.sub.pl))openPlayer(st.sub.pl);
+    else if(v!==STATE.view)go(v);
+    bmhAplica(v,st.sub);
+    writeHash(false);   /* la dirección vuelve a llevar el día que se está viendo */
+  }finally{window.__BM_POP=false;window.__BM_POPDIR=null;BMHIS.rest=false;}
+  const y=st.y||0;setTimeout(()=>window.scrollTo(0,y),0);setTimeout(()=>{if(Math.abs((window.scrollY||0)-y)>40)window.scrollTo(0,y);},260);
+}
+function bmhInstala(){
+  ['cargasTab','hrModo','tsaModo','medTab','calSetMode','plTab','fisTab'].forEach(fn=>{const f=window[fn];if(typeof f!=='function'||f.__bmh)return;
+    const w=function(){const v=STATE.view,antes=bmhSub(v);const r=f.apply(this,arguments);try{bmhPaso(v,antes);}catch(e){}return r;};w.__bmh=true;window[fn]=w;});
+  const op=window.openPlayer;if(typeof op==='function'&&!op.__bmh){const w=function(){const v=STATE.view,antes=bmhSub(v);const r=op.apply(this,arguments);try{if(v==='jugador')bmhPaso(v,antes);else bmhPaso(STATE.view,null);}catch(e){}return r;};w.__bmh=true;window.openPlayer=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmhInstala,0));else setTimeout(bmhInstala,0);
+window.bmhSub=bmhSub;window.bmhInstala=bmhInstala;
+
 /* v562 · El título de la pantalla, en corto, dentro de la cápsula del día. En
    el móvil aparece ahí cuando el título grande se ha ido por arriba: es el
    gesto de cualquier app de teléfono, y evita no saber en qué pantalla se
@@ -24571,14 +24642,18 @@ function writeHash(push,y0){
        que el gesto «atrás» vuelve a la pantalla anterior en vez de sacar de la
        app. Cambiar de día sigue reemplazando, como siempre. La entrada que se
        deja atrás se lleva su desplazamiento para poder volver a él. */
-    if(push&&window.__BM_LISTO&&!window.__BM_POP&&!window.__BM_NOHIST&&esMovil()){
-      try{history.replaceState(Object.assign({},history.state||{},{y:y0||0}),'');}catch(e){}
+    if(push&&window.__BM_LISTO&&!window.__BM_POP&&!window.__BM_NOHIST){
+      /* v835 · también en el ordenador: «atrás», el gesto de dos dedos del
+         trackpad y ⌘[ vuelven a la pantalla anterior en vez de no hacer nada.
+         La entrada que se deja guarda su vista, su pestaña y su altura. */
+      try{const _st=history.state||{},_pv=window.__BM_DE||_st.v;history.replaceState(Object.assign({},_st,{y:y0||0,v:_st.v||_pv,sub:_st.sub||(_pv?bmhSub(_pv):null),i:_st.i||0}),'');}catch(e){}
       /* v594 · Un paso ADELANTE (un enlace dentro de una pantalla, abrir una
          ficha) deja dicho de dónde viene: con eso sale el botón atrás. Lo que se
          elige en la barra o en «Más» es una pestaña y el Resumen es la portada:
          ninguna de las dos cosas tiene «atrás», como en cualquier app. */
       const _n=document.documentElement.dataset.nav;
-      history.pushState((_n==='ade'&&v!=='equipo')?{push:1,de:bmNombreVista(window.__BM_DE||'equipo')}:null,'',h);
+      const _i=((history.state||{}).i||0)+1;BMHIS.i=_i;BMHIS.t=Date.now();
+      history.pushState(Object.assign((_n==='ade'&&v!=='equipo')?{push:1,de:bmNombreVista(window.__BM_DE||'equipo')}:{},{v,sub:bmhSub(v),i:_i}),'',h);
     }else history.replaceState(history.state,'',h);
   }try{bmAtrasPinta();}catch(e){}}
 /* ===== v594 · La navegación de un teléfono =====
@@ -24599,7 +24674,7 @@ function writeHash(push,y0){
      volver (en Safari sí, y entonces no se toca). Desde el borde izquierdo, la
      pantalla sigue al dedo y al soltar pasado un tercio —o rápido— vuelve. */
 function bmvSentido(){
-  if(window.__BM_POP)return 'atr';
+  if(window.__BM_POP)return window.__BM_POPDIR||'atr';
   if(window.__BM_TAB||document.body.classList.contains('sb-open'))return 'tab';
   return 'ade';
 }
