@@ -24877,6 +24877,58 @@ function bmsegYa(c,oldB,newB){
   setTimeout(fin,700);
 }
 window.bmsegYa=bmsegYa;
+/* ═══ v842 · BOTONES QUE CUENTAN LO QUE PASA ═══
+   Daniel, 19/11/2026, propuesta 8. Al guardar un parte, una lesión, un
+   tratamiento, una nota, un bloque, una sesión… lo único que decía que había
+   ido bien era un aviso abajo, lejos de donde se había pulsado. Ahora, donde
+   estaba el botón aparece «✓ Guardado» un instante mientras la hoja se cierra;
+   y si falta un dato, el campo que lo pide tiembla y se marca en rojo en su
+   sitio. **No se toca ningún formulario**: se escucha el clic en cualquier
+   botón de guardar de una hoja o un formulario y, 80 ms después, se mira qué ha
+   pasado —si la hoja se ha cerrado, si ha salido un aviso de éxito o de error y
+   a qué campo ha ido el foco, que es lo que los formularios ya hacen cuando
+   falta algo—. Sin pruebas claras de que salió bien, no se enseña nada. El
+   rojo aquí sí es el de alerta: es un error que hay que corregir. */
+const BMOK={avisos:[]};
+const BMOK_BOTON=/^(guardar|registrar|apuntar|aplicar|cerrar la sesi[oó]n|a[nñ]adir|crear)/i;
+const BMOK_BIEN=/guardad|registrad|apuntad|a[nñ]adid|cread|aplicad|cerrad|hecho|actualizad/i;
+const BMOK_MAL=/no se (ha |pudo|puede)|falta|tiene que|debe|revisa|error|no hay|elige|escribe|pon /i;
+function bmokCaja(el){return el&&el.closest&&el.closest('.bmh,#ph-overlay,.info-overlay,.med-overlay,.med-modal,.info-modal,#drawer,.ficha-overlay');}
+function bmokVisible(el){if(!el||!el.isConnected)return false;try{return el.checkVisibility?el.checkVisibility({checkOpacity:true}):!!el.offsetParent;}catch(e){return !!el.offsetParent;}}
+function bmokPildora(r,radio){
+  const p=document.createElement('div');p.className='bm-ok';p.setAttribute('role','status');
+  p.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7"/></svg><span>Guardado</span>';
+  Object.assign(p.style,{left:Math.round(r.left)+'px',top:Math.round(r.top)+'px',width:Math.round(Math.max(r.width,110))+'px',height:Math.round(Math.max(r.height,34))+'px',borderRadius:radio||'10px'});
+  document.body.appendChild(p);setTimeout(()=>p.classList.add('fuera'),900);setTimeout(()=>p.remove(),1250);
+}
+function bmokCampo(el){
+  if(!el||!/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName))return;
+  el.classList.remove('bm-mal');void el.offsetWidth;el.classList.add('bm-mal');el.setAttribute('aria-invalid','true');
+  const quita=()=>{el.classList.remove('bm-mal');el.removeAttribute('aria-invalid');el.removeEventListener('input',quita);el.removeEventListener('change',quita);};
+  el.addEventListener('input',quita);el.addEventListener('change',quita);setTimeout(()=>el.classList.remove('bm-mal'),2200);
+}
+document.addEventListener('click',e=>{
+  if(!e.target||!e.target.closest)return;
+  const b=e.target.closest('button');if(!b)return;
+  const txt=(b.textContent||'').replace(/^[^A-Za-zÁÉÍÓÚÑáéíóúñ]+/,'').trim();if(!BMOK_BOTON.test(txt))return;
+  const caja=bmokCaja(b);if(!caja)return;
+  /* el botón que se ve: en el móvil «Guardar» de la barra pulsa el del pie, que puede estar oculto */
+  let vis=b;if(!b.getBoundingClientRect().width){const h=[...caja.querySelectorAll('button')].find(x=>x!==b&&x.getBoundingClientRect().width&&/^guardar/i.test((x.textContent||'').trim()));if(h)vis=h;}
+  const r=vis.getBoundingClientRect();if(!r.width)return;
+  const radio=getComputedStyle(vis).borderRadius;const t0=Date.now();
+  setTimeout(()=>{
+    const av=BMOK.avisos.filter(x=>x.t>=t0-20);
+    const mal=av.some(x=>BMOK_MAL.test(x.m)&&!BMOK_BIEN.test(x.m));
+    const bien=av.some(x=>BMOK_BIEN.test(x.m));
+    const cerrada=!bmokVisible(caja)||!b.isConnected;
+    if(mal||(!cerrada&&!bien)){const f=document.activeElement;if(f&&caja.contains(f))bmokCampo(f);return;}
+    if(bien||cerrada){if(!bmReduce())bmokPildora(r,radio);}
+  },80);
+},true);
+function bmokInstala(){const t=window.toast;if(typeof t!=='function'||t.__bmok)return;
+  const w=function(msg){try{BMOK.avisos.push({t:Date.now(),m:String(msg||'')});if(BMOK.avisos.length>20)BMOK.avisos.shift();}catch(e){}return t.apply(this,arguments);};w.__bmok=true;window.toast=w;}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmokInstala,0));else setTimeout(bmokInstala,0);
+
 
 
 
@@ -61152,6 +61204,21 @@ html[data-theme="dark"] #bm-tip{--tip-bg:rgba(44,44,48,.98);box-shadow:0 0 0 .5p
 .bmseg-anda{isolation:isolate}
 .bmseg-anda>button,.bmseg-anda>[role="tab"]{position:relative;z-index:1}
 .bmseg-anda>.on,.bmseg-anda>[aria-pressed="true"],.bmseg-anda>[aria-selected="true"]{background:transparent!important;box-shadow:none!important;border-bottom-color:transparent!important}
+</style>
+<style id="bm-v842">
+/* v842 · «✓ Guardado» donde estaba el botón, y el campo que falta, marcado */
+.bm-ok{position:fixed;z-index:100001;display:flex;align-items:center;justify-content:center;gap:6px;pointer-events:none;box-sizing:border-box;
+  background:var(--ok-text);color:#fff;font:600 14px/1 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;
+  box-shadow:0 6px 18px rgba(0,0,0,.18);animation:bmOkEntra var(--mov-2,250ms) cubic-bezier(.32,.72,0,1) both;transition:opacity var(--mov-2,250ms) ease,transform var(--mov-2,250ms) ease}
+.bm-ok svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24;animation:bmOkTrazo .32s .08s ease-out forwards}
+.bm-ok.fuera{opacity:0;transform:scale(.96)}
+/* el verde del semáforo con blanco encima no llega a 4,5 (§3): en claro, el verde de texto de fondo; en oscuro, el vivo con tinta oscura */
+html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
+@keyframes bmOkEntra{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
+@keyframes bmOkTrazo{to{stroke-dashoffset:0}}
+.bm-mal{outline:2px solid var(--bad)!important;outline-offset:1px;animation:bmTiembla .36s cubic-bezier(.36,.07,.19,.97)}
+@keyframes bmTiembla{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(3px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+@media (prefers-reduced-motion:reduce){.bm-mal{animation:none}}
 </style>
 </body>
 </html>
