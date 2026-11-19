@@ -23450,7 +23450,9 @@ const BMMOR=new Map();
 const bmMorphPlugin={id:'bmMorph',
   beforeDestroy(ch){try{const id=ch.canvas&&ch.canvas.id;if(!id)return;
     const pos=ch.data.datasets.map((d,i)=>{const m=ch.getDatasetMeta(i);return ((m&&m.data)||[]).map(e=>e?{x:e.x,y:e.y}:null);});
-    BMMOR.set(id,{t:Date.now(),type:ch.config.type,pos});}catch(e){}},
+    /* v868 · sólo se transforma lo que se estaba VIENDO: un gráfico oculto o fuera de la pantalla no tiene un antes que enseñar */
+    const r=ch.canvas.getBoundingClientRect(),vis=r.width>0&&r.height>0&&r.bottom>0&&r.top<(window.innerHeight||800);
+    BMMOR.set(id,{t:Date.now(),type:ch.config.type,pos,vis});}catch(e){}},
   beforeInit(ch){try{
     const o0=ch.config.options||{};
     if(o0.animation===false)return;
@@ -23459,7 +23461,7 @@ const bmMorphPlugin={id:'bmMorph',
     const base=(o0.animation&&typeof o0.animation==='object')?o0.animation:{};
     if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){o.animation=false;ch.config.options=o;return;}
     const id=ch.canvas&&ch.canvas.id,prev=id&&BMMOR.get(id);
-    if(prev&&Date.now()-prev.t<8000&&prev.type===ch.config.type){
+    if(prev&&prev.vis&&Date.now()-prev.t<8000&&prev.type===ch.config.type){
       const P=prev.pos;const de=k=>ctx=>{if(!ctx||ctx.type!=='data')return undefined;const a=P[ctx.datasetIndex];const e=a&&a[ctx.dataIndex];return e&&isFinite(e[k])?e[k]:undefined;};
       o.animation=Object.assign({},base,{duration:350,easing:'easeOutCubic'});
       o.animations=Object.assign({},o0.animations||{},{x:{from:de('x')},y:{from:de('y')}});
@@ -23483,6 +23485,8 @@ function bmlleObs(){
     if(!en.isIntersecting||en.intersectionRatio<.2)return;
     const cv=en.target;BMLLE.obs.unobserve(cv);
     const c=window.Chart&&Chart.getChart(cv);if(!c||!c.$bmLlega)return;c.$bmLlega=false;
+    /* v868 · la línea que se dibuja a pluma apunta en cada punto que ya empezó: se olvida para volver a dibujarla */
+    try{(c.data.datasets||[]).forEach((d,i)=>{const m=c.getDatasetMeta(i);(m&&m.data||[]).forEach(el=>{const x=el&&el.$context;if(x){x.xStarted=false;x.yStarted=false;}});});}catch(_){}
     try{c.reset();c.update();}catch(e){}
   });},{threshold:[0,.2,.5]});
   return BMLLE.obs;
@@ -23491,9 +23495,10 @@ const bmLlegaPlugin={id:'bmLlega',
   afterInit(ch){try{
     const cv=ch.canvas;if(!cv||!cv.closest||cv.closest(BMG_DOC+',#bm-gv'))return;
     const o=ch.config.options||{};if(o.animation===false)return;
-    if(o.animations&&o.animations.x&&typeof o.animations.x.from==='function')return;   /* se transforma (v778) */
-    if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     const r=cv.getBoundingClientRect(),H=window.innerHeight||800;
+    /* se transforma (v778)… salvo que nazca oculto: nadie vería esa transformación */
+    if(r.width>0&&o.animations&&o.animations.x&&typeof o.animations.x.from==='function')return;
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     const visto=r.width>0&&r.height>0&&r.bottom>0&&r.top<H*.92;
     if(visto)return;
     const h=cv.height/(window.devicePixelRatio||1);if(r.width&&(r.height<70||r.width<120))return;
@@ -23502,6 +23507,75 @@ const bmLlegaPlugin={id:'bmLlega',
     ch.$bmLlega=true;ob.observe(cv);
   }catch(e){}}
 };
+/* ═══ v868 · GRÁFICOS QUE SE DIBUJAN CON TRAZO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 5. Medido: todas las barras de un gráfico
+   crecían a la vez desde abajo, y las líneas también. Ahora las barras crecen
+   en ola, una detrás de otra, y las líneas se dibujan de izquierda a derecha
+   como a pluma, como en Salud. Lo mismo cuando el gráfico se vuelve a dibujar
+   al llegar a él (v847). Los que se transforman desde el anterior (v778) no:
+   ya enseñan el cambio. **El Resumen y el Calendario se quedan como están**
+   (v755), y los documentos que se exportan no se animan. */
+function bmTrazoVale(ch){
+  try{if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino())||bmReduce())return false;
+    const cv=ch.canvas;return !!cv&&!!cv.closest&&!cv.closest(BMG_DOC+',#v-equipo,#v-cal,#bm-gv');}catch(e){return false;}
+}
+const bmTrazoPlugin={id:'bmTrazo',
+  beforeInit(ch){try{
+    if(!bmTrazoVale(ch))return;
+    const o0=ch.config.options||{};if(o0.animation===false)return;
+    const oculto=!(ch.canvas.getBoundingClientRect().width>0);
+    if(!oculto&&o0.animations&&o0.animations.x&&typeof o0.animations.x.from==='function')return;   /* se transforma (v778) */
+    const tipo=ch.config.type,ds=ch.data.datasets||[];
+    const tipos=ds.map(d=>d.type||tipo);
+    const n=Math.max(1,...ds.map(d=>(d.data||[]).length));
+    const o=Object.assign({},o0),base=(o0.animation&&typeof o0.animation==='object')?o0.animation:{};
+    /* oculto: fuera la transformación desde el anterior, que nadie vería; se dibujará al llegar (v847) */
+    if(oculto&&o0.animations&&o0.animations.x&&typeof o0.animations.x.from==='function'){const an=Object.assign({},o0.animations);delete an.x;delete an.y;o.animations=an;}
+    if(tipos.every(t=>t==='line')&&n>=3){
+      const dur=Math.min(900,Math.max(420,n*28)),paso=dur/n;
+      const prevY=ctx=>{const m=ctx.chart.getDatasetMeta(ctx.datasetIndex);if(ctx.index===0||!m.data[ctx.index-1])return m.yScale?m.yScale.getBasePixel():0;return m.data[ctx.index-1].getProps(['y'],true).y;};
+      o.animations=Object.assign({},o0.animations||{},{
+        x:{type:'number',easing:'linear',duration:paso,from:NaN,delay(ctx){if(ctx.type!=='data'||ctx.xStarted)return 0;ctx.xStarted=true;return ctx.index*paso;}},
+        y:{type:'number',easing:'linear',duration:paso,from:prevY,delay(ctx){if(ctx.type!=='data'||ctx.yStarted)return 0;ctx.yStarted=true;return ctx.index*paso;}}});
+    }else if(tipos.some(t=>t==='bar')&&n>=3){
+      const paso=Math.min(32,520/n);
+      o.animation=Object.assign({},base,{delay(ctx){if(ctx.type!=='data'||ctx.mode!=='default')return 0;
+        const m=ctx.chart.getDatasetMeta(ctx.datasetIndex);return m&&m.type==='bar'?ctx.dataIndex*paso:0;}});
+    }else return;
+    ch.config.options=o;
+  }catch(e){}}
+};
+/* ═══ v869 · GRÁFICOS CON FOCO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 6. Al pasar el ratón por un gráfico salía la
+   burbuja y nada más. Ahora, en los de barras, el día que miras se queda en
+   color y los demás se atenúan, como en Salud; y la burbuja se desliza de un
+   punto a otro en vez de saltar. Las mismas exclusiones que la v868. */
+const bmFocoPlugin={id:'bmFoco',
+  beforeInit(ch){try{
+    if(!bmTrazoVale(ch))return;
+    const o0=ch.config.options||{},pl=o0.plugins||{},tt=pl.tooltip||{};
+    if(tt.animation===false||tt.enabled===false)return;
+    ch.config.options=Object.assign({},o0,{plugins:Object.assign({},pl,{tooltip:Object.assign({},tt,{animation:{duration:220,easing:'easeOutCubic'}})})});
+  }catch(e){}},
+  afterEvent(ch,args){try{
+    if(!bmTrazoVale(ch))return;
+    const e=args.event;if(!e)return;
+    if(!(ch.data.datasets||[]).some((d,i)=>(d.type||ch.config.type)==='bar'&&ch.isDatasetVisible(i)))return;
+    let i=null;
+    if(e.type!=='mouseout'){const a=ch.getActiveElements();if(a&&a.length)i=a[0].index;}
+    if(i!==ch.$bmFoco){ch.$bmFoco=i;args.changed=true;}
+  }catch(_){}}
+};
+(function(){try{
+  const BE=window.Chart&&Chart.BarElement;if(!BE||BE.prototype.__bmFoco)return;
+  const d=BE.prototype.draw;
+  BE.prototype.draw=function(ctx,area){
+    const c=this.$context,ch=c&&c.chart;
+    if(ch&&ch.$bmFoco!=null&&c.dataIndex!==ch.$bmFoco){ctx.save();ctx.globalAlpha*=.32;try{d.call(this,ctx,area);}finally{ctx.restore();}return;}
+    return d.call(this,ctx,area);
+  };
+  BE.prototype.__bmFoco=true;
+}catch(e){}})();
 /* la hoja de notas de un día */
 /* ═══ v817 · NOTAS DIRIGIDAS ENTRE EL CUERPO TÉCNICO ═══
    Daniel, 18/11/2026, propuesta 5. Una nota puede avisar a alguien —el
@@ -27124,6 +27198,8 @@ function buildChartTheme(){
     if(!Chart.registry.plugins.get('bmNotas'))Chart.register(bmNotasPlugin);
     if(!Chart.registry.plugins.get('bmMorph'))Chart.register(bmMorphPlugin);
     if(!Chart.registry.plugins.get('bmLlega'))Chart.register(bmLlegaPlugin);
+    if(!Chart.registry.plugins.get('bmTrazo'))Chart.register(bmTrazoPlugin);
+    if(!Chart.registry.plugins.get('bmFoco'))Chart.register(bmFocoPlugin);
     if(!Chart.registry.plugins.get('bmCursor'))Chart.register(bmCursorPlugin);
     if(!Chart.registry.plugins.get('bmPartidos'))Chart.register(bmPartidosPlugin);
   }
