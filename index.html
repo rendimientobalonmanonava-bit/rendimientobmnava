@@ -25955,6 +25955,38 @@ function bmEntradaVuela(img,capa,cascada){
   return true;
 }
 window.bmEntradaVuela=bmEntradaVuela;
+/* ═══ v863 · EL MODO OSCURO ENTRA EN CÍRCULO ═══
+   Daniel, 19/11/2026, propuesta 8. El tema cambiaba de golpe. Ahora el tema
+   nuevo se expande en círculo desde el botón que se ha pulsado —o desde el
+   centro, con el teclado— en algo más de medio segundo. **No es un fundido**:
+   la v378 descartó fundir los dos temas porque el texto pasaba por un gris
+   lavado; aquí cada punto de la pantalla está en un tema o en el otro, nunca a
+   medias. Mientras dura se apagan las transiciones de color de la app, para
+   que el tema nuevo entre ya terminado y no a medio camino. Vale en el
+   ordenador y en el móvil; nada con «Reducir movimiento». */
+function bmTemaCirculo(fn,self,args){
+  if(!document.startViewTransition||bmReduce())return fn.apply(self,args);
+  const html=document.documentElement;
+  let x=window.innerWidth/2,y=window.innerHeight/2;
+  try{if(typeof BMORG!=='undefined'&&BMORG.r&&Date.now()-BMORG.t<1500){x=BMORG.r.x;y=BMORG.r.y;}}catch(_){}
+  const R=Math.hypot(Math.max(x,window.innerWidth-x),Math.max(y,window.innerHeight-y));
+  html.classList.add('bm-tema-vt');
+  let r;
+  try{
+    const vt=document.startViewTransition(()=>{r=fn.apply(self,args);});
+    vt.ready.then(()=>{try{html.animate({clipPath:['circle(0px at '+x+'px '+y+'px)','circle('+Math.ceil(R)+'px at '+x+'px '+y+'px)']},
+      {duration:620,easing:'cubic-bezier(.32,.72,0,1)',pseudoElement:'::view-transition-new(root)'});}catch(_){}}).catch(()=>{});
+    const fin=()=>html.classList.remove('bm-tema-vt');vt.finished.then(fin,fin);
+    try{vt.updateCallbackDone.catch(()=>{});}catch(_){}
+  }catch(e){html.classList.remove('bm-tema-vt');return fn.apply(self,args);}
+  return r;
+}
+function bmTemaInstala(){
+  ['toggleTheme','temaPon'].forEach(n=>{const f=window[n];if(typeof f!=='function'||f.__bmtc)return;
+    const w=function(){return bmTemaCirculo(f,this,arguments);};w.__bmtc=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window[n]=w;});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmTemaInstala,0));else setTimeout(bmTemaInstala,0);
+window.bmTemaCirculo=bmTemaCirculo;
 
 
 
@@ -62388,6 +62420,12 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
 }
 @keyframes bmdzFuera{to{opacity:0}}
 @keyframes bmdzDentro{from{opacity:0}}
+</style>
+<style id="bm-v863">
+/* v863 · el modo oscuro entra en círculo */
+html.bm-tema-vt *,html.bm-tema-vt *::before,html.bm-tema-vt *::after{transition:none!important}
+html.bm-tema-vt::view-transition-old(root),html.bm-tema-vt::view-transition-new(root){animation:none;mix-blend-mode:normal}
+html.bm-tema-vt::view-transition-new(root){z-index:2}
 </style>
 </body>
 </html>
