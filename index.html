@@ -24625,6 +24625,89 @@ document.addEventListener('pointerover',ev=>{
   try{if(getComputedStyle(el).display==='inline')el.classList.add('bm-hvi');}catch(e){}
 },true);
 window.bmhvSel=bmhvSel;
+/* ═══ v837 · PESTAÑAS: LA MARCA SE DESLIZA Y EL CONTENIDO ENTRA POR SU LADO ═══
+   Daniel, 19/11/2026, propuesta 3. Medido: cada barra de pestañas iba por su
+   cuenta —las de Cargas cambiaban de golpe, las de la ficha con una entrada de
+   0,35 s, las de Pulsómetros sólo cambiaban de color y las del móvil con un
+   fundido—. Ahora, en todos los selectores (los de la barra del ordenador,
+   Cargas, Pulsómetros, Perfil físico, Médico, Fisioterapia, Mes y Semana, los
+   de los bloques y las barras del móvil), la marca de lo elegido se DESLIZA
+   hasta lo nuevo, como en el iPhone y el Mac: una copia de su fondo (`bmseg-g`)
+   va de una pestaña a la otra por debajo de los nombres y desaparece al
+   llegar. **No se cambia cómo se dibuja ninguna pestaña**: se lee el fondo, el
+   radio, la sombra y el subrayado de la elegida y se copian; mientras dura, la
+   elegida no pinta el suyo. Y el contenido de la pestaña nueva entra desde el
+   lado hacia el que se ha ido (de izquierda a derecha, entra por la derecha).
+   Sólo cuando lo ha pedido un clic o un toque: un cambio hecho por código no
+   se anima. Nada con «Reducir movimiento». */
+const BMSEG_SEL='#bm-tbs,.seg,.ctv-seg,.bmmp-modo,.tsm-bar,.cal-modetog,.alert-filters,#plt-bar,.cmp-con,.bnt-para,.bnm-tab,.estado-seg';
+function bmReduce(){try{return matchMedia('(prefers-reduced-motion:reduce)').matches;}catch(e){return false;}}
+function bmsegBotones(c){return [...c.children].filter(x=>x.tagName==='BUTTON'||x.getAttribute('role')==='tab');}
+function bmsegElegido(c){return bmsegBotones(c).filter(b=>b.classList.contains('on')||b.getAttribute('aria-pressed')==='true'||b.getAttribute('aria-selected')==='true');}
+function bmsegAnima(c0,key,pt,from,intento){
+  let c=(c0&&c0.isConnected)?c0:(key?document.getElementById(key):null);
+  if(!c){const el=document.elementFromPoint(pt.x,pt.y);c=el&&el.closest&&el.closest(BMSEG_SEL);}
+  if(!c)return;
+  const sel=bmsegElegido(c);if(sel.length!==1)return;
+  const nb=sel[0],to=nb.getBoundingClientRect();
+  if(Math.abs(to.left-from.x)<2&&Math.abs(to.top-from.y)<2&&Math.abs(to.width-from.w)<2){
+    /* la barra aún no se ha repintado (la del ordenador copia la de la pantalla con un pequeño retraso) */
+    if((intento||0)<3)setTimeout(()=>bmsegAnima(c,key,pt,from,(intento||0)+1),70);return;}
+  if(!to.width||!from.w)return;
+  const cs=getComputedStyle(nb);
+  const f={bg:cs.backgroundColor,bi:cs.backgroundImage,r:cs.borderRadius,sh:cs.boxShadow,bbw:cs.borderBottomWidth,bbs:cs.borderBottomStyle,bbc:cs.borderBottomColor};
+  const nada=(f.bg==='rgba(0, 0, 0, 0)'||f.bg==='transparent')&&f.bi==='none'&&f.sh==='none'&&parseFloat(f.bbw)===0;if(nada)return;
+  const cr=c.getBoundingClientRect(),dx=c.scrollLeft-c.clientLeft-cr.left,dy=c.scrollTop-c.clientTop-cr.top;
+  const deja=[];const pon=(el,p,v)=>{deja.push([el,p,el.style.getPropertyValue(p),el.style.getPropertyPriority(p)]);el.style.setProperty(p,v,'important');};
+  if(getComputedStyle(c).position==='static')pon(c,'position','relative');
+  pon(c,'isolation','isolate');
+  bmsegBotones(c).forEach(x=>{if(getComputedStyle(x).position==='static')pon(x,'position','relative');pon(x,'z-index','1');});
+  const g=document.createElement('i');g.className='bmseg-g';g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{position:'absolute',left:(from.x+dx)+'px',top:(from.y+dy)+'px',width:from.w+'px',height:from.h+'px',backgroundColor:f.bg,backgroundImage:f.bi,borderRadius:f.r,boxShadow:f.sh,
+    borderBottom:f.bbw+' '+f.bbs+' '+f.bbc,boxSizing:'border-box',zIndex:'0',pointerEvents:'none',margin:'0',padding:'0',display:'block'});
+  pon(nb,'background','transparent');pon(nb,'box-shadow','none');pon(nb,'border-bottom-color','transparent');
+  c.appendChild(g);
+  let hecho=false;const fin=()=>{if(hecho)return;hecho=true;g.remove();deja.reverse().forEach(([el,p,v,pr])=>{if(v)el.style.setProperty(p,v,pr);else el.style.removeProperty(p);});};
+  try{const a=g.animate([{left:(from.x+dx)+'px',top:(from.y+dy)+'px',width:from.w+'px',height:from.h+'px'},{left:(to.left+dx)+'px',top:(to.top+dy)+'px',width:to.width+'px',height:to.height+'px'}],
+    {duration:300,easing:'cubic-bezier(.32,.72,0,1)',fill:'forwards'});a.onfinish=fin;a.oncancel=fin;}catch(e){fin();}
+  setTimeout(fin,700);
+}
+document.addEventListener('click',e=>{
+  const b=e.target&&e.target.closest&&e.target.closest('button,[role="tab"]');if(!b)return;
+  const c=b.parentElement;if(!c||!c.matches||!c.matches(BMSEG_SEL))return;
+  const hs=bmsegBotones(c);if(hs.length<2)return;
+  const old=bmsegElegido(c);if(old.length!==1||old[0]===b)return;
+  window.__BM_TABDIR=hs.indexOf(b)>hs.indexOf(old[0])?1:-1;clearTimeout(window.__BM_TABDIR_T);window.__BM_TABDIR_T=setTimeout(()=>{window.__BM_TABDIR=null;},500);
+  if(bmReduce())return;
+  const r=old[0].getBoundingClientRect();if(!r.width)return;
+  const cb=b.getBoundingClientRect();
+  const from={x:r.left,y:r.top,w:r.width,h:r.height},pt={x:cb.left+cb.width/2,y:cb.top+cb.height/2};
+  setTimeout(()=>bmsegAnima(c,c.id||null,pt,from,0),30);
+},true);
+/* el contenido de la pestaña nueva entra por su lado */
+function bmTabEntra(els,dir){
+  if(!dir||bmReduce())return;
+  (els||[]).forEach(el=>{if(!el||!el.getBoundingClientRect().height)return;
+    try{el.animate([{opacity:0,transform:'translateX('+(dir*18)+'px)'},{opacity:1,transform:'none'}],{duration:260,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}});
+}
+const BMTAB_PANEL={
+  cargasTab:()=>[document.getElementById('carga-'+(FILTER.cargaTab||'resumen'))],
+  hrModo:m=>[document.getElementById('hr-pane-'+m)],
+  tsaModo:m=>[document.getElementById('tsa-pane-'+m)],
+  medTab:k=>[document.getElementById('medpane-'+k)],
+  estadoTab:k=>[document.getElementById('estado-'+k)],
+  plTab:k=>[document.getElementById('plt-'+k)],
+  mtCambia:(p,b,t)=>{const P=document.getElementById(p);return P?[...P.querySelectorAll(':scope>[data-mt="'+t+'"]')]:[];}
+};
+function bmtabInstala(){
+  Object.keys(BMTAB_PANEL).forEach(fn=>{const f=window[fn];if(typeof f!=='function'||f.__bmtab)return;
+    const w=function(){const dir=window.__BM_TABDIR;window.__BM_TABDIR=null;const r=f.apply(this,arguments);
+      if(dir){const args=arguments;setTimeout(()=>{try{bmTabEntra(BMTAB_PANEL[fn].apply(null,args),dir);}catch(e){}},0);}return r;};
+    w.__bmtab=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(e){}});window[fn]=w;});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmtabInstala,0));else setTimeout(bmtabInstala,0);
+window.bmTabEntra=bmTabEntra;window.bmReduce=bmReduce;
+
 
 
 /* v562 · El título de la pantalla, en corto, dentro de la cápsula del día. En
@@ -46670,7 +46753,7 @@ if(CONFIG.sources.roster&&document.getElementById('url-roster'))document.getElem
   box-shadow:0 1px 4px rgba(11,13,18,.12)}
 .plt-b:active{transform:scale(.97)}
 .plt-pane{display:none}
-.plt-pane.on{display:block;animation:pltIn .35s cubic-bezier(.32,.72,0,1)}
+.plt-pane.on{display:block}
 @keyframes pltIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.plt-pane.on{animation:none}}
 /* Dos columnas que se parten solas; `minmax` con suelo para que un panel no
