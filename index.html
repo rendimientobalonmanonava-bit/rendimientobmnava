@@ -27823,6 +27823,73 @@ document.addEventListener('pointerover',e=>{
     try{p.animate([{strokeDashoffset:L},{strokeDashoffset:0}],{duration:360,delay:i*38,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}});
 },true);
 document.documentElement.addEventListener('mouseleave',()=>{document.querySelectorAll('#v-jugador .phe-ph.bmr14-on').forEach(x=>x.classList.remove('bmr14-on'));});
+/* ═══ v906 · VISTA RÁPIDA DE UN DÍA AL PASAR POR UNA FECHA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 4. Con el ratón quieto medio segundo sobre una
+   fecha de Cargas —la cabecera del mapa de la plantilla, las filas de «Los
+   últimos 14 días» del Dashboard, las casillas de la tabla del ciclo y el día
+   tipo de Temporada— sale una tarjeta flotante con ese día: su posición en el
+   ciclo, el partido, lo programado, la carga programada contra la real con su
+   desviación y las notas. Es la versión corta del resumen de un día (v808), con
+   **las mismas funciones** (`calDayPlan`, `calRealDia`, `calDev`, `notasDe`):
+   ni un cálculo nuevo. No recoge clics —el clic sigue abriendo el día entero
+   donde ya lo hacía— y se va al mover el ratón fuera, desplazar o pulsar. La
+   línea de tiempo (tecla L) ya enseña el día al pasar, así que no se duplica. */
+const BMDQ={t:0,el:null,pop:null};
+const BMDQ_SEL='#v-carga .bmmp-h[data-dk],#v-carga .ctw-c[data-ctd],#v-carga .ctv-sd[data-vd],#v-carga .cg-d14-d';
+function bmdqVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmdqDk(el){
+  const d=el.dataset.dk||el.dataset.ctd||el.dataset.vd;if(d&&/^\d{4}-\d{2}-\d{2}$/.test(d))return d;
+  const m=(el.textContent||'').match(/(\d{1,2})\/(\d{1,2})/);if(!m)return null;
+  const ref=REF(),dd=+m[1],mm=+m[2];let best=null;
+  [ref.getFullYear()-1,ref.getFullYear(),ref.getFullYear()+1].forEach(y=>{const t=new Date(y,mm-1,dd),df=Math.abs(t-ref);if(!best||df<best.df)best={t,df};});
+  return best?dkey(best.t):null;}
+function bmdqHTML(dk){
+  const E=bmEsc,hoy=dkey(new Date());
+  let d=dkToDate(dk).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});d=d.charAt(0).toUpperCase()+d.slice(1);
+  let md=null;try{md=calMd(dk);}catch(e){}
+  const evs=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e));const par=evs.find(evEsPartido);
+  const sub=[md&&md.txt&&md.txt!=='—'?md.txt:'',par?'Partido · '+(evRival(par)||''):'',dk>hoy?'Planificado':dk===hoy?'Hoy':''].filter(Boolean).join(' · ');
+  let h='<b class="bmdq-t">'+E(d)+'</b>'+(sub?'<span class="bmdq-s">'+E(sub)+'</span>':'');
+  if(evs.length){h+='<div class="bmdq-ev">'+evs.slice(0,3).map(e=>{const T=(CAL_TYPES[e.type]||{}).lab||e.type,I=CAL_INT[evIntens(e)]||{};
+      const det=[e.time||'',evDur(e)?evDur(e)+'′':'',I.lab&&e.type!=='descanso'?I.lab.toLowerCase():''].filter(Boolean).join(' · ');
+      return '<div><i style="background:'+E((CAL_TYPES[e.type]||{}).col||'var(--muted)')+'"></i><span>'+E(e.type==='partido'?(evRival(e)||T):(e.title||T))+'</span><em>'+E(det)+'</em></div>';}).join('')
+    +(evs.length>3?'<small>y '+(evs.length-3)+' más</small>':'')+'</div>';}
+  else h+='<p class="bmdq-n">Nada programado en el calendario.</p>';
+  let pl=null;try{pl=calDayPlan(dk);}catch(e){}let real=null;
+  try{const m=(STATE.calMeta||{})[dk];if(m&&m.real!=null&&m.real!=='')real=+m.real;else{const r=calRealDia(dk);if(r>0)real=r;}}catch(e){}
+  const n0=v=>Math.round(v).toLocaleString('es-ES');
+  /* dos unidades, dichas por su nombre (v514/v737): la carga del equipo es la
+     media de la plantilla —la de las casillas de Cargas— y el plan se compara
+     con cada bloque programado sobre quien lo hizo */
+  let tu=null;try{const t=lbTeamDay(dk);if(t&&t.ua>0)tu=t.ua;}catch(e){}
+  if(tu!=null)h+='<div class="bmdq-c"><span><em>Carga del equipo</em><b>'+n0(tu)+' UA</b></span></div>';
+  if(pl&&pl.n&&pl.planUA>0){const D=real!=null?calDev(pl.planUA,real):null;
+    h+='<div class="bmdq-c"><span><em>Programado</em><b>'+n0(pl.planUA)+' UA</b></span><span><em>Hecho</em><b>'+(real!=null?n0(real)+' UA':(dk>hoy?'—':'sin datos'))+'</b></span>'
+      +(D?'<span><em>Desviación</em><b style="color:'+colTexto(D.col)+'">'+(D.pct>0?'+':D.pct<0?'−':'')+Math.abs(D.pct)+' %</b></span>':'')+'</div>'
+      +'<p class="bmdq-u">Contra el plan, en su unidad: cada bloque programado, sobre quien lo hizo.</p>';}
+  let nts=[];try{nts=notasDe(dk,null);}catch(e){}
+  if(nts.length)h+='<p class="bmdq-nt">✎ '+E(String(nts[0].txt||'').slice(0,90))+(nts.length>1?' · y '+(nts.length-1)+' más':'')+'</p>';
+  return h;}
+function bmdqQuita(){clearTimeout(BMDQ.t);BMDQ.t=0;BMDQ.el=null;if(BMDQ.pop)BMDQ.pop.classList.remove('on');}
+function bmdqMuestra(el){
+  const dk=bmdqDk(el);if(!dk||!el.isConnected)return;
+  let p=BMDQ.pop;if(!p){p=document.createElement('div');p.id='bm-dq';p.setAttribute('role','tooltip');document.body.appendChild(p);BMDQ.pop=p;}
+  try{p.innerHTML=bmdqHTML(dk);}catch(e){console.error('bmnava · vista rápida del día',e);return;}
+  const t=document.getElementById('bm-tip');if(t)t.classList.remove('on');
+  const r=el.getBoundingClientRect();p.classList.remove('on');p.style.left='0px';p.style.top='0px';
+  const w=p.offsetWidth,h=p.offsetHeight;let x=r.left+r.width/2-w/2;x=Math.max(10,Math.min(innerWidth-w-10,x));
+  let y=r.bottom+8,arriba=false;if(y+h>innerHeight-10){y=r.top-h-8;arriba=true;}
+  p.style.left=x.toFixed(0)+'px';p.style.top=Math.max(10,y).toFixed(0)+'px';p.style.transformOrigin=((r.left+r.width/2-x)/w*100).toFixed(0)+'% '+(arriba?'100%':'0%');
+  void p.offsetWidth;p.classList.add('on');}
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType==='touch'||!bmdqVale()||!e.target||!e.target.closest)return;
+  const el=e.target.closest(BMDQ_SEL);
+  if(el===BMDQ.el)return;bmdqQuita();if(!el||e.buttons)return;
+  BMDQ.el=el;BMDQ.t=setTimeout(()=>{if(BMDQ.el===el)bmdqMuestra(el);},480);
+},true);
+['pointerdown','keydown','wheel'].forEach(t=>document.addEventListener(t,()=>{if(BMDQ.el)bmdqQuita();},true));
+window.addEventListener('scroll',()=>{if(BMDQ.el)bmdqQuita();},{passive:true,capture:true});
+document.documentElement.addEventListener('mouseleave',bmdqQuita);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59451,6 +59518,33 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
     filter:drop-shadow(0 2px 6px rgba(0,0,0,.10))}
   #v-jugador .phero .phe-ph.bmr14-on>.bmr14{opacity:1}
   #v-jugador .phero .phe-ph>.bmr14 .bmr14-s{pointer-events:visibleStroke}
+}
+</style>
+<style id="esc-v906">
+/* v906 · vista rápida de un día (ordenador) */
+#bm-dq{display:none}
+@media screen and (min-width:761px) and (pointer:fine){
+  #bm-dq{display:block;position:fixed;z-index:10045;width:300px;box-sizing:border-box;padding:12px 14px;border-radius:14px;pointer-events:none;
+    background:var(--panel);color:var(--txt);box-shadow:0 0 0 .5px var(--hair),0 14px 36px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.08);
+    opacity:0;transform:scale(.94) translateY(4px);transition:opacity .16s ease,transform .22s cubic-bezier(.32,.72,0,1)}
+  #bm-dq.on{opacity:1;transform:none}
+  #bm-dq .bmdq-t{display:block;font-size:14px;font-weight:700;letter-spacing:-.01em}
+  #bm-dq .bmdq-s{display:block;margin-top:1px;font-size:12px;color:var(--muted)}
+  #bm-dq .bmdq-ev{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+  #bm-dq .bmdq-ev>div{display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:center;gap:7px;font-size:12.5px}
+  #bm-dq .bmdq-ev i{width:8px;height:8px;border-radius:50%}
+  #bm-dq .bmdq-ev span{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bm-dq .bmdq-ev em{font-style:normal;color:var(--muted);font-size:11.5px;white-space:nowrap}
+  #bm-dq .bmdq-ev small{font-size:11px;color:var(--muted)}
+  #bm-dq .bmdq-n{margin:8px 0 0;font-size:12px;color:var(--muted)}
+  #bm-dq .bmdq-c{display:flex;gap:14px;margin-top:10px;padding-top:9px;border-top:.5px solid var(--hair)}
+  #bm-dq .bmdq-c span{display:flex;flex-direction:column}
+  #bm-dq .bmdq-c em{font-style:normal;font-size:11px;color:var(--muted)}
+  #bm-dq .bmdq-c b{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+  #bm-dq .bmdq-nt{margin:9px 0 0;font-size:12px;color:var(--txt)}
+  #bm-dq .bmdq-c+.bmdq-c{margin-top:8px;padding-top:0;border-top:0}
+  #bm-dq .bmdq-u{margin:4px 0 0;font-size:11px;color:var(--muted)}
+  @media (prefers-reduced-motion:reduce){#bm-dq{transition:opacity .12s ease;transform:none}}
 }
 </style>
 <style id="bm-v808">
