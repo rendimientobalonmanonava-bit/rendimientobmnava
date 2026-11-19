@@ -27532,6 +27532,52 @@ function bmrevInstala(){
     Object.keys(x).forEach(k=>{try{w[k]=x[k];}catch(_){}});w.__bmrev=true;window.exportNodePNG=w;}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmrevInstala,80));else setTimeout(bmrevInstala,80);
+/* ═══ v900 · EL MAPA DE LA PLANTILLA CON MIRA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 4. En Cargas › Plantilla (hasta 700 casillas),
+   al pasar el ratón se iluminan la fila del jugador y la columna del día, como
+   en una hoja de cálculo: la fila se levanta un poco con su sombra, su cara
+   crece, la fecha de la columna se marca y la casilla bajo el ratón lleva un
+   filo. Las dos bandas se deslizan de una casilla a otra. **No se mete nada en
+   la rejilla** —es una sola cuadrícula y un hijo de más la descolocaría—: las
+   bandas van en el contenedor que se desplaza y no recogen clics. El color de
+   cada casilla no cambia; sólo se tiñe un poco bajo la banda. */
+const BMMIRA={f:null,c:null,cel:null,g:null,filas:null};
+function bmmiraVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmmiraQuita(){['f','c'].forEach(k=>{if(BMMIRA[k]){BMMIRA[k].remove();BMMIRA[k]=null;}});
+  document.querySelectorAll('.bmmp-mira-n,.bmmp-mira-h,.bmmp-mira-c').forEach(e=>e.classList.remove('bmmp-mira-n','bmmp-mira-h','bmmp-mira-c'));BMMIRA.cel=null;}
+function bmmiraFilas(g){
+  if(BMMIRA.g===g&&BMMIRA.filas)return BMMIRA.filas;
+  const m=new Map(),gt=g.getBoundingClientRect().top;[...g.children].forEach(el=>{const r=el.getBoundingClientRect();if(!r.height)return;const k=Math.round(r.top-gt);
+    if(!m.has(k))m.set(k,[]);m.get(k).push(el);});
+  BMMIRA.g=g;BMMIRA.filas=m;return m;}
+function bmmiraPon(t){
+  const g=t.parentElement,w=g&&g.closest('.bmmp-w');if(!g||!w)return;
+  if(getComputedStyle(w).position==='static')w.style.position='relative';
+  document.querySelectorAll('.bmmp-mira-n,.bmmp-mira-h,.bmmp-mira-c').forEach(e=>e.classList.remove('bmmp-mira-n','bmmp-mira-h','bmmp-mira-c'));
+  BMMIRA.cel=t;
+  const wr=w.getBoundingClientRect(),tr=t.getBoundingClientRect(),X=v=>v-wr.left+w.scrollLeft,Y=v=>v-wr.top+w.scrollTop;
+  const fila=(bmmiraFilas(g).get(Math.round(tr.top-g.getBoundingClientRect().top))||[]).filter(el=>!el.classList.contains('bmmp-g'));
+  const mk=(k,cls)=>{let e=BMMIRA[k];if(!e||!e.isConnected||e.parentElement!==w){e=document.createElement('div');e.className=cls;e.setAttribute('aria-hidden','true');e.setAttribute('data-html2canvas-ignore','true');w.appendChild(e);BMMIRA[k]=e;e.style.transition='none';}return e;};
+  if(fila.length>1){const a=fila[0].getBoundingClientRect(),b=fila[fila.length-1].getBoundingClientRect();const f=mk('f','bmmira-f');
+    Object.assign(f.style,{left:X(a.left)+'px',top:Y(tr.top)+'px',width:(b.right-a.left)+'px',height:tr.height+'px'});
+    const n=fila.find(el=>el.classList.contains('bmmp-nom'));if(n)n.classList.add('bmmp-mira-n');}
+  else if(BMMIRA.f){BMMIRA.f.remove();BMMIRA.f=null;}
+  const dk=t.dataset.dk;
+  if(dk){const col=[...g.querySelectorAll(':scope>[data-dk="'+dk+'"]')];const h=col.find(el=>el.classList.contains('bmmp-h'));
+    const top=col.reduce((m,el)=>Math.min(m,el.getBoundingClientRect().top),1e9),bot=col.reduce((m,el)=>Math.max(m,el.getBoundingClientRect().bottom),-1e9);
+    const c=mk('c','bmmira-c');Object.assign(c.style,{left:X(tr.left)+'px',top:Y(top)+'px',width:tr.width+'px',height:(bot-top)+'px'});
+    if(h)h.classList.add('bmmp-mira-h');if(t.classList.contains('bmmp-c'))t.classList.add('bmmp-mira-c');}
+  else if(BMMIRA.c){BMMIRA.c.remove();BMMIRA.c=null;}
+  requestAnimationFrame(()=>{[BMMIRA.f,BMMIRA.c].forEach(e=>{if(e)e.style.transition='';});});
+}
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType==='touch'||!bmmiraVale()||!e.target||!e.target.closest)return;
+  const t=e.target.closest('#carga-mapa .bmmp-r>.bmmp-c,#carga-mapa .bmmp-r>.bmmp-nom[data-n],#carga-mapa .bmmp-r>.bmmp-nom.bmmp-eqn');
+  if(!t){if(BMMIRA.cel&&!e.target.closest('#carga-mapa .bmmp-w'))bmmiraQuita();return;}
+  if(t!==BMMIRA.cel)bmmiraPon(t);
+},true);
+document.addEventListener('pointerleave',e=>{if(e.target&&e.target.classList&&e.target.classList.contains('bmmp-w'))bmmiraQuita();},true);
+window.addEventListener('resize',()=>{BMMIRA.filas=null;});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59079,6 +59125,20 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
 }
 @keyframes bmRevela{from{opacity:0;translate:0 30px;scale:.985}}
 @media print{main .panel,main .cgr-card{animation:none!important}}
+</style>
+<style id="esc-v900">
+/* v900 · el mapa de la plantilla con mira (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine){
+  #carga-mapa .bmmira-f,#carga-mapa .bmmira-c{position:absolute;pointer-events:none;z-index:3;background:color-mix(in srgb,var(--accent) 10%,transparent)}
+  #carga-mapa .bmmira-f{border-radius:7px;box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 38%,transparent),0 6px 16px rgba(0,0,0,.12);transition:top .14s cubic-bezier(.32,.72,0,1),height .14s ease}
+  #carga-mapa .bmmira-c{border-radius:5px;transition:left .14s cubic-bezier(.32,.72,0,1),width .14s ease}
+  #carga-mapa .bmmp-mira-n .bmmp-av{scale:1.18;transition:scale .22s cubic-bezier(.34,1.3,.64,1)}
+  #carga-mapa .bmmp-nom .bmmp-av{transition:scale .22s ease}
+  #carga-mapa .bmmp-mira-n>span:last-child{color:var(--acc-seg,var(--accent));font-weight:600}
+  #carga-mapa .bmmp-mira-h{color:var(--acc-seg,var(--accent))!important;font-weight:700}
+  #carga-mapa .bmmp-mira-c{outline:2px solid var(--accent);outline-offset:-1px;position:relative;z-index:4}
+  @media (prefers-reduced-motion:reduce){#carga-mapa .bmmira-f,#carga-mapa .bmmira-c,#carga-mapa .bmmp-nom .bmmp-av{transition:none}}
+}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
