@@ -26712,6 +26712,27 @@ document.addEventListener('click',e=>{
     BMGU.nombres=[];ns.forEach(n=>{const dos=n.split(' ').slice(0,2).join(' ');if(txt.indexOf(n)>=0||txt.indexOf(dos)>=0){BMGU.nombres.push(dos);if(ns.filter(m=>pila(m)===pila(n)).length===1)BMGU.nombres.push(pila(n));}});}catch(_){BMGU.nombres=[];}
   setTimeout(()=>{try{bmguMira(tok,caja);}catch(err){console.error('bmnava · lo guardado',err);}},700);
 },true);
+/* ═══ v883 · AMPLIAR UN BLOQUE CRECE DESDE SU SITIO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 3. Con ⌘↩ o el botón de ampliar (v787), el
+   bloque saltaba a toda la ventana con un leve fundido. Ahora crece DESDE donde
+   estaba hasta llenar la ventana mientras el fondo se oscurece, y al cerrar
+   vuelve encogiéndose a su hueco —la transición de vistas, la misma pieza que la
+   cara que vuela a la ficha (v856)—. Los gráficos se redimensionan dentro del
+   mismo paso, así que no se ven estirados. Es el mismo bloque: nada se copia. */
+function bmampVT(fn,p){
+  if(!p||!document.startViewTransition||bmReduce()||window.__BM_HEROVT||window.__BM_ZOOM)return fn();
+  p.style.viewTransitionName='bm-amp';document.documentElement.classList.add('bm-amp-vt');window.__BM_AMPVT=true;
+  let vt;try{vt=document.startViewTransition(()=>{fn();try{p.querySelectorAll('canvas').forEach(cv=>{const c=Chart.getChart(cv);if(c){c.resize();c.draw();}});}catch(_){}});}
+  catch(e){p.style.viewTransitionName='';document.documentElement.classList.remove('bm-amp-vt');window.__BM_AMPVT=false;return fn();}
+  const fin=()=>{p.style.viewTransitionName='';document.documentElement.classList.remove('bm-amp-vt');window.__BM_AMPVT=false;};
+  vt.finished.then(fin,fin);
+}
+function bmampInstala(){
+  const a=window.bmAmpAbre,c=window.bmAmpCierra;
+  if(typeof a==='function'&&!a.__bmvt){const w=function(p){if(!bmAmpPuede()||!p||BMAMP.el)return a.apply(this,arguments);const self=this,args=arguments;bmampVT(()=>a.apply(self,args),p);};w.__bmvt=true;window.bmAmpAbre=w;}
+  if(typeof c==='function'&&!c.__bmvt){const w=function(){const p=BMAMP.el;if(!p)return c.apply(this,arguments);const self=this,args=arguments;bmampVT(()=>c.apply(self,args),p);};w.__bmvt=true;window.bmAmpCierra=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmampInstala,0));else setTimeout(bmampInstala,0);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -58075,6 +58096,13 @@ button.ctw-c:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 <style id="esc-v881">
 /* v881 · la cara que cambia de grupo vuela por encima de las demás */
 @media (min-width:761px) and (pointer:fine){.bm-dg-vuela{position:relative;z-index:5;box-shadow:0 8px 22px rgba(0,0,0,.18)}}
+</style>
+<style id="esc-v883">
+/* v883 · ampliar un bloque: crece desde su sitio y vuelve a él */
+html.bm-amp-vt body main .bm-amp{animation:none!important}
+html.bm-amp-vt::view-transition-group(bm-amp){animation-duration:.46s;animation-timing-function:cubic-bezier(.32,.72,0,1)}
+html.bm-amp-vt::view-transition-old(bm-amp),html.bm-amp-vt::view-transition-new(bm-amp){animation-duration:.3s;height:100%;object-fit:cover;object-position:0 0}
+html.bm-amp-vt::view-transition-old(root),html.bm-amp-vt::view-transition-new(root){animation-duration:.3s}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
