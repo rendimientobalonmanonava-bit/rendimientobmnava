@@ -20260,7 +20260,8 @@ function bmZoomPuede(){return (esMovil()||(typeof bmEscFino==='function'&&bmEscF
 function bmZoom(card,run){
   if(!bmZoomPuede()){run();return;}
   /* v856 · en el ordenador, lo que abre a un jugador va con la transición de la cara */
-  if(!esMovil()&&card&&card.matches&&card.matches('[onclick*="openPlayer("]')){run();return;}
+  if(!esMovil()&&card&&card.matches&&card.matches('[onclick*="openPlayer("]')&&!card.__bmzFicha){run();return;}
+  if(card)card.__bmzFicha=false;
   const de=STATE.view;let dst=null;
   const fin=()=>{window.__BM_ZOOM=0;document.documentElement.classList.remove('bmz');if(dst)dst.remove();try{card.style.viewTransitionName='';}catch(_){}};
   try{
@@ -20271,6 +20272,7 @@ function bmZoom(card,run){
       try{if(window.BMV)BMV.ts=0;}catch(_){}
       run();
       dst=document.createElement('div');dst.id='bm-zoomdest';document.body.appendChild(dst);
+      try{if(typeof bmZoomDestino==='function')bmZoomDestino(dst);}catch(_){}
       BMZ={card:card,de:de,a:STATE.view};
     });
     /* Si el navegador no llega a pintar —la app en segundo plano—, la
@@ -25744,6 +25746,65 @@ document.addEventListener('pointerout',e=>{
   const h=nav.querySelector(':scope>.sbp-hov');if(h)h.classList.remove('on');
 },{passive:true});
 window.bmsbpMueve=bmsbpMueve;
+/* ═══ v859 · LAS TARJETAS SE ABREN EN SU PANTALLA, Y VUELVEN (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 4. Medido de nuevo con la v856 puesta: en el
+   Resumen las 4 tarjetas que llevan a una sección ya crecían hasta ella
+   (v838), pero las filas sin cara que abren a un jugador —de las 24 de la
+   pantalla, las que no llevan foto— cambiaban de golpe, y al VOLVER ninguna
+   se encogía en su tarjeta: en el ordenador la vuelta no estaba hecha. Ahora:
+   · una fila o tarjeta sin cara que abre a un jugador crece hasta la ficha;
+   · en el ordenador la tarjeta crece hasta la zona de contenido, sin tapar la
+     barra lateral ni la de arriba;
+   · al volver (atrás, el botón de la barra, el gesto del trackpad), la
+     pantalla se encoge en la tarjeta de la que salió. */
+function bmvCarta(){
+  try{
+    if(Date.now()-BMV.ts>900||!BMV.t||!BMV.t.closest)return null;
+    const c=BMV.t.closest('main [onclick*="openPlayer("]');if(!c)return null;
+    const r=c.getBoundingClientRect();if(r.width<60||r.height<24||r.bottom<0||r.top>window.innerHeight)return null;
+    return c;
+  }catch(e){return null;}
+}
+function bmZoomDestino(d){
+  if(esMovil())return;
+  const m=document.querySelector('main');if(!m)return;
+  const r=m.getBoundingClientRect(),H=window.innerHeight||900,top=Math.max(r.top,0);
+  let hd=0;try{const h=document.querySelector('body>header');if(h)hd=Math.max(0,h.getBoundingClientRect().bottom);}catch(_){}
+  const T=Math.max(top,hd);
+  Object.assign(d.style,{left:r.left+'px',top:T+'px',width:r.width+'px',height:Math.max(80,H-T)+'px',right:'auto',bottom:'auto'});
+}
+/* la vuelta, en el ordenador: por dentro del historial (v835) */
+function bmZoomVuelveEsc(f,self,args,st){
+  const z=BMZ;
+  if(!z||!z.card||!z.card.isConnected||z.de!==st.v||z.a!==STATE.view||!bmZoomPuede())return false;
+  BMZ={};
+  const dst=document.createElement('div');dst.id='bm-zoomdest';document.body.appendChild(dst);bmZoomDestino(dst);
+  const html=document.documentElement;html.classList.add('bmz','bmz-atr');window.__BM_ZOOM=1;
+  const fin=()=>{window.__BM_ZOOM=0;html.classList.remove('bmz','bmz-atr');if(dst.isConnected)dst.remove();try{z.card.style.viewTransitionName='';}catch(_){}};
+  try{
+    let hecho=false;
+    const vt=document.startViewTransition(()=>{
+      hecho=true;dst.remove();
+      f.apply(self,args);window.scrollTo(0,st.y||0);
+      try{const r=z.card.getBoundingClientRect();if(z.card.checkVisibility&&z.card.checkVisibility()&&r.bottom>0&&r.top<window.innerHeight)z.card.style.viewTransitionName='bm-zoom';}catch(_){}
+    });
+    setTimeout(()=>{if(!hecho)try{vt.skipTransition();}catch(_){}},650);
+    vt.finished.then(fin,fin);try{vt.ready.catch(()=>{});vt.updateCallbackDone.catch(()=>{});}catch(_){}
+  }catch(e){fin();f.apply(self,args);}
+  return true;
+}
+function bmZoomEscInstala(){
+  const f=window.bmhPop;if(typeof f!=='function'||f.__bmzesc)return;
+  const w=function(e){
+    try{const st=(e&&e.state)||{};
+      if(!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!window.__BM_VUELVE&&st.v&&!(typeof bmCapaAbierta==='function'&&bmCapaAbierta())){
+        if(bmZoomVuelveEsc(f,this,arguments,st))return;}
+    }catch(_){}
+    return f.apply(this,arguments);};
+  w.__bmzesc=true;window.bmhPop=w;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmZoomEscInstala,120));else setTimeout(bmZoomEscInstala,120);
+window.bmvCarta=bmvCarta;window.bmZoomDestino=bmZoomDestino;
 
 
 
@@ -26518,6 +26579,9 @@ function openPlayer(name){
   if(!esMovil()&&typeof bmHeroAbre==='function'&&typeof bmEscFino==='function'&&bmEscFino()){
     if(im){bmHeroAbre(name,im);return;}
     if(bmHeroSpot(name))return;
+    /* v859 · sin cara, la fila o la tarjeta que se ha pulsado crece hasta la ficha */
+    const card=typeof bmvCarta==='function'?bmvCarta():null;
+    if(card&&typeof bmZoom==='function'){card.__bmzFicha=true;bmZoom(card,()=>{openPlayerYa(name);window.scrollTo(0,0);});return;}
     openPlayerYa(name);return;}
   if(!im){openPlayerYa(name);return;}
   BMV.ts=0;
