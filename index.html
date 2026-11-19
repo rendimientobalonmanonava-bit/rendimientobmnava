@@ -27131,6 +27131,69 @@ document.addEventListener('pointermove',e=>{
   bmholoCorre();
 },{passive:true});
 document.documentElement.addEventListener('mouseleave',bmholoSale);
+/* ═══ v893 · COMPARAR COMO UN CARA A CARA (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 5. Al abrir Comparar, los dos lados entran
+   desde los bordes de la hoja, se encuentran en el centro —donde el botón ⇄ da
+   un pequeño salto y cada cara suelta un anillo de su color— y después se
+   despliegan los datos, bloque a bloque. Al cambiar el orden con ⇄, las dos
+   caras se cruzan; al cambiar el jugador de un lado, sólo ese lado entra. No
+   cambia ningún dato ni cómo se dibuja: sólo cómo llega. Nada con «Reducir
+   movimiento». */
+const BMCMP={abre:false,a:null,b:null};
+function bmcmpVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+const BMCMP_EASE='cubic-bezier(.32,.72,0,1)';
+function bmcmpPulso(j,delay){const av=j&&j.querySelector('.cmp-av');if(!av)return;setTimeout(()=>{av.classList.remove('bmcmp-pulso');void av.offsetWidth;av.classList.add('bmcmp-pulso');setTimeout(()=>av.classList.remove('bmcmp-pulso'),800);},delay);}
+function bmcmpRecorta(box,ms){const c=box.closest('.bmh-cuerpo');if(!c)return;c.classList.add('bmcmp-anima');clearTimeout(c._bmcmpT);c._bmcmpT=setTimeout(()=>c.classList.remove('bmcmp-anima'),ms);}
+function bmcmpCaraACara(box){
+  const js=[...box.querySelectorAll('.cmp-cab>.cmp-j')];if(js.length<2)return;
+  bmcmpRecorta(box,1300);
+  const sp=typeof BMTB_MUELLE!=='undefined'?BMTB_MUELLE:BMCMP_EASE;
+  js[0].animate([{transform:'translateX(-170px) scale(.92)',opacity:0},{opacity:1,offset:.4},{transform:'none',opacity:1}],{duration:700,delay:140,easing:sp,fill:'backwards'});
+  js[1].animate([{transform:'translateX(170px) scale(.92)',opacity:0},{opacity:1,offset:.4},{transform:'none',opacity:1}],{duration:700,delay:140,easing:sp,fill:'backwards'});
+  const sw=box.querySelector('.cmp-cab>.cmp-swap');
+  if(sw)sw.animate([{transform:'scale(.3)',opacity:0},{transform:'scale(1.22)',opacity:1,offset:.6},{transform:'none',opacity:1}],{duration:480,delay:470,easing:BMCMP_EASE,fill:'backwards'});
+  bmcmpPulso(js[0],520);bmcmpPulso(js[1],520);
+  [...box.querySelectorAll(':scope>.cmp-con,:scope>.cmp-sec')].forEach((x,i)=>{
+    x.animate([{transform:'translateY(18px)',opacity:0},{transform:'none',opacity:1}],{duration:460,delay:(x.classList.contains('cmp-con')?260:600+(i-1)*80),easing:BMCMP_EASE,fill:'backwards'});});
+}
+function bmcmpCruza(box){
+  const js=[...box.querySelectorAll('.cmp-cab>.cmp-j')];if(js.length<2)return;
+  const a=js[0].getBoundingClientRect(),b=js[1].getBoundingClientRect(),W=b.left-a.left;bmcmpRecorta(box,700);
+  js[0].animate([{transform:'translateX('+W.toFixed(1)+'px)'},{transform:'none'}],{duration:520,easing:BMCMP_EASE});
+  js[1].animate([{transform:'translateX('+(-W).toFixed(1)+'px)'},{transform:'none'}],{duration:520,easing:BMCMP_EASE});
+  const sw=box.querySelector('.cmp-cab>.cmp-swap');if(sw)sw.animate([{transform:'rotate(-180deg)'},{transform:'none'}],{duration:520,easing:BMCMP_EASE});
+}
+function bmcmpLado(box,i){
+  const j=box.querySelectorAll('.cmp-cab>.cmp-j')[i];if(!j)return;bmcmpRecorta(box,700);
+  j.animate([{transform:'translateX('+(i?60:-60)+'px)',opacity:0},{transform:'none',opacity:1}],{duration:460,easing:typeof BMTB_MUELLE!=='undefined'?BMTB_MUELLE:BMCMP_EASE});
+  bmcmpPulso(j,260);
+}
+function bmcmpInstala(){
+  const c=window.bmComparar;
+  if(typeof c==='function'&&!c.__bmcmp){const w=function(){
+      const h=document.getElementById('bmh-cmp');BMCMP.abre=!(h&&h.classList.contains('on'));
+      try{return c.apply(this,arguments);}finally{BMCMP.abre=false;}};
+    w.__bmcmp=true;window.bmComparar=w;}
+  const p=window.cmpPinta;
+  if(typeof p==='function'&&!p.__bmcmp){const w=function(){
+      const A0=BMCMP.a,B0=BMCMP.b,abre=BMCMP.abre;BMCMP.abre=false;
+      const r=p.apply(this,arguments);
+      try{
+        const A=typeof CMP!=='undefined'?CMP.a:null,B=typeof CMP!=='undefined'?CMP.b:null;
+        const box=document.getElementById('cmp-cuerpo');
+        if(box&&bmcmpVale()){
+          if(abre)bmcmpCaraACara(box);
+          else if(A0!=null&&(A!==A0||B!==B0)){
+            if(A===B0&&B===A0)bmcmpCruza(box);
+            else{if(A!==A0)bmcmpLado(box,0);if(B!==B0)bmcmpLado(box,1);}
+          }
+        }
+        BMCMP.a=A;BMCMP.b=B;
+      }catch(_){}
+      return r;};
+    w.__bmcmp=true;window.cmpPinta=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmcmpInstala,0));else setTimeout(bmcmpInstala,0);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -58587,6 +58650,14 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   #bmh-carta .cj-holo::after{content:"";position:absolute;inset:0;border-radius:inherit;mix-blend-mode:overlay;
     background:radial-gradient(circle at var(--hx,50%) var(--hy,50%),rgba(255,255,255,.42),rgba(255,255,255,.10) 26%,transparent 56%)}
 }
+</style>
+<style id="esc-v893">
+/* v893 · Comparar como un cara a cara (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  #bmh-cmp .cmp-av.bmcmp-pulso{animation:bmcmpPulso .75s cubic-bezier(.32,.72,0,1)}
+  #bmh-cmp .bmh-cuerpo.bmcmp-anima{overflow-x:clip}
+}
+@keyframes bmcmpPulso{0%{box-shadow:0 0 0 0 var(--cmp-c)}100%{box-shadow:0 0 0 16px transparent}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
