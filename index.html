@@ -26597,6 +26597,43 @@ function bmcuMira(nodos){
   const ini=()=>{const m=document.querySelector('main');if(m)mo.observe(m,{childList:true,subtree:true});};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else ini();
 })();
+/* ═══ v881 · EN DISPONIBILIDAD, LA CARA CAMBIA DE GRUPO (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 1. Al marcar a alguien como baja o con
+   molestia —o al cambiar de día—, el tablero «La plantilla hoy» se repinta
+   entero: la cara desaparecía de un grupo y aparecía en otro. Ahora la cara
+   VIAJA de «Disponibles» a «Fuera» (o al revés, al darle el alta) con su aro
+   cambiando de color por el camino, y las demás se recolocan deslizándose. Si
+   se ha guardado desde una hoja, el viaje espera a que la hoja se cierre para
+   verse. No cambia el tablero: se mide antes de repintar y se anima después. */
+function bmdgVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce()
+  &&!!document.querySelector('#v-estado.on .dsp-bd')&&Date.now()-(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<1500;}
+function bmdgNom(b){const o=b.getAttribute('onclick')||'';const m=o.match(/openPlayer\('((?:[^'\\]|\\.)*)'\)/);return m?m[1].replace(/\\(.)/g,'$1'):(b.getAttribute('aria-label')||'');}
+function bmdgGrupo(b){const gh=b.closest('.bd-g');const h=gh&&gh.querySelector('.bd-g-h');return h?[...h.childNodes].filter(x=>x.nodeType===3).map(x=>x.nodeValue).join('').trim():'';}
+function bmdgItems(){return [...document.querySelectorAll('#v-estado .dsp-bd .bd-cara,#v-estado .dsp-bd .bd-pill')];}
+function bmdgFoto(){const m=new Map();bmdgItems().forEach(b=>{const n=bmdgNom(b),a=b.querySelector('.bd-av');if(!n||!a)return;const r=a.getBoundingClientRect();if(!r.width)return;
+  m.set(n,{r,g:bmdgGrupo(b),c:getComputedStyle(a).borderColor});});return m;}
+function bmdgAnima(antes){
+  const espera=document.querySelector('.bmh.on')?300:0;let k=0;
+  bmdgItems().forEach(b=>{
+    const n=bmdgNom(b),a=b.querySelector('.bd-av');if(!n||!a)return;const o=antes.get(n),r=a.getBoundingClientRect();if(!r.width)return;
+    if(!o){try{b.animate([{opacity:0,transform:'scale(.8)'},{opacity:1,transform:'none'}],{duration:320,delay:espera+160,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}return;}
+    const dx=o.r.left-r.left,dy=o.r.top-r.top,sc=o.r.width/r.width,salta=o.g!==bmdgGrupo(b);
+    if(!salta&&Math.abs(dx)<1&&Math.abs(dy)<1)return;
+    const c1=getComputedStyle(a).borderColor;
+    try{a.classList.add('bm-dg-vuela');
+      const an=a.animate([{transform:'translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) scale('+sc.toFixed(3)+')',borderColor:o.c},
+        ...(salta?[{transform:'translate('+(dx/2).toFixed(1)+'px,'+(dy/2-26).toFixed(1)+'px) scale(1.18)',borderColor:o.c,offset:.45}]:[]),
+        {transform:'none',borderColor:c1}],
+        {duration:salta?720:420,delay:espera+(salta?(k++)*60:0),easing:salta?'cubic-bezier(.32,.72,0,1)':'cubic-bezier(.32,.72,0,1)',fill:'backwards'});
+      const fin=()=>a.classList.remove('bm-dg-vuela');an.onfinish=fin;an.oncancel=fin;}catch(_){}
+    if(salta)[...b.children].filter(x=>x!==a).forEach(t=>{try{t.animate([{opacity:0},{opacity:1}],{duration:260,delay:espera+420,fill:'backwards'});}catch(_){}});
+  });
+}
+function bmdgInstala(){const f=window.renderAvail;if(typeof f!=='function'||f.__bmdg)return;
+  const w=function(){let antes=null;try{if(bmdgVale())antes=bmdgFoto();}catch(_){}
+    const r=f.apply(this,arguments);try{if(antes&&antes.size)bmdgAnima(antes);}catch(_){}return r;};
+  w.__bmdg=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.renderAvail=w;}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmdgInstala,200));else setTimeout(bmdgInstala,200);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -57956,6 +57993,10 @@ button.ctw-c:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   .bmmm-vivo button.bmmm-on i,.bmmm-vivo button.bmmm-on kbd{color:inherit!important;opacity:.85!important}
 }
 @media (prefers-reduced-motion:reduce){.bmmm-pill{transition:none}}
+</style>
+<style id="esc-v881">
+/* v881 · la cara que cambia de grupo vuela por encima de las demás */
+@media (min-width:761px) and (pointer:fine){.bm-dg-vuela{position:relative;z-index:5;box-shadow:0 8px 22px rgba(0,0,0,.18)}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
