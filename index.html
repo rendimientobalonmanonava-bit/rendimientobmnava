@@ -25017,6 +25017,73 @@ document.addEventListener('click',e=>{
 function bmokInstala(){const t=window.toast;if(typeof t!=='function'||t.__bmok)return;
   const w=function(msg){try{BMOK.avisos.push({t:Date.now(),m:String(msg||'')});if(BMOK.avisos.length>20)BMOK.avisos.shift();}catch(e){}return t.apply(this,arguments);};w.__bmok=true;window.toast=w;}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmokInstala,0));else setTimeout(bmokInstala,0);
+/* ═══ v846 · LOS DESPLEGABLES SE ABREN CON SUAVIDAD ═══
+   Daniel, 19/11/2026, propuesta 1 de la segunda tanda de respuesta. Medido:
+   los `<details>` —21 en Nutrición, 8 en Fisioterapia, 3 en Disponibilidad— y
+   las filas plegadas del móvil (Resumen, ficha, Pulsómetros) se abrían de
+   golpe y empujaban en seco todo lo de abajo. Ahora el bloque crece hasta su
+   alto y lo de abajo se desliza; al cerrar, encoge con su contenido aún a la
+   vista y sólo al final se pliega. **No se toca ningún bloque**: al abrir se
+   fija el alto de antes, se deja que el bloque se pinte —algunos se rellenan
+   al abrirse— y se anima hasta el alto que tenga. Fuera: los documentos, un
+   desplegable cuyo contenido flota (posición absoluta) y «Reducir movimiento». */
+const BMDS={dur:280,curva:'cubic-bezier(.32,.72,0,1)',pasa:false};
+function bmdsAnima(el,h0,h1,alFin){
+  const ov=el.style.overflow;el.style.overflow='hidden';el._bmds=true;
+  let a=null,hecho=false;
+  const fin=()=>{if(hecho)return;hecho=true;try{alFin&&alFin();}catch(e){}try{a&&a.cancel();}catch(e){}el.style.overflow=ov;el._bmds=false;};
+  try{a=el.animate([{height:h0+'px'},{height:h1+'px'}],{duration:BMDS.dur,easing:BMDS.curva,fill:alFin?'forwards':'none'});a.onfinish=fin;}catch(e){fin();return;}
+  setTimeout(fin,BMDS.dur+500);
+}
+/* abrir: fija el alto de antes, deja que se pinte y anima hasta el que tenga */
+function bmdsAbre(el,abrir){
+  const h0=el.getBoundingClientRect().height,hp=el.style.height,op=el.style.overflow;
+  el.style.height=h0+'px';el.style.overflow='hidden';el._bmds=true;
+  try{abrir();}catch(e){el.style.height=hp;el.style.overflow=op;el._bmds=false;throw e;}
+  bmTrasPintar(()=>{
+    el.style.height=hp;el.style.overflow=op;el._bmds=false;
+    if(!el.isConnected)return;
+    const h1=el.getBoundingClientRect().height;
+    if(Math.abs(h1-h0)<4)return;
+    bmdsAnima(el,h0,h1,null);
+  });
+}
+function bmdsPuede(el){
+  if(!el||!el.isConnected||el._bmds||bmReduce())return false;
+  if(el.closest(BMG_DOC))return false;
+  const cs=getComputedStyle(el);if(cs.display==='contents'||cs.display==='none')return false;
+  return true;
+}
+document.addEventListener('click',e=>{
+  if(BMDS.pasa||e.defaultPrevented)return;
+  const t=e.target;if(!t||!t.closest)return;
+  /* un <details> */
+  const sm=t.closest('summary');
+  if(sm){const d=sm.parentElement;
+    if(!d||d.tagName!=='DETAILS'||d.firstElementChild!==sm)return;
+    const it=t.closest('a,button,input,select,label,textarea');if(it&&it!==sm&&sm.contains(it))return;
+    if(d._bmds){e.preventDefault();return;}
+    if(!bmdsPuede(d))return;
+    /* lo que flota fuera del bloque (un menú) no se anima: lo recortaría */
+    const flota=[...d.children].some(c=>c!==sm&&/^(absolute|fixed)$/.test(getComputedStyle(c).position));if(flota)return;
+    e.preventDefault();
+    if(!d.open){bmdsAbre(d,()=>{d.open=true;});return;}
+    const cs=getComputedStyle(d),dr=d.getBoundingClientRect(),sr=sm.getBoundingClientRect();
+    const h1=Math.max(0,sr.bottom-dr.top+parseFloat(cs.paddingBottom||0)+parseFloat(cs.borderBottomWidth||0));
+    bmdsAnima(d,dr.height,h1,()=>{d.open=false;});
+    return;}
+  /* una fila plegada del móvil (v629, v653, v657) */
+  const pr=t.closest('.bm-pr');
+  if(pr){const pn=pr.closest('.bm-pp')||pr.parentElement;if(!pn||!bmdsPuede(pn))return;
+    const ct=pn.closest('.bm-pf')||pn;const abierto=ct.classList.contains('bm-po');
+    if(!abierto){bmdsAbre(pn,()=>{});return;}   /* se abre en su propio clic, que viene detrás */
+    e.stopImmediatePropagation();e.preventDefault();
+    const pr0=pr.getBoundingClientRect(),pn0=pn.getBoundingClientRect(),cs=getComputedStyle(pn);
+    const h1=pr0.bottom-pn0.top+parseFloat(cs.paddingBottom||0)+parseFloat(cs.borderBottomWidth||0);
+    bmdsAnima(pn,pn0.height,h1,()=>{BMDS.pasa=true;try{pr.click();}finally{BMDS.pasa=false;}});
+  }
+},true);
+window.bmdsAbre=bmdsAbre;window.bmdsAnima=bmdsAnima;
 
 
 
