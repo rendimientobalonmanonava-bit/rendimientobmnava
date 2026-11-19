@@ -15765,7 +15765,7 @@ function bmlReescribe(){
       if(/^\s*[0-9.]+px\s*$/.test(v))st.setProperty(n,'calc('+v.trim()+' * var(--ft,1))');}}}catch(e){}
   };
   const baja=rs=>{for(let i=0;i<rs.length;i++){const r=rs[i];
-    if(r.style&&r.selectorText!=null){una(r.style);bmCurUna(r);}
+    if(r.style&&r.selectorText!=null){una(r.style);bmCurUna(r);try{bmMovUna(r.style);}catch(e){}}
     /* sólo se baja a las reglas de agrupación (@media, @supports): una regla de
        estilo también expone `cssRules` y no hay que recorrerla dos veces */
     else if(r.cssRules&&(r.media||r.conditionText!=null))baja(r.cssRules);}};
@@ -24743,6 +24743,39 @@ function bmvSaleEsc(dest){
 }
 document.addEventListener('click',e=>{if(e.target&&e.target.closest&&e.target.closest('#sidebar,#bm-tbs,header,#bm-tbm,.bm-spot,#bm-spot'))window.__BM_NAVCLIC=Date.now();},true);
 window.bmvSaleEsc=bmvSaleEsc;
+/* ═══ v839 · UN SOLO LENGUAJE DE MOVIMIENTO ═══
+   Daniel, 19/11/2026, propuesta 5. Medido: 318 reglas con movimiento, 35
+   duraciones distintas (120, 150, 160, 180, 200, 220, 250, 280…) y 52 con la
+   curva genérica del navegador. Ahora tres duraciones —rápida (`--mov-1`,
+   150 ms: lo que responde al ratón o al dedo), media (`--mov-2`, 250 ms: lo que
+   entra y sale) y lenta (`--mov-3`, 400 ms: hojas y pantallas)— y la curva de
+   Apple (`--curva`) en vez de la del navegador. **Se hace al leer la hoja**,
+   en la misma reescritura que ya pone la escala de letra (`bmlReescribe`): cada
+   duración va a la más cercana de las tres y cada «ease» a la curva; las
+   animaciones de más de 0,6 s (el brillo de fondo, los esqueletos de carga),
+   las que se repiten sin fin, las lineales y las curvas escritas a mano se
+   quedan como estaban. Y «Reducir movimiento» del sistema se respeta en TODO:
+   antes sólo 55 de las 318 reglas lo miraban. */
+function bmMovMs(t){t=String(t).trim();const m=t.match(/^(-?[\d.]+)(m?s)$/);if(!m)return null;const v=parseFloat(m[1]);return m[2]==='s'?v*1000:v;}
+function bmMovTok(ms){if(ms<=0)return null;if(ms<=180)return 'var(--mov-1,150ms)';if(ms<=330)return 'var(--mov-2,250ms)';if(ms<=600)return 'var(--mov-3,400ms)';return null;}
+function bmMovLista(v,f){if(!v||v.indexOf('var(')>=0)return null;let cambia=false;const o=v.split(',').map(x=>{const r=f(x.trim());if(r!=null){cambia=true;return r;}return x.trim();});return cambia?o.join(', '):null;}
+function bmMovCurva(t){t=t.trim();if(t==='ease'||t==='ease-in-out'||t==='ease-out')return 'var(--curva,cubic-bezier(.32,.72,0,1))';if(t==='ease-in')return 'var(--curva-sale,cubic-bezier(.4,0,1,1))';return null;}
+function bmMovUna(st){
+  if(!st)return;
+  const td=st.getPropertyValue('transition-duration');
+  if(td){const n=bmMovLista(td,x=>{const ms=bmMovMs(x);return ms==null?null:bmMovTok(ms);});if(n)st.setProperty('transition-duration',n,st.getPropertyPriority('transition-duration'));
+    const tf=st.getPropertyValue('transition-timing-function');const n2=bmMovLista(tf,bmMovCurva);if(n2)st.setProperty('transition-timing-function',n2,st.getPropertyPriority('transition-timing-function'));}
+  const ad=st.getPropertyValue('animation-duration');
+  if(ad){const it=st.getPropertyValue('animation-iteration-count')||'';if(/infinite/.test(it))return;
+    const n=bmMovLista(ad,x=>{const ms=bmMovMs(x);return ms==null?null:bmMovTok(ms);});if(n)st.setProperty('animation-duration',n,st.getPropertyPriority('animation-duration'));
+    const af=st.getPropertyValue('animation-timing-function');const n2=bmMovLista(af,bmMovCurva);if(n2)st.setProperty('animation-timing-function',n2,st.getPropertyPriority('animation-timing-function'));}
+}
+/* Las gráficas, sin animación con «Reducir movimiento» */
+(function(){const ap=()=>{try{if(window.Chart&&Chart.defaults)Chart.defaults.animation=bmReduce()?false:Chart.defaults.animation;}catch(e){}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ap);else ap();
+  try{matchMedia('(prefers-reduced-motion:reduce)').addEventListener('change',ap);}catch(e){}})();
+window.bmMovUna=bmMovUna;
+
 
 
 
@@ -25324,6 +25357,7 @@ function bmArcosQuietos(root){
 }
 document.addEventListener('animationend',e=>{if(e.animationName==='arcIn'&&e.target&&e.target.classList)e.target.classList.add('arc-ok');},true);
 function animateKPIs(root){try{animarAnillos(root);}catch(e){}try{bmArcosQuietos(root);}catch(e){}
+  try{if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches)return;}catch(e){}
   (root||document).querySelectorAll('[data-count]').forEach(el=>{
   const target=parseFloat(el.getAttribute('data-count'));if(isNaN(target))return;
   const dc=el.getAttribute('data-count');const dec=(dc.split('.')[1]||'').length;const t0=performance.now(),dur=700;
@@ -60989,6 +61023,14 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)verComprob
   html[data-theme="dark"] .bm-hvf:hover{filter:brightness(1.12)}
   html[data-theme="dark"] .bm-hvf:active{filter:brightness(1.2)}
   :where(button,a[href],summary,[role="button"],[role="tab"],[tabindex]:not([tabindex="-1"]),[onclick]):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+}
+</style>
+<style id="bm-v839">
+/* v839 · el lenguaje de movimiento y «Reducir movimiento» en todo */
+:root{--mov-1:150ms;--mov-2:250ms;--mov-3:400ms;--curva:cubic-bezier(.32,.72,0,1);--curva-sale:cubic-bezier(.4,0,1,1)}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}
 }
 </style>
 </body>
