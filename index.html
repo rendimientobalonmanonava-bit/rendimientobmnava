@@ -25164,6 +25164,55 @@ function bmdiaInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmdiaInstala,50));else setTimeout(bmdiaInstala,50);
 window.bmdiaInstala=bmdiaInstala;
+/* ═══ v849 · LOS FORMULARIOS DEL ORDENADOR, COMO HOJAS DE MACOS ═══
+   Daniel, 19/11/2026, propuesta 4. Medido: el parte del día, la lesión, el
+   tratamiento, las citas y la información del jugador aparecían y
+   desaparecían en seco —ninguna animación—, mientras las demás hojas de la app
+   entran en 0,25 s. Ahora el fondo se oscurece poco a poco y el formulario
+   baja un poco desde arriba mientras aparece, como las hojas de macOS; al
+   cerrarse, se desvanece en su sitio. **No se toca ningún formulario**: se
+   sabe que se abre o se cierra por el mismo observador que ya bloquea el fondo
+   (`modalLockSync`) y, para la salida, se enseña un instante una copia de lo
+   que había —sin ids, sin nombres y sin poder pulsarse— porque el formulario
+   ya se ha quitado. Sólo con ratón o trackpad; el móvil tiene sus hojas (v541). */
+const BMFA={ids:['ph-overlay','med-overlay','info-overlay'],est:{}};
+document.addEventListener('scroll',e=>{const t=e.target;if(t&&t.closest&&t.closest('#ph-overlay,#med-overlay,#info-overlay'))t._bmst=t.scrollTop;},true);
+function bmfaModal(ov){return ov&&[...ov.children].find(c=>c.nodeType===1)||null;}
+function bmFormAnim(){
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino()))return;
+  BMFA.ids.forEach(id=>{const ov=document.getElementById(id);if(!ov)return;
+    const vis=getComputedStyle(ov).display!=='none';const ya=!!BMFA.est[id];
+    if(vis===ya)return;BMFA.est[id]=vis;
+    if(bmReduce())return;
+    if(vis){ov._bmDisp=getComputedStyle(ov).display;ov._bmBg=getComputedStyle(ov).backgroundColor;
+      try{ov.animate([{backgroundColor:'rgba(0,0,0,0)'},{backgroundColor:ov._bmBg}],{duration:220,easing:'ease-out'});}catch(e){}
+      const m=bmfaModal(ov);if(m)try{m.animate([{opacity:0,transform:'translateY(-14px) scale(.98)'},{opacity:1,transform:'none'}],{duration:260,easing:'cubic-bezier(.32,.72,0,1)'});}catch(e){}
+      return;}
+    bmfaSale(ov);
+  });
+}
+function bmfaSale(ov){
+  if(!ov._bmDisp)return;
+  let g;try{g=ov.cloneNode(true);}catch(e){return;}
+  /* lo de dentro, como estaba: sin ids ni nombres (un radio con el mismo nombre se uniría al grupo de verdad) */
+  [g,...g.querySelectorAll('[id],[name],[autofocus]')].forEach(x=>{x.removeAttribute('id');x.removeAttribute('name');x.removeAttribute('autofocus');});
+  const a=ov.querySelectorAll('input,select,textarea'),b=g.querySelectorAll('input,select,textarea');
+  b.forEach((x,i)=>{const o=a[i];if(!o)return;try{if(x.type==='checkbox'||x.type==='radio')x.checked=o.checked;else if(x.tagName==='SELECT')x.selectedIndex=o.selectedIndex;else if(x.type!=='file')x.value=o.value;}catch(e){}});
+  g.setAttribute('aria-hidden','true');g.inert=true;
+  /* la copia conserva sus clases —así se dibuja igual— y nadie la cuenta como abierta:
+     lo abierto se busca por id (`modalAnyOpen`) y la copia no puede pulsarse */
+  const cs=getComputedStyle(ov);
+  g.classList.add('bmfa-sale');
+  Object.assign(g.style,{position:'fixed',top:'0',left:'0',right:'0',bottom:'0',display:ov._bmDisp,alignItems:cs.alignItems,justifyContent:cs.justifyContent,
+    padding:cs.padding,zIndex:cs.zIndex,overflow:'hidden',pointerEvents:'none'});
+  document.body.appendChild(g);
+  try{g.scrollTop=ov._bmst||0;const m0=bmfaModal(ov),m1=bmfaModal(g);if(m0&&m1)m1.scrollTop=m0._bmst||0;}catch(e){}
+  const quita=()=>{try{g.remove();}catch(e){}};
+  try{g.animate([{backgroundColor:ov._bmBg||'rgba(0,0,0,.3)'},{backgroundColor:'rgba(0,0,0,0)'}],{duration:200,easing:'ease-in',fill:'forwards'});
+    const m=bmfaModal(g);const an=(m||g).animate([{opacity:1,transform:'none'},{opacity:0,transform:'scale(.985)'}],{duration:180,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'});an.onfinish=quita;}catch(e){quita();}
+  setTimeout(quita,400);
+}
+window.bmFormAnim=bmFormAnim;
 
 
 
@@ -33188,6 +33237,8 @@ function modalAnyOpen(){
 function modalLockSync(){
   /* v718 · Esc y el foco de los formularios (ordenador) */
   try{if(typeof bmEscSync==='function')bmEscSync();}catch(e){}
+  /* v849 · los formularios entran y salen como hojas de macOS */
+  try{if(typeof bmFormAnim==='function')bmFormAnim();}catch(e){}
   const abierto=modalAnyOpen();
   if(abierto===document.body.classList.contains('modal-open'))return;
   document.body.classList.toggle('modal-open',abierto);
