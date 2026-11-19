@@ -14685,6 +14685,9 @@ function bmSpot(){
   };
   const abre=x=>{if(!x)return;
     try{if(x.g!=='d'){const r=(JSON.parse(localStorage.getItem(BMB_REC)||'[]')||[]).filter(k=>k!==x.k);r.unshift(x.k);localStorage.setItem(BMB_REC,JSON.stringify(r.slice(0,5)));}}catch(e){}
+    /* v856 · la cara de la fila elegida vuela hasta la ficha */
+    try{if(x.g==='j'){const im=document.querySelector('#bms-o'+BMS.sel+' img');if(im&&im.complete&&im.naturalWidth){const r=im.getBoundingClientRect();
+      window.__BM_HEROSRC={n:x.n,r:{left:r.left,top:r.top,width:r.width,height:r.height},src:im.currentSrc||im.src,rad:getComputedStyle(im).borderRadius,t:Date.now()};}}}catch(_){}
     bmSpotCierra();setTimeout(()=>{try{x.f();}catch(e){console.error('bmnava · buscar',e);}},30);};
   inp.addEventListener('input',pinta);
   inp.addEventListener('keydown',e=>{
@@ -20244,7 +20247,7 @@ function bmZoomMarca(){
   if(!esMovil()){
     /* v838 · en el ordenador sólo lo que ya llevaba a otra pantalla: los recuadros de cifras no se hacen pulsables */
     if(!(typeof bmEscFino==='function'&&bmEscFino()))return;
-    document.querySelectorAll('#v-equipo .ath[onclick]:not([data-bmz]),#v-equipo div.panel[onclick*="go("]:not([data-bmz])').forEach(e=>{e.dataset.bmz='oc';});
+    document.querySelectorAll('#v-equipo div.panel[onclick*="go("]:not([data-bmz])').forEach(e=>{e.dataset.bmz='oc';});
     return;}
   document.querySelectorAll('#v-equipo .ath[onclick]:not([data-bmz]),#v-equipo div.panel[onclick*="go("]:not([data-bmz]),#v-estado .bd-al[onclick]:not([data-bmz])').forEach(e=>{e.dataset.bmz='oc';});
   document.querySelectorAll('#v-equipo .eq-tile:not([data-bmz])').forEach(e=>{
@@ -20256,6 +20259,8 @@ function bmZoomMarca(){
 function bmZoomPuede(){return (esMovil()||(typeof bmEscFino==='function'&&bmEscFino()))&&!!document.startViewTransition&&!matchMedia('(prefers-reduced-motion:reduce)').matches;}
 function bmZoom(card,run){
   if(!bmZoomPuede()){run();return;}
+  /* v856 · en el ordenador, lo que abre a un jugador va con la transición de la cara */
+  if(!esMovil()&&card&&card.matches&&card.matches('[onclick*="openPlayer("]')){run();return;}
   const de=STATE.view;let dst=null;
   const fin=()=>{window.__BM_ZOOM=0;document.documentElement.classList.remove('bmz');if(dst)dst.remove();try{card.style.viewTransitionName='';}catch(_){}};
   try{
@@ -24499,7 +24504,7 @@ function bmvFoto(){
        desde la plantilla que va al lado de la ficha (v696) */
     if(!document.startViewTransition||Date.now()-BMV.ts>900||!BMV.t||!BMV.t.closest)return null;
     if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches)return null;
-    const c=BMV.t.closest('main [onclick*="openPlayer("],#bm-jl [data-n]');if(!c)return null;
+    const c=BMV.t.closest('main [onclick*="openPlayer("],#bm-jl [data-n],#bm-insp');if(!c)return null;
     const im=(BMV.t.tagName==='IMG'&&c.contains(BMV.t))?BMV.t:c.querySelector('img');
     if(!im||!im.complete||!im.naturalWidth||!im.checkVisibility||!im.checkVisibility())return null;
     const r=im.getBoundingClientRect();if(r.width<20||r.bottom<0||r.top>window.innerHeight)return null;
@@ -24873,7 +24878,7 @@ window.bmTabEntra=bmTabEntra;window.bmReduce=bmReduce;
    móvil (v610): **no se hace pulsable nada que no lo fuera**. Nada con
    «Reducir movimiento». */
 function bmvSaleEsc(dest){
-  if(!window.__BM_LISTO||window.__BM_ZOOM||window.__RD_CALC)return;
+  if(!window.__BM_LISTO||window.__BM_ZOOM||window.__RD_CALC||window.__BM_HEROVT)return;
   if(!(typeof bmEscFino==='function'&&bmEscFino()))return;
   const nav=bmvSentido();document.documentElement.dataset.nav=nav;
   /* v845 · Un salto encadenado —Jugadores abre directamente la ficha (v696)—
@@ -25555,6 +25560,99 @@ function bmCalZoomInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmCalZoomInstala,0));else setTimeout(bmCalZoomInstala,0);
 window.bmCalZoomInstala=bmCalZoomInstala;
+/* ═══ v856 · EL JUGADOR SALE DE SU TARJETA (ORDENADOR) ═══
+   Daniel, 19/11/2026: «que cliques en un jugador y esa cara haga zoom y le
+   lleve a su hoja». Existía desde la v782 y, medido a cámara lenta, no lucía:
+   se lanzaban dos transiciones seguidas —el zoom de la tarjeta (v838) y la de
+   la foto— y la segunda cortaba a la primera; se colaba la mini-ficha del
+   ratón (v670) a medio desvanecer; el fondo se quedaba en blanco; y sólo
+   viajaba la foto. Ahora es UNA transición: la cara crece hasta la foto
+   grande de la ficha y el nombre viaja al título, mientras la pantalla de
+   antes se aleja un poco y la ficha sube desde abajo; la barra lateral y la de
+   arriba no se mueven. Al volver (atrás, el botón de la barra o el gesto del
+   trackpad), la cara regresa a su tarjeta. Desde cualquier tarjeta con cara
+   de la pantalla, desde la plantilla de al lado de la ficha, desde el
+   inspector y desde ⌘K. Nada con «Reducir movimiento». */
+const BMHERO={n:null,de:null,t:0};
+function bmHeroPuede(){return !!document.startViewTransition&&!bmReduce()&&!esMovil();}
+function bmHeroNom(c,n){
+  if(!c||!n)return null;const nl=n.toLowerCase(),pr=nl.split(' ')[0];
+  const els=[...c.querySelectorAll('*')].filter(e=>e.childElementCount===0&&!/^(IMG|svg|SVG|I)$/.test(e.tagName));
+  return els.find(e=>{const t=(e.textContent||'').trim().toLowerCase();if(!t||t.length>40||(e.checkVisibility&&!e.checkVisibility()))return false;return t===nl||t.indexOf(pr)===0;})||null;
+}
+function bmHeroHov(){try{bmHovQuita();}catch(e){}const h=document.getElementById('bm-hov');if(h){h.style.transition='none';h.style.opacity='0';h.classList.remove('on');setTimeout(()=>{h.style.transition='';h.style.opacity='';},80);}}
+function bmHeroCorre(fuente,nomF,cambia,destino,atr){
+  const html=document.documentElement;
+  window.__BM_HEROVT=1;html.classList.add('bm-hero');html.classList.toggle('bm-hero-atr',!!atr);
+  let dF=null,dN=null,hecho=false;
+  const fin=()=>{window.__BM_HEROVT=0;html.classList.remove('bm-hero','bm-hero-atr');
+    [fuente,nomF,dF,dN].forEach(x=>{try{if(x)x.style.viewTransitionName='';}catch(_){}});
+    if(fuente&&fuente.__bmGhost)try{fuente.remove();}catch(_){}};
+  try{
+    fuente.style.viewTransitionName='bm-foto';if(nomF)nomF.style.viewTransitionName='bm-nom';
+    const vt=document.startViewTransition(()=>{
+      hecho=true;fuente.style.viewTransitionName='';if(nomF)nomF.style.viewTransitionName='';
+      if(fuente.__bmGhost)fuente.style.display='none';
+      cambia();
+      const d=destino()||{};dF=d.f||null;dN=nomF?(d.n||null):null;
+      if(dF)dF.style.viewTransitionName='bm-foto';if(dN)dN.style.viewTransitionName='bm-nom';
+    });
+    setTimeout(()=>{if(!hecho)try{vt.skipTransition();}catch(_){}},650);
+    vt.finished.then(fin,fin);try{vt.ready.catch(()=>{});vt.updateCallbackDone.catch(()=>{});}catch(_){}
+  }catch(e){fin();try{cambia();}catch(_){}}
+}
+function bmHeroFicha(){
+  const f=document.querySelector('#v-jugador img.phero-photo'),n=document.querySelector('#v-jugador .phero-name');
+  return {f:f&&f.checkVisibility&&f.checkVisibility()?f:null,n:n&&n.checkVisibility&&n.checkVisibility()?n:null};
+}
+function bmHeroAbre(n,im){
+  if(!bmHeroPuede()){openPlayerYa(n);return;}
+  const card=im.closest('[onclick*="openPlayer("],#bm-jl [data-n],#bm-insp')||im.parentElement;
+  const nom=bmHeroNom(card,n);bmHeroHov();
+  const de=STATE.view;
+  bmHeroCorre(im,nom,()=>{openPlayerYa(n);window.scrollTo(0,0);BMHERO.n=n;BMHERO.de=de;BMHERO.t=Date.now();},bmHeroFicha,false);
+}
+/* ⌘K: la búsqueda ya se ha cerrado; la cara sale de donde estaba, con una copia */
+function bmHeroSpot(n){
+  const s=window.__BM_HEROSRC;window.__BM_HEROSRC=null;
+  if(!s||s.n!==n||Date.now()-s.t>900||!bmHeroPuede())return false;
+  const g=document.createElement('img');g.src=s.src;g.alt='';g.__bmGhost=true;g.setAttribute('aria-hidden','true');
+  Object.assign(g.style,{position:'fixed',left:s.r.left+'px',top:s.r.top+'px',width:s.r.width+'px',height:s.r.height+'px',borderRadius:s.rad||'50%',objectFit:'cover',zIndex:'5',pointerEvents:'none'});
+  document.body.appendChild(g);
+  const de=STATE.view;
+  bmHeroCorre(g,null,()=>{openPlayerYa(n);window.scrollTo(0,0);BMHERO.n=n;BMHERO.de=de;BMHERO.t=Date.now();},bmHeroFicha,false);
+  return true;
+}
+/* al volver: la cara de la ficha regresa a su tarjeta */
+function bmHeroBusca(n){
+  const v=document.querySelector('main>.view.on');if(!v||!n)return null;const H=window.innerHeight||900;
+  const k="openPlayer('"+n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+"'";
+  for(const c of v.querySelectorAll('[onclick*="openPlayer("]')){
+    if((c.getAttribute('onclick')||'').indexOf(k)<0)continue;
+    const im=c.querySelector('img');if(!im||!im.checkVisibility||!im.checkVisibility())continue;
+    const r=im.getBoundingClientRect();if(r.width<16||r.bottom<0||r.top>H)continue;
+    return {f:im,n:bmHeroNom(c,n)};
+  }
+  return null;
+}
+function bmHeroInstala(){
+  const f=window.bmhPop;if(typeof f!=='function'||f.__bmhero)return;
+  const w=function(e){
+    try{
+      const st=(e&&e.state)||{};
+      if(bmHeroPuede()&&bmEscFino()&&STATE.view==='jugador'&&!window.__BM_VUELVE&&st.v&&st.v!=='jugador'&&BMHERO.n&&BMHERO.n===STATE.curPlayer&&BMHERO.de===st.v&&!(typeof bmCapaAbierta==='function'&&bmCapaAbierta())){
+        const n=BMHERO.n;BMHERO.n=null;const fi=bmHeroFicha();
+        if(fi.f){const self=this,args=arguments;
+          bmHeroCorre(fi.f,fi.n,()=>{f.apply(self,args);window.scrollTo(0,st.y||0);},()=>bmHeroBusca(n),true);
+          return;}
+      }
+    }catch(_){}
+    return f.apply(this,arguments);
+  };
+  w.__bmhero=true;window.bmhPop=w;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmHeroInstala,60));else setTimeout(bmHeroInstala,60);
+window.bmHeroAbre=bmHeroAbre;window.bmHeroSpot=bmHeroSpot;
 
 
 
@@ -26325,6 +26423,11 @@ function fichaRepinta(){const n=STATE.curPlayer;const v=document.getElementById(
 window.fichaRepinta=fichaRepinta;
 function openPlayer(name){
   const im=bmvFoto();
+  /* v856 · en el ordenador, una sola transición: la cara y el nombre viajan a la ficha */
+  if(!esMovil()&&typeof bmHeroAbre==='function'&&typeof bmEscFino==='function'&&bmEscFino()){
+    if(im){bmHeroAbre(name,im);return;}
+    if(bmHeroSpot(name))return;
+    openPlayerYa(name);return;}
   if(!im){openPlayerYa(name);return;}
   BMV.ts=0;
   let dest=null;
@@ -61923,6 +62026,30 @@ html[data-theme="dark"] .bm-ok{background:var(--ok);color:#0d1117}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
   #v-jugador .phero .phe-ph{transform:translateY(calc(var(--hp,0)*36px)) scale(calc(1 - var(--hp,0)*.07 + var(--tira,0)/300))}
   #v-jugador .phero.bm-tira-suelta .phe-ph{transition:transform .4s cubic-bezier(.32,.72,0,1)}
+}
+</style>
+<style id="bm-v856">
+/* v856 · el jugador sale de su tarjeta (ordenador) */
+@keyframes bmhrSale{to{opacity:0;transform:scale(.965)}}
+@keyframes bmhrEntra{from{opacity:0;transform:translateY(18px)}}
+@keyframes bmhrSaleAtr{to{opacity:0;transform:translateY(14px)}}
+@keyframes bmhrEntraAtr{from{opacity:0;transform:scale(.975)}}
+@keyframes bmhrNomSale{to{opacity:0}}
+@keyframes bmhrNomEntra{from{opacity:0}}
+@media screen and (min-width:761px) and (pointer:fine){
+  html.bm-hero #sidebar{view-transition-name:bm-sb}
+  html.bm-hero body>header,html.bm-hero header.hub{view-transition-name:bm-hd}
+  html.bm-hero::view-transition-group(bm-sb),html.bm-hero::view-transition-group(bm-hd){animation-duration:.25s}
+  html.bm-hero::view-transition-old(root){animation:bmhrSale .3s cubic-bezier(.32,.72,0,1) both;transform-origin:50% 30%}
+  html.bm-hero::view-transition-new(root){animation:bmhrEntra .46s cubic-bezier(.32,.72,0,1) .05s both}
+  html.bm-hero.bm-hero-atr::view-transition-old(root){animation:bmhrSaleAtr .26s cubic-bezier(.4,0,1,1) both}
+  html.bm-hero.bm-hero-atr::view-transition-new(root){animation:bmhrEntraAtr .42s cubic-bezier(.32,.72,0,1) .04s both;transform-origin:50% 30%}
+  html.bm-hero::view-transition-group(bm-foto),html.bm-hero::view-transition-group(bm-nom){animation-duration:.52s;animation-timing-function:cubic-bezier(.32,.72,0,1);z-index:2}
+  html.bm-hero::view-transition-old(bm-foto),html.bm-hero::view-transition-new(bm-foto){animation-duration:.34s;height:100%;width:100%;object-fit:cover}
+  html.bm-hero::view-transition-old(bm-nom),html.bm-hero::view-transition-new(bm-nom){height:100%;width:auto;object-fit:contain;object-position:left center}
+  /* el nombre de antes se va antes de que llegue el nuevo: dos textos encima, a medio tamaño, se leen como un borrón */
+  html.bm-hero::view-transition-old(bm-nom){animation:bmhrNomSale .16s ease-out both}
+  html.bm-hero::view-transition-new(bm-nom){animation:bmhrNomEntra .24s ease-out .14s both}
 }
 </style>
 </body>
