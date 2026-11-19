@@ -27890,6 +27890,40 @@ document.addEventListener('pointerover',e=>{
 ['pointerdown','keydown','wheel'].forEach(t=>document.addEventListener(t,()=>{if(BMDQ.el)bmdqQuita();},true));
 window.addEventListener('scroll',()=>{if(BMDQ.el)bmdqQuita();},{passive:true,capture:true});
 document.documentElement.addEventListener('mouseleave',bmdqQuita);
+/* ═══ v907 · HOJAS APILADAS, COMO EN iOS (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 5. Cuando una hoja se abre encima de otra
+   —de la bitácora al resumen de un día, de un informe a otro—, la de detrás
+   se aleja un poco hacia arriba y se oscurece, así se ve que sigue ahí debajo;
+   al cerrar la de arriba, vuelve hacia delante. Con las propiedades sueltas
+   `scale` y `translate`, que se SUMAN al centrado que ya lleva cada hoja (la
+   lección de la v880). Sólo cambia cómo se ve la de detrás; ninguna hoja se
+   cierra ni se mueve de sitio en la pila. Nada con «Reducir movimiento». */
+function bmhpVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmhpPinta(){
+  if(typeof BMH==='undefined'||!BMH.pila)return;
+  const pila=BMH.pila.filter(id=>{const h=document.getElementById(id);return h&&h.classList.contains('on');});
+  document.querySelectorAll('.bmh.bmh-atras').forEach(h=>{if(!bmhpVale()||pila.indexOf(h.id)<0||h.id===pila[pila.length-1])h.classList.remove('bmh-atras');});
+  document.querySelectorAll('.bmh.bmh-sobre').forEach(h=>{if(!bmhpVale()||pila.indexOf(h.id)<1)h.classList.remove('bmh-sobre');});
+  if(!bmhpVale())return;
+  pila.slice(0,-1).forEach(id=>{const h=document.getElementById(id);if(h)h.classList.add('bmh-atras');});
+  pila.slice(1).forEach(id=>{const h=document.getElementById(id);if(h)h.classList.add('bmh-sobre');});
+  /* que la de detrás asome por encima de la de arriba, midan lo que midan: las
+     dos van centradas, así que se sube lo necesario para que su borde quede
+     26 px por encima, sin salirse de la pantalla */
+  for(let i=pila.length-2;i>=0;i--){const b=document.getElementById(pila[i]),t=document.getElementById(pila[i+1]);
+    const bc=b&&b.querySelector('.bmh-caja'),tc=t&&t.querySelector('.bmh-caja');if(!bc||!tc)continue;
+    const Ttop=tc.offsetTop-tc.offsetHeight/2+16,Bt=bc.offsetTop-.94*bc.offsetHeight/2;
+    let y=Math.min(-30,(Ttop-26)-Bt);y=Math.max(y,8-Bt);bc.style.setProperty('--bmhp-y',y.toFixed(0)+'px');}
+}
+function bmhpInstala(){
+  const f=window.bmHoja;
+  if(typeof f==='function'&&!f.__bmhp){const w=function(){const r=f.apply(this,arguments);try{bmhpPinta();}catch(e){}return r;};
+    w.__bmhp=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.bmHoja=w;}
+  const c=window.bmHojaCierra;
+  if(typeof c==='function'&&!c.__bmhp){const w=function(){const r=c.apply(this,arguments);try{bmhpPinta();}catch(e){}return r;};
+    w.__bmhp=true;Object.keys(c).forEach(k=>{try{w[k]=c[k];}catch(_){}});window.bmHojaCierra=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmhpInstala,120));else setTimeout(bmhpInstala,120);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59545,6 +59579,19 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   #bm-dq .bmdq-c+.bmdq-c{margin-top:8px;padding-top:0;border-top:0}
   #bm-dq .bmdq-u{margin:4px 0 0;font-size:11px;color:var(--muted)}
   @media (prefers-reduced-motion:reduce){#bm-dq{transition:opacity .12s ease;transform:none}}
+}
+</style>
+<style id="esc-v907">
+/* v907 · hojas apiladas (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine){
+  .bmh>.bmh-caja{transition:transform .28s cubic-bezier(.32,.72,0,1),opacity .2s ease,scale .42s cubic-bezier(.32,.72,0,1),translate .42s cubic-bezier(.32,.72,0,1),filter .42s ease}
+  /* la escala se aplica alrededor del centro de la caja SIN desplazar (va con translate(-50%,-50%)); el -3 % la vuelve a centrar */
+  .bmh.bmh-atras>.bmh-caja{scale:.94;translate:-3% calc(-3% + var(--bmhp-y,-30px));filter:brightness(.88) saturate(.9)}
+  /* la de arriba baja un poco para que asome la de detrás, y su fondo sólo oscurece: desenfocar la pila la emborronaría */
+  .bmh.bmh-sobre>.bmh-caja{translate:0 16px}
+  .bmh.bmh-sobre>.bmh-fondo{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(0,0,0,.16)}
+  html[data-theme="dark"] .bmh.bmh-atras>.bmh-caja{filter:brightness(.78)}
+  @media (prefers-reduced-motion:reduce){.bmh>.bmh-caja{transition:none}.bmh.bmh-atras>.bmh-caja{scale:none;translate:none}}
 }
 </style>
 <style id="bm-v808">
