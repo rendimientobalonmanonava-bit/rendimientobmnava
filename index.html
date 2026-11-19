@@ -27020,6 +27020,55 @@ function bmsalInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmsalInstala,0));else setTimeout(bmsalInstala,0);
 window.bmSaludo=bmSaludo;window.bmSaludoFin=bmSaludoFin;
+/* ═══ v890 · LAS TARJETAS REFLEJAN LA LUZ DEL RATÓN (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 2. Al pasar el ratón por una tarjeta, un brillo
+   muy suave la sigue por dentro y enciende su filo cerca del cursor, como en las
+   apps de Mac más cuidadas. **No se mete nada dentro de las tarjetas**: se
+   repintan enteras y tienen reglas de primer y último elemento que un hijo de
+   más rompería; es UNA capa fija que se coloca encima de la tarjeta bajo el
+   ratón, no recoge clics y queda por debajo de la barra de arriba (se recorta
+   lo que pasa por debajo de ella). Fuera el Resumen y el Calendario —su
+   distribución es la que eligió Daniel y no se adorna—, la cabecera de la ficha
+   (tiene su propia profundidad, v891) y los documentos. Sin color de alerta:
+   el filo es el color de acción en claro y blanco en oscuro. Nada con «Reducir
+   movimiento», con un botón pulsado ni arrastrando. */
+const BMLUZ={el:null,card:null,rad:'',x:0,y:0,raf:0};
+const BMLUZ_SEL='.panel,.cgr-card,.pcard';
+function bmluzVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmluzCarta(t){
+  if(!t||!t.closest)return null;
+  const v=t.closest('main>.view.on');if(!v)return null;
+  if(t.closest('#v-equipo,#v-cal,.phero,'+BMG_DOC))return null;
+  let c=null,x=t.closest(BMLUZ_SEL);
+  while(x&&x!==v&&v.contains(x)){c=x;const pa=x.parentElement;x=pa?pa.closest(BMLUZ_SEL):null;}
+  if(!c||c.querySelector(':scope>.phero'))return null;
+  return c;
+}
+function bmluzTope(){let t=0;
+  const h=document.querySelector('header');if(h){const r=h.getBoundingClientRect();if(r.height)t=Math.max(t,r.bottom);}
+  const fc=document.getElementById('bm-fcab');if(fc&&fc.offsetParent!==null){const r=fc.getBoundingClientRect();if(r.height)t=Math.max(t,r.bottom);}
+  return t;}
+function bmluzPinta(){BMLUZ.raf=0;const c=BMLUZ.card,el=BMLUZ.el;if(!el)return;
+  if(!c||!c.isConnected){el.classList.remove('on');return;}
+  const r=c.getBoundingClientRect();if(!r.width){el.classList.remove('on');return;}
+  el.style.transform='translate('+r.left.toFixed(1)+'px,'+r.top.toFixed(1)+'px)';
+  el.style.width=r.width.toFixed(1)+'px';el.style.height=r.height.toFixed(1)+'px';el.style.borderRadius=BMLUZ.rad;
+  const clip=Math.max(0,bmluzTope()-r.top);el.style.clipPath=clip>0?'inset('+clip.toFixed(1)+'px 0 0 0)':'';
+  el.style.setProperty('--lx',(BMLUZ.x-r.left).toFixed(1)+'px');el.style.setProperty('--ly',(BMLUZ.y-r.top).toFixed(1)+'px');
+  el.classList.add('on');}
+function bmluzApaga(){BMLUZ.card=null;if(BMLUZ.el)BMLUZ.el.classList.remove('on');}
+document.addEventListener('pointermove',e=>{
+  if(e.pointerType==='touch'||!bmluzVale())return;
+  if(e.buttons||document.body.classList.contains('bm-cara-drag')){bmluzApaga();return;}
+  const c=bmluzCarta(e.target);if(!c){if(BMLUZ.card)bmluzApaga();return;}
+  if(!BMLUZ.el){const l=document.createElement('div');l.id='bm-luz';l.setAttribute('aria-hidden','true');l.setAttribute('data-html2canvas-ignore','true');document.body.appendChild(l);BMLUZ.el=l;}
+  if(c!==BMLUZ.card){BMLUZ.card=c;BMLUZ.rad=getComputedStyle(c).borderRadius;}
+  BMLUZ.x=e.clientX;BMLUZ.y=e.clientY;
+  if(!BMLUZ.raf)BMLUZ.raf=requestAnimationFrame(bmluzPinta);
+},{passive:true});
+document.documentElement.addEventListener('mouseleave',bmluzApaga);
+window.addEventListener('blur',bmluzApaga);
+window.addEventListener('scroll',()=>{if(BMLUZ.card&&!BMLUZ.raf)BMLUZ.raf=requestAnimationFrame(bmluzPinta);},{passive:true,capture:true});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -58438,6 +58487,21 @@ html.bm-amp-vt::view-transition-old(root),html.bm-amp-vt::view-transition-new(ro
 @keyframes bmsalViejo{0%,42%{opacity:1}100%{opacity:0}}
 @keyframes bmsalNuevo{0%,48%{opacity:0}100%{opacity:1}}
 @media (prefers-reduced-transparency:reduce){#bm-sal .bmsal-fondo{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}
+</style>
+<style id="esc-v890">
+/* v890 · la luz del ratón sobre las tarjetas (ordenador) */
+#bm-luz{display:none}
+:root{--luz-borde:rgba(48,86,196,.6);--luz-fondo:rgba(48,86,196,.06)}
+html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,255,255,.06)}
+@media screen and (min-width:761px) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  #bm-luz{display:block;position:fixed;left:0;top:0;width:0;height:0;z-index:1;pointer-events:none;opacity:0;transition:opacity .35s ease;contain:layout paint}
+  #bm-luz.on{opacity:1}
+  #bm-luz::before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(520px circle at var(--lx,50%) var(--ly,50%),var(--luz-fondo),transparent 62%)}
+  #bm-luz::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;box-sizing:border-box;
+    background:radial-gradient(300px circle at var(--lx,50%) var(--ly,50%),var(--luz-borde),transparent 72%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
+}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
