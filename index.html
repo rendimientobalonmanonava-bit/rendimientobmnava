@@ -26138,6 +26138,46 @@ function bmqzInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmqzInstala,0));else setTimeout(bmqzInstala,0);
 window.bmqzInstala=bmqzInstala;
+/* ═══ v867 · DENTRO DE LAS HOJAS TAMBIÉN HAY DIRECCIÓN (ORDENADOR) ═══
+   Daniel, 19/11/2026, propuesta 4. Con ‹ › en el informe de la semana, el del
+   jugador, el del partido, «Su semana» o la bitácora, el contenido cambiaba de
+   golpe. Ahora lo siguiente entra por la derecha y lo anterior por la
+   izquierda, bloque a bloque; la fila de las flechas se queda quieta. Al
+   cambiar algo en un desplegable dentro de la hoja (el jugador en Comparar),
+   lo nuevo aparece con un fundido corto. No se toca ninguna hoja: se mira qué
+   botón se ha pulsado —sus flechas o su nombre— y se anima lo que ha pintado. */
+const BMHNAV_PREV=/^(‹|«|←|◀|⟨)|anterior|atr[aá]s/i,BMHNAV_SIG=/^(›|»|→|▶|⟩)|siguiente/i;
+function bmhnavDir(b){
+  const t=((b.textContent||'').trim()+' '+(b.getAttribute('aria-label')||'')+' '+(b.getAttribute('title')||'')).trim();
+  if(BMHNAV_PREV.test(t))return -1;if(BMHNAV_SIG.test(t))return 1;return 0;
+}
+function bmhnavAnima(h,dir){
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino())||bmReduce())return;
+  const cu=h&&h.querySelector('.bmh-cuerpo');if(!cu)return;
+  let box=cu.children.length===1?cu.firstElementChild:cu;
+  if(box.children.length===1&&box.firstElementChild.children.length>1)box=box.firstElementChild;
+  const esNav=el=>[...el.querySelectorAll('button,[role="button"]')].some(b=>bmhnavDir(b)!==0);
+  let i=0;
+  [...box.children].forEach(el=>{
+    if(!el.getBoundingClientRect().height||esNav(el))return;
+    const k=dir?[{translate:(dir*26)+'px 0',opacity:0},{translate:'0 0',opacity:1}]:[{opacity:.35},{opacity:1}];
+    try{el.animate(k,{duration:dir?300:200,delay:Math.min(i,6)*18,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});}catch(_){}
+    i++;
+  });
+}
+/* la hoja y la dirección se apuntan ANTES de que el botón repinte (después ya no está en la hoja),
+   y se anima justo antes del siguiente fotograma, cuando lo nuevo ya está puesto */
+document.addEventListener('click',e=>{
+  const b=e.target&&e.target.closest&&e.target.closest('button,[role="button"]');if(!b)return;
+  const h=b.closest('.bmh.on');if(!h)return;
+  const dir=bmhnavDir(b);if(!dir)return;const id=h.id;
+  requestAnimationFrame(()=>bmhnavAnima(document.getElementById(id),dir));
+},true);
+document.addEventListener('change',e=>{
+  const t=e.target;if(!t||!t.closest||t.tagName!=='SELECT')return;const h=t.closest('.bmh.on');if(!h)return;const id=h.id;
+  requestAnimationFrame(()=>bmhnavAnima(document.getElementById(id),0));
+},true);
+window.bmhnavAnima=bmhnavAnima;
 
 
 
