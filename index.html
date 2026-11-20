@@ -28305,6 +28305,66 @@ function bmescInstala(){
   w.__bmesc=true;window.bmEntradaVuela=w;
 }
 bmescInstala();
+/* ═══ v917 · SONIDOS DE LA APP, OPCIONALES (ORDENADOR) ═══
+   Daniel, 20/11/2026, propuesta 8. **Apagados de serie.** Se encienden en el
+   menú «⋯» › Sonidos de la app, y lo elegido es de ese ordenador
+   (`bmnava-sonidos`, con guion: no se sincroniza). Tres sonidos cortos y
+   bajos, hechos con el propio navegador (ningún archivo): un toque suave al
+   guardar, cobrar o apuntar algo —el mismo aviso que decide la vibración del
+   móvil (v774)—, el obturador al exportar una imagen y un tic al cambiar de
+   día. Sólo suenan **justo después de que hayas hecho algo**: lo que trae la
+   sincronización por su cuenta no suena. Con la pestaña oculta, nada. */
+const BMSON={ac:null,tic:0,foto:0};
+function bmsonOn(){try{return localStorage.getItem('bmnava-sonidos')==='1';}catch(e){return false;}}
+function bmsonVale(){return bmsonOn()&&!esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!document.hidden;}
+function bmsonCtx(){
+  if(!BMSON.ac){const A=window.AudioContext||window.webkitAudioContext;if(!A)return null;try{BMSON.ac=new A();}catch(e){return null;}}
+  if(BMSON.ac.state==='suspended')BMSON.ac.resume().catch(()=>{});
+  return BMSON.ac;
+}
+function bmSuena(tipo){
+  if(!bmsonVale())return;
+  const ac=bmsonCtx();if(!ac)return;
+  const now=Date.now();if(tipo==='tic'){if(now-BMSON.tic<70)return;BMSON.tic=now;}
+  if(tipo==='foto'){if(now-BMSON.foto<2500)return;BMSON.foto=now;}
+  if(tipo==='ok'&&now-BMSON.foto<2500)return;
+  try{
+    const t=ac.currentTime+.01,out=ac.createGain();out.gain.value=1;out.connect(ac.destination);
+    const tono=(fq,dur,vol,forma,at)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=forma||'sine';o.frequency.setValueAtTime(fq,at);
+      g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(vol,at+.005);g.gain.exponentialRampToValueAtTime(.0001,at+dur);
+      o.connect(g);g.connect(out);o.start(at);o.stop(at+dur+.03);};
+    const ruido=(dur,vol,fc,at)=>{const n=Math.max(1,Math.floor(ac.sampleRate*dur)),bf=ac.createBuffer(1,n,ac.sampleRate),d=bf.getChannelData(0);
+      for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3);
+      const s=ac.createBufferSource();s.buffer=bf;const f=ac.createBiquadFilter();f.type='bandpass';f.frequency.value=fc;f.Q.value=.9;
+      const g=ac.createGain();g.gain.value=vol;s.connect(f);f.connect(g);g.connect(out);s.start(at);};
+    if(tipo==='tic')tono(2300,.028,.03,'triangle',t);
+    else if(tipo==='ok'){tono(880,.1,.045,'sine',t);tono(1318.5,.18,.04,'sine',t+.075);}
+    else if(tipo==='foto'){ruido(.05,.32,3200,t);ruido(.07,.26,2100,t+.085);}
+  }catch(e){}
+}
+function bmsonPon(on){
+  try{localStorage.setItem('bmnava-sonidos',on?'1':'0');}catch(e){}
+  if(on){bmsonCtx();setTimeout(()=>bmSuena('ok'),30);}
+  try{toast(on?'Sonidos encendidos en este ordenador':'Sonidos apagados');}catch(e){}
+}
+function bmsonPedido(ms){return Date.now()-(typeof BMPRE_U!=='undefined'?BMPRE_U:0)<(ms||3000);}
+function bmsonInstala(){
+  const a=window.bmVibraAviso;
+  if(typeof a==='function'&&!a.__bmson){const w=function(m){const r=a.apply(this,arguments);
+      try{m=String(m||'');if(!BMV_MAL.test(m)&&BMV_OK.test(m)&&bmsonPedido(4000))bmSuena('ok');}catch(e){}return r;};
+    w.__bmson=true;window.bmVibraAviso=w;}
+  const s=window.setRefDate;
+  if(typeof s==='function'&&!s.__bmson){const w=function(){const r=s.apply(this,arguments);try{if(bmsonPedido(900))bmSuena('tic');}catch(e){}return r;};
+    Object.keys(s).forEach(k=>{try{w[k]=s[k];}catch(_){}});w.__bmson=true;window.setRefDate=w;}
+  const x=window.exportNodePNG;
+  if(typeof x==='function'&&!x.__bmson){const w=function(){try{if(!window.__EXP_LOTE&&bmsonPedido(3000))bmSuena('foto');}catch(e){}return x.apply(this,arguments);};
+    Object.keys(x).forEach(k=>{try{w[k]=x[k];}catch(_){}});w.__bmson=true;window.exportNodePNG=w;}
+  const n=window.nutMarcar;
+  if(typeof n==='function'&&!n.__bmson){const w=function(cs,pagado){const r=n.apply(this,arguments);try{if(pagado&&(cs||[]).length&&bmsonPedido(20000))bmSuena('ok');}catch(e){}return r;};
+    w.__bmson=true;window.nutMarcar=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmsonInstala,160));else setTimeout(bmsonInstala,160);
+window.bmsonPon=bmsonPon;window.bmsonOn=bmsonOn;window.bmSuena=bmSuena;window.bmEscBrillo=bmEscBrillo;
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -49501,11 +49561,13 @@ function bmTbMenu(e){
     {t:'Clara',chk:tema==='light',f:()=>temaPon('light')},
     {t:'Oscura',chk:tema==='dark',f:()=>temaPon('dark')},
     {sep:1},
+    {t:'Sonidos de la app',chk:(typeof bmsonOn==='function'&&bmsonOn()),tog:1,f:()=>{try{bmsonPon(!bmsonOn());}catch(err){}}},
+    {sep:1},
     {t:'Actualizar los datos',k:'R',f:()=>{try{refreshAll();}catch(err){}}}
   ];
   const m=document.createElement('div');m.id='bm-tbm';m.setAttribute('role','menu');m.setAttribute('aria-label','Más acciones');
   m.innerHTML=it.map((x,i)=>x.sep?'<div class="bm-tbm-sep" role="separator"></div>':x.h?'<div class="bm-tbm-h">'+bmEsc(x.h)+'</div>'
-    :'<button type="button" role="'+(x.chk!==undefined?'menuitemradio':'menuitem')+'"'+(x.chk!==undefined?' aria-checked="'+(x.chk?'true':'false')+'"':'')+' data-i="'+i+'"><i aria-hidden="true">'+(x.chk?'✓':'')+'</i><span>'+bmEsc(x.t)+'</span>'+(x.k?'<kbd>'+bmEsc(x.k)+'</kbd>':'')+'</button>').join('');
+    :'<button type="button" role="'+(x.chk!==undefined?(x.tog?'menuitemcheckbox':'menuitemradio'):'menuitem')+'"'+(x.chk!==undefined?' aria-checked="'+(x.chk?'true':'false')+'"':'')+' data-i="'+i+'"><i aria-hidden="true">'+(x.chk?'✓':'')+'</i><span>'+bmEsc(x.t)+'</span>'+(x.k?'<kbd>'+bmEsc(x.k)+'</kbd>':'')+'</button>').join('');
   document.body.appendChild(m);
   const r=b.getBoundingClientRect(),W=m.offsetWidth;
   m.style.top=Math.round(r.bottom+6)+'px';m.style.left=Math.round(Math.max(8,Math.min(innerWidth-W-8,r.right-W)))+'px';
