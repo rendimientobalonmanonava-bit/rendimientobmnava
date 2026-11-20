@@ -29718,7 +29718,7 @@ function mocLineaHTML(e,i,opts){
       :(m.dias<MOC_VENT?'sus '+m.dias+(m.dias===1?' día':' días')+' en la fase':'últimos 7 días de la fase'))
     +(m&&m.sinCuest?' · '+m.sinCuest+(m.sinCuest===1?' día':' días')+' de entreno sin su cuestionario':'');
   return '<div class="moc-l"'+(opts.id?' id="'+opts.id+'"':'')+'><div class="moc-h"><span>Objetivo de la fase</span><small>'+E(cuando)+'</small>'
-    +(opts.editar?'<button type="button" class="med-chipbtn" onclick="mocEditar(\''+String(e.id).replace(/'/g,"\\'")+'\')">Cambiar</button>':'')+'</div>'
+    +(opts.editar?'<button type="button" class="med-chipbtn" onclick="mocEditar(\''+String(e.id).replace(/'/g,"\\'")+'\')">Cambiar</button>':'')+(opts.editar&&e.open&&i===(e.phaseIdx||0)&&(o.lo!=null||o.hi!=null)?'<button type="button" class="med-chipbtn" onclick="mocAlCalendario(\''+String(e.id).replace(/'/g,"\\'")+'\')">Llevar al calendario</button>':'')+'</div>'
     +'<div class="moc-is">'+h+'</div></div>';
 }
 /* Para la tarjeta de vuelta a la competición (v749): una línea corta. */
@@ -30014,6 +30014,84 @@ function bilPNG(){
 }
 document.addEventListener('click',ev=>{const b=ev.target&&ev.target.closest&&ev.target.closest('#bmit [data-bil="png"]');if(b)bilPNG();});
 window.bmInformeLesion=bmInformeLesion;window.bilPNG=bilPNG;
+
+/* ═══ v922 · DEL OBJETIVO DE LA FASE AL CALENDARIO ═══
+   Daniel, 20/11/2026, propuesta 1 de lesiones. El objetivo de carga de la fase
+   (v920) se convierte, con un toque, en su plan individual del calendario
+   (v748) para los días que le quedan en la fase: la proyección del ACWR del
+   microciclo y «Plan contra real por jugador» cuentan así con su readaptación
+   sin marcarla día a día. El plan individual sólo sabe de «todo», 75, 50 y
+   25 % o «no entrena»: se propone el que cae dentro del objetivo y más cerca
+   de su centro, y cada día se puede cambiar antes de aplicar. Lo que ya se
+   hubiera puesto a mano ese día se respeta. Se deshace con un toque (v763).
+   Mira al futuro, así que va por el reloj y no por el día que se mira. */
+const MOC_OPC=[['n',100],['f75',75],['f50',50],['f25',25],['no',0]];
+let MOCC=null;
+function mocCodigo(o){
+  if(!o||(o.lo==null&&o.hi==null))return null;
+  const lo=o.lo!=null?o.lo:0,hi=o.hi!=null?o.hi:Infinity,c=o.hi!=null?(lo+o.hi)/2:lo;
+  const dentro=MOC_OPC.filter(x=>x[1]>=lo&&x[1]<=hi),pool=dentro.length?dentro:MOC_OPC;
+  let b=pool[0];pool.forEach(x=>{if(Math.abs(x[1]-c)<Math.abs(b[1]-c))b=x;});
+  return b[0];
+}
+/* el último día PREVISTO de la fase: el día antes de que empiece la siguiente, o su duración */
+function mocFinPrev(e,i){
+  const phs=e.phases||[],f=phs[i];if(!f)return null;
+  for(let j=i+1;j<phs.length;j++){if(phs[j]&&phs[j].startDk&&f.startDk&&phs[j].startDk>f.startDk)return dkSumaDias(phs[j].startDk,-1);}
+  if(f.startDk&&+f.durDays>0)return dkSumaDias(f.startDk,+f.durDays-1);
+  return null;
+}
+function moccUA(dk,c){const a=CAL_AJ[c]||CAL_AJ.n;
+  if(a.b){const evs=(STATE.calendar||{})[dk]||[];return Math.round(evs.filter(e=>evBloque(e)===a.b).reduce((s,e)=>s+CAL_RPE[evIntens(e)]*evDur(e),0));}
+  return Math.round(calPlanUA(dk)*a.f);}
+function mocAlCalendario(injId){
+  const e=medInj(injId);if(!e)return;
+  const i=e.phaseIdx||0,f=(e.phases||[])[i],o=mocObj(f);
+  if(!o||(o.lo==null&&o.hi==null)){toast('Esta fase no tiene objetivo de carga');return;}
+  const hoy=dkey(new Date());
+  const ini=f.startDk&&f.startDk>hoy?f.startDk:hoy;
+  let fin=mocFinPrev(e,i);const sinFin=!fin;if(!fin)fin=dkSumaDias(ini,6);
+  const tope=dkSumaDias(ini,27);if(fin>tope)fin=tope;
+  const code=mocCodigo(o),E=bmEsc,name=e.name;
+  const dias=fin>=ini?dkRango(ini,fin).filter(dk=>{try{return calDayPlan(dk).planUA>0;}catch(x){return false;}}):[];
+  MOCC={id:injId,name,dias:dias.map(dk=>({dk,antes:calAjDe(dk,name)}))};
+  const WD=['dom','lun','mar','mié','jue','vie','sáb'];
+  const filas=MOCC.dias.map(d=>{
+    const dk=d.dk,pl=calDayPlan(dk),evs=((STATE.calendar||{})[dk]||[]).filter(x=>!evSP(x));
+    const hayB={};evs.forEach(x=>{const b=evBloque(x);if(b)hayB[b]=true;});
+    /* un partido en una fase que no permite competir: no juega (los permisos de la fase, v215) */
+    const par=evs.some(x=>{try{return evEsPartido(x);}catch(z){return false;}})&&!((f.permits||[]).indexOf('competicion')>=0);
+    const prop=d.antes!=='n'?d.antes:(par?'no':code);
+    const opts=Object.keys(CAL_AJ).filter(k=>!CAL_AJ[k].b||hayB[CAL_AJ[k].b]||k===prop).map(k=>'<option value="'+k+'"'+(k===prop?' selected':'')+'>'+CAL_AJ[k].lab+'</option>').join('');
+    const tit=evs.map(x=>x.title||((CAL_TYPES[x.type]||{}).lab)||'Sesión').join(' + ');
+    const dd=dkToDate(dk);
+    return '<div class="mocc-r" data-dk="'+dk+'"><div class="mocc-d"><b>'+WD[dd.getDay()]+' '+dd.getDate()+'/'+(dd.getMonth()+1)+'</b><small>'+E(tit)+' · '+pl.planUA+' UA del equipo</small>'
+      +(d.antes!=='n'?'<em>ya tenía «'+E(CAL_AJ[d.antes].lab.toLowerCase())+'»</em>':(par?'<em>partido: en esta fase no compite</em>':''))+'</div>'
+      +'<select class="mocc-s" aria-label="Plan de '+E(name)+' el '+dd.getDate()+'/'+(dd.getMonth()+1)+'">'+opts+'</select>'
+      +'<span class="mocc-ua">'+moccUA(dk,prop)+' UA</span></div>';}).join('');
+  const html='<div class="mocc">'
+    +'<p class="mocc-i"><b>'+E(name)+'</b> · '+E(f.nom||'Fase')+' · objetivo '+mocRango(o)+' de la carga del equipo. '
+      +'El plan individual sólo sabe de todo, 75, 50 y 25 % o «no entrena»: se propone <b>'+E(CAL_AJ[code].lab.toLowerCase())+'</b>, el que cae dentro y más cerca del centro. Cambia el día que quieras.</p>'
+    +(dias.length?'<div class="mocc-l">'+filas+'</div>'
+      :'<p class="mocc-nada">No hay sesiones programadas en el calendario del '+bilFd(ini)+' al '+bilFd(fin)+'. Cuando las haya, vuelve aquí.</p>')
+    +'<p class="mocc-pie">Del '+bilFd(ini)+' al '+bilFd(fin)+(sinFin?' (la fase no tiene fecha de fin prevista: una semana)':' · lo que le queda de la fase')+'. La proyección del ACWR y «Plan contra real por jugador» usarán su parte; lo que hizo de verdad se mide después contra lo que hizo el equipo.</p>'
+    +(dias.length?'<div class="mocc-acc"><button type="button" class="btn" data-mocc="ok">Aplicar a '+dias.length+(dias.length===1?' día':' días')+'</button></div>':'')
+    +'</div>';
+  bmHoja({id:'mocc',titulo:'Llevar al calendario',html});
+}
+function moccAplica(){
+  if(!MOCC)return;const name=MOCC.name,cambios=[];
+  document.querySelectorAll('#bmh-mocc .mocc-r').forEach(r=>{const dk=r.dataset.dk,s=r.querySelector('.mocc-s');const d=MOCC.dias.find(x=>x.dk===dk);if(!s||!d)return;
+    if(s.value!==calAjDe(dk,name)){cambios.push({dk,antes:calAjDe(dk,name),c:s.value});}});
+  if(!cambios.length){try{bmHojaCierra('mocc');}catch(x){}toast('Nada que cambiar: el calendario ya lo tenía así');return;}
+  cambios.forEach(x=>{try{calAjSet(x.dk,name,x.c);}catch(err){console.error('bmnava · llevar al calendario',err);}});
+  const repinta=()=>{try{renderMedico();}catch(x){}try{if(window.renderCalMicro)renderCalMicro();}catch(x){}try{if(window.fichaRepinta)fichaRepinta();}catch(x){}};
+  try{bmHojaCierra('mocc');}catch(x){}repinta();
+  bmHecho(name+': plan individual en '+cambios.length+(cambios.length===1?' día':' días'),()=>{cambios.forEach(x=>{try{calAjSet(x.dk,name,x.antes);}catch(err){}});repinta();},'Calendario como estaba · '+name);
+}
+document.addEventListener('change',ev=>{const s=ev.target&&ev.target.closest&&ev.target.closest('#bmh-mocc .mocc-s');if(!s)return;const r=s.closest('.mocc-r');const u=r&&r.querySelector('.mocc-ua');if(u)u.textContent=moccUA(r.dataset.dk,s.value)+' UA';});
+document.addEventListener('click',ev=>{const b=ev.target&&ev.target.closest&&ev.target.closest('#bmh-mocc [data-mocc="ok"]');if(b)moccAplica();});
+window.mocAlCalendario=mocAlCalendario;
 
 /* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
 function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
@@ -60924,6 +61002,28 @@ html.bm-exp .bmit-p.bil,html.bm-exp .bmit-p.bil *{letter-spacing:0!important}
   .bil-lg{display:none}.bil-co{display:inline}
   .bmit-p.bil .bil-plv .pltp-svg{min-width:0}
   .bmit-p.bil .bil-plv .pltp-ks{grid-template-columns:repeat(6,minmax(0,1fr))}
+}
+</style>
+<style id="bm-v922">
+/* v922 · del objetivo de la fase al calendario */
+.mocc{display:flex;flex-direction:column;gap:12px}
+.mocc-i{margin:0;font-size:var(--fs-sm);color:var(--muted);line-height:1.45}
+.mocc-i b{color:var(--txt)}
+.mocc-l{display:flex;flex-direction:column}
+.mocc-r{display:grid;grid-template-columns:minmax(0,1fr) auto 76px;gap:10px;align-items:center;padding:9px 0;border-top:.5px solid var(--line)}
+.mocc-d b{display:block;font-size:var(--fs-body);font-weight:600;color:var(--txt)}
+.mocc-d small{display:block;font-size:var(--fs-xs);color:var(--muted)}
+.mocc-d em{display:block;font-style:normal;font-size:var(--fs-xs);color:var(--warn-text)}
+.mocc-s{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font:inherit;font-size:var(--fs-sm)}
+.mocc-ua{text-align:right;font-size:var(--fs-sm);font-weight:600;font-variant-numeric:tabular-nums;color:var(--txt)}
+.mocc-nada,.mocc-pie{margin:0;font-size:var(--fs-xs);color:var(--muted);line-height:1.45}
+.mocc-nada{font-size:var(--fs-sm)}
+.mocc-acc{display:flex;justify-content:flex-end}
+.moc-h .med-chipbtn+.med-chipbtn{margin-left:6px}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .mocc-r{grid-template-columns:minmax(0,1fr) 64px;row-gap:6px}
+  .mocc-s{grid-column:1/-1;grid-row:2;min-height:44px}
+  .mocc-acc .btn{min-height:44px;width:100%}
 }
 </style>
 <style id="bm-v749">
