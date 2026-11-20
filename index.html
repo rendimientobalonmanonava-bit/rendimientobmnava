@@ -28273,6 +28273,38 @@ document.addEventListener('gesturestart',e=>{if(!bmmpzEn(e.target))return;e.prev
 document.addEventListener('gesturechange',e=>{if(!bmmpzEn(e.target))return;e.preventDefault();
   const s=e.scale/BMMPZ.g;if(s>1.22){if(bmmpzPaso(-1))BMMPZ.g=e.scale;}else if(s<.82){if(bmmpzPaso(1))BMMPZ.g=e.scale;}},{passive:false,capture:true});
 document.addEventListener('gestureend',e=>{if(bmmpzEn(e.target))e.preventDefault();},{passive:false,capture:true});
+/* ═══ v916 · EL ESCUDO CON BRILLO (ORDENADOR) ═══
+   Daniel, 20/11/2026, propuesta 7. Al pasar el ratón por el escudo de la
+   barra lateral, un destello dorado lo recorre en diagonal, como la luz sobre
+   un metal; y una vez al llegar, cuando el escudo termina de volar desde la
+   pantalla de arranque (v862). El destello va recortado a la forma del
+   propio escudo (su imagen hace de máscara), así que no se sale de él. El
+   dorado es el color de la barra lateral (§2.3). Nada con «Reducir
+   movimiento». */
+function bmEscBrillo(){
+  if(esMovil()||!(typeof bmEscFino==='function'&&bmEscFino())||bmReduce())return;
+  const img=[...document.querySelectorAll('#sidebar .sbm-escudo')].find(x=>x.checkVisibility&&x.checkVisibility());
+  if(!img||!img.complete||!img.naturalWidth)return;
+  const id=img.closest('.sbm-id');if(!id)return;
+  if(getComputedStyle(id).position==='static')id.style.position='relative';
+  let b=id.querySelector(':scope>.sbm-brillo');
+  if(!b){b=document.createElement('span');b.className='sbm-brillo';b.setAttribute('aria-hidden','true');id.appendChild(b);}
+  Object.assign(b.style,{left:img.offsetLeft+'px',top:img.offsetTop+'px',width:img.offsetWidth+'px',height:img.offsetHeight+'px',webkitMaskImage:'url("'+(img.currentSrc||img.src)+'")',maskImage:'url("'+(img.currentSrc||img.src)+'")'});
+  try{b.getAnimations().forEach(a=>a.cancel());
+    b.animate([{backgroundPosition:'135% 0',opacity:0},{opacity:1,offset:.15},{opacity:1,offset:.85},{backgroundPosition:'-35% 0',opacity:0}],{duration:1050,easing:'cubic-bezier(.45,.05,.35,1)'});}catch(_){}
+}
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType==='touch'||!e.target||!e.target.closest)return;
+  const id=e.target.closest('#sidebar .sbm-id');if(!id)return;
+  if(e.relatedTarget&&id.contains(e.relatedTarget))return;
+  bmEscBrillo();
+},true);
+function bmescInstala(){
+  const f=window.bmEntradaVuela;if(typeof f!=='function'||f.__bmesc)return;
+  const w=function(){const r=f.apply(this,arguments);if(r)setTimeout(bmEscBrillo,760);return r;};
+  w.__bmesc=true;window.bmEntradaVuela=w;
+}
+bmescInstala();
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -60014,6 +60046,18 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
 }
 #bmenf-chip{display:none}
 @media screen and (min-width:761px) and (pointer:fine){#bmenf-chip{display:block}}
+</style>
+<style id="esc-v916">
+/* v916 · el escudo con brillo (ordenador). Dorado: el color de la barra lateral. */
+@media screen and (min-width:761px) and (pointer:fine){
+  #sidebar .sbm-brillo{position:absolute;pointer-events:none;opacity:0;z-index:1;
+    background:linear-gradient(105deg,transparent 34%,rgba(255,236,190,0) 41%,rgba(255,240,205,.72) 50%,rgba(255,236,190,0) 59%,transparent 66%);
+    background-size:320% 100%;background-repeat:no-repeat;background-position:135% 0;
+    -webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+}
+#sidebar .sbm-brillo{display:none}
+@media screen and (min-width:761px) and (pointer:fine){#sidebar .sbm-brillo{display:block}}
+@media (prefers-reduced-motion:reduce){#sidebar .sbm-brillo{display:none!important}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
