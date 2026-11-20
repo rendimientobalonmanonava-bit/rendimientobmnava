@@ -23907,7 +23907,6 @@ function bmNovedadesMac(){
   const L=[
     ['Lo último'],
     ['equipo','La pantalla de arranque cuenta lo que lee','Al abrir la app, un anillo alrededor del escudo se llena con cada hoja que llega: plantilla, wellness, RPE y valoraciones.',null],
-    ['carga','El título viaja del menú a la página','Pulsa una sección del menú lateral: su nombre sale de la fila y crece hasta el título grande.',()=>go('carga')],
     ['tests','El podio se levanta','En Perfil físico, los escalones suben del tercero al primero y las caras caen en su sitio.',()=>go('tests')],
     ['carga','El Dashboard enlazado','En Cargas › Dashboard, pasa el ratón por un día de la lista: se marca en los gráficos de debajo, y al revés.',()=>{go('carga');try{cargasTab('resumen');}catch(_){}}],
     ['carga','Un jugador en toda la pantalla','En Cargas › Plantilla, pasa el ratón por un jugador del mapa: su fila se ilumina también en «La temporada, semana a semana».',()=>{go('carga');try{cargasTab('mapa');}catch(_){}}],
@@ -25911,8 +25910,6 @@ function bmCascada(v){
   const H=window.innerHeight||900;
   let els=[...v.querySelectorAll(BMCAS.sel)].filter(e=>{if(e.closest(BMG_DOC))return false;const r=e.getBoundingClientRect();return r.height>16&&r.width>40&&r.bottom>0&&r.top<H;});
   els=els.filter(e=>!els.some(o=>o!==e&&o.contains(e)));
-  /* v911 · si el título viene volando desde el menú, la cabecera la anima él */
-  if(window.__BM_TITVUELO)els=els.filter(e=>!e.classList.contains('pagehead'));
   els.sort((a,b)=>{const ra=a.getBoundingClientRect(),rb=b.getBoundingClientRect();return (Math.round(ra.top/40)-Math.round(rb.top/40))||(ra.left-rb.left);});
   els.slice(0,16).forEach((e,i)=>{
     try{e.animate([{opacity:0,transform:'translateY(14px) scale(.985)'},{opacity:1,transform:'none'}],
@@ -28078,68 +28075,6 @@ function bmarrMonta(){
 }
 bmarrMonta();
 window.bmarrMonta=bmarrMonta;
-/* ═══ v911 · EL TÍTULO VIAJA DEL MENÚ A LA PÁGINA (ORDENADOR) ═══
-   Daniel, 20/11/2026, propuesta 2. Al pulsar una sección del menú lateral, su
-   nombre sale de la fila y crece hasta el título grande de la pantalla, como
-   en las listas de iOS. Es una copia del texto que vuela por encima y se
-   funde en el título de verdad al llegar; si el título dice otra cosa que la
-   fila («Disponibilidad» → «Estado del equipo»), las dos palabras se cruzan a
-   mitad de camino. El resto de la cabecera (el subtítulo y el aviso) entra
-   detrás, como el resto de la pantalla (v857). Sólo desde el menú y con el
-   ratón; con el menú plegado no hay nombre que viaje. Nada con «Reducir
-   movimiento». */
-const BMTV={src:null,t:0};
-function bmtvVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
-document.addEventListener('pointerdown',e=>{
-  if(e.button!==0||!e.target||!e.target.closest)return;
-  const b=e.target.closest('#sidebar .sb-item[data-v]');if(!b){return;}
-  const s=b.querySelector(':scope>span');if(s){BMTV.src={el:s,v:b.dataset.v};BMTV.t=Date.now();}
-},true);
-function bmtvVuela(c){
-  const v=document.querySelector('main>.view.on');if(!v)return;
-  const h=[...v.querySelectorAll(':scope>.pagehead h1')].find(x=>x.checkVisibility&&x.checkVisibility());if(!h)return;
-  const g=document.createRange();g.selectNodeContents(h);const tr=g.getBoundingClientRect();
-  if(!tr.width||tr.top>innerHeight||tr.bottom<0)return;
-  const cs=getComputedStyle(h),fs=parseFloat(cs.fontSize)||34,k=Math.max(.2,Math.min(1,c.fs/fs));
-  const t1=h.textContent.trim(),igual=t1.toLowerCase()===c.txt.toLowerCase();
-  const capa=document.createElement('div');capa.className='bmtv-clon';capa.setAttribute('aria-hidden','true');
-  Object.assign(capa.style,{left:tr.left+'px',top:tr.top+'px',height:tr.height+'px',fontFamily:cs.fontFamily,fontSize:cs.fontSize,fontWeight:cs.fontWeight,fontStyle:cs.fontStyle,lineHeight:tr.height+'px',letterSpacing:cs.letterSpacing,color:cs.color});
-  capa.innerHTML=(igual?'':'<span class="bmtv-a"></span>')+'<span class="bmtv-b"></span>';
-  if(!igual)capa.querySelector('.bmtv-a').textContent=c.txt;
-  capa.querySelector('.bmtv-b').textContent=t1;
-  document.body.appendChild(capa);
-  const dx=c.r.left-tr.left,dy=(c.r.top+c.r.height/2)-(tr.top+tr.height*k/2);
-  const D=560,E='cubic-bezier(.32,.72,0,1)';
-  try{
-    const an=capa.animate([{transform:'translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) scale('+k.toFixed(4)+')',color:c.col},{transform:'none',color:cs.color}],{duration:D,easing:E,fill:'forwards'});
-    if(!igual){capa.querySelector('.bmtv-a').animate([{opacity:1},{opacity:1,offset:.38},{opacity:0,offset:.7},{opacity:0}],{duration:D,fill:'forwards'});
-      capa.querySelector('.bmtv-b').animate([{opacity:0},{opacity:0,offset:.38},{opacity:1,offset:.72},{opacity:1}],{duration:D,fill:'forwards'});}
-    const ans=[h.animate([{opacity:0},{opacity:0,offset:.94},{opacity:1}],{duration:D})];
-    /* lo demás de la cabecera, detrás */
-    const ph=h.parentElement;let i=0;
-    [...ph.children].forEach(x=>{if(x===h||!x.getBoundingClientRect().height)return;
-      try{ans.push(x.animate([{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'none'}],{duration:380,delay:180+(i++)*40,easing:E,fill:'backwards'}));}catch(_){}});
-    const fin=()=>{try{capa.remove();}catch(_){}};an.onfinish=fin;an.oncancel=fin;
-    /* el título de verdad no puede quedarse escondido aunque el navegador no pinte */
-    setTimeout(()=>{fin();ans.forEach(a=>{try{if(a.playState!=='finished')a.cancel();}catch(_){}});},D+400);
-  }catch(e){try{capa.remove();}catch(_){}}
-}
-function bmtvInstala(){
-  const f=window.go;if(typeof f!=='function'||f.__bmtv)return;
-  const w=function(v){
-    const src=BMTV.src&&Date.now()-BMTV.t<1500?BMTV.src:null;BMTV.src=null;
-    let c=null;
-    if(src&&bmtvVale()&&src.el.isConnected&&src.el.checkVisibility&&src.el.checkVisibility()){
-      const r=src.el.getBoundingClientRect(),cs=getComputedStyle(src.el);
-      if(r.width>4)c={r,txt:src.el.textContent.trim(),fs:parseFloat(cs.fontSize)||13,col:cs.color};}
-    const antes=STATE.view;
-    if(c)window.__BM_TITVUELO=true;
-    let res;try{res=f.apply(this,arguments);}finally{window.__BM_TITVUELO=false;}
-    if(c&&STATE.view!==antes)try{bmtvVuela(c);}catch(e){}
-    return res;};
-  w.__bmtv=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.go=w;
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmtvInstala,140));else setTimeout(bmtvInstala,140);
 /* ═══ v912 · EL PODIO SE LEVANTA (ORDENADOR) ═══
    Daniel, 20/11/2026, propuesta 3. En Perfil físico (el podio del TSA y el de
    cada prueba), al llegar al podio los escalones suben del 3.º al 1.º, las
@@ -60085,11 +60020,6 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
 .sp-hs i[data-e="ok"]{color:rgba(255,255,255,.94)}
 .sp-hs i[data-e="ok"]::before{background:#fff;transform:scale(1.25)}
 @media (prefers-reduced-motion:reduce){.sp-ring .sp-rf,.sp-hs i,.sp-hs i::before{transition:none}.sp-ring .sp-rf[data-e="vuelo"],.sp-prog--ok .sp-ring{animation:none}.sp-hojas{animation:none;opacity:1}}
-</style>
-<style id="esc-v911">
-/* v911 · el título viaja del menú a la página (ordenador) */
-.bmtv-clon{position:fixed;z-index:9990;pointer-events:none;margin:0;white-space:nowrap;transform-origin:0 0;display:grid;line-height:normal}
-.bmtv-clon>span{grid-area:1/1;display:block;line-height:inherit}
 </style>
 <style id="esc-v913">
 /* v913 · el Dashboard enlazado (ordenador) */
