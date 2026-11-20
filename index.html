@@ -28182,6 +28182,53 @@ document.addEventListener('pointerover',e=>{
   if(!r){if(BMCUR.dk&&!BMCUR.src&&!e.target.closest('#v-carga .cg-d14-list')){BMCUR.dk=null;bmCurAplica();}return;}
   if(BMCUR.dk!==r.dataset.dk||BMCUR.src){BMCUR.dk=r.dataset.dk;BMCUR.src=null;bmCurAplica();}
 },true);
+/* ═══ v914 · UN JUGADOR, ENFOCADO EN TODA LA PANTALLA (ORDENADOR) ═══
+   Daniel, 20/11/2026, propuesta 5. En Cargas › Plantilla hay dos rejillas con
+   los mismos jugadores —el mapa día a día y «La temporada, semana a semana»—
+   y, mirando a uno en una, había que buscarlo en la otra. Ahora, al pasar el
+   ratón por un jugador en cualquiera de las dos, su fila se ilumina también
+   en la otra, con la misma banda que la mira del mapa (v900) y su nombre en
+   el color de acción; y si esa fila queda fuera de la pantalla, una etiqueta
+   en el borde dice que está más arriba o más abajo. **No se mete nada en las
+   rejillas**: la banda va en el contenedor que se desplaza y no recoge clics.
+   En la vista de un jugador de la tabla de temporada no hay filas de
+   jugadores, y no se marca nada. */
+const BMENF={b:null,n:null,chip:null};
+function bmenfQuita(){if(BMENF.b){BMENF.b.remove();BMENF.b=null;}BMENF.n=null;document.querySelectorAll('.bmenf-n').forEach(x=>x.classList.remove('bmenf-n'));if(BMENF.chip)BMENF.chip.classList.remove('on');}
+function bmenfFila(n,donde){
+  if(donde==='per'){const g=document.querySelector('#bmper .bmper-r');if(!g)return null;
+    const nm=[...g.querySelectorAll(':scope>.bmper-nom[data-pn]')].find(x=>x.dataset.pn===n);if(!nm)return null;
+    return {g,w:g.closest('.bmper-w'),nm,cs:[...g.querySelectorAll(':scope>[data-pj]')].filter(x=>x.dataset.pj===n)};}
+  const g=document.querySelector('#carga-mapa .bmmp-r');if(!g)return null;
+  const p=(typeof BMMP!=='undefined'&&BMMP.orden)?BMMP.orden.indexOf(n):-1;if(p<0)return null;
+  const nm=[...g.querySelectorAll(':scope>.bmmp-nom[data-n]')].find(x=>x.dataset.n===n);if(!nm)return null;
+  return {g,w:g.closest('.bmmp-w'),nm,cs:[...g.querySelectorAll(':scope>[data-p="'+p+'"]')]};
+}
+function bmenfPon(n,donde){
+  if(BMENF.n===n+'|'+donde)return;bmenfQuita();
+  const F=bmenfFila(n,donde);if(!F||!F.w||!F.cs.length)return;
+  BMENF.n=n+'|'+donde;
+  if(getComputedStyle(F.w).position==='static')F.w.style.position='relative';
+  const wr=F.w.getBoundingClientRect(),a=F.nm.getBoundingClientRect(),z=F.cs[F.cs.length-1].getBoundingClientRect();
+  const b=document.createElement('div');b.className='bmmira-f bmenf-b';b.setAttribute('aria-hidden','true');b.setAttribute('data-html2canvas-ignore','true');
+  Object.assign(b.style,{left:(a.left-wr.left+F.w.scrollLeft)+'px',top:(a.top-wr.top+F.w.scrollTop)+'px',width:(z.right-a.left)+'px',height:a.height+'px'});
+  F.w.appendChild(b);BMENF.b=b;F.nm.classList.add('bmenf-n');
+  try{b.animate([{opacity:0},{opacity:1}],{duration:160,easing:'ease-out'});}catch(_){}
+  /* fuera de la pantalla: una etiqueta en el borde */
+  const fuera=a.bottom<0?'arriba':a.top>innerHeight?'abajo':null;
+  if(fuera){let c=BMENF.chip;if(!c||!c.isConnected){c=document.createElement('div');c.id='bmenf-chip';c.setAttribute('aria-hidden','true');document.body.appendChild(c);BMENF.chip=c;}
+    c.textContent=(fuera==='abajo'?'↓ ':'↑ ')+cvCorto(n)+(donde==='per'?' · en «La temporada, semana a semana»':' · en el mapa día a día');
+    c.dataset.l=fuera;const mr=(document.querySelector('main')||document.body).getBoundingClientRect();c.style.left=Math.round(mr.left+mr.width/2)+'px';c.classList.add('on');}
+}
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType==='touch'||!bmlkVale()||!e.target||!e.target.closest)return;
+  const m=e.target.closest('#carga-mapa .bmmp-r>[data-p],#carga-mapa .bmmp-r>.bmmp-nom[data-n]');
+  if(m){const n=m.dataset.n||((typeof BMMP!=='undefined'&&BMMP.orden)||[])[+m.dataset.p];if(n)bmenfPon(n,'per');return;}
+  const q=e.target.closest('#bmper .bmper-r>[data-pj],#bmper .bmper-r>.bmper-nom[data-pn]');
+  if(q){const n=q.dataset.pj||q.dataset.pn;if(n)bmenfPon(n,'mapa');return;}
+  if(BMENF.n)bmenfQuita();
+},true);
+window.addEventListener('scroll',()=>{if(BMENF.n)bmenfQuita();},{passive:true});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59905,6 +59952,24 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   #v-carga .cg-d14-list>.cg-d14.bmlk-on .cg-d14-d b{color:var(--acc-seg,var(--accent))}
   @media (prefers-reduced-motion:reduce){#v-carga .cg-d14-list>.cg-d14{transition:none}}
 }
+</style>
+<style id="esc-v914">
+/* v914 · un jugador, enfocado en toda la pantalla (ordenador). La banda usa la
+   de la mira del mapa (v900): #carga-mapa .bmmira-f, también en la tabla de
+   temporada, que vive dentro de #carga-mapa. */
+@media screen and (min-width:761px) and (pointer:fine){
+  #carga-mapa .bmenf-b{transition:none}
+  #carga-mapa .bmenf-n{color:var(--acc-seg,var(--accent))}
+  #carga-mapa .bmenf-n .bmmp-av{scale:1.12;transition:scale .18s cubic-bezier(.32,.72,0,1)}
+  #bmenf-chip{position:fixed;z-index:60;translate:-50% 0;padding:6px 12px;border-radius:999px;background:var(--panel);color:var(--txt);
+    font-size:12.5px;font-weight:600;box-shadow:0 0 0 .5px var(--line),0 8px 22px rgba(0,0,0,.16);pointer-events:none;opacity:0;transition:opacity .16s ease}
+  #bmenf-chip[data-l="abajo"]{bottom:22px}
+  #bmenf-chip[data-l="arriba"]{top:calc(var(--bm-th-top,64px) + 12px)}
+  #bmenf-chip.on{opacity:1}
+  @media (prefers-reduced-motion:reduce){#carga-mapa .bmenf-n .bmmp-av{transition:none}#bmenf-chip{transition:none}}
+}
+#bmenf-chip{display:none}
+@media screen and (min-width:761px) and (pointer:fine){#bmenf-chip{display:block}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
