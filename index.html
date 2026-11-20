@@ -13695,7 +13695,7 @@ function medDetailHtml(e){if(!e)return '';
     lo que se le ha hecho a la derecha. Antes iba todo apilado en una sola
     columna estrecha, con la gráfica de dolor perdida en medio de mucho blanco. */
  return head+'<div class="med-cols">'
-   +'<div class="med-col">'+phasesHtml+fasesHtml+'</div>'
+   +'<div class="med-col">'+phasesHtml+fasesHtml+(window.antesHTML?(()=>{try{const a=antesHTML(e);return a?'<div class="med-sec">Antes de la lesión</div>'+a:'';}catch(x){return '';}})():'')+'</div>'
    +'<div class="med-col">'+citasHtml+treatHtml+notesHtml+'</div>'
  +'</div>';}
 /* ---------- Criterios ---------- */
@@ -29918,6 +29918,7 @@ function bilHTML(e){
     +'</div></section>');
   /* 3 · línea de tiempo */
   B.push('<section class="bil-b"><h3>Línea de tiempo</h3>'+bilLineaSVG(e,D)+'</section>');
+  try{const an=window.antesHTML?antesHTML(e,true):'';if(an)B.push('<section class="bil-b"><h3>Antes de la lesión · los 14 días previos</h3>'+an+'</section>');}catch(x){}
   /* 4 · plan de readaptación */
   if(D.fases.length){
     const fila=x=>{
@@ -30291,6 +30292,48 @@ function svuExporta(){
 }
 document.addEventListener('click',ev=>{const b=ev.target&&ev.target.closest&&ev.target.closest('#bmh-svu [data-svu="png"]');if(b)svuExporta();});
 window.bmSuVuelta=bmSuVuelta;
+
+/* ═══ v926 · LO QUE PASÓ ANTES, EN EL INFORME Y EN EL DETALLE ═══
+   Daniel, 20/11/2026, propuesta 5 de lesiones. El cronograma médico ya
+   calculaba el estado del jugador en las dos semanas previas a la lesión
+   (`medTimelinePlayerStateBeforeInjury`) y sus señales (`medTimelineFlags`),
+   y si es una recidiva; sólo se veía al elegir una fila del cronograma. Ahora
+   va también en el detalle de la lesión y en su informe. **Ni un cálculo ni
+   un umbral nuevos**: son los de esas dos funciones. Al reutilizarlas salió un
+   fallo suyo: la señal de sueño saltaba con una media de 2,5 o menos, y en
+   esta app 1 es el mejor sueño (§2.2); se corrige allí, con el mismo listón
+   de 3,5 que ya usaban fatiga y DOMS. Describe lo que pasó; no dice que la
+   carga o el sueño causaran la lesión. */
+function antesDatos(e){
+  if(!e||!window.medTimelinePlayerStateBeforeInjury)return null;
+  let s=null,F=[];try{s=medTimelinePlayerStateBeforeInjury(e);}catch(x){return null;}
+  try{F=(medTimelineFlags(e)||[]).filter(f=>f&&f.level!=='info');}catch(x){}
+  return {s,F};
+}
+/* doc: colores fijos de papel; si no, los tokens de la app */
+function antesHTML(e,doc){
+  const A=antesDatos(e);if(!A||!A.s)return '';const s=A.s,E=bmEsc,w=s.well,l=s.load,h=s.hist;
+  const TX=doc?{ok:'#116b44',warn:'#8a5400',bad:'#b42b23',na:'#1d1d1f'}:{ok:'var(--ok-text)',warn:'var(--warn-text)',bad:'var(--bad-text)',na:'var(--txt)'};
+  const PT=doc?{riesgo:'#e23b32',vigilancia:'#e0a800'}:{riesgo:'var(--bad)',vigilancia:'var(--warn)'};
+  const it=(lab,val,sub,sev)=>'<div class="ant-k"><em>'+lab+'</em><b'+(sev?' style="color:'+(TX[sev]||TX.na)+'"':'')+'>'+val+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
+  const ks=[];
+  if(w){if(w.rd7!=null)ks.push(it('Recuperación · 7 d',Math.round(w.rd7)+' %',w.rd14!=null?'14 d: '+Math.round(w.rd14)+' %':'',recSev(w.rd7)));
+    if(w.means7.sueno!=null)ks.push(it('Sueño · 7 d',fmt(w.means7.sueno,1),'de 1 (óptimo) a 5'));
+    if(w.means7.fatiga!=null)ks.push(it('Fatiga · 7 d',fmt(w.means7.fatiga,1),'de 1 (óptimo) a 5'));
+    ks.push(it('Dolor declarado',w.dolor7?'Sí':'No','la semana anterior'));}
+  if(l&&l.rel){if(l.acwr!=null)ks.push(it('ACWR la víspera',fmt(l.acwr,2),'banda 0,8–1,3',acwrClass(l.acwr)));
+    ks.push(it('Carga del día antes',l.yUA?Math.round(l.yUA).toLocaleString('es-ES')+' UA':'—',l.typ?'su media '+Math.round(l.typ).toLocaleString('es-ES')+' UA':''));
+    ks.push(it('Días seguidos','' +(l.consec||0),'entrenando sin descanso'));}
+  if(s.hr&&s.hr.pctz45!=null)ks.push(it('Z4+Z5 · 7 d',s.hr.pctz45+' %',s.hr.n+(s.hr.n===1?' sesión':' sesiones')+' con pulsómetro'));
+  const fl=A.F.length?'<ul class="ant-f">'+A.F.map(f=>'<li><i style="background:'+(PT[f.level]||PT.vigilancia)+'"></i><span>'+E(f.msg)+(f.metric?' <small>'+E(f.metric)+'</small>':'')+'</span></li>').join('')+'</ul>'
+    :'<p class="ant-n">Ninguna de las señales del cronograma: carga, readiness, fatiga, sueño, DOMS, monotonía, pulso ni asimetría.</p>';
+  const rec=h?(h.sameZone>0?'<p class="ant-r"><b>Recidiva.</b> Ya tuvo '+h.sameZone+(h.sameZone===1?' lesión':' lesiones')+' en esta zona'+(h.daysSincePrev!=null?'; la anterior, '+h.daysSincePrev+' días antes':'')+'.</p>'
+      :(h.prevCount?'<p class="ant-r">Primera lesión registrada en esta zona ('+h.prevCount+(h.prevCount===1?' anterior en otra':' anteriores en otras')+').</p>':'<p class="ant-r">Primera lesión registrada de este jugador.</p>')):'';
+  if(!ks.length&&!A.F.length&&!rec)return '';
+  return '<div class="ant'+(doc?' ant--doc':'')+'">'+(ks.length?'<div class="ant-ks">'+ks.join('')+'</div>':'')+fl+rec
+    +'<p class="ant-p">Los 14 días previos al '+bilFd(e.dk)+', con lo que ya calcula el cronograma médico. Describe lo que pasó: no dice que esto causara la lesión.</p></div>';
+}
+window.antesHTML=antesHTML;
 
 /* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
 function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
@@ -52967,7 +53010,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   var f=function(k,set){return set.map(function(w){return w[k];}).filter(function(v){return v!=null&&!isNaN(v);});};
   var out={last:last,n:arr.length,means7:{},worst7:{},spark:w14.map(function(w){return twVal(w);}),dolor7:w7.some(function(w){return w.dolor;})};
   ['fatiga','sueno','doms','stress','mood'].forEach(function(k){out.means7[k]=mean(f(k,w7));
-    var vals=f(k,w7);if(vals.length){out.worst7[k]=(k==='sueno'||k==='mood')?Math.min.apply(null,vals):Math.max.apply(null,vals);}else out.worst7[k]=null;});
+    var vals=f(k,w7);if(vals.length){out.worst7[k]=Math.max.apply(null,vals);   /* v926 · las cinco van de 1 (óptimo) a 5: lo peor es lo más alto */}else out.worst7[k]=null;});
   // readiness (wellness) proxy
   out.rdLast=last?recPct(twVal(last)):null;
   out.rd7=w7.length?recPct(mean(w7.map(twVal))):null;
@@ -53030,7 +53073,8 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    if(s.well.rd7!=null&&s.well.rd7<55)add('riesgo','Readiness (wellness) bajo previo','Rd '+fmt(s.well.rd7)+'/100','7d');
    if(s.well.rdTrend==='baja')add('vigilancia','Tendencia descendente de readiness','7d<14d','7-14d');
    if(s.well.means7.fatiga!=null&&s.well.means7.fatiga>=3.5)add('vigilancia','Fatiga elevada','media '+fmt(s.well.means7.fatiga,1)+'/5','7d');
-   if(s.well.means7.sueno!=null&&s.well.means7.sueno<=2.5)add('vigilancia','Sueño bajo','media '+fmt(s.well.means7.sueno,1)+'/5','7d');
+   /* v926 · 1 es el mejor sueño (§2.2): antes saltaba con medias de 2,5 o menos, o sea con el sueño bueno */
+   if(s.well.means7.sueno!=null&&s.well.means7.sueno>=3.5)add('vigilancia','Sueño malo','media '+fmt(s.well.means7.sueno,1)+'/5','7d');
    if(s.well.means7.doms!=null&&s.well.means7.doms>=3.5)add('vigilancia','DOMS alto','media '+fmt(s.well.means7.doms,1)+'/5','7d');
    if(s.well.dolor7)add('vigilancia','Dolor declarado previo','wellness','7d');
   }
@@ -61279,6 +61323,27 @@ html.bm-exp .bmit-p.bil,html.bm-exp .bmit-p.bil *{letter-spacing:0!important}
 .svu-doc .tsw-yo span+span{margin-top:0}
 html.bm-exp .svu-doc,html.bm-exp .svu-doc *{letter-spacing:0!important}
 .plv-acc{gap:8px}
+</style>
+<style id="bm-v926">
+/* v926 · lo que pasó antes de la lesión */
+.ant{display:flex;flex-direction:column;gap:8px;margin:4px 0 8px}
+.ant-ks{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px}
+.ant-k{padding:7px 9px;border-radius:9px;background:var(--panel2);min-width:0}
+.ant-k em{display:block;font-style:normal;font-size:10.5px;font-weight:600;color:var(--muted)}
+.ant-k b{display:block;font-size:16px;font-weight:700;color:var(--txt);font-variant-numeric:tabular-nums}
+.ant-k small{display:block;font-size:10.5px;color:var(--muted);line-height:1.25}
+.ant-f{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}
+.ant-f li{display:flex;gap:7px;align-items:baseline;font-size:12px;color:var(--txt)}
+.ant-f li i{flex:none;width:7px;height:7px;border-radius:50%;transform:translateY(-1px)}
+.ant-f small{color:var(--muted)}
+.ant-n,.ant-r,.ant-p{margin:0;font-size:12px;color:var(--muted);line-height:1.4}
+.ant-r b{color:var(--txt)}
+.ant-p{font-size:11px}
+.ant--doc .ant-ks{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ant--doc .ant-k{background:#f5f5f7}
+.ant--doc .ant-k em,.ant--doc .ant-k small,.ant--doc .ant-n,.ant--doc .ant-r,.ant--doc .ant-p,.ant--doc .ant-f small{color:#6e6e73}
+.ant--doc .ant-k b,.ant--doc .ant-f li,.ant--doc .ant-r b{color:#1d1d1f}
+.ant--doc .ant-p{font-size:10.5px}
 </style>
 <style id="bm-v749">
 /* v749 · Vuelta a la competición, dentro de la tarjeta de cada episodio abierto */
