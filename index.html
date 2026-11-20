@@ -28123,6 +28123,40 @@ function bmtvInstala(){
   w.__bmtv=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.go=w;
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmtvInstala,140));else setTimeout(bmtvInstala,140);
+/* ═══ v912 · EL PODIO SE LEVANTA (ORDENADOR) ═══
+   Daniel, 20/11/2026, propuesta 3. En Perfil físico (el podio del TSA y el de
+   cada prueba), al llegar al podio los escalones suben del 3.º al 1.º, las
+   caras caen en su escalón con un pequeño bote, la medalla salta y alrededor
+   de la cara del primero se abre un anillo del color de acción. **Sin dorado
+   nuevo**: el dorado de esa pantalla es sólo del nivel Champions; las medallas
+   conservan sus colores de siempre. Se anima al llegar a la vista o justo
+   después de pedirlo (cambiar de prueba o de jugador); un repintado que nadie
+   pidió no se anima. Nada con «Reducir movimiento». */
+function bmpodVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino()&&!bmReduce();}
+function bmpodAnima(p){
+  const E='cubic-bezier(.32,.72,0,1)',by=k=>p.querySelector(':scope>.vh-po.p'+k);
+  [3,2,1].forEach((k,i)=>{const x=by(k);if(!x)return;const d=i*130;
+    const base=x.querySelector('.vh-po-base'),f=x.querySelector('.vh-po-f'),m=x.querySelector('.vh-po-m');
+    try{
+      if(base){base.style.transformOrigin='50% 100%';base.animate([{transform:'scaleY(0)'},{transform:'scaleY(1.08)',offset:.68},{transform:'none'}],{duration:520,delay:d,easing:E,fill:'backwards'});}
+      if(f)f.animate([{opacity:0,transform:'translateY(-30px) scale(.86)'},{opacity:1,transform:'translateY(3px) scale(1.02)',offset:.62},{opacity:1,transform:'none'}],{duration:580,delay:d+170,easing:E,fill:'backwards'});
+      if(m)m.animate([{opacity:0,transform:'scale(.3)'},{opacity:1,transform:'scale(1.18)',offset:.6},{opacity:1,transform:'none'}],{duration:420,delay:d+360,easing:E,fill:'backwards'});
+      x.querySelectorAll('.vh-po-n,.vh-po-v,.vh-po-d').forEach((t,j)=>t.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:320,delay:d+300+j*40,easing:E,fill:'backwards'}));
+    }catch(_){}
+  });
+  /* lo que esté escondido esperando su turno no puede quedarse así aunque el navegador no pinte */
+  setTimeout(()=>{p.querySelectorAll('*').forEach(e=>e.getAnimations().forEach(a=>{try{if(a.playState!=='finished')a.finish();}catch(_){}}));},2600);
+  const f1=by(1)&&by(1).querySelector('.vh-po-f');
+  if(f1){const ac=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#3056c4';
+    try{f1.animate([{boxShadow:'0 0 0 0 color-mix(in srgb,'+ac+' 55%,transparent)'},{boxShadow:'0 0 0 14px color-mix(in srgb,'+ac+' 0%,transparent)'}],{duration:900,delay:820,easing:'ease-out'});}catch(_){}}
+}
+function bmpodMira(p){
+  p.dataset.bmpod='1';if(!bmpodVale()||p.closest(BMG_DOC))return;
+  if(bmradVisible(p)){if(bmradRecienPedido())bmpodAnima(p);return;}
+  if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>{if(es.some(x=>x.isIntersecting)){io.disconnect();if(p.isConnected)bmpodAnima(p);}},{threshold:.35});io.observe(p);}
+}
+let BMPOD_T=0;
+new MutationObserver(()=>{if(BMPOD_T||!bmpodVale())return;BMPOD_T=setTimeout(()=>{BMPOD_T=0;document.querySelectorAll('.vh-podio:not([data-bmpod])').forEach(p=>{try{bmpodMira(p);}catch(e){console.error('bmnava · podio',e);}});},40);}).observe(document.documentElement,{childList:true,subtree:true});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
