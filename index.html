@@ -13709,12 +13709,12 @@ function medCritHtml(injId,c){
    +'<button class="med-chipbtn" onclick="medCritMeasure(\''+injId+'\',\''+c.id+'\')">＋</button></div>';
  }
  const meta=c.tipo==='num'
-  ?('objetivo '+(c.low?'≤':'≥')+' '+c.obj+(c.unidad?' '+medEsc(c.unidad):'')+(c.med.length?' · última: '+c.med[c.med.length-1].v+(c.unidad?' '+medEsc(c.unidad):'')+' ('+c.med[c.med.length-1].dk+')':' · sin medidas'))
+  ?('objetivo '+(c.low?'≤':'≥')+' '+c.obj+(c.unidad?' '+medEsc(c.unidad):'')+(c.med.length?' · última: '+c.med[c.med.length-1].v+(c.unidad?' '+medEsc(c.unidad):'')+' ('+c.med[c.med.length-1].dk+(c.med[c.med.length-1].src==='auto'?', de la valoración':'')+')':' · sin medidas'))
   :'criterio de confirmación manual';
  return '<div class="med-crit'+(ok?' ok':'')+'"><div class="mcr-chk" onclick="medCritCheck(\''+injId+'\',\''+c.id+'\')">'+(ok?'✓':'')+'</div>'
   +'<div><div class="mcr-txt">'+medEsc(c.txt)
     +' <button class="med-chipbtn" style="padding:0 6px;font-size:10px" onclick="medCritEdit(\''+injId+'\',\''+c.id+'\')" title="Corregir el texto del criterio">✎</button>'
-    +'<button class="med-chipbtn" style="padding:0 6px;font-size:10px" onclick="medCritDel(\''+injId+'\',\''+c.id+'\')" title="Eliminar criterio">✕</button></div><div class="mcr-meta">'+meta+'</div></div>'+right+'</div>';}
+    +'<button class="med-chipbtn" style="padding:0 6px;font-size:10px" onclick="medCritDel(\''+injId+'\',\''+c.id+'\')" title="Eliminar criterio">✕</button></div><div class="mcr-meta">'+meta+'</div>'+(window.crlFilaHTML?crlFilaHTML(injId,c):'')+'</div>'+right+'</div>';}
 /* v295 · Un criterio mal escrito solo se podía borrar y volver a crear, y con él
    se perdían sus mediciones. Ahora se corrige el texto y el objetivo. */
 function medCritEdit(injId,cid){
@@ -29967,6 +29967,7 @@ function bilHTML(e){
 }
 async function bmInformeLesion(id){
   try{medDbLoad();}catch(x){}
+  try{if(window.crlSyncTodo)crlSyncTodo();}catch(x){}
   const e=medInj(id);if(!e){toast('No encuentro esa lesión');return;}
   /* con la serie de readiness recorriendo los días, REF() es prestado (§2.1) */
   for(let i=0;i<40&&window.__RD_CALC;i++)await new Promise(r=>setTimeout(r,150));
@@ -30092,6 +30093,91 @@ function moccAplica(){
 document.addEventListener('change',ev=>{const s=ev.target&&ev.target.closest&&ev.target.closest('#bmh-mocc .mocc-s');if(!s)return;const r=s.closest('.mocc-r');const u=r&&r.querySelector('.mocc-ua');if(u)u.textContent=moccUA(r.dataset.dk,s.value)+' UA';});
 document.addEventListener('click',ev=>{const b=ev.target&&ev.target.closest&&ev.target.closest('#bmh-mocc [data-mocc="ok"]');if(b)moccAplica();});
 window.mocAlCalendario=mocAlCalendario;
+
+/* ═══ v923 · CRITERIOS QUE SE RELLENAN SOLOS ═══
+   Daniel, 20/11/2026, propuesta 2 de lesiones. Un criterio con número se
+   puede enlazar a una prueba —el LSI del CMJ unilateral, la asimetría, la
+   movilidad de tobillo, el isocinético— y, cuando se registra esa valoración
+   después de la lesión, el criterio toma el valor y la fecha. Hasta aquí se
+   escribía dos veces. **Nada se calcula de nuevo**: los valores salen del
+   histórico real de valoraciones (`testHist` con `real`, y las marcas por lado
+   de `bmnava_testlog`) y del isocinético (`isoCalc`). El LSI es lado lesionado
+   entre lado sano por 100, con el lado de la lesión (`e.lado`); sin lado, el
+   peor entre el mejor, y se dice. Lo apuntado a mano se queda: las medidas
+   que vienen de una valoración llevan `src:'auto'` y se rehacen cada vez,
+   así que corregir la valoración corrige el criterio. */
+const CRL_OPC=[
+  {id:'cmju:lsi',lab:'CMJ unilateral · LSI (lesionado / sano)',k:'cmju',modo:'lsi',u:'%'},
+  {id:'cmja',lab:'Asimetría CMJ',k:'cmja',modo:'valor',u:'%'},
+  {id:'tobm:les',lab:'Movilidad de tobillo · lado lesionado',k:'tobm',modo:'les',u:'º'},
+  {id:'tobm:lsi',lab:'Movilidad de tobillo · LSI (lesionado / sano)',k:'tobm',modo:'lsi',u:'%'},
+  {id:'toba',lab:'Asimetría de tobillo',k:'toba',modo:'valor',u:'%'},
+  {id:'iso:lsiExt',lab:'Isocinético · LSI extensores',iso:'lsiExt',u:'%'},
+  {id:'iso:lsiFlex',lab:'Isocinético · LSI flexores',iso:'lsiFlex',u:'%'},
+  {id:'iso:hq',lab:'Isocinético · H/Q del lado lesionado',iso:'hq',u:''}];
+function crlOpc(id){
+  if(!id)return null;const o=CRL_OPC.find(x=>x.id===id);if(o)return o;
+  if(String(id).indexOf('t:')===0){const t=testDefByK(id.slice(2));return t?{id,lab:t.name,k:t.k,modo:'valor',u:t.unit||''}:null;}
+  return null;
+}
+function crlLado(L,R,lado,modo){
+  const les=lado==='L'?L:(lado==='R'?R:Math.min(L,R)),sano=lado==='L'?R:(lado==='R'?L:Math.max(L,R));
+  if(modo==='les')return les;
+  return sano>0?les/sano*100:null;
+}
+/* los valores de esa prueba desde el día de la lesión, uno por día */
+function crlValores(e,o){
+  const name=e.name,desde=e.dk,out=[];
+  if(o.iso){
+    ((window.isoDeJugador?isoDeJugador(name):[])||[]).forEach(D=>{const f=String((D.prueba||{}).fecha||'').slice(0,10);if(!f||f<desde)return;
+      let R=null;try{R=isoCalc(D);}catch(x){}if(!R||!R.lenta)return;const v=R.lenta;
+      const x=o.iso==='lsiExt'?v.lsiExt:(o.iso==='lsiFlex'?v.lsiFlex:(v.hqOp!=null?v.hqOp/100:null));
+      if(x!=null&&isFinite(x))out.push({dk:f,v:o.iso==='hq'?Math.round(x*100)/100:Math.round(x*10)/10});});
+    return out.sort((a,b)=>a.dk.localeCompare(b.dk));
+  }
+  const lado=e.lado==='I'?'L':(e.lado==='D'?'R':null),porDia={};
+  ((STATE.testHist||{})[name]||[]).forEach(sn=>{if(!sn||sn.real!==true||!sn.date||sn.date<desde)return;
+    if(o.modo==='valor'){const v=sn.vals&&sn.vals[o.k];if(v!=null&&isFinite(+v))porDia[sn.date]=+v;}
+    else{const sd=sn.sides&&sn.sides[o.k];if(sd&&sd.L!=null&&sd.R!=null)porDia[sn.date]=crlLado(+sd.L,+sd.R,lado,o.modo);}});
+  try{testLogLoad();((STATE.testLog||{})[name]||[]).forEach(r=>{if(!r||r.k!==o.k||!r.dk||r.dk<desde)return;
+    if(o.modo==='valor'){const v=testRecValue(r);if(v!=null&&isFinite(v))porDia[r.dk]=v;}
+    else if(r.side==='uni'&&r.valL!==''&&r.valR!==''&&r.valL!=null&&r.valR!=null){const L=+r.valL,R=+r.valR;if(isFinite(L)&&isFinite(R))porDia[r.dk]=crlLado(L,R,lado,o.modo);}});}catch(x){}
+  Object.keys(porDia).sort().forEach(dk=>{const v=porDia[dk];if(v!=null&&isFinite(v))out.push({dk,v:Math.round(v*10)/10});});
+  return out;
+}
+function crlSync(e){
+  let cambia=false;
+  (e.phases||[]).forEach(f=>(f.crit||[]).forEach(c=>{
+    if(!c||c.tipo!=='num'||!c.prueba)return;const o=crlOpc(c.prueba);if(!o)return;
+    const man=(c.med||[]).filter(m=>m&&m.src!=='auto');
+    const nuevo=man.concat(crlValores(e,o).map(x=>({dk:x.dk,v:x.v,src:'auto'}))).sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+    if(JSON.stringify(nuevo)!==JSON.stringify(c.med||[])){c.med=nuevo;cambia=true;}
+  }));
+  return cambia;
+}
+function crlSyncTodo(){try{medDbLoad();}catch(x){}let n=0;((STATE.med||{}).inj||[]).forEach(e=>{try{if(e&&e.open&&crlSync(e))n++;}catch(x){}});if(n)try{medPersist();}catch(x){}return n;}
+/* la fila del criterio: con qué se rellena */
+function crlFilaHTML(injId,c){
+  if(!c||c.tipo!=='num')return '';
+  const E=bmEsc,o=crlOpc(c.prueba);
+  const op=(x)=>'<option value="'+x.id+'"'+(x.id===c.prueba?' selected':'')+'>'+E(x.lab)+'</option>';
+  const otros=TESTS.filter(t=>!CRL_OPC.some(x=>x.k===t.k&&x.modo==='valor')).map(t=>({id:'t:'+t.k,lab:t.name}));
+  const sel='<select class="crl-s" data-inj="'+E(injId)+'" data-c="'+E(c.id)+'" aria-label="Con qué se rellena este criterio"><option value="">a mano</option>'
+    +'<optgroup label="Para la vuelta">'+CRL_OPC.map(op).join('')+'</optgroup><optgroup label="Cualquier prueba">'+otros.map(op).join('')+'</optgroup></select>';
+  let est='';
+  if(o){const e=medInj(injId);const au=(c.med||[]).filter(m=>m&&m.src==='auto');
+    est=au.length?'<small>última de la valoración: <b>'+String(au[au.length-1].v).replace('.',',')+(o.u?' '+E(o.u):'')+'</b> el '+bilFd(au[au.length-1].dk)+'</small>'
+      :'<small>aún sin valoraciones desde la lesión'+(e?' ('+bilFd(e.dk)+')':'')+'</small>';
+    if(o.modo&&o.modo!=='valor'&&e&&!(e.lado==='I'||e.lado==='D'))est+='<small> · sin lado en la lesión: el peor lado contra el mejor</small>';}
+  return '<div class="crl"><span>Se rellena con</span>'+sel+est+'</div>';
+}
+document.addEventListener('change',ev=>{const s=ev.target&&ev.target.closest&&ev.target.closest('select.crl-s');if(!s)return;
+  const e=medInj(s.dataset.inj);if(!e)return;let c=null;(e.phases||[]).forEach(f=>(f.crit||[]).forEach(x=>{if(x&&x.id===s.dataset.c)c=x;}));if(!c)return;
+  if(s.value){c.prueba=s.value;}else{delete c.prueba;c.med=(c.med||[]).filter(m=>m&&m.src!=='auto');}
+  try{crlSync(e);}catch(x){}medPersist();try{renderMedico();}catch(x){}
+  const o=crlOpc(s.value);toast(o?'Criterio enlazado a «'+o.lab+'»':'El criterio vuelve a rellenarse a mano');});
+(function(){const r=window.renderMedico;if(typeof r!=='function'||r.__crl)return;const w=function(){try{crlSyncTodo();}catch(x){}return r.apply(this,arguments);};w.__crl=true;window.renderMedico=w;})();
+window.crlSyncTodo=crlSyncTodo;window.crlFilaHTML=crlFilaHTML;window.crlOpc=crlOpc;
 
 /* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
 function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
@@ -61025,6 +61111,15 @@ html.bm-exp .bmit-p.bil,html.bm-exp .bmit-p.bil *{letter-spacing:0!important}
   .mocc-s{grid-column:1/-1;grid-row:2;min-height:44px}
   .mocc-acc .btn{min-height:44px;width:100%}
 }
+</style>
+<style id="bm-v923">
+/* v923 · criterios que se rellenan solos */
+.crl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:5px;font-size:var(--fs-xs);color:var(--muted)}
+.crl>span{font-weight:600}
+.crl-s{max-width:260px;padding:3px 6px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font:inherit;font-size:var(--fs-xs)}
+.crl small{font-size:var(--fs-xs);color:var(--muted)}
+.crl small b{color:var(--txt);font-variant-numeric:tabular-nums}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.crl-s{min-height:44px;max-width:100%;flex:1 1 100%}}
 </style>
 <style id="bm-v749">
 /* v749 · Vuelta a la competición, dentro de la tarjeta de cada episodio abierto */
