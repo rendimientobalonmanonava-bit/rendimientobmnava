@@ -1944,6 +1944,15 @@ Daniel, 20/11/2026, de siete propuestas para el apartado de lesiones: *«Vamos c
 
 **Lo que NO está probado**: con las lesiones reales, que viven en Supabase.
 
+#### 6.38 «No se le guarda» un tratamiento de Alfredo (v928–v929)
+
+Daniel, 20/11/2026: Virginia metía un tratamiento **de ayer** de Alfredo y decía que no se guardaba, y los demás sí. **Se guardaba**: reproducido en el teléfono, sale «Tratamiento guardado · Alfredo Otero» y queda con fecha 19/11. Lo que pasaba es que Fisioterapia › Hoy sólo enseña lo que tiene fecha de hoy, así que el de Alfredo no aparecía al lado de los demás y parecía perdido; repetirlo deja copias en el día 19. Daniel pidió los dos arreglos.
+
+| Elemento | Regla |
+|---|---|
+| v928 · Apuntado hoy con otra fecha | `fisApuntadoHoy(hoy)`: en Fisioterapia › Hoy, aparte y con su fecha, los tratamientos **apuntados** hoy con otra fecha. La hora en que se apuntaron sale de `createdAt` y, en los antiguos, del sello del id (`medUid`). Las series no (v307: son sesiones planificadas y ya están en el calendario). Y el aviso al guardar dice «con fecha del 19/11», también en «Registros añadidos hoy» del formulario |
+| v929 · El nombre entero del jugador | En los formularios del teléfono el botón del jugador (v570) caía en una columna de una rejilla de tres y se quedaba en «A.»: Alfredo y Alex se leían igual. Ahora ocupa la fila entera en `.mf2`, `.mf3`, `.parte-grid` y `.cal-form-grid`. Sólo en el móvil |
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1978,6 +1987,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **Lo de la v928–v929**: que Virginia mire en Fisioterapia › Calendario el día 19 si quedaron copias del tratamiento de Alfredo y borre las que sobren (§6.38)
 - **Lo de la v922–v927**: que Daniel y Virginia lo usen con una readaptación real: llevar el objetivo al calendario, enlazar los criterios a sus pruebas, mandar «Su vuelta» al jugador (§6.37)
 - **Lo de la v920–v921**: que Daniel y Virginia pongan los objetivos de carga a una readaptación de verdad y saquen el informe de una lesión real, impreso o en PDF (§6.36)
 - **Lo de la v909–v919**: que Daniel abra la app en su Mac y mire la pantalla de arranque, el podio, el Dashboard enlazado, el jugador enfocado y el pellizco del mapa, y que pruebe los sonidos (§6.35)
@@ -2300,6 +2310,7 @@ No los repitas.
 | Un nombre global de una pieza vieja, otra vez, y ahora también una FUNCIÓN | `const BMCD` (v888) y `const BMZ` ya existían y los cazó la validación porque son `const`. **Peor**: la v888 tenía `function bmcdVale` y la nueva pieza declaraba otra `bmcdVale` sin `!bmReduce()`; con `function` no da error y la segunda habría pisado a la primera en silencio (§2.5). Se vio al renombrar. **Antes de declarar cualquier nombre —constante o función— se busca su prefijo en el archivo**, y al terminar se cuentan las declaraciones repetidas con un analizador |
 | Probar un efecto con el panel del navegador en segundo plano | Las capturas salían con la pantalla de arranque estando la app abierta: `document.visibilityState` era `hidden` y la captura era vieja. Se preguntó al DOM y se repitió con el panel a la vista. **Antes de fiarse de una captura, mirar `visibilityState`** |
 | Leer `getComputedStyle(x).font` para copiar la letra | En Chrome el atajo `font` del estilo calculado viene **vacío**: la copia del título (v911) salió a 16 px. Se copian `fontFamily`, `fontSize`, `fontWeight` y `lineHeight` por separado |
+| Dar por perdido lo que no sale donde se mira | «No se guarda» era un tratamiento guardado con fecha de ayer que no salía en «Hoy». Antes de buscar el fallo en el guardado, reproducir el gesto y mirar **dónde** acaba lo guardado: un listado filtrado por fecha esconde lo que se apunta con otra |
 | Reutilizar una señal sin comprobar el sentido de la escala | La señal de sueño del cronograma médico saltaba con medias de 2,5 o menos, o sea con el sueño BUENO: §2.2 dice que 1 es óptimo. Llevaba ahí desde que se escribió y nadie la miró porque sólo salía al elegir una fila del cronograma. Se vio al llevarla al informe de la lesión. **Antes de enseñar en otro sitio un aviso ya hecho, comprobar el sentido de cada listón contra §2.2** |
 | Un servidor de pruebas que no ve el Escritorio | El servidor de la copia de prueba no podía servir las fotos enlazadas desde `~/Desktop`: macOS no deja a un proceso en segundo plano leer el Escritorio sin permiso, y el enlace simbólico daba 404. Parecía un fallo de la app (el informe salía con iniciales). **Lo que la copia de prueba necesita del repositorio se COPIA a su carpeta, no se enlaza** |
 | Dar por foto lo que devuelve `photoFor` | Sin foto, `photoFor` devuelve un dibujo SVG con las iniciales (`data:image/svg+xml`), y html2canvas no pinta su texto: en la imagen exportada salía un cuadro vacío. En un documento que se exporta, una foto que empieza por `data:` no es una foto |
