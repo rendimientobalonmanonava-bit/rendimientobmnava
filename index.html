@@ -39511,6 +39511,30 @@ function renderOjoResumen(){
     +'<p class="small muted" style="margin:0 0 12px">Entrenan con normalidad; hay que valorarlos antes de la sesión.</p>'
     +'<div class="ojo-grid">'+ab.map(ojoTarjeta).join('')+'</div></div>';
 }
+/* ═══ v928 · Lo apuntado HOY con otra fecha ═══
+   Virginia, 20/11/2026, vía Daniel: «está intentando meter un tratamiento de
+   ayer de Alfredo y no se le guarda, el resto sí». Se guardaba: Fisioterapia ›
+   Hoy enseña lo que tiene fecha de hoy, y el de Alfredo llevaba la de ayer,
+   así que no aparecía al lado de los demás y parecía perdido. Aquí salen,
+   aparte y con su fecha, los tratamientos que se han APUNTADO hoy con otra
+   fecha. La hora en que se apuntaron sale de `createdAt` y, en los antiguos
+   que no lo llevan, del sello de su id (`medUid`). Las series (v307) no, que
+   son sesiones planificadas y ya están en el calendario. */
+function fisApuntadoHoy(hoy){
+  const out=[];try{medDbLoad();}catch(e){}
+  ((STATE.med||{}).treat||[]).forEach(t=>{
+    if(!t||!t.dk||t.dk===hoy||t.serie)return;
+    let c=null,ms=null;
+    if(t.createdAt){const d=new Date(t.createdAt);if(!isNaN(d)){c=dkey(d);ms=d.getTime();}}
+    if(!c){const m=/_(\d{13})_/.exec(String(t.id||''));if(m){ms=+m[1];c=dkey(new Date(ms));}}
+    if(c!==hoy)return;
+    if(typeof FIS_JUG!=='undefined'&&FIS_JUG&&t.name!==FIS_JUG)return;
+    out.push({tipo:'trat',id:t.id,name:t.name,hora:'',ms:ms||0,txt:t.tipo||'Tratamiento',
+      meta:['con fecha del '+pbFecha(t.dk),t.dur?t.dur+"'":'',t.practitioner||t.by||''].filter(Boolean).join(' · ')});
+  });
+  return out.sort((a,b)=>b.ms-a.ms);
+}
+window.fisApuntadoHoy=fisApuntadoHoy;
 function fisHoyPanel(){
   const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
   const q=v=>String(v==null?'':v).replace(/'/g,"\\'");
@@ -39602,11 +39626,13 @@ function fisHoyPanel(){
         +'title="Devolver a la lista">'+esc(String(n).split(' ')[0])+' <i>↩</i></button>').join('')+'</div>':'';
     })()
     :'<div class="fh-sec">A quién mirar hoy</div><p class="small" style="margin:0;color:var(--ok-text)">Nadie con dolor, agujetas ni problemas pendientes.</p>';
-  const cuerpo=ev.length
+  let otraF=[];try{otraF=fisApuntadoHoy(hoy);}catch(e){}
+  const cuerpo=(ev.length
     ? (hechos.length?'<div class="fh-sec">Tratados · '+hechos.length+'</div>'+hechos.map(linea).join(''):'')
       +(citas.length?'<div class="fh-sec">Citas y pruebas</div>'+citas.map(linea).join(''):'')
       +(otros.length?'<div class="fh-sec">Otros registros</div>'+otros.map(linea).join(''):'')
-    : '<p class="small muted" style="margin:0">Nada registrado hoy todavía.</p>';
+    : '<p class="small muted" style="margin:0">Nada registrado hoy todavía.</p>')
+    +(otraF.length?'<div class="fh-sec">Apuntado hoy con otra fecha · '+otraF.length+'</div>'+otraF.map(linea).join(''):'');
   const f=new Date();
   const cap=f.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});
   return '<div class="panel fh-panel">'
@@ -53500,7 +53526,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   return body;
  }
  function medPhysioModalTodayList(){var list=window.__mtqAdded||[];if(!list.length)return '<div class="small muted">Aún nada. Los que registres aparecerán aquí.</div>';
-  return list.slice().reverse().map(function(t){return '<div class="mtq-ti"><b>'+esc(t.name)+'</b> · '+esc(t.tipo||'—')+' · '+(t.dur?t.dur+"'":'—')+'<span class="small muted"> '+(t.time||'')+'</span></div>';}).join('');
+  return list.slice().reverse().map(function(t){return '<div class="mtq-ti"><b>'+esc(t.name)+'</b> · '+esc(t.tipo||'—')+' · '+(t.dur?t.dur+"'":'—')+'<span class="small muted"> '+(t.time||'')+(t.dk&&t.dk!==today()?' · con fecha del '+pbFecha(t.dk):'')+'</span></div>';}).join('');
  }
  /* ═══ v300 · Repetir lo último y plantillas de tratamiento ═══
     Lo que más se repite es el mismo tratamiento al mismo jugador dos días
@@ -53650,7 +53676,9 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   // auto-link si procede y no se eligió
   if(!t.injId&&PS().autoLinkOpenInjury){var oi=openInjuriesOf(name);if(oi.length===1)t.injId=oi[0].id;}
   STATE.med.treat.push(t);
-  window.__mtqAdded.push({name:name,tipo:tipo,dur:t.dur,time:t.time});
+  window.__mtqAdded.push({name:name,tipo:tipo,dur:t.dur,time:t.time,dk:t.dk});
+  /* v928 · con otra fecha, el aviso lo dice: en «Hoy» sale aparte */
+  var otraF=t.dk!==today()?' · con fecha del '+pbFecha(t.dk):'';
   /* v300 · el mismo tratamiento a varios jugadores de una vez. Cuando hace la
      misma descarga a tres seguidos, marcarlos y guardar una sola vez. Cada uno
      recibe su propio registro, con su enlace a su lesión si procede: no se
@@ -53669,13 +53697,13 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
   try{renderMedico();}catch(e){}
   try{renderFisio&&renderFisio();}catch(e){}
   if(mode==='close'){closeInfoEdit();
-    toast(otros.length?('Tratamiento guardado · '+(otros.length+1)+' jugadores'):('Tratamiento guardado · '+name));return;}
-  if(mode==='ficha'){closeInfoEdit();toast('Guardado · abriendo ficha');try{if(window.openPlayer)openPlayer(name);}catch(e){}return;}
+    toast((otros.length?('Tratamiento guardado · '+(otros.length+1)+' jugadores'):('Tratamiento guardado · '+name))+otraF);return;}
+  if(mode==='ficha'){closeInfoEdit();toast('Guardado'+otraF+' · abriendo ficha');try{if(window.openPlayer)openPlayer(name);}catch(e){}return;}
   // another: mantener fecha/hora/profesional, limpiar jugador y campos
   var ctx={name:'',injId:'',dk:g('mtq-dk')||today(),time:g('mtq-time')||nowHM(),by:(g('mtq-by')||'').trim()};
   window.__mtqCtx=ctx;
   document.getElementById('info-mbody').innerHTML=medPhysioModalBody(ctx);
-  toast('Guardado · '+name+' · añade otro');
+  toast('Guardado · '+name+otraF+' · añade otro');
  };
 
  // ---------- editar / duplicar ----------
