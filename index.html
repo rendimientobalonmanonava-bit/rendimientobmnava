@@ -28157,6 +28157,31 @@ function bmpodMira(p){
 }
 let BMPOD_T=0;
 new MutationObserver(()=>{if(BMPOD_T||!bmpodVale())return;BMPOD_T=setTimeout(()=>{BMPOD_T=0;document.querySelectorAll('.vh-podio:not([data-bmpod])').forEach(p=>{try{bmpodMira(p);}catch(e){console.error('bmnava · podio',e);}});},40);}).observe(document.documentElement,{childList:true,subtree:true});
+/* ═══ v913 · EL DASHBOARD ENLAZADO (ORDENADOR) ═══
+   Daniel, 20/11/2026, propuesta 4. En Cargas › Dashboard, al pasar el ratón
+   por un día de «Los últimos 14 días», ese mismo día se marca en los gráficos
+   de debajo (la UA y el RPE, y el ACWR) con su raya y su valor; y al revés:
+   al pasar por un día en un gráfico, su fila de la lista se ilumina. Es el
+   cursor compartido de la v786, que ya enlazaba los gráficos entre sí, con la
+   lista como una pieza más. Cada fila lleva su día en `data-dk`, que no se
+   ve. Ni una cifra nueva. */
+function bmlkVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmlkFilas(){
+  document.querySelectorAll('#v-carga .cg-d14.bmlk-on').forEach(r=>{if(r.dataset.dk!==BMCUR.dk)r.classList.remove('bmlk-on');});
+  if(BMCUR.dk&&bmlkVale()){const r=document.querySelector('#v-carga .cg-d14-list>.cg-d14[data-dk="'+BMCUR.dk+'"]');if(r)r.classList.add('bmlk-on');}
+}
+function bmlkInstala(){
+  const f=window.bmCurAplica;if(typeof f!=='function'||f.__bmlk)return;
+  const w=function(){const r=f.apply(this,arguments);try{bmlkFilas();}catch(e){}return r;};
+  w.__bmlk=true;window.bmCurAplica=w;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmlkInstala,0));else setTimeout(bmlkInstala,0);
+document.addEventListener('pointerover',e=>{
+  if(e.pointerType==='touch'||!bmlkVale()||!e.target||!e.target.closest)return;
+  const r=e.target.closest('#v-carga .cg-d14-list>.cg-d14[data-dk]');
+  if(!r){if(BMCUR.dk&&!BMCUR.src&&!e.target.closest('#v-carga .cg-d14-list')){BMCUR.dk=null;bmCurAplica();}return;}
+  if(BMCUR.dk!==r.dataset.dk||BMCUR.src){BMCUR.dk=r.dataset.dk;BMCUR.src=null;bmCurAplica();}
+},true);
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -33495,7 +33520,7 @@ function renderCargaResumen(){
       +`${sub?`<em>${sub}</em>`:''}</span>`;
     /* v767 · la nota del equipo de ese día, debajo */
     const nota=(()=>{try{const ns=notasDe(d.dk,null);return ns.length?`<i class="bm-nota-l">✎ ${ns.map(n=>esc(n.txt)).join(' · ')}</i>`:'';}catch(e){return '';}})();
-    if(d.vacio)return `<div class="cg-d14 cg-r--off">${cab('')}`
+    if(d.vacio)return `<div class="cg-d14 cg-r--off" data-dk="${d.dk}">${cab('')}`
       +`<span class="cg-d14-ses">Libre o sin registro${nota}</span></div>`;
     const niv=(d.dk in nivDia)?nivDia[d.dk]:null;
     const v=uaEsc>0?Math.max(0,Math.min(1,d.ua/uaEsc)):0;
@@ -33503,7 +33528,7 @@ function renderCargaResumen(){
        basta con comprobar que exista: concatenado daba «— · Media». */
     const md=String(d.mdx||'').trim();
     const sub=[(md&&!/^[—–-]+$/.test(md))?esc(md):'',niv!=null?nivTxt(niv):''].filter(Boolean).join(' · ');
-    return `<div class="cg-d14${part?' cg-r--p':''}${acFila(d.acwr)}">
+    return `<div class="cg-d14${part?' cg-r--p':''}${acFila(d.acwr)}" data-dk="${d.dk}">
       ${cab(sub)}
       <span class="cg-d14-ses"><b>${esc(d.tipo||'Sesión')}</b>${d.n?`<em>${d.n} jug.</em>`:''}</span>
       <span class="cg-d14-bar${niv!=null?' cg-d14-bar--n'+niv:''}" style="--v:${v.toFixed(3)}">
@@ -59871,6 +59896,15 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
 /* v911 · el título viaja del menú a la página (ordenador) */
 .bmtv-clon{position:fixed;z-index:9990;pointer-events:none;margin:0;white-space:nowrap;transform-origin:0 0;display:grid;line-height:normal}
 .bmtv-clon>span{grid-area:1/1;display:block;line-height:inherit}
+</style>
+<style id="esc-v913">
+/* v913 · el Dashboard enlazado (ordenador) */
+@media screen and (min-width:761px) and (pointer:fine){
+  #v-carga .cg-d14-list>.cg-d14{transition:background .15s ease}
+  #v-carga .cg-d14-list>.cg-d14.bmlk-on{background:color-mix(in srgb,var(--accent) 8%,transparent);border-radius:10px}
+  #v-carga .cg-d14-list>.cg-d14.bmlk-on .cg-d14-d b{color:var(--acc-seg,var(--accent))}
+  @media (prefers-reduced-motion:reduce){#v-carga .cg-d14-list>.cg-d14{transition:none}}
+}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
