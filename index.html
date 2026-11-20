@@ -13695,7 +13695,7 @@ function medDetailHtml(e){if(!e)return '';
     lo que se le ha hecho a la derecha. Antes iba todo apilado en una sola
     columna estrecha, con la gráfica de dolor perdida en medio de mucho blanco. */
  return head+'<div class="med-cols">'
-   +'<div class="med-col">'+phasesHtml+fasesHtml+(window.antesHTML?(()=>{try{const a=antesHTML(e);return a?'<div class="med-sec">Antes de la lesión</div>'+a:'';}catch(x){return '';}})():'')+'</div>'
+   +'<div class="med-col">'+phasesHtml+fasesHtml+(window.antesHTML?(()=>{try{const a=antesHTML(e);return a?'<div class="med-sec">Antes de la lesión</div>'+a:'';}catch(x){return '';}})():'')+(window.ddeclHTML?(()=>{try{const a=ddeclHTML(e);return a?'<div class="med-sec">Su dolor declarado</div>'+a:'';}catch(x){return '';}})():'')+'</div>'
    +'<div class="med-col">'+citasHtml+treatHtml+notesHtml+'</div>'
  +'</div>';}
 /* ---------- Criterios ---------- */
@@ -29951,8 +29951,8 @@ function bilHTML(e){
       +(tipos.length>6?'<p class="bil-pie">y '+(tipos.length-6)+' tipos más</p>':'')
     :'<p class="bil-nada">Sin tratamientos apuntados en este episodio.</p>';
   if(D.fases.length)B.push('<section class="bil-b bil-2"><div><h3>Criterios para pasar de fase'+(e.open&&D.cur?' · '+E(D.cur.nom||''):'')+'</h3>'+crit+'</div>'
-    +'<div><h3>Dolor · de 0 a 10</h3>'+bilDolorSVG(D,e)+'<h3>Tratamientos</h3>'+trat+'</div></section>');
-  else B.push('<section class="bil-b bil-2"><div><h3>Dolor · de 0 a 10</h3>'+bilDolorSVG(D,e)+'</div><div><h3>Tratamientos</h3>'+trat+'</div></section>');
+    +'<div><h3>Dolor · de 0 a 10</h3>'+bilDolorSVG(D,e)+bilDecl(e)+'<h3>Tratamientos</h3>'+trat+'</div></section>');
+  else B.push('<section class="bil-b bil-2"><div><h3>Dolor · de 0 a 10</h3>'+bilDolorSVG(D,e)+bilDecl(e)+'</div><div><h3>Tratamientos</h3>'+trat+'</div></section>');
   /* 6 · el camino de vuelta */
   let plv='';try{const hasta=e.open?D.hoy:(()=>{const f2=dkSumaDias(D.fin||e.closeDk||D.hoy,PLV_PRE);return f2<D.hoy?f2:D.hoy;})();plv=plvHTML(name,e,0,{hasta,doc:true});}catch(x){}
   if(plv)B.push('<section class="bil-b"><h3>El camino de vuelta · su carga contra su normal de antes de la lesión</h3>'+plv+'</section>');
@@ -30334,6 +30334,48 @@ function antesHTML(e,doc){
     +'<p class="ant-p">Los 14 días previos al '+bilFd(e.dk)+', con lo que ya calcula el cronograma médico. Describe lo que pasó: no dice que esto causara la lesión.</p></div>';
 }
 window.antesHTML=antesHTML;
+
+/* ═══ v927 · SU DOLOR DECLARADO, DENTRO DE LA LESIÓN ═══
+   Daniel, 20/11/2026, propuesta 6 de lesiones. La lesión sólo tenía el dolor
+   que apunta Virginia; el jugador declara cada mañana si le duele y dónde.
+   Aquí se cuentan, semana a semana, los partes en los que declaró dolor en
+   la zona de la lesión, sobre los partes que mandó. **La zona se resuelve por
+   el mismo camino que el mapa corporal** (`fisZonas` + `zoneRegion`, y el lado
+   con `fisLado`): «rodilla izq.» cae en la rodilla izquierda y un dolor sin
+   lado cuenta en los dos. Desde dos semanas antes de la lesión, para ver si
+   ya le dolía, hasta hoy o dos semanas después del alta. Un parte sin
+   responder no es un día sin dolor: no entra. Sin color de alerta. */
+function ddeclDatos(e){
+  if(!e)return null;let reg=null;try{reg=zoneRegion(e.zona||e.title||'');}catch(x){}
+  if(!reg)return null;
+  const lado=e.lado==='I'||e.lado==='D'?e.lado:null,hoy=dkey(REF());
+  const ini=dkSumaDias(e.dk,-14);const ff=plvFin(e);
+  let fin=(!e.open&&ff)?dkSumaDias(ff,14):hoy;if(fin>hoy)fin=hoy;
+  const sem={};let tot=0,partes=0;
+  (STATE.wellness||[]).forEach(x=>{if(!x||x.name!==e.name||!x.dk||x.dk<ini||x.dk>fin)return;
+    const w=weekKey(dkToDate(x.dk));const S=sem[w]||(sem[w]={w,partes:0,dolor:0,dias:[]});S.partes++;const post=x.dk>=e.dk;if(post)partes++;
+    if(!x.dolor)return;
+    const zs=fisZonas(x.zona);const si=zs.some(z=>{let r=null;try{r=zoneRegion(z);}catch(y){}if(r!==reg)return false;const l=fisLado(z);return !lado||!l||l===lado;});
+    if(si){S.dolor++;S.dias.push(x.dk);if(post)tot++;}});
+  const L=Object.keys(sem).sort().map(k=>sem[k]);
+  if(!L.length)return {reg,lado,sem:[],tot:0,partes:0,ini,fin};
+  return {reg,lado,sem:L,tot,partes,ini,fin,w0:weekKey(dkToDate(e.dk))};
+}
+function ddeclHTML(e,doc){
+  const D=ddeclDatos(e);if(!D)return '';const E=bmEsc;
+  const zona=[e.zona||'',{I:'izquierda',D:'derecha'}[D.lado]||''].filter(Boolean).join(' ');
+  if(!D.sem.length)return '<p class="ddc-n">Sin partes de wellness suyos desde dos semanas antes de la lesión.</p>';
+  const barras='<div class="ddc-g">'+D.sem.map(S=>{const f=S.partes?S.dolor/S.partes:0,d=dkToDate(S.w);
+      return '<div class="ddc-s'+(S.w===D.w0?' ini':'')+(S.w<D.w0?' pre':'')+'" title="Semana del '+d.getDate()+'/'+(d.getMonth()+1)+': '+S.dolor+' de '+S.partes+' partes con dolor en '+E(zona)+'">'
+        +'<span class="ddc-v">'+S.dolor+'/'+S.partes+'</span><div class="ddc-c"><b style="height:'+(f*100).toFixed(0)+'%"></b></div><span class="ddc-l">'+d.getDate()+'/'+(d.getMonth()+1)+'</span></div>';}).join('')+'</div>';
+  const ult=D.sem[D.sem.length-1];
+  return '<div class="ddc'+(doc?' ddc--doc':'')+'">'
+    +'<p class="ddc-t">Desde la lesión declaró dolor en '+E(zona||'esa zona')+' en <b>'+D.tot+' de '+D.partes+'</b> partes'
+      +(ult&&ult.w>D.w0?'; la última semana, <b>'+ult.dolor+' de '+ult.partes+'</b>':'')+'.</p>'
+    +barras+'<p class="ddc-p">Por semana: partes con dolor en esa zona sobre los partes que mandó. Las dos semanas de antes de la lesión, en gris; la de la lesión, marcada. Lo que declara él cada mañana, no lo que apunta la fisio.</p></div>';
+}
+window.ddeclHTML=ddeclHTML;window.ddeclDatos=ddeclDatos;
+function bilDecl(e){try{const a=ddeclHTML(e,true);return a?'<h3>Lo que declara él</h3>'+a:'';}catch(x){return '';}}
 
 /* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
 function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
@@ -61344,6 +61386,28 @@ html.bm-exp .svu-doc,html.bm-exp .svu-doc *{letter-spacing:0!important}
 .ant--doc .ant-k em,.ant--doc .ant-k small,.ant--doc .ant-n,.ant--doc .ant-r,.ant--doc .ant-p,.ant--doc .ant-f small{color:#6e6e73}
 .ant--doc .ant-k b,.ant--doc .ant-f li,.ant--doc .ant-r b{color:#1d1d1f}
 .ant--doc .ant-p{font-size:10.5px}
+</style>
+<style id="bm-v927">
+/* v927 · su dolor declarado, dentro de la lesión */
+.ddc{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px}
+.ddc-t,.ddc-p,.ddc-n{margin:0;font-size:12px;color:var(--muted);line-height:1.4}
+.ddc-t b{color:var(--txt);font-variant-numeric:tabular-nums}
+.ddc-p{font-size:11px}
+.ddc-g{display:flex;gap:4px;align-items:flex-end}
+.ddc-s{flex:1 1 0;min-width:0;max-width:46px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.ddc-v{font-size:10.5px;font-weight:600;color:var(--txt);font-variant-numeric:tabular-nums}
+.ddc-c{position:relative;width:100%;height:46px;border-radius:6px;background:var(--panel2);overflow:hidden}
+.ddc-c b{position:absolute;left:0;right:0;bottom:0;background:var(--c-data,var(--accent));border-radius:6px 6px 0 0}
+.ddc-s.pre .ddc-c b{background:var(--muted2)}
+.ddc-s.ini .ddc-c{box-shadow:inset 0 0 0 1.5px var(--txt)}
+.ddc-l{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ddc--doc .ddc-t,.ddc--doc .ddc-p,.ddc--doc .ddc-n,.ddc--doc .ddc-l{color:#6e6e73}
+.ddc--doc .ddc-t b,.ddc--doc .ddc-v{color:#1d1d1f}
+.ddc--doc .ddc-c{background:#f0f0f3}
+.ddc--doc .ddc-c b{background:#3f5572}
+.ddc--doc .ddc-s.pre .ddc-c b{background:#a1a1a6}
+.ddc--doc .ddc-s.ini .ddc-c{box-shadow:none;outline:1.5px solid #1d1d1f;outline-offset:-1.5px}
+.bil-2 h3+.ddc{margin-top:0}
 </style>
 <style id="bm-v749">
 /* v749 · Vuelta a la competición, dentro de la tarjeta de cada episodio abierto */
