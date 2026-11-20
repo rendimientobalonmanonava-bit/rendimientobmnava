@@ -471,7 +471,7 @@ Fuente histórica: `BM_Nava_valoraciones_fisicas.xlsx` — 1.315 mediciones, 13 
 
 **Repintar Disponibilidad tras guardar una lesión (v531).** Dos sitios preguntaban `document.getElementById('v-avail').classList…` dentro de un `try` con el `catch` vacío: el elemento no existe, la excepción se tragaba y Disponibilidad no se repintaba. Usan ya la misma comprobación que los otros cinco llamantes (`v-estado`).
 
-Pendiente: resumen en la ficha del jugador, edición de objetivos por bloque de fase, exportar episodio a PDF/PNG.
+Pendiente: resumen en la ficha del jugador. *Los objetivos por fase (v920) y el informe del episodio (v921) están hechos: §6.36.*
 
 ### 6.5 Nutrición · FullGas (v440–v444)
 
@@ -1907,6 +1907,25 @@ Daniel, 20/11/2026: *«Si, arreglalo por favor»* (la plantilla de al lado de la
 
 **Lo que NO está probado**: con los datos de Daniel y en su Mac —sobre todo la pantalla de arranque con su sincronización real, el pellizco con su trackpad y cómo suenan los sonidos en sus altavoces—.
 
+#### 6.36 Lesiones: objetivos por fase y el informe de la lesión (v920–v921)
+
+Daniel, 20/11/2026, de siete propuestas medidas sobre las hojas reales: *«no me convencen mucho, el único que sí, es lo relacionado con las lesiones, ejecuta la 4 y 5»*. Las dos estaban pendientes en §8 desde hacía semanas. Valen en el ordenador y en el móvil.
+
+| Elemento | Regla |
+|---|---|
+| v920 · Objetivos de carga por fase | Cada fase del plan de readaptación lleva `objCarga = {lo, hi, min, con}`: **carga en % de la que hace el equipo esos mismos días** (de `lo` a `hi`), **minutos al día como mucho** y **contacto declarado como mucho** (1–5). Lo que se deja vacío no se compara. **El objetivo lo pone el cuerpo técnico, no la app** (la regla de los bloques de temporada, v826). El % del equipo y no UA a propósito: se ajusta sola a la semana —si el equipo afloja, su objetivo también— y se puede comparar día a día. Se edita en «Objetivos de carga», junto a «＋ Fase» en el plan del episodio (`mocEditar`): todas las fases de una vez, los hitos no; en el móvil, hoja con Cancelar · Guardar y campos de 44 px |
+| v920 · Cómo se mide | `mocMedir`: su carga `contDailyTo` contra la del equipo `lbTeamDay().ua` —**la misma pareja que la tarjeta de vuelta a la competición (v749)**—, los minutos `lbDayOf().dur` (su día más largo) y el contacto el más alto que declaró **en sus cuestionarios de verdad** (no los que fabrica la app al convocar). La ventana son **los últimos 7 días dentro de la fase** (`mocTramo`): en sus primeros días una fase no se juzga con la carga de la anterior. Se dice cuántos días de entreno no tienen su cuestionario |
+| v920 · El color | La carga se gradúa con `calDesvio`, el criterio del plan contra real, con su rojo autorizado (§2.3). Minutos y contacto son un **tope, no una franja**: no hay anchura con la que graduar, así que dentro o por encima, y por cuánto. Siempre con palabra y flecha (✓ dentro · ↑ por encima · ↓ por debajo) |
+| v920 · Dónde se ve | En el detalle de la lesión, bajo los criterios de la fase en curso; en la tarjeta de «Vuelta a la competición» (una línea y una franja bajo la barra, que no tapa la cifra); y en «El camino de vuelta» como **franja neutra detrás de las barras** —la carga del equipo de cada día por el % pedido— con su cifra y su leyenda. **Neutra porque no es una alerta** (regla de `calRefMD`) |
+| v921 · El informe de la lesión | `bmInformeLesion(id)`: una hoja A4 por episodio, para el médico, el jugador o Carlos. Quién y qué (foto grande, zona, tejido, grado, mecanismo y descripción), días y **días fuera** (los de `NOAV_FIS_ST`, la regla de las métricas del COI, v814), fase y vuelta prevista, línea de tiempo con las fases y los hitos (punto lleno real, hueco previsto), el plan con inicio, días contra previstos, criterios y objetivo de carga contra lo que hizo **en toda la fase**, los criterios de la fase en curso, el dolor (lo apuntado y lo de los partes), los tratamientos por tipo, «El camino de vuelta», pruebas y citas (`pbCronologia`), el isocinético del episodio (`isoCalc`, con las referencias del club) y la guía semanal. **Ni una cifra nueva** |
+| v921 · Dónde se abre | «Informe» en el detalle de la lesión (Médico), en cada problema de la ficha › Médico y al pie de «El camino de vuelta». Usa el **visor de los documentos A4** del informe de la temporada (`#bmit`, v819): «Imprimir o guardar en PDF» y «Exportar imagen» (por `exportNodePNG`, las dos hojas en una imagen); Esc cierra. En el móvil la barra se queda en «Imagen · PDF · Cerrar» |
+| v921 · Las hojas | Si no cabe en una, **los bloques pasan enteros a otra** (un bloque no se parte), y el hueco que queda se rellena con el primer bloque siguiente que quepa entero. Con el ejemplo de prueba: hoja 1 con lo esencial y el plan, hoja 2 con criterios, dolor, tratamientos, el camino de vuelta y la guía |
+| v921 · Papel | Fijado a claro, como los demás documentos. `.bmit-p` entra en `BMG_DOC`, así que **las pasadas del móvil no tocan los documentos A4** (tampoco el informe de la temporada, que no estaba). `plvHTML` admite `{hasta, doc}` para dibujar el camino de vuelta de un episodio cerrado sin el panel. Al exportar, sin espaciado entre letras (`html.bm-exp`): html2canvas parte el texto letra a letra y deja un hueco tras la «I» (v766) |
+
+**Cómo se comprobó.** Con un episodio sembrado en memoria a partir de la plantilla «Ligamentosa · LCA» (nueve fases con fechas, criterios, tratamientos, dolor, partes, citas, notas y un isocinético): el editor guarda y la línea cambia de «↑ por encima» a «✓ dentro»; la tarjeta y la franja; el informe abierto desde los tres botones, con Esc; un episodio cerrado y una molestia sin plan; la imagen exportada en el ordenador (1.588 × 4.540, dos hojas) y en el móvil (por la hoja de compartir); a 375 px y en oscuro el documento sigue blanco. El barrido de las 32 rutas a 1.440 y a 375 px, sin errores ni desbordes.
+
+**Lo que NO está probado**: con las lesiones reales de Daniel y Virginia (viven en Supabase), imprimir a PDF de verdad desde Safari del Mac y del iPhone, y el informe con un isocinético real.
+
 ---
 
 ## 7. Flujo de trabajo
@@ -1941,6 +1960,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 
 **Trabajo pendiente:**
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
+- **Lo de la v920–v921**: que Daniel y Virginia pongan los objetivos de carga a una readaptación de verdad y saquen el informe de una lesión real, impreso o en PDF (§6.36)
 - **Lo de la v909–v919**: que Daniel abra la app en su Mac y mire la pantalla de arranque, el podio, el Dashboard enlazado, el jugador enfocado y el pellizco del mapa, y que pruebe los sonidos (§6.35)
 - **Lo de la v905–v908**: que Daniel mire con sus datos el anillo de 14 días, la vista rápida de un día, las hojas apiladas y la mira de la tabla del ciclo (§6.34)
 - **Lo de la v897–v904**: que Daniel mire con sus datos la pista de Disponibilidad, el radar, la mira del mapa, la reproducción de «Su temporada», el mapa del dolor y la cara en el cronograma con sus lesiones reales (§6.33)
@@ -1997,8 +2017,6 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - Fotos de jugadores: sin fondo, recorte circular grande con anillo de readiness y dorsal debajo, usando el helper `ring()` y `window.__AVATAR__` como provisional. **El nombre de archivo debe coincidir exactamente con el nombre del jugador, acentos incluidos.**
 - Resumen médico en la ficha del jugador
 - Isocinéticos: hoy solo cuádriceps e isquiotibiales de rodilla. Si entran otras articulaciones, `ISO_CAMPOS` y el informe hay que revisarlos; el modelo de datos aguanta
-- Edición de objetivos por bloque de fase
-- Exportar episodio médico a PDF/PNG
 - Datos históricos: líneas base de wellness/RPE/HR de la temporada anterior para los jugadores que continúan
 - ~~Revisión del modo oscuro~~ **Hecha el 10/11/2026** (v527 · v529): medidas las 29 pantallas en los dos temas. Lo que queda está en §3
 - **Coma decimal** (v530): quedan con punto la tabla de sesiones y la matriz de RPE de **Pulsómetros › Jugador** (unas 270 cifras) y cuatro sueltas en la ficha y en Perfil físico. El método es el de siempre: medir el DOM, no buscar `toFixed`
@@ -2263,6 +2281,9 @@ No los repitas.
 | Un nombre global de una pieza vieja, otra vez, y ahora también una FUNCIÓN | `const BMCD` (v888) y `const BMZ` ya existían y los cazó la validación porque son `const`. **Peor**: la v888 tenía `function bmcdVale` y la nueva pieza declaraba otra `bmcdVale` sin `!bmReduce()`; con `function` no da error y la segunda habría pisado a la primera en silencio (§2.5). Se vio al renombrar. **Antes de declarar cualquier nombre —constante o función— se busca su prefijo en el archivo**, y al terminar se cuentan las declaraciones repetidas con un analizador |
 | Probar un efecto con el panel del navegador en segundo plano | Las capturas salían con la pantalla de arranque estando la app abierta: `document.visibilityState` era `hidden` y la captura era vieja. Se preguntó al DOM y se repitió con el panel a la vista. **Antes de fiarse de una captura, mirar `visibilityState`** |
 | Leer `getComputedStyle(x).font` para copiar la letra | En Chrome el atajo `font` del estilo calculado viene **vacío**: la copia del título (v911) salió a 16 px. Se copian `fontFamily`, `fontSize`, `fontWeight` y `lineHeight` por separado |
+| Un servidor de pruebas que no ve el Escritorio | El servidor de la copia de prueba no podía servir las fotos enlazadas desde `~/Desktop`: macOS no deja a un proceso en segundo plano leer el Escritorio sin permiso, y el enlace simbólico daba 404. Parecía un fallo de la app (el informe salía con iniciales). **Lo que la copia de prueba necesita del repositorio se COPIA a su carpeta, no se enlaza** |
+| Dar por foto lo que devuelve `photoFor` | Sin foto, `photoFor` devuelve un dibujo SVG con las iniciales (`data:image/svg+xml`), y html2canvas no pinta su texto: en la imagen exportada salía un cuadro vacío. En un documento que se exporta, una foto que empieza por `data:` no es una foto |
+| Un documento nuevo fuera de `BMG_DOC` | El informe de la temporada (v819) no estaba en la lista de documentos, así que las pasadas del móvil —tamaño de letra, pliegues, cifras— podían tocarlo. Al añadir el de la lesión se metió `.bmit-p`, que cubre los dos. **Un documento nuevo entra en `BMG_DOC` el mismo día** |
 | `mix-blend-mode` y `mask-image` en el mismo elemento | El destello del escudo (v916) existía, tenía su máscara y su animación, y no se veía: con `screen` y la máscara a la vez Chrome no pintaba nada. Sin el modo de fusión se ve. Se vio quitando las propiedades una a una |
 
 ---
