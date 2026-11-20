@@ -17208,7 +17208,7 @@ function bmMpOlaAntes(box){
   if(!bmMpOlaVale(box))return null;
   const w=box.querySelector('.bmmp-w');if(!w)return null;const W=w.getBoundingClientRect(),m=new Map();
   box.querySelectorAll('.bmmp-c[data-dk]').forEach(c=>{const r=c.getBoundingClientRect();if(r.right<W.left||r.left>W.right||r.bottom<0||r.top>innerHeight)return;
-    m.set((c.dataset.eq?'eq':c.dataset.p)+'|'+c.dataset.dk+'|'+(c.dataset.f?'f':''),getComputedStyle(c).backgroundColor);});
+    m.set((c.dataset.eq?'eq':c.dataset.p)+'|'+c.dataset.dk+'|'+(c.dataset.f?'f':''),{bg:getComputedStyle(c).backgroundColor,l:r.left,t:r.top,w:r.width,h:r.height});});
   return m;
 }
 function bmMpOla(box,antes){
@@ -17219,10 +17219,18 @@ function bmMpOla(box,antes){
   const x0=Math.min(...cs.map(o=>o.r.left)),x1=Math.max(...cs.map(o=>o.r.left)),sp=Math.max(1,x1-x0);
   cs.forEach(({c,r})=>{
     const d=Math.round((r.left-x0)/sp*420),k=(c.dataset.eq?'eq':c.dataset.p)+'|'+c.dataset.dk+'|'+(c.dataset.f?'f':'');
-    const viejo=antes.get(k),nuevo=getComputedStyle(c).backgroundColor;
+    const o=antes.get(k),viejo=o&&o.bg,nuevo=getComputedStyle(c).backgroundColor;
     try{
-      if(viejo==null)c.animate([{opacity:.1,transform:'scale(.7)'},{opacity:1,transform:'none'}],{duration:340,delay:d,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});
-      else if(viejo!==nuevo)c.animate([{backgroundColor:viejo},{backgroundColor:nuevo,offset:.6},{backgroundColor:nuevo}],{duration:420,delay:d,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'});
+      if(o==null)c.animate([{opacity:.1,transform:'scale(.7)'},{opacity:1,transform:'none'}],{duration:340,delay:d,easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});
+      else{
+        if(viejo!==nuevo)c.animate([{backgroundColor:viejo},{backgroundColor:nuevo,offset:.6},{backgroundColor:nuevo}],{duration:420,delay:d,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'});
+        /* v915 · si la casilla ha cambiado de sitio o de tamaño (otra ventana,
+           otro día), viaja desde donde estaba hasta su sitio nuevo */
+        const dx=o.l-r.left,dy=o.t-r.top,sw=r.width?o.w/r.width:1,sh=r.height?o.h/r.height:1;
+        if(Math.abs(dx)>1.5||Math.abs(dy)>1.5||Math.abs(sw-1)>.03||Math.abs(sh-1)>.03)
+          c.animate([{transformOrigin:'0 0',transform:'translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) scale('+sw.toFixed(3)+','+sh.toFixed(3)+')'},{transformOrigin:'0 0',transform:'none'}],
+            {duration:480,delay:Math.round(d*.35),easing:'cubic-bezier(.32,.72,0,1)',fill:'backwards'});
+      }
     }catch(_){}
   });
 }
@@ -28229,6 +28237,42 @@ document.addEventListener('pointerover',e=>{
   if(BMENF.n)bmenfQuita();
 },true);
 window.addEventListener('scroll',()=>{if(BMENF.n)bmenfQuita();},{passive:true});
+/* ═══ v915 · PELLIZCAR EL MAPA DE LA PLANTILLA (ORDENADOR) ═══
+   Daniel, 20/11/2026, propuesta 6. Sobre el mapa de Cargas › Plantilla, el
+   pellizco del trackpad cambia la ventana —14 días, 28, 8 semanas y la
+   temporada—: abrir los dedos acerca (menos días), cerrarlos aleja. Es la
+   misma ventana de los botones de arriba, que se pulsan por debajo, y un
+   aviso dice en cuál se está. Al cambiar, cada casilla **viaja** desde donde
+   estaba hasta su sitio nuevo (y crece o encoge con la columna) en vez de
+   redibujarse de golpe; lo mismo al cambiar de día. Las casillas que entran
+   aparecen con el pulso de la v876. Fuera del mapa, el pellizco hace lo de
+   siempre. */
+const BMMPZ={acc:0,t:0,g:1,ult:0};
+const BMMPZ_W=[14,28,56,9999],BMMPZ_L={14:'14 días',28:'28 días',56:'8 semanas',9999:'La temporada'};
+function bmmpzPaso(dir){
+  const now=Date.now();if(now-BMMPZ.ult<420)return false;
+  const cur=+(FILTER&&FILTER.window)||28;let i=BMMPZ_W.indexOf(cur);if(i<0)i=1;
+  const j=Math.max(0,Math.min(BMMPZ_W.length-1,i+dir));
+  const nom=BMMPZ_L[BMMPZ_W[j]];
+  if(j===i){try{bmhudMuestra(nom,dir<0?'No se puede acercar más':'Ya está toda la temporada');}catch(_){}BMMPZ.ult=now;return true;}
+  const b=document.querySelector('#seg-window button[data-w="'+BMMPZ_W[j]+'"]');if(!b)return false;
+  BMMPZ.ult=now;try{BMPRE_U=now;}catch(_){}
+  b.click();
+  try{bmhudMuestra(nom,'Pellizca para ver más o menos días');}catch(_){}
+  return true;
+}
+function bmmpzEn(t){return !!(t&&t.closest&&t.closest('#carga-mapa .bmmp-w')&&!esMovil()&&typeof bmEscFino==='function'&&bmEscFino());}
+document.addEventListener('wheel',e=>{
+  if(!e.ctrlKey||!bmmpzEn(e.target))return;
+  e.preventDefault();
+  const now=Date.now();if(now-BMMPZ.t>300)BMMPZ.acc=0;BMMPZ.t=now;
+  BMMPZ.acc+=e.deltaY;
+  if(Math.abs(BMMPZ.acc)>=36){if(bmmpzPaso(BMMPZ.acc<0?-1:1))BMMPZ.acc=0;}
+},{passive:false,capture:true});
+document.addEventListener('gesturestart',e=>{if(!bmmpzEn(e.target))return;e.preventDefault();BMMPZ.g=1;},{passive:false,capture:true});
+document.addEventListener('gesturechange',e=>{if(!bmmpzEn(e.target))return;e.preventDefault();
+  const s=e.scale/BMMPZ.g;if(s>1.22){if(bmmpzPaso(-1))BMMPZ.g=e.scale;}else if(s<.82){if(bmmpzPaso(1))BMMPZ.g=e.scale;}},{passive:false,capture:true});
+document.addEventListener('gestureend',e=>{if(bmmpzEn(e.target))e.preventDefault();},{passive:false,capture:true});
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
