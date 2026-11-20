@@ -12665,6 +12665,7 @@ function pbBloque(inj,abierto){
         +'<button class="med-chipbtn" onclick="pbNotas&&pbNotas(\''+q+'\')">≡ Notas</button>'
         +'<button class="med-chipbtn" onclick="pbDolor&&pbDolor(\''+q+'\')">Dolor</button>'
         +'<button class="med-chipbtn" onclick="estadoGoMedico(\''+q+'\')">Abrir en Médico</button>'
+        +'<button class="med-chipbtn" onclick="bmInformeLesion&&bmInformeLesion(\''+q+'\')">Informe</button>'
         /* v291 · mientras no hay alta, el botón la da; una vez dada, lo que
            queda es cerrar el caso, que es una decisión aparte. */
         +(inj.open&&!pbGrupo(inj).alta
@@ -13593,6 +13594,7 @@ function medDetailHtml(e){if(!e)return '';
   +'<span class="r" style="margin-left:auto"></span>'
   +'<button class="med-chipbtn" onclick="openMedTreat(\''+medEsc(e.name)+'\',\''+e.id+'\')">＋ Tratamiento</button>'
   +'<button class="med-chipbtn" onclick="medInjuryEdit(\''+e.id+'\')" title="Cambiar diagnóstico, zona, fechas o alta prevista">✎ Editar episodio</button>'
+  +'<button class="med-chipbtn" onclick="bmInformeLesion(\''+e.id+'\')" title="Una hoja A4 para imprimir, guardar en PDF o mandar">Informe</button>'
   +(e.open&&!e.altaDk?'<button class="med-chipbtn" onclick="medClose(\''+e.id+'\')" style="border-color:var(--ok);color:var(--ok-text)">✓ Dar el alta</button>':'')
   +(e.open&&e.altaDk?'<button class="med-chipbtn" onclick="medArchivar(\''+e.id+'\')">Cerrar caso</button>':'')
   +(!e.open?'<button class="med-chipbtn" onclick="medReopen(\''+e.id+'\')">Reabrir</button>':'')
@@ -15283,7 +15285,7 @@ document.addEventListener('mouseover',e=>{
        vista, se abre solo y se cierra al enderezarlo.
    Los documentos —parte, ficha, láminas— no llevan ni frase ni botón. */
 const BMG={vis:null,obs:null,auto:false,ch:null,era:false};
-const BMG_DOC='#parte-card,.pt-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page,#sescal-a4-page,#fis-cap-png';
+const BMG_DOC='#parte-card,.pt-card,.ficha-card,.sa-page,.sa-page-wk,.iso-hoja,.a4-page,#sescal-a4-page,#fis-cap-png,.bmit-p';
 const BMG_IC='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/></svg>';
 function bmgFrase(chart){const r=bmgLectura(chart);return r?r.frase:'';}
 /* v597 · Las piezas de la lectura, para la cabecera del gráfico: un rótulo, la
@@ -29500,9 +29502,9 @@ function plvEpisodios(name){
     return plvDias(f,ref)<=PLV_PRE;
   }).sort((a,b)=>String(b.dk).localeCompare(String(a.dk))).slice(0,2);
 }
-function plvHTML(name,e,k){
+function plvHTML(name,e,k,O){
   const esc=bmEsc,p=STATE.players[name];if(!p)return '';
-  const fin=dkey(REF()),ini=plvSuma(e.dk,-PLV_PRE);
+  const fin=(O&&O.hasta)||dkey(REF()),ini=plvSuma(e.dk,-PLV_PRE);
   const ds=dkRango(ini,fin);
   const N=ds.length;if(N<8)return '';
   let ref=REF();try{ref=refCarga();}catch(x){}
@@ -29576,9 +29578,12 @@ function plvHTML(name,e,k){
   const tit=esc(e.title||'Episodio')+(e.zona?' · '+esc(e.zona):'');
   const ley='<div class="pltp-ley"><span><i class="pltp-sw" style="background:var(--c-data,var(--accent))"></i>Carga del día</span><span><i class="pltp-sw plv-dash"></i>Su normal antes'+(pre?' · '+Math.round(pre).toLocaleString('es-ES')+' UA':'')+'</span>'
     +'<span><i class="pltp-sw" style="background:var(--ok);opacity:.35"></i>Banda del ACWR</span><span><i class="pltp-sw" style="background:'+cE+';opacity:.3"></i>Periodo de baja</span><span><i class="pltp-sw plv-fase"></i>Fases</span>'+(banda.length?'<span><i class="pltp-sw plv-obj"></i>Objetivo de la fase</span>':'')+'</div>';
+  /* v921 · en el informe de la lesión: sólo las cifras, el dibujo y la leyenda */
+  if(O&&O.doc)return '<div class="bil-plv">'+ks+'<svg class="pltp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="El camino de vuelta: carga diaria contra su normal, ACWR y recuperación">'+g+'</svg>'+ley+'</div>';
   return '<div class="panel pltp plv" data-plv="'+k+'"><h2>El camino de vuelta <span class="r muted">'+tit+(st?' · '+esc(st.lab):'')+'</span></h2>'+ks
     +'<div class="pltp-lee" aria-live="polite">Pasa por el gráfico para ver cada día.</div>'
     +'<div class="pltp-gr"><svg class="pltp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="El camino de vuelta: carga diaria contra su normal, ACWR y recuperación desde tres semanas antes">'+g+'</svg></div>'+ley
+    +'<div class="plv-acc"><button type="button" class="btn ghost" onclick="bmInformeLesion(\''+String(e.id).replace(/'/g,"\\'")+'\')">Informe de la lesión</button></div>'
     +'<p class="pltp-nota">Su normal antes: la mediana de sus días con carga en las tres semanas previas, la ventana crónica del ACWR; un día sin cuestionario no cuenta como cero. El % va sin color: la app no tiene listón de cuánto es suficiente. El readiness no se dibuja día a día porque la app lo calcula para el día que se mira y no guarda una serie por jugador.</p></div>';
 }
 function renderPlVuelta(name){
@@ -29774,6 +29779,236 @@ function mocGuardar(injId){
   toast('Objetivos de carga guardados');
 }
 window.mocEditar=mocEditar;window.mocGuardar=mocGuardar;window.mocLineaHTML=mocLineaHTML;window.mocTarjetaHTML=mocTarjetaHTML;window.mocBandaTarjeta=mocBandaTarjeta;window.mocVer=mocVer;window.mocTramo=mocTramo;window.mocObj=mocObj;
+
+/* ═══ v921 · EL INFORME DE LA LESIÓN ═══
+   Daniel, 20/11/2026, propuesta 4 —pendiente en §8 desde hacía semanas
+   («exportar episodio médico a PDF/PNG»—. Una hoja A4 por episodio, para el
+   médico, para el jugador o para el entrenador: qué pasó, en qué punto de la
+   readaptación está, qué criterios le quedan, cómo ha ido la carga de vuelta,
+   qué se le ha hecho y qué pruebas tiene. **Ni una cifra nueva**: cada bloque
+   lee lo que ya enseña su pantalla —el plan y los criterios del episodio
+   (`medCritOk`), los objetivos de cada fase (v920), «El camino de vuelta»
+   (`plvHTML`, v768), los días fuera con `effectiveStatus` y `NOAV_FIS_ST`
+   (la regla de las métricas del COI, v814), la cronología del problema
+   (`pbCronologia`) y el isocinético (`isoCalc`)—. Se abre en el visor de los
+   documentos A4 (el del informe de la temporada, v819), se imprime o se
+   guarda en PDF, y se exporta en imagen por el único sitio por donde se
+   exporta. Si no cabe en una hoja, lo que sobra pasa a una segunda, entero:
+   un bloque no se parte entre dos páginas. Va fijado a claro: es papel. */
+function bilFd(dk,largo){if(!dk)return '—';const d=dkToDate(dk);if(largo){let s=d.toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'});return s;}return d.getDate()+'/'+(d.getMonth()+1);}
+function bilDatos(e){
+  const name=e.name,p=(STATE.players||{})[name]||{};
+  const hoy=dkey(REF());
+  const fin=plvFin(e);
+  const finEp=(!e.open&&fin&&fin<hoy)?fin:(fin&&fin<hoy?fin:hoy);
+  /* contados como en «El camino de vuelta»: el día de la lesión es el primero */
+  const diasTot=Math.max(0,plvDias(e.dk,e.open?hoy:(fin||e.closeDk||hoy)))+1;
+  let fuera=0;try{dkRango(e.dk,e.open?hoy:finEp).forEach(dk=>{try{const s=effectiveStatus(name,dk);if(s&&NOAV_FIS_ST.includes(s.status))fuera++;}catch(x){}});}catch(x){}
+  const phs=e.phases||[],idx=e.phaseIdx||0;
+  const fases=phs.map((f,i)=>{
+    const tr=(typeof mocTramo==='function')?mocTramo(e,i):null;
+    const dias=tr?plvDias(tr.ini,tr.fin)+1:null;
+    const crit=(f.crit||[]);const ok=crit.filter(c=>medCritOk(c)).length;
+    let ob=null;try{ob=(typeof mocVer==='function')?mocVer(e,i,true):null;}catch(x){}
+    return {i,f,hito:f.type==='hito',tr,dias,prev:+f.durDays||0,nCrit:crit.length,okCrit:ok,ob,est:i<idx?'hecha':(i===idx&&e.open?'en curso':(i>idx?'pendiente':'hecha'))};
+  });
+  const cur=phs[Math.min(idx,phs.length-1)]||null;
+  const curCrit=(e.open&&phs[idx])?(phs[idx].crit||[]):[];
+  /* dolor: lo apuntado a mano y lo de los partes del día de este problema */
+  const dolor=[];(e.pain||[]).forEach(x=>{if(x&&x.dk&&isFinite(+x.v))dolor.push({dk:x.dk,v:+x.v,src:'m'});});
+  let cr=[];try{cr=pbCronologia(e);}catch(x){}
+  try{((STATE.physioUser||{})[name]||[]).forEach(x=>{if(x&&x.injId===e.id&&x.pain!=null&&isFinite(+x.pain))dolor.push({dk:x.dk,v:+x.pain,src:'p'});});}catch(x){}
+  dolor.sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+  /* tratamientos, por tipo */
+  const trs=((STATE.med||{}).treat||[]).filter(t=>t&&t.injId===e.id).sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+  const porTipo={};trs.forEach(t=>{const k=t.tipo||'Tratamiento';const o=porTipo[k]||(porTipo[k]={n:0,min:0});o.n++;o.min+=+t.dur||0;});
+  const citas=cr.filter(x=>x.tipo==='cita').sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+  /* isocinético dentro del episodio */
+  let iso=null;try{const finIso=e.open?hoy:(finEp>hoy?hoy:dkSumaDias(finEp,PLV_PRE));
+    const L=(window.isoDeJugador?isoDeJugador(name):[]).filter(x=>{const f=(x.prueba||{}).fecha||'';return f>=e.dk&&f<=finIso;});
+    if(L.length){const D=L[0];const R=isoCalc(D);if(R)iso={D,R,n:L.length,refs:(window.isoRefs?isoRefs():{})};}}catch(x){}
+  const notas=(e.notes||[]).slice().sort((a,b)=>String(b.dk).localeCompare(String(a.dk)));
+  const hito=(r,est)=>r?{dk:r,real:true}:(est?{dk:est,real:false}:null);
+  const hitos=[
+    {k:'Lesión',v:{dk:e.dk,real:true}},
+    {k:'Alta médica',v:hito(e.medicalDischargeReal,e.medicalDischargeEstimated)},
+    {k:'Alta deportiva',v:hito(e.sportDischargeReal||e.altaDk,e.sportDischargeEstimated)},
+    {k:'Vuelta a competir',v:hito(e.competitiveDischargeReal,e.competitiveDischargeEstimated||e.rtp)},
+    {k:'Caso cerrado',v:(!e.open&&e.closeDk)?{dk:e.closeDk,real:true}:null}];
+  return {name,p,hoy,fin,finEp,diasTot,fuera,fases,idx,cur,curCrit,dolor,trs,porTipo,citas,iso,notas,hitos,
+    est:(window.pbEstado?pbEstado(e):null)||{lab:e.open?'Abierto':'Cerrado',col:'#6e6e73'}};
+}
+/* La línea de tiempo del episodio: fases como tramos de color, hitos y hoy. */
+function bilLineaSVG(e,D){
+  const W=682,H=74,pl=0,pr=0,y=22,h=14;
+  const ini=e.dk;let fin=e.open?D.hoy:(D.fin||e.closeDk||D.hoy);
+  D.hitos.forEach(x=>{if(x.v&&x.v.dk>fin)fin=x.v.dk;});
+  D.fases.forEach(x=>{if(x.f.startDk&&x.f.startDk>fin)fin=x.f.startDk;});
+  const N=Math.max(1,plvDias(ini,fin)+1),X=dk=>pl+Math.max(0,Math.min(1,plvDias(ini,dk)/N))*(W-pl-pr);
+  let g='<rect x="0" y="'+y+'" width="'+W+'" height="'+h+'" rx="7" fill="#f0f0f3"/>';
+  const reales=D.fases.filter(x=>x.f.startDk&&!x.hito);
+  reales.forEach((x,j)=>{const a=X(x.f.startDk);const sig=reales[j+1];let b=sig?X(sig.f.startDk):X(fin);if(b<=a)return;
+    const pend=x.f.startDk>D.hoy;const c=/^#[0-9a-f]{6}$/i.test(x.f.color||'')?x.f.color:'#3056c4';
+    g+='<rect x="'+a.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,b-a-1.5).toFixed(1)+'" height="'+h+'" rx="4" fill="'+c+'" opacity="'+(pend?'.28':'.85')+'"/>';
+    if(b-a>26)g+='<text x="'+(a+5).toFixed(1)+'" y="'+(y+10.5)+'" font-size="9.5" font-weight="700" fill="#fff">F'+(x.i+1)+'</text>';});
+  /* hoy */
+  if(e.open&&D.hoy>=ini&&D.hoy<=fin){const xh=X(D.hoy);g+='<line x1="'+xh.toFixed(1)+'" x2="'+xh.toFixed(1)+'" y1="'+(y-8)+'" y2="'+(y+h+4)+'" stroke="#1d1d1f" stroke-width="1.5"/><text x="'+xh.toFixed(1)+'" y="'+(y-11)+'" text-anchor="middle" font-size="10" font-weight="700" fill="#1d1d1f">hoy</text>';}
+  /* hitos: punto lleno si es real, hueco si es previsto */
+  const usados=[];
+  D.hitos.forEach(x=>{if(!x.v)return;const xx=X(x.v.dk);
+    g+='<circle cx="'+xx.toFixed(1)+'" cy="'+(y+h/2)+'" r="5" fill="'+(x.v.real?'#1d2836':'#fff')+'" stroke="#1d2836" stroke-width="1.6"/>';
+    let ly=y+h+15;while(usados.some(u=>Math.abs(u.x-xx)<88&&u.y===ly))ly+=13;usados.push({x:xx,y:ly});
+    const anc=xx<40?'start':(xx>W-40?'end':'middle');
+    g+='<text x="'+xx.toFixed(1)+'" y="'+ly+'" text-anchor="'+anc+'" font-size="10" fill="#3a3a3c"><tspan font-weight="700">'+bmEsc(x.k)+'</tspan> '+bilFd(x.v.dk)+(x.v.real?'':' (prev.)')+'</text>';});
+  const Hh=Math.max(H,Math.max(...usados.map(u=>u.y),0)+6);
+  return '<svg class="bil-tl" viewBox="0 0 '+W+' '+Hh+'" width="'+W+'" height="'+Hh+'" role="img" aria-label="Línea de tiempo de la lesión">'+g+'</svg>';
+}
+function bilDolorSVG(D,e){
+  const P=D.dolor;if(!P.length)return '<p class="bil-nada">Sin dolor apuntado en este episodio.</p>';
+  const W=318,H=96,pl=22,pr=6,pt=8,pb=18;
+  const a=P[0].dk<e.dk?P[0].dk:e.dk,b=P[P.length-1].dk>D.hoy?P[P.length-1].dk:(e.open?D.hoy:P[P.length-1].dk);
+  const N=Math.max(1,plvDias(a,b)),X=dk=>pl+plvDias(a,dk)/N*(W-pl-pr),Y=v=>pt+(1-v/10)*(H-pt-pb);
+  let g='';[0,5,10].forEach(v=>{g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v).toFixed(1)+'" y2="'+Y(v).toFixed(1)+'" stroke="#e5e5ea"/><text x="'+(pl-5)+'" y="'+(Y(v)+3.5).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="#6e6e73">'+v+'</text>';});
+  let d='';P.forEach((x,i)=>{d+=(i?'L':'M')+X(x.dk).toFixed(1)+','+Y(x.v).toFixed(1);});
+  g+='<path d="'+d+'" fill="none" stroke="#1d2836" stroke-width="1.8" stroke-linejoin="round"/>';
+  P.forEach(x=>{g+='<circle cx="'+X(x.dk).toFixed(1)+'" cy="'+Y(x.v).toFixed(1)+'" r="3" fill="'+(x.src==='m'?'#1d2836':'#fff')+'" stroke="#1d2836" stroke-width="1.4"/>';});
+  g+='<text x="'+pl+'" y="'+(H-3)+'" font-size="9.5" fill="#6e6e73">'+bilFd(a)+'</text><text x="'+(W-pr)+'" y="'+(H-3)+'" text-anchor="end" font-size="9.5" fill="#6e6e73">'+bilFd(b)+'</text>';
+  const ult=P[P.length-1],pri=P[0];
+  return '<svg class="bil-dol" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Dolor de 0 a 10">'+g+'</svg>'
+    +'<p class="bil-pie">De <b>'+pri.v+'</b> el '+bilFd(pri.dk)+' a <b>'+ult.v+'</b> el '+bilFd(ult.dk)+' · '+P.length+(P.length===1?' registro':' registros')+'. Punto lleno: apuntado en el episodio; hueco: del parte del día.</p>';
+}
+function bilHTML(e){
+  const D=bilDatos(e),E=bmEsc,p=D.p,name=D.name;
+  /* sin foto, photoFor devuelve un dibujo con las iniciales que html2canvas no pinta: aquí van las nuestras */
+  const foto=(()=>{try{const f=photoFor(name);return f&&!/^data:/.test(f)?(window.phGrande?phGrande(f):f):'';}catch(x){return '';}})();
+  const ini=String(name).split(/\s+/).slice(0,2).map(x=>x.charAt(0)).join('').toUpperCase();
+  let dor='';try{dor=(typeof dorsal==='function'?dorsal(name):'')||(((STATE.info||{})[name]||{}).dorsal||'');}catch(x){}
+  let pos='';try{pos=(typeof posDetailOf==='function'?posDetailOf(name):'')||p.pos||'';}catch(x){pos=p.pos||'';}
+  const st=e.status&&PHYSTAT[e.status]?PHYSTAT[e.status]:null;
+  const lado={I:'izquierdo',D:'derecho',B:'bilateral'}[e.lado]||e.lado||'';
+  const zona=[e.zona,lado].filter(Boolean).join(' ');
+  const B=[];
+  /* 1 · quién y qué */
+  B.push('<section class="bil-b bil-id">'
+    +'<div class="bil-ph">'+(foto?'<img src="'+E(foto)+'" alt="" onerror="this.remove()">':'')+'<i>'+E(ini)+'</i></div>'
+    +'<div class="bil-idt"><small>'+E([name,pos,dor?'#'+dor:''].filter(Boolean).join(' · '))+'</small>'
+      +'<h2>'+E(e.title||zona||'Lesión')+'</h2>'
+      +'<div class="bil-tags">'+(zona?'<span>'+E(zona)+'</span>':'')+(e.tipo?'<span>'+E(e.tipo)+'</span>':'')+(e.clasif?'<span>'+E(e.clasif)+'</span>':'')
+        +'<span>'+(e.kind==='lesion'?'Lesión':'Molestia')+'</span>'
+        +'<span class="bil-est" style="--c:'+E(D.est.col)+'"><i></i>'+E(D.est.lab)+'</span>'
+        +(st&&e.open?'<span class="bil-est" style="--c:'+E(st.c)+'"><i></i>'+E(st.lab)+'</span>':'')+'</div>'
+      +((e.act||e.accion||(e.mom&&e.mom!=='—'))?'<p class="bil-mec">'+[e.act?'Actividad: <b>'+E(e.act)+'</b>':'',e.accion?'Mecanismo: <b>'+E(e.accion)+'</b>':'',(e.mom&&e.mom!=='—')?'Momento: <b>'+E(e.mom)+'</b>':''].filter(Boolean).join(' · ')+'</p>':'')
+      +(e.desc?'<p class="bil-desc">'+E(e.desc)+'</p>':'')
+    +'</div></section>');
+  /* 2 · cifras */
+  const k=(t,v,s)=>'<div class="bmit-k"><em>'+t+'</em><b>'+v+'</b><span>'+s+'</span></div>';
+  const nf=(D.cur&&e.open)?D.fases.find(x=>x.i===D.idx):null;
+  const vp=D.hitos[3].v;
+  B.push('<section class="bil-b"><div class="bmit-ks bil-ks">'
+    +k('Días',String(D.diasTot),e.open?'desde el '+bilFd(e.dk):'del '+bilFd(e.dk)+' al '+bilFd(D.fin||e.closeDk))
+    +k('Días fuera',String(D.fuera),'sin entrenar: baja, no entrena o enfermo')
+    +k('Fase',nf?('F'+(nf.i+1)+' de '+D.fases.length):(D.fases.length?(e.open?'Vuelta':'Completada'):'—'),nf?E(nf.f.nom||''):(D.fases.length?'plan de '+D.fases.length+' fases':'sin plan de readaptación'))
+    +k(e.open?'Vuelta prevista':'Vuelta a competir',vp?bilFd(vp.dk):'—',vp?(vp.real?'ya ha vuelto':(()=>{const d=plvDias(D.hoy,vp.dk);return d>0?'en '+d+(d===1?' día':' días'):(d===0?'hoy':'prevista · hace '+(-d)+' días');})()):'sin fecha prevista')
+    +'</div></section>');
+  /* 3 · línea de tiempo */
+  B.push('<section class="bil-b"><h3>Línea de tiempo</h3>'+bilLineaSVG(e,D)+'</section>');
+  /* 4 · plan de readaptación */
+  if(D.fases.length){
+    const fila=x=>{
+      const f=x.f,ob=x.ob;let obj='—';
+      if(ob&&ob.o){const o=ob.o,m=ob.m,partes=[];
+        if(o.lo!=null||o.hi!=null){let s='Carga '+mocRango(o);if(m&&m.pct!=null){const c=ob.carga;s+=' → <b style="color:'+(c?{ok:'#116b44',leve:'#8a5400',fuerte:'#b42b23'}[c.est]:'#1d1d1f')+'">'+m.pct+' %</b>';}partes.push(s);}
+        if(o.min!=null){let s='≤ '+o.min+'′';if(m&&m.minMax!=null)s+=' → <b style="color:'+(ob.min&&ob.min.dir>0?'#8a5400':'#116b44')+'">'+Math.round(m.minMax)+'′</b>';partes.push(s);}
+        if(o.con!=null){let s='contacto ≤ '+o.con;if(m&&m.conMax!=null)s+=' → <b style="color:'+(ob.con&&ob.con.dir>0?'#8a5400':'#116b44')+'">'+m.conMax+'</b>';partes.push(s);}
+        obj=partes.join('<br>');}
+      return '<tr class="'+(x.est==='en curso'?'cur':'')+(x.hito?' hito':'')+'"><td><b>F'+(x.i+1)+'</b> '+E(f.nom||'')+(x.est==='en curso'?' <span class="bil-cur">en curso</span>':'')+'</td>'
+        +'<td>'+(f.startDk?bilFd(f.startDk)+(f.startDk>D.hoy?' <small>(prev.)</small>':''):'—')+'</td>'
+        +'<td>'+(x.hito?'hito':((x.dias!=null?x.dias:'—')+(x.prev?' <small>/ '+x.prev+'</small>':'')))+'</td>'
+        +'<td>'+(x.nCrit?(x.okCrit+' / '+x.nCrit):'—')+'</td>'
+        +'<td class="bil-ob">'+obj+'</td></tr>';};
+    B.push('<section class="bil-b"><h3>Plan de readaptación'+(e.rehabTemplateName?' · '+E(e.rehabTemplateName):'')+'</h3>'
+      +'<table class="bmit-t bil-t"><thead><tr><th>Fase</th><th>Inicio</th><th>Días <small>/ prev.</small></th><th>Criterios</th><th>Objetivo de carga → lo que hizo en la fase</th></tr></thead><tbody>'
+      +D.fases.map(fila).join('')+'</tbody></table>'
+      +(D.fases.some(x=>x.ob&&x.ob.o)?'<p class="bil-pie">La carga, en % de la del equipo esos mismos días; los minutos, su día más largo; el contacto, el más alto que declaró.</p>':'')
+      +'</section>');
+  }
+  /* 5 · criterios de la fase en curso + dolor y tratamientos */
+  const crit=D.curCrit.length?'<ul class="bil-crit">'+D.curCrit.map(c=>{const ok=medCritOk(c);let v='';
+      if(c.tipo==='num'){const last=(c.med||[]).length?c.med[c.med.length-1]:null;v=' <small>'+(last?String(last.v).replace('.',','):'sin medir')+' · objetivo '+(c.low?'≤ ':'≥ ')+String(c.obj).replace('.',',')+(c.unidad||c.u||'')+'</small>';}
+      return '<li class="'+(ok?'ok':'')+'"><i>'+(ok?'✓':'')+'</i><span>'+E(c.txt||'')+v+'</span></li>';}).join('')+'</ul>'
+    :'<p class="bil-nada">'+(e.open?'La fase en curso no tiene criterios apuntados.':'El episodio está cerrado.')+'</p>';
+  const tipos=Object.keys(D.porTipo).sort((a,b)=>D.porTipo[b].n-D.porTipo[a].n);
+  const minTot=D.trs.reduce((s,t)=>s+(+t.dur||0),0);
+  const trat=D.trs.length?'<p class="bil-sum"><b>'+D.trs.length+'</b> '+(D.trs.length===1?'sesión':'sesiones')+(minTot?' · '+(Math.round(minTot/6)/10).toString().replace('.',',')+' h':'')+' · última el '+bilFd(D.trs[D.trs.length-1].dk)+'</p>'
+      +'<table class="bil-mini">'+tipos.slice(0,6).map(t=>'<tr><td>'+E(t)+'</td><td>'+D.porTipo[t].n+'</td><td>'+(D.porTipo[t].min?D.porTipo[t].min+'′':'')+'</td></tr>').join('')+'</table>'
+      +(tipos.length>6?'<p class="bil-pie">y '+(tipos.length-6)+' tipos más</p>':'')
+    :'<p class="bil-nada">Sin tratamientos apuntados en este episodio.</p>';
+  if(D.fases.length)B.push('<section class="bil-b bil-2"><div><h3>Criterios para pasar de fase'+(e.open&&D.cur?' · '+E(D.cur.nom||''):'')+'</h3>'+crit+'</div>'
+    +'<div><h3>Dolor · de 0 a 10</h3>'+bilDolorSVG(D,e)+'<h3>Tratamientos</h3>'+trat+'</div></section>');
+  else B.push('<section class="bil-b bil-2"><div><h3>Dolor · de 0 a 10</h3>'+bilDolorSVG(D,e)+'</div><div><h3>Tratamientos</h3>'+trat+'</div></section>');
+  /* 6 · el camino de vuelta */
+  let plv='';try{const hasta=e.open?D.hoy:(()=>{const f2=dkSumaDias(D.fin||e.closeDk||D.hoy,PLV_PRE);return f2<D.hoy?f2:D.hoy;})();plv=plvHTML(name,e,0,{hasta,doc:true});}catch(x){}
+  if(plv)B.push('<section class="bil-b"><h3>El camino de vuelta · su carga contra su normal de antes de la lesión</h3>'+plv+'</section>');
+  /* 7 · pruebas, citas e isocinético */
+  const ci=D.citas.length?'<ul class="bil-lst">'+D.citas.slice(-6).map(c=>'<li><b>'+bilFd(c.dk)+'</b> '+E(c.txt||'')+(c.meta?' <small>'+E(c.meta)+'</small>':'')+'</li>').join('')+'</ul>'+(D.citas.length>6?'<p class="bil-pie">y '+(D.citas.length-6)+' más</p>':''):'<p class="bil-nada">Sin pruebas ni citas apuntadas en este episodio.</p>';
+  let iso='';if(D.iso){const R=D.iso.R,v=R.lenta,rf=D.iso.refs||{},pc=x=>x==null?'—':Math.round(x)+' %',dd=(D.iso.D.prueba||{}).fecha;
+    iso='<h3>Isocinético · '+bilFd(dd)+(R.semanas!=null?' · semana '+R.semanas+' tras la cirugía':'')+'</h3>'
+      +'<div class="bil-iso"><div><em>LSI extensores</em><b>'+pc(v.lsiExt)+'</b></div><div><em>LSI flexores</em><b>'+pc(v.lsiFlex)+'</b></div><div><em>H/Q lado lesionado</em><b>'+(v.hqOp==null?'—':(v.hqOp/100).toFixed(2).replace('.',','))+'</b></div><div><em>Nm/kg extensores</em><b>'+(v.nmkgOp==null?'—':v.nmkgOp.toFixed(2).replace('.',','))+'</b></div></div>'
+      +'<p class="bil-pie">A '+v.vel+'°/s. Referencias del club: LSI '+(rf.meta_intermedia_lsi!=null?rf.meta_intermedia_lsi:80)+' % para volver a pista y '+(rf.meta_lsi!=null?rf.meta_lsi:90)+' % para competir.'+(D.iso.n>1?' Hay '+D.iso.n+' pruebas en este episodio; esta es la última.':'')+'</p>';}
+  B.push('<section class="bil-b bil-2"><div><h3>Pruebas y citas</h3>'+ci+'</div><div>'+(iso||'<h3>Isocinético</h3><p class="bil-nada">Sin prueba isocinética en este episodio.</p>')+'</div></section>');
+  /* 8 · guía semanal */
+  if(D.notas.length)B.push('<section class="bil-b"><h3>Guía semanal · qué se ha hecho</h3><ul class="bil-lst">'+D.notas.slice(0,5).map(n=>'<li><b>'+bilFd(n.dk)+'</b> '+E(n.txt||'')+'</li>').join('')+'</ul></section>');
+  return {D,B};
+}
+async function bmInformeLesion(id){
+  try{medDbLoad();}catch(x){}
+  const e=medInj(id);if(!e){toast('No encuentro esa lesión');return;}
+  /* con la serie de readiness recorriendo los días, REF() es prestado (§2.1) */
+  for(let i=0;i<40&&window.__RD_CALC;i++)await new Promise(r=>setTimeout(r,150));
+  window.BIL_ID=id;
+  let R;try{R=bilHTML(e);}catch(err){console.error('bmnava · informe de la lesión',err);toast('No he podido montar el informe');return;}
+  const E=bmEsc,D=R.D;
+  const tit='Informe de la lesión',sub=D.name+' · datos al '+bilFd(D.hoy,true);
+  const hd=(cont)=>'<div class="bmit-hd"><img src="escudo.png" alt="" onerror="this.remove()"><div><b>'+tit+(cont?' <small>· continúa</small>':'')+'</b><span>'+E(sub)+'</span></div></div>';
+  const ft=(i,n)=>'<div class="bmit-ft"><span>BM Nava · '+E(tit)+' · '+E(D.name)+'</span><span>'+i+' / '+n+'</span></div>';
+  let v=document.getElementById('bmit');if(!v){v=document.createElement('div');v.id='bmit';v.setAttribute('role','dialog');document.body.appendChild(v);}
+  v.setAttribute('aria-label',tit);
+  v.innerHTML='<div class="bmit-bar"><b>'+E(tit)+' · '+E(D.name)+'</b><span class="bil-np"></span>'
+    +'<button type="button" class="btn ghost" data-bil="png"><span class="bil-lg">Exportar imagen</span><span class="bil-co">Imagen</span></button>'
+    +'<button type="button" class="btn" data-bmit="print"><span class="bil-lg">Imprimir o guardar en PDF</span><span class="bil-co">PDF</span></button><button type="button" class="btn ghost" data-bmit="x">Cerrar</button></div>'
+    +'<div class="bmit-pages"><div class="bil-doc" id="bil-doc"><section class="bmit-p bil">'+hd(false)+'<div class="bmit-c">'+R.B.join('')+'</div>'+ft(1,1)+'</section></div></div>';
+  v.classList.add('on');document.documentElement.classList.add('bmit-on');
+  const pg=v.querySelector('.bmit-pages');if(pg)pg.style.zoom='';
+  /* si no cabe, los bloques del final pasan enteros a otra hoja */
+  const doc=v.querySelector('#bil-doc');
+  const cabe=c=>c.scrollHeight<=c.clientHeight+1;
+  let paginas=[doc.querySelector('.bmit-c')];
+  for(let guard=0;guard<6;guard++){
+    const c=paginas[paginas.length-1];if(cabe(c))break;
+    const bs=[...c.querySelectorAll(':scope>.bil-b')];if(bs.length<2)break;
+    const sec=document.createElement('section');sec.className='bmit-p bil';sec.innerHTML=hd(true)+'<div class="bmit-c"></div>'+ft(1,1);
+    doc.appendChild(sec);const nc=sec.querySelector('.bmit-c');
+    while(!cabe(c)&&c.querySelectorAll(':scope>.bil-b').length>1){const ult=[...c.querySelectorAll(':scope>.bil-b')].pop();nc.insertBefore(ult,nc.firstChild);}
+    paginas.push(nc);
+  }
+  /* el hueco que queda en una hoja se rellena con el primer bloque de las siguientes que quepa entero */
+  for(let a=0;a<paginas.length-1;a++){const c=paginas[a];
+    for(let b=a+1;b<paginas.length;b++){[...paginas[b].querySelectorAll(':scope>.bil-b')].forEach(bl=>{const sig=bl.nextSibling,pb=paginas[b];c.appendChild(bl);if(!cabe(c))pb.insertBefore(bl,sig);});}}
+  paginas=paginas.filter(c=>{if(c.querySelector(':scope>.bil-b'))return true;const sec=c.closest('.bmit-p');if(sec)sec.remove();return false;});
+  const n=paginas.length;
+  [...doc.querySelectorAll('.bmit-ft')].forEach((f,i)=>{const s=f.querySelectorAll('span');if(s[1])s[1].textContent=(i+1)+' / '+n;});
+  const np=v.querySelector('.bil-np');if(np)np.textContent=n===1?'1 página A4':n+' páginas A4';
+  try{bmItAjusta();}catch(x){}
+}
+function bilPNG(){
+  const v=document.getElementById('bmit');const pg=v&&v.querySelector('.bmit-pages');const z=pg?pg.style.zoom:'';if(pg)pg.style.zoom='';
+  const e=medInj(window.BIL_ID||'');const nm=e?String(e.name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_'):'jugador';
+  const r=exportNodePNG('bil-doc','lesion_'+nm+'_'+dkey(REF())+'.png',{bg:'#e9e9ee'});
+  const vuelve=()=>{if(pg)pg.style.zoom=z;};
+  if(r&&r.then)r.then(vuelve,vuelve);else vuelve();
+}
+document.addEventListener('click',ev=>{const b=ev.target&&ev.target.closest&&ev.target.closest('#bmit [data-bil="png"]');if(b)bilPNG();});
+window.bmInformeLesion=bmInformeLesion;window.bilPNG=bilPNG;
 
 /* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
 function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
@@ -60604,6 +60839,86 @@ html[data-theme="dark"]{--cmp-b:#cf5aa8}
   .moc-ed-l{display:block}
   .moc-ed input,.moc-ed select{min-height:44px}
   .moc-h .med-chipbtn{min-height:44px}
+}
+</style>
+<style id="bm-v921">
+/* v921 · el informe de la lesión (documento: fijado a claro) */
+.bmit-p.bil{--c-data:#3f5572;padding:40px 48px 30px}
+.bil .bmit-hd{margin-bottom:14px}
+.bil .bmit-hd b small{font-size:14px;font-weight:600;color:#6e6e73}
+.bil .bmit-c{display:flex;flex-direction:column;gap:14px}
+.bil-b{flex:none;min-width:0}
+.bmit-p.bil h3{margin:0 0 7px}
+.bil-id{display:grid;grid-template-columns:96px minmax(0,1fr);gap:16px;align-items:start}
+.bil-ph{position:relative;width:96px;height:96px;border-radius:20px;background:#f2f2f5;overflow:hidden;display:grid;place-items:center}
+.bil-ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center}
+.bil-ph i{font-style:normal;font-size:28px;font-weight:700;color:#8e8e93}
+.bil-idt small{display:block;font-size:12.5px;color:#6e6e73}
+.bil-idt h2{margin:2px 0 7px;font-size:24px;line-height:1.15;font-weight:700;color:#1d1d1f;letter-spacing:-.01em}
+.bil-tags{display:flex;flex-wrap:wrap;gap:6px}
+.bil-tags span{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:99px;background:#f2f2f5;color:#3a3a3c}
+.bil-est{display:inline-flex;align-items:center;gap:5px}
+.bil-est i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.bil-mec{margin:8px 0 0;font-size:12px;color:#3a3a3c}
+.bil-desc{margin:5px 0 0;font-size:12px;line-height:1.45;color:#3a3a3c}
+.bmit-p .bil-ks{grid-template-columns:repeat(4,1fr);gap:10px}
+.bil .bmit-k{padding:10px 12px}
+.bil .bmit-k b{font-size:22px}
+.bil-tl{display:block;width:100%;height:auto}
+.bmit-p .bil-t td,.bmit-p .bil-t th{white-space:normal;vertical-align:top}
+.bmit-p .bil-t th:nth-child(2),.bmit-p .bil-t td:nth-child(2),.bmit-p .bil-t th:nth-child(3),.bmit-p .bil-t td:nth-child(3),.bmit-p .bil-t th:nth-child(4),.bmit-p .bil-t td:nth-child(4){text-align:right;white-space:nowrap}
+.bmit-p .bil-t th:last-child,.bmit-p .bil-t td.bil-ob{text-align:left;font-size:11px;color:#3a3a3c;padding-left:14px}
+.bil-t tr.cur td{background:#f2f5fd}
+.bil-t tr.hito td{color:#6e6e73}
+.bil-t small{color:#6e6e73;font-size:10.5px;font-weight:400}
+.bil-cur{font-size:10px;font-weight:700;color:#3056c4;background:#e8eefb;padding:1px 6px;border-radius:99px;margin-left:4px;white-space:nowrap}
+.bil-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+.bil-2>div>h3+*{margin-top:0}
+.bil-2 h3~h3{margin-top:12px!important}
+.bil-crit{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.bil-crit li{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:#1d1d1f;line-height:1.35}
+.bil-crit li i{flex:none;width:15px;height:15px;box-sizing:border-box;border-radius:50%;border:1.5px solid #8e8e93;font-style:normal;font-size:10px;font-weight:700;display:grid;place-items:center;color:#fff;margin-top:1px}
+.bil-crit li.ok i{background:#1ea863;border-color:#1ea863}
+.bil-crit li small{color:#6e6e73}
+.bil-dol{display:block;width:100%;height:auto}
+.bil-sum{margin:0 0 4px;font-size:12px;color:#3a3a3c}
+.bil-mini{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}
+.bil-mini td{padding:3px 0;border-bottom:1px solid #eeeef0;color:#1d1d1f}
+.bil-mini td:not(:first-child){text-align:right;width:46px;color:#3a3a3c}
+.bil-lst{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.bil-lst li{font-size:11.5px;line-height:1.4;color:#1d1d1f}
+.bil-lst li b{display:inline-block;min-width:38px;font-variant-numeric:tabular-nums}
+.bil-lst small{color:#6e6e73}
+.bil-iso{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.bil-iso div{background:#f5f5f7;border-radius:10px;padding:8px 10px}
+.bil-iso em{display:block;font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6e6e73}
+.bil-iso b{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:#1d1d1f}
+.bil-pie,.bil-nada{margin:6px 0 0;font-size:10.5px;color:#6e6e73;line-height:1.4}
+.bil-nada{font-size:11.5px}
+.bil-plv .pltp-ks{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:0 0 8px}
+.bil-plv .pltp-k{background:#f5f5f7;border-radius:10px;padding:7px 9px}
+.bil-plv .pltp-k b{font-size:16px;color:#1d1d1f}
+.bil-plv .pltp-k small{font-size:10px;color:#6e6e73}
+.bil-plv .pltp-svg{min-width:0;width:100%;cursor:default}
+.bil-plv .pltp-ley{font-size:10.5px;margin-top:4px;color:#6e6e73}
+.bil-doc{display:flex;flex-direction:column;align-items:center;gap:24px}
+html.bm-exp .bmit-p.bil{box-shadow:none}
+/* html2canvas parte el texto letra a letra si hay espaciado y deja un hueco tras la «I» (v766) */
+html.bm-exp .bmit-p.bil,html.bm-exp .bmit-p.bil *{letter-spacing:0!important}
+.plv-acc{display:flex;justify-content:flex-end;margin-top:10px}
+#bmit .bmit-bar .btn.ghost{color:#fff;background:rgba(255,255,255,.14);border-color:transparent;box-shadow:none}
+#bmit .bmit-bar .btn.ghost:hover{background:rgba(255,255,255,.22)}
+@media print{body.bmit-print .bil-doc{display:block}}
+.bil-co{display:none}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .bmit-bar .btn{min-height:44px}
+  #bmit .bmit-bar:has(.bil-co){flex-wrap:wrap;gap:8px}
+  #bmit .bmit-bar:has(.bil-co) b{flex:1 1 100%;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bmit .bmit-bar:has(.bil-co)>span{display:none}
+  #bmit .bmit-bar:has(.bil-co) .btn{flex:1 1 0;font-size:15px;padding:0 10px}
+  .bil-lg{display:none}.bil-co{display:inline}
+  .bmit-p.bil .bil-plv .pltp-svg{min-width:0}
+  .bmit-p.bil .bil-plv .pltp-ks{grid-template-columns:repeat(6,minmax(0,1fr))}
 }
 </style>
 <style id="bm-v749">
