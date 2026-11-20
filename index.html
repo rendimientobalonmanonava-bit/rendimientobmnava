@@ -13595,6 +13595,7 @@ function medDetailHtml(e){if(!e)return '';
   +'<button class="med-chipbtn" onclick="openMedTreat(\''+medEsc(e.name)+'\',\''+e.id+'\')">＋ Tratamiento</button>'
   +'<button class="med-chipbtn" onclick="medInjuryEdit(\''+e.id+'\')" title="Cambiar diagnóstico, zona, fechas o alta prevista">✎ Editar episodio</button>'
   +'<button class="med-chipbtn" onclick="bmInformeLesion(\''+e.id+'\')" title="Una hoja A4 para imprimir, guardar en PDF o mandar">Informe</button>'
+  +(e.open&&e.kind==='lesion'&&(e.phases||[]).length?'<button class="med-chipbtn" onclick="bmSuVuelta(\''+e.id+'\')" title="Una imagen sencilla para mandársela al jugador">Su vuelta</button>':'')
   +(e.open&&!e.altaDk?'<button class="med-chipbtn" onclick="medClose(\''+e.id+'\')" style="border-color:var(--ok);color:var(--ok-text)">✓ Dar el alta</button>':'')
   +(e.open&&e.altaDk?'<button class="med-chipbtn" onclick="medArchivar(\''+e.id+'\')">Cerrar caso</button>':'')
   +(!e.open?'<button class="med-chipbtn" onclick="medReopen(\''+e.id+'\')">Reabrir</button>':'')
@@ -29588,7 +29589,7 @@ function plvHTML(name,e,k,O){
   return '<div class="panel pltp plv" data-plv="'+k+'"><h2>El camino de vuelta <span class="r muted">'+tit+(st?' · '+esc(st.lab):'')+'</span></h2>'+ks
     +'<div class="pltp-lee" aria-live="polite">Pasa por el gráfico para ver cada día.</div>'
     +'<div class="pltp-gr"><svg class="pltp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="El camino de vuelta: carga diaria contra su normal, ACWR y recuperación desde tres semanas antes">'+g+'</svg></div>'+ley
-    +'<div class="plv-acc"><button type="button" class="btn ghost" onclick="bmInformeLesion(\''+String(e.id).replace(/'/g,"\\'")+'\')">Informe de la lesión</button></div>'
+    +'<div class="plv-acc">'+(e.open&&(e.phases||[]).length?'<button type="button" class="btn ghost" onclick="bmSuVuelta(\''+String(e.id).replace(/'/g,"\\'")+'\')">Su vuelta</button>':'')+'<button type="button" class="btn ghost" onclick="bmInformeLesion(\''+String(e.id).replace(/'/g,"\\'")+'\')">Informe de la lesión</button></div>'
     +'<p class="pltp-nota">Su normal antes: la mediana de sus días con carga en las tres semanas previas, la ventana crónica del ACWR; un día sin cuestionario no cuenta como cero. El % va sin color: la app no tiene listón de cuánto es suficiente. El readiness no se dibuja día a día porque la app lo calcula para el día que se mira y no guarda una serie por jugador.</p></div>';
 }
 function renderPlVuelta(name){
@@ -30215,6 +30216,81 @@ function mocRitmoHTML(e){
 }
 function mocRitmoCorto(e){const R=mocRitmo(e);if(!R||R.falta.length)return '';return '<em class="mcx-rit">a este ritmo '+bilFd(R.fecha)+'</em>';}
 window.mocRitmo=mocRitmo;window.mocRitmoHTML=mocRitmoHTML;window.mocRitmoCorto=mocRitmoCorto;
+
+/* ═══ v925 · «SU VUELTA», PARA EL JUGADOR ═══
+   Daniel, 20/11/2026, propuesta 4 de lesiones. Una imagen sencilla para
+   mandársela, de la familia de «Su semana» (v830): en qué fase está, lo que
+   puede hacer hoy (los permisos de la fase), lo que le falta para pasar a la
+   siguiente, su carga contra el objetivo de la fase (v920) y la vuelta
+   prevista. **Nada clínico que él no sepa ya**: ni tratamientos, ni notas, ni
+   dolor apuntado por la fisio. Y **sin «a este ritmo»**: esa cuenta es para el
+   cuerpo técnico. Fijada a claro: es para mandarla. */
+const SVU_PERM=[['gimnasio','Gimnasio'],['individual','Pista individual'],['grupo_parcial','Grupo parcial'],['grupo_completo','Grupo completo'],['competicion','Competición']];
+let SVU_ID=null;
+function svuHTML(e){
+  const E=bmEsc,name=e.name,p=(STATE.players||{})[name]||{};
+  const foto=(()=>{try{const f=photoFor(name);return f&&!/^data:/.test(f)?(window.phGrande?phGrande(f):f):'';}catch(x){return '';}})();
+  const ini=String(name).split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  let dor='';try{dor=(typeof dorsal==='function'?dorsal(name):'')||(((STATE.info||{})[name]||{}).dorsal||'');}catch(x){}
+  const hoy=dkey(new Date()),dias=plvDias(e.dk,hoy)+1;
+  const phs=(e.phases||[]).map((f,i)=>({f,i})).filter(x=>x.f&&x.f.type!=='hito');
+  const idx=e.phaseIdx||0,cur=(e.phases||[])[idx]||null;
+  const zona=[e.zona,{I:'izquierdo',D:'derecho',B:'bilateral'}[e.lado]||''].filter(Boolean).join(' ');
+  /* las fases, como una barra de pasos */
+  const pasos=phs.length?'<div class="svu-pasos">'+phs.map(x=>{const st=x.i<idx?'hecha':(x.i===idx?'ahora':'luego');
+      return '<div class="svu-p '+st+'"><i>'+(st==='hecha'?'✓':(phs.indexOf(x)+1))+'</i><span>'+E(x.f.nom||'')+'</span></div>';}).join('')+'</div>':'';
+  /* lo que puede hacer hoy */
+  const perms=(cur&&cur.permits)||[];
+  const puede='<div class="svu-s"><h4>Hoy puedes</h4><div class="svu-perm">'+SVU_PERM.map(x=>'<span class="'+(perms.indexOf(x[0])>=0?'si':'no')+'">'+(perms.indexOf(x[0])>=0?'✓ ':'')+x[1]+'</span>').join('')+'</div></div>';
+  /* lo que le falta para pasar de fase */
+  const crit=(cur&&cur.crit)||[];const falta=crit.filter(c=>!medCritOk(c)),hechos=crit.length-falta.length;
+  const sig=(e.phases||[]).slice(idx+1).find(f=>f&&f.type!=='hito');
+  const fl=crit.length?'<div class="svu-s"><h4>Para pasar a '+E(sig?(sig.nom||'la siguiente fase'):'la vuelta')+' <small>'+hechos+' de '+crit.length+' conseguidos</small></h4>'
+    +(falta.length?'<ul class="svu-crit">'+falta.slice(0,6).map(c=>{let v='';if(c.tipo==='num'){const l=(c.med||[]).length?c.med[c.med.length-1]:null;v='<small>'+(l?'ahora '+String(l.v).replace('.',',')+(c.unidad?' '+E(c.unidad):''):'sin medir')+' · objetivo '+(c.low?'≤ ':'≥ ')+String(c.obj).replace('.',',')+(c.unidad?' '+E(c.unidad):'')+'</small>';}
+        return '<li><i></i><span>'+E(c.txt||'')+v+'</span></li>';}).join('')+'</ul>'+(falta.length>6?'<p class="svu-pie2">y '+(falta.length-6)+' más</p>':'')
+      :'<p class="svu-ok">¡Todo conseguido! Falta que el cuerpo técnico te pase de fase.</p>')+'</div>':'';
+  /* su carga contra el objetivo */
+  let carga='';try{const v=mocVer(e,idx);if(v&&v.m&&v.m.pct!=null&&(v.o.lo!=null||v.o.hi!=null)){const o=v.o,lo=o.lo||0,hi=o.hi!=null?o.hi:150,mx=Math.max(120,hi*1.15,v.m.pct*1.05);
+      const X=x=>Math.max(0,Math.min(100,x/mx*100));const s=v.carga||{dir:0};
+      carga='<div class="svu-s svu-carga"><h4>Tu carga <small>los últimos días de la fase, contra lo que hace el equipo</small></h4>'
+        +'<div class="svu-cb"><em style="left:'+X(lo).toFixed(1)+'%;width:'+(X(hi)-X(lo)).toFixed(1)+'%"></em><i style="left:'+X(v.m.pct).toFixed(1)+'%"></i></div>'
+        +'<p><b>'+v.m.pct+' %</b> de lo que hace el equipo · tu objetivo, '+mocRango(o)+' · '+(s.dir>0?'por encima':(s.dir<0?'por debajo':'dentro'))+'</p></div>';}}catch(x){}
+  const vp=e.competitiveDischargeEstimated||e.rtp||null;
+  const vuelta=vp?'<div class="svu-s svu-vu"><span>Vuelta prevista</span><b>'+(()=>{let x=dkToDate(vp).toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});return x.charAt(0).toUpperCase()+x.slice(1);})()+'</b>'
+    +(()=>{const d=plvDias(hoy,vp);return d>0?'<small>dentro de '+d+(d===1?' día':' días')+'</small>':'';})()+'</div>':'';
+  return '<div class="tsw-doc svu-doc">'
+    +'<div class="tsw-cab">'+(window.__LOGO_CLUB__?'<img class="tsw-logo" src="'+window.__LOGO_CLUB__+'" alt="">':'')
+      +'<div class="tsw-tit"><span>Tu vuelta</span><b>'+E(cur?(cur.nom||'En readaptación'):'En readaptación')+'</b><small>día '+dias+' desde el '+bilFd(e.dk)+'</small></div></div>'
+    +'<div class="tsw-yo">'+(foto?'<img class="tsw-ph" src="'+E(foto)+'" alt="">':'<div class="tsw-ini">'+E(ini)+'</div>')
+      +'<div><b>'+E(name)+'</b><span>'+E([e.title||'',zona].filter(Boolean).join(' · '))+'</span>'+(dor!==''?'<span>Dorsal '+E(dor)+'</span>':'')+'</div></div>'
+    +pasos+puede+fl+carga+vuelta
+    +'<div class="tsw-pie"><span>BM Nava · paso a paso</span>'+(window.__LOGO_HP__?'<img class="tsw-hp" src="'+window.__LOGO_HP__+'" alt="">':'')+'</div>'
+    +'</div>';
+}
+function bmSuVuelta(id){
+  try{medDbLoad();}catch(x){}try{if(window.crlSyncTodo)crlSyncTodo();}catch(x){}
+  const e=medInj(id);if(!e){toast('No encuentro esa lesión');return;}
+  SVU_ID=id;
+  bmHoja({id:'svu',titulo:'Su vuelta',clase:'cj-hoja',html:'<div class="cj" id="svu-cuerpo"></div>'});
+  const box=document.getElementById('svu-cuerpo');if(!box)return;
+  let h='';try{h=svuHTML(e);}catch(err){console.error('bmnava · su vuelta',err);box.innerHTML='<p class="ij-nada">No se pudo preparar la imagen.</p>';return;}
+  box.innerHTML='<div class="cj-vista"><div class="cj-esc">'+h+'</div></div>'
+    +'<div class="ij-acc cj-acc"><button type="button" class="btn" data-svu="png">'+(esMovil()?'Compartir':'Exportar imagen')+'</button></div>';
+  const v=box.querySelector('.cj-vista'),es=v&&v.querySelector('.cj-esc'),d=es&&es.firstElementChild;
+  if(d){const s=Math.min(1,(v.clientWidth||600)/600);es.style.transform=s<1?'scale('+s+')':'';v.style.height=Math.ceil(d.offsetHeight*s)+'px';}
+}
+function svuExporta(){
+  const e=medInj(SVU_ID||'');if(!e)return Promise.resolve();
+  const host=document.createElement('div');host.className='cvd-host';
+  host.innerHTML=svuHTML(e).replace('class="tsw-doc svu-doc"','class="tsw-doc svu-doc" id="svu-doc"');
+  document.body.appendChild(host);
+  const fin=()=>{try{host.remove();}catch(x){}};
+  const nom=String(e.name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_');
+  const imgs=[...host.querySelectorAll('img')].map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r;setTimeout(r,3000);}));
+  return Promise.all(imgs).then(()=>Promise.resolve(exportNodePNG('svu-doc','su_vuelta_'+nom+'.png',{bg:'transparent'}))).then(fin,fin);
+}
+document.addEventListener('click',ev=>{const b=ev.target&&ev.target.closest&&ev.target.closest('#bmh-svu [data-svu="png"]');if(b)svuExporta();});
+window.bmSuVuelta=bmSuVuelta;
 
 /* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
 function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
@@ -61168,6 +61244,41 @@ html.bm-exp .bmit-p.bil,html.bm-exp .bmit-p.bil *{letter-spacing:0!important}
 .mor-s b{color:var(--txt);font-weight:600}
 .mor-f{font-variant-numeric:tabular-nums}
 .mcx-rit{display:block;font-style:normal;font-size:11px;color:var(--muted);flex-basis:100%;text-align:right}
+</style>
+<style id="bm-v925">
+/* v925 · «Su vuelta» · documento fijado a claro, como «Su semana» */
+.svu-pasos{display:flex;gap:6px;margin:2px 0 4px}
+.svu-s{margin-top:18px}
+.svu-s h4{margin:0 0 9px;font-size:15px;font-weight:700}
+.svu-s h4 small{font-size:11.5px;font-weight:400;color:var(--d-mut);margin-left:6px}
+.svu-p{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}
+.svu-p i{font-style:normal;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;font-size:12px;font-weight:700;background:var(--d-hair);color:var(--d-mut)}
+.svu-p.hecha i{background:var(--d-ok);color:#fff}
+.svu-p.ahora i{background:var(--d-acc);color:#fff;box-shadow:0 0 0 4px rgba(48,86,196,.18)}
+.svu-p span{font-size:11px;line-height:1.25;color:var(--d-mut)}
+.svu-p.ahora span{color:var(--d-txt);font-weight:700}
+.svu-perm{display:flex;flex-wrap:wrap;gap:6px}
+.svu-perm span{font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:99px}
+.svu-perm .si{background:#e3f4ea;color:#116b44}
+.svu-perm .no{background:var(--d-bg);color:#8a8f99;text-decoration:line-through}
+.svu-crit{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.svu-crit li{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.35}
+.svu-crit li i{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid #9aa3b2;margin-top:1px}
+.svu-crit small{display:block;font-size:11.5px;color:var(--d-mut)}
+.svu-ok{margin:0;font-size:13.5px;font-weight:600;color:#116b44}
+.svu-pie2{margin:6px 0 0;font-size:11.5px;color:var(--d-mut)}
+.svu-cb{position:relative;height:12px;border-radius:6px;background:var(--d-hair)}
+.svu-cb em{position:absolute;top:0;bottom:0;background:#b9c6ea;border-radius:6px}
+.svu-cb i{position:absolute;top:-4px;width:4px;height:20px;margin-left:-2px;border-radius:2px;background:var(--d-acc)}
+.svu-carga p{margin:8px 0 0;font-size:13px;color:var(--d-mut)}
+.svu-carga p b{font-size:17px;color:var(--d-txt)}
+.svu-vu{padding:12px 14px;border-radius:16px;background:var(--d-bg)}
+.svu-vu span{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--d-mut)}
+.svu-vu b{display:block;font-size:18px;font-weight:700;margin-top:3px}
+.svu-vu small{display:block;font-size:12px;color:var(--d-mut);margin-top:2px}
+.svu-doc .tsw-yo span+span{margin-top:0}
+html.bm-exp .svu-doc,html.bm-exp .svu-doc *{letter-spacing:0!important}
+.plv-acc{gap:8px}
 </style>
 <style id="bm-v749">
 /* v749 · Vuelta a la competición, dentro de la tarjeta de cada episodio abierto */
