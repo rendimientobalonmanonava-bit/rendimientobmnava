@@ -29913,7 +29913,7 @@ function bilHTML(e){
     +k('Días',String(D.diasTot),e.open?'desde el '+bilFd(e.dk):'del '+bilFd(e.dk)+' al '+bilFd(D.fin||e.closeDk))
     +k('Días fuera',String(D.fuera),'sin entrenar: baja, no entrena o enfermo')
     +k('Fase',nf?('F'+(nf.i+1)+' de '+D.fases.length):(D.fases.length?(e.open?'Vuelta':'Completada'):'—'),nf?E(nf.f.nom||''):(D.fases.length?'plan de '+D.fases.length+' fases':'sin plan de readaptación'))
-    +k(e.open?'Vuelta prevista':'Vuelta a competir',vp?bilFd(vp.dk):'—',vp?(vp.real?'ya ha vuelto':(()=>{const d=plvDias(D.hoy,vp.dk);return d>0?'en '+d+(d===1?' día':' días'):(d===0?'hoy':'prevista · hace '+(-d)+' días');})()):'sin fecha prevista')
+    +k(e.open?'Vuelta prevista':'Vuelta a competir',vp?bilFd(vp.dk):'—',(vp?(vp.real?'ya ha vuelto':(()=>{const d=plvDias(D.hoy,vp.dk);return d>0?'en '+d+(d===1?' día':' días'):(d===0?'hoy':'prevista · hace '+(-d)+' días');})()):'sin fecha prevista')+(()=>{try{const R=window.mocRitmo?mocRitmo(e):null;return R&&!R.falta.length?'<br>a este ritmo, '+bilFd(R.fecha):'';}catch(x){return '';}})())
     +'</div></section>');
   /* 3 · línea de tiempo */
   B.push('<section class="bil-b"><h3>Línea de tiempo</h3>'+bilLineaSVG(e,D)+'</section>');
@@ -30178,6 +30178,43 @@ document.addEventListener('change',ev=>{const s=ev.target&&ev.target.closest&&ev
   const o=crlOpc(s.value);toast(o?'Criterio enlazado a «'+o.lab+'»':'El criterio vuelve a rellenarse a mano');});
 (function(){const r=window.renderMedico;if(typeof r!=='function'||r.__crl)return;const w=function(){try{crlSyncTodo();}catch(x){}return r.apply(this,arguments);};w.__crl=true;window.renderMedico=w;})();
 window.crlSyncTodo=crlSyncTodo;window.crlFilaHTML=crlFilaHTML;window.crlOpc=crlOpc;
+
+/* ═══ v924 · LA VUELTA, A ESTE RITMO ═══
+   Daniel, 20/11/2026, propuesta 3 de lesiones. Al lado de la fecha de vuelta
+   que puso el cuerpo técnico, la fecha a la que llegaría si lo que le queda
+   dura lo previsto: lo que lleva de verdad en la fase en curso y la duración
+   prevista (`durDays`) del resto hasta el hito de alta competitiva. **Es una
+   cuenta, no una predicción**: no hay modelo, y si a alguna fase le falta la
+   duración prevista no se calcula y se dice cuál. Mira al futuro, así que va
+   por el reloj (§2.1). Sin color de alerta: ir más tarde no es una alarma. */
+function mocRitmo(e){
+  if(!e||!e.open)return null;const phs=e.phases||[];if(!phs.length)return null;
+  const idx=e.phaseIdx||0;if(idx>=phs.length)return null;
+  const hoy=dkey(new Date());
+  let T=-1;for(let j=idx;j<phs.length;j++){const f=phs[j];if(f&&(f.key==='altacomp'||(f.type==='hito'&&/compet/i.test(f.nom||'')))){T=j;break;}}
+  if(T<0){T=phs.length;for(let j=phs.length-1;j>idx;j--){if(phs[j]&&phs[j].type==='seguimiento')T=j;else break;}}
+  if(T<=idx)return null;
+  const cur=phs[idx];const enFase=cur&&cur.startDk&&cur.startDk<=hoy?plvDias(cur.startDk,hoy):0;
+  const falta=[];let resto=0,pasada=0;
+  if(cur&&cur.type!=='hito'){const d=+cur.durDays||0;if(d>0){resto+=Math.max(0,d-enFase);pasada=Math.max(0,enFase-d);}else falta.push('F'+(idx+1));}
+  for(let j=idx+1;j<T;j++){const f=phs[j];if(!f||f.type==='hito')continue;const d=+f.durDays||0;if(d>0)resto+=d;else falta.push('F'+(j+1));}
+  const hechas=[];for(let j=0;j<idx;j++){const f=phs[j];if(!f||f.type==='hito'||!f.startDk)continue;let tr=null;try{tr=mocTramo(e,j);}catch(x){}if(!tr)continue;hechas.push({i:j,nom:f.nom||'',real:plvDias(tr.ini,tr.fin)+1,prev:+f.durDays||0});}
+  const prevista=e.competitiveDischargeEstimated||e.rtp||null;
+  if(falta.length)return {falta,prevista,hechas,pasada,enFase};
+  const fecha=dkSumaDias(hoy,resto);
+  return {fecha,prevista,dif:prevista?plvDias(prevista,fecha):null,resto,pasada,enFase,hechas,falta:[],hito:phs[T]?phs[T].nom:null};
+}
+function mocDifTxt(d){if(d==null)return '';if(d===0)return 'el mismo día que la prevista';const a=Math.abs(d);return a+(a===1?' día':' días')+(d>0?' más tarde':' antes')+' que la prevista';}
+function mocRitmoHTML(e){
+  const R=mocRitmo(e);if(!R)return '';const E=bmEsc;
+  if(R.falta.length)return '<div class="mor"><span class="mor-t">A este ritmo</span><p class="mor-s">No se puede calcular: '+E(R.falta.join(', '))+(R.falta.length===1?' no tiene':' no tienen')+' duración prevista. Pónsela en «Fechas y días previstos».</p></div>';
+  const h=R.hechas.length?'<p class="mor-f">'+R.hechas.map(x=>'F'+(x.i+1)+' '+x.real+(x.prev?' de '+x.prev:'')+' d').join(' · ')+'</p>':'';
+  return '<div class="mor"><span class="mor-t">A este ritmo</span><b>'+bilFd(R.fecha)+'</b>'
+    +'<p class="mor-s">'+(R.prevista?E(mocDifTxt(R.dif))+' ('+bilFd(R.prevista)+') · ':'')+'si lo que le queda dura lo previsto ('+R.resto+(R.resto===1?' día':' días')+')'
+    +(R.pasada?' · <b>esta fase lleva '+R.pasada+(R.pasada===1?' día':' días')+' más de lo previsto</b>':'')+'</p>'+h+'</div>';
+}
+function mocRitmoCorto(e){const R=mocRitmo(e);if(!R||R.falta.length)return '';return '<em class="mcx-rit">a este ritmo '+bilFd(R.fecha)+'</em>';}
+window.mocRitmo=mocRitmo;window.mocRitmoHTML=mocRitmoHTML;window.mocRitmoCorto=mocRitmoCorto;
 
 /* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
 function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
@@ -52181,6 +52218,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    +'<span class="r" style="margin-left:auto"></span>'+(e.tissueTypeNormalized?'<span class="rh-tag">'+esc(e.tissueTypeNormalized)+'</span>':'')+(e.rehabTemplateName?'<span class="rh-tag ghost">'+esc(e.rehabTemplateName)+'</span>':'')+'</div>';
   head+='<div class="rh-kvs">'+chip('Días desde lesión',days)+chip('Fase actual',f?esc(f.nom):'—')+chip('Disponibilidad',st?esc(st.lab):'—')+(f&&f.durDays?chip('Días en fase',(f.startDk?dB(f.startDk,today()):0)+'/'+f.durDays):'')+'</div>';
   head+='<div class="rh-miles">'+dEst('Alta médica',e.medicalDischargeEstimated,e.medicalDischargeReal,'medical')+dEst('Alta deportiva',e.sportDischargeEstimated,e.sportDischargeReal,'sport')+dEst('Alta competitiva / RTP',e.competitiveDischargeEstimated||e.rtp,e.competitiveDischargeReal,'competitive')+'</div>';
+  try{head+=window.mocRitmoHTML?mocRitmoHTML(e):'';}catch(err){}
   if(e.postInjuryFollowUp&&e.postInjuryFollowUp.active){var pd=dB(e.postInjuryFollowUp.startDk,today());head+='<div class="rh-post">🛡️ Fase sensible post-lesional activa · semana '+(Math.floor(pd/7)+1)+' de '+(e.postInjuryFollowUp.weeks||6)+'</div>';}
   if(f){
    var pres=f.prescription||{};
@@ -52640,7 +52678,7 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
     +'<div class="mcx-prow">'+(can.length?can.map(function(k){return chip(k,true);}).join(''):'<span class="mcx-none">Solo tratamiento</span>')+'</div>'
     +(no.length?'<div class="mcx-prow mcx-no">'+no.map(function(k){return chip(k,false);}).join('')+'</div>':'')
    +'</div>'
-   +'<div class="mcx-foot"><span>Vuelta prevista</span><b>'+rtpTxt+'</b>'+(rtpSub?'<i>'+rtpSub+'</i>':'')+'</div>'
+   +'<div class="mcx-foot"><span>Vuelta prevista</span><b>'+rtpTxt+'</b>'+(rtpSub?'<i>'+rtpSub+'</i>':'')+(window.mocRitmoCorto?mocRitmoCorto(e):'')+'</div>'
    +'</div>';
  }
  /* v227 · botón directo de "Parte del día/incidencia" para Virginia: es lo que
@@ -61120,6 +61158,16 @@ html.bm-exp .bmit-p.bil,html.bm-exp .bmit-p.bil *{letter-spacing:0!important}
 .crl small{font-size:var(--fs-xs);color:var(--muted)}
 .crl small b{color:var(--txt);font-variant-numeric:tabular-nums}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.crl-s{min-height:44px;max-width:100%;flex:1 1 100%}}
+</style>
+<style id="bm-v924">
+/* v924 · la vuelta, a este ritmo */
+.mor{margin:8px 0 2px;padding:9px 12px;border-radius:10px;background:var(--panel2)}
+.mor-t{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-right:8px}
+.mor>b{font-size:17px;font-weight:700;color:var(--txt);font-variant-numeric:tabular-nums}
+.mor-s,.mor-f{margin:3px 0 0;font-size:var(--fs-xs);color:var(--muted);line-height:1.4}
+.mor-s b{color:var(--txt);font-weight:600}
+.mor-f{font-variant-numeric:tabular-nums}
+.mcx-rit{display:block;font-style:normal;font-size:11px;color:var(--muted);flex-basis:100%;text-align:right}
 </style>
 <style id="bm-v749">
 /* v749 · Vuelta a la competición, dentro de la tarjeta de cada episodio abierto */
