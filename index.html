@@ -27985,6 +27985,80 @@ function bmjlfInstala(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmjlfInstala,0));else setTimeout(bmjlfInstala,0);
 window.bmJlFotos=bmJlFotos;
+/* ═══ v910 · LA PANTALLA DE ARRANQUE CUENTA LO QUE LEE (ORDENADOR) ═══
+   Daniel, 20/11/2026, propuesta 1. Al abrir, la pantalla de arranque se
+   quedaba quieta unos cuatro segundos (§4.1.1: son las hojas de Google) sin
+   decir qué estaba pasando. Ahora, alrededor del escudo, un anillo de cuatro
+   tramos se completa a medida que llegan las cuatro hojas DE VERDAD
+   —plantilla, wellness, RPE y valoraciones—, con sus nombres debajo y cuál
+   falta todavía. **No es una barra inventada**: cada tramo es una petición, y
+   se llena cuando esa hoja ha contestado bien; antes de pedirlas, la app
+   sincroniza con el equipo y lo dice. Cada hoja se reconoce por el
+   identificador de su enlace (el de `CONFIG.sources`, el que esté escrito en
+   Conexión o el de valoraciones guardado). Sólo el ordenador: en el móvil la
+   app abre con la copia (v547) y no espera a las hojas. */
+const BMARR={on:false,el:null,hs:[['roster','Plantilla'],['wellness','Wellness'],['rpe','RPE'],['valoraciones','Valoraciones']],est:{},ids:null,pidio:false};
+function bmarrVale(){return !esMovil()&&typeof bmEscFino==='function'&&bmEscFino();}
+function bmarrIds(){
+  const m=[];const pon=(k,u)=>{const s=String(u||''),x=s.match(/\/d\/(?:e\/)?([A-Za-z0-9_-]{20,})/);if(!x)return;const g=s.match(/[?&]gid=(\d+)/);m.push({k,id:x[1],gid:g?g[1]:null});};
+  try{const s=CONFIG.sources||{};BMARR.hs.forEach(([k])=>pon(k,s[k]));}catch(e){}
+  try{['wellness','rpe','roster'].forEach(k=>{const i=document.getElementById('url-'+k);if(i&&i.value)pon(k,i.value);});}catch(e){}
+  try{const v=localStorage.getItem('bmnava_vhurl');if(v)pon('valoraciones',v);}catch(e){}
+  return m;
+}
+function bmarrDe(url){
+  if(!BMARR.ids)BMARR.ids=bmarrIds();
+  const s=String(url||'');const g=s.match(/[?&]gid=(\d+)/),gid=g?g[1]:null;
+  const c=BMARR.ids.filter(o=>s.indexOf(o.id)>=0);if(!c.length)return null;
+  return (c.find(o=>o.gid&&o.gid===gid)||c.find(o=>!o.gid)||c[0]).k;
+}
+function bmarrArco(i){
+  const a0=(-90+i*90+5)*Math.PI/180,a1=(-90+(i+1)*90-5)*Math.PI/180,R=47,P=a=>(50+R*Math.cos(a)).toFixed(2)+' '+(50+R*Math.sin(a)).toFixed(2);
+  return 'M'+P(a0)+' A'+R+' '+R+' 0 0 1 '+P(a1);
+}
+function bmarrPinta(){
+  const el=BMARR.el;if(!el||!el.isConnected)return;
+  const ok=BMARR.hs.filter(([k])=>BMARR.est[k]==='ok').length;
+  BMARR.hs.forEach(([k])=>{const e=BMARR.est[k]||'';el.querySelectorAll('[data-k="'+k+'"]').forEach(x=>x.setAttribute('data-e',e));});
+  const t=el.querySelector('.sp-etapa');
+  if(t)t.textContent=ok===BMARR.hs.length?'Todo listo':BMARR.pidio?'Leyendo los datos · '+ok+' de '+BMARR.hs.length:'Sincronizando con el equipo…';
+  el.classList.toggle('sp-prog--ok',ok===BMARR.hs.length);
+}
+function bmarrColoca(){
+  const el=BMARR.el,sp=document.getElementById('splash'),lg=document.getElementById('sp-logo');if(!el||!sp||!lg||!el.isConnected)return;
+  const w=lg.offsetWidth,h=lg.offsetHeight;if(!w||!h)return;
+  const cx=lg.offsetLeft+w/2,cy=lg.offsetTop+h/2,D=Math.round(Math.max(w,h)*1.18+22);
+  const r=el.querySelector('.sp-ring');Object.assign(r.style,{left:(cx-D/2)+'px',top:(cy-D/2)+'px',width:D+'px',height:D+'px'});
+  const l=el.querySelector('.sp-hojas');l.style.top=Math.round(cy+D/2+22)+'px';
+  el.classList.add('sp-prog--pos');
+}
+function bmarrMonta(){
+  try{
+    const sp=document.getElementById('splash');if(!sp||!bmarrVale()||sp.querySelector('.sp-prog'))return;
+    const d=document.createElement('div');d.className='sp-prog';
+    d.innerHTML='<svg class="sp-ring" viewBox="0 0 100 100" aria-hidden="true">'+BMARR.hs.map(([k],i)=>'<path class="sp-rt" d="'+bmarrArco(i)+'"/><path class="sp-rf" data-k="'+k+'" pathLength="1" d="'+bmarrArco(i)+'"/>').join('')+'</svg>'
+      +'<div class="sp-hojas" role="status" aria-live="polite"><span class="sp-etapa">Sincronizando con el equipo…</span><span class="sp-hs">'
+      +BMARR.hs.map(([k,l])=>'<i data-k="'+k+'">'+l+'</i>').join('')+'</span></div>';
+    const wash=sp.querySelector('.sp-wash');sp.insertBefore(d,wash||null);
+    BMARR.el=d;BMARR.on=true;
+    const lg=document.getElementById('sp-logo');if(lg)lg.addEventListener('load',bmarrColoca);
+    bmarrColoca();setTimeout(bmarrColoca,60);setTimeout(bmarrColoca,900);
+    window.addEventListener('resize',bmarrColoca,{passive:true});
+    const f=window.fetch;if(typeof f!=='function'||f.__bmarr)return;
+    const w=function(rq){
+      let k=null;
+      if(BMARR.on){if(!BMARR.el||!BMARR.el.isConnected)BMARR.on=false;
+        else{try{k=bmarrDe(typeof rq==='string'?rq:(rq&&rq.url));}catch(e){k=null;}}}
+      const p=f.apply(this,arguments);
+      if(k&&BMARR.est[k]!=='ok'){BMARR.pidio=true;BMARR.est[k]='vuelo';bmarrPinta();
+        p.then(res=>{BMARR.est[k]=res&&res.ok?'ok':'mal';bmarrPinta();},()=>{BMARR.est[k]='mal';bmarrPinta();});}
+      return p;};
+    Object.keys(f).forEach(x=>{try{w[x]=f[x];}catch(_){}});
+    w.__bmarr=true;window.fetch=w;
+  }catch(e){console.error('bmnava · arranque con progreso',e);}
+}
+bmarrMonta();
+window.bmarrMonta=bmarrMonta;
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
@@ -59665,6 +59739,35 @@ html[data-theme="dark"]{--luz-borde:rgba(255,255,255,.4);--luz-fondo:rgba(255,25
   #v-carga .ctw-g .ctw-mira-h{color:var(--acc-seg,var(--accent));font-weight:700}
   @media (prefers-reduced-motion:reduce){#v-carga .ctw-g>.ctw-r{transition:none}#v-carga .ctw-g>.ctw-r.ctw-mira-f{translate:none}}
 }
+</style>
+<style id="esc-v910">
+/* v910 · la pantalla de arranque cuenta lo que lee (ordenador). Va dentro de
+   la pantalla de arranque, que es siempre oscura: colores fijos de esa
+   pantalla, no de la app. */
+.sp-prog{position:absolute;inset:0;pointer-events:none}
+.sp-prog:not(.sp-prog--pos){visibility:hidden}
+.sp-ring{position:absolute;overflow:visible}
+.sp-ring path{fill:none;stroke-width:1.6;stroke-linecap:round}
+.sp-ring .sp-rt{stroke:rgba(255,255,255,.10)}
+.sp-ring .sp-rf{stroke:rgba(255,255,255,.92);stroke-dasharray:1;stroke-dashoffset:1;opacity:0;transition:stroke-dashoffset .55s cubic-bezier(.32,.72,0,1),opacity .3s ease}
+.sp-ring .sp-rf[data-e="vuelo"]{stroke-dashoffset:.94;animation:spRfLate 1.2s ease-in-out infinite alternate}
+.sp-ring .sp-rf[data-e="vuelo"]{opacity:1}
+.sp-ring .sp-rf[data-e="ok"]{stroke-dashoffset:0;opacity:1;animation:none}
+.sp-ring .sp-rf[data-e="mal"]{stroke-dashoffset:1}
+@keyframes spRfLate{from{opacity:.45}to{opacity:1}}
+.sp-prog--ok .sp-ring{animation:spRingOk .7s cubic-bezier(.32,.72,0,1)}
+@keyframes spRingOk{0%{filter:none}40%{filter:drop-shadow(0 0 10px rgba(255,255,255,.55))}100%{filter:none}}
+.sp-hojas{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:8px;
+  font:500 13px/1.3 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;color:rgba(255,255,255,.62);opacity:0;animation:spHojasIn .5s ease-out .5s forwards}
+@keyframes spHojasIn{to{opacity:1}}
+.sp-etapa{font-size:13px;font-weight:600;color:rgba(255,255,255,.86);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.sp-hs{display:flex;gap:16px}
+.sp-hs i{font-style:normal;display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,.50);transition:color .3s ease}
+.sp-hs i::before{content:'';width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.22);transition:background .3s ease,transform .3s cubic-bezier(.32,.72,0,1)}
+.sp-hs i[data-e="vuelo"]::before{background:rgba(255,255,255,.55)}
+.sp-hs i[data-e="ok"]{color:rgba(255,255,255,.94)}
+.sp-hs i[data-e="ok"]::before{background:#fff;transform:scale(1.25)}
+@media (prefers-reduced-motion:reduce){.sp-ring .sp-rf,.sp-hs i,.sp-hs i::before{transition:none}.sp-ring .sp-rf[data-e="vuelo"],.sp-prog--ok .sp-ring{animation:none}.sp-hojas{animation:none;opacity:1}}
 </style>
 <style id="bm-v808">
 /* v808 · el resumen de un día (hoja) */
