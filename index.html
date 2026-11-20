@@ -27962,6 +27962,29 @@ function bmctmOla(g){
 }
 let BMCTM_T=0;
 new MutationObserver(()=>{if(BMCTM_T||!bmctmVale())return;BMCTM_T=setTimeout(()=>{BMCTM_T=0;document.querySelectorAll('#v-carga .ctw-g:not([data-bmola])').forEach(g=>{try{bmctmOla(g);}catch(e){console.error('bmnava · ola del ciclo',e);}});},40);}).observe(document.documentElement,{childList:true,subtree:true});
+/* ═══ v909 · LA PLANTILLA DE AL LADO RECIBE SUS FOTOS ═══
+   Daniel, 20/11/2026: «sí, arréglalo». Si se abría una ficha en los primeros
+   segundos, la columna de la plantilla (v696) se quedaba con las iniciales: es
+   una COPIA de la lista de Jugadores hecha al abrir la ficha, y cuando la
+   búsqueda de fotos termina la app repinta todo (`phRepaint` → `renderAll`)
+   menos esa copia, que sólo se rehace al cambiar de pantalla. Ahora, después
+   de cada repintado, las caras provisionales de esa columna (las iniciales,
+   que son una imagen `data:`) se cambian por la foto si ya existe. No se
+   reconstruye la lista: no se pierde ni la búsqueda escrita ni la posición. */
+function bmJlFotos(){
+  const c=document.getElementById('bm-jl');if(!c||typeof photoFor!=='function')return 0;let n=0;
+  c.querySelectorAll('.jl-f[data-n] img').forEach(im=>{const s=im.getAttribute('src')||'';if(s.indexOf('data:')!==0)return;
+    const f=im.closest('.jl-f');let u='';try{u=photoFor(f.dataset.n)||'';}catch(e){}
+    if(u&&u.indexOf('data:')!==0){im.src=u;n++;}});
+  return n;
+}
+function bmjlfInstala(){
+  const f=window.renderAll;if(typeof f!=='function'||f.__bmjlf)return;
+  const w=function(){const r=f.apply(this,arguments);try{bmJlFotos();}catch(e){}return r;};
+  w.__bmjlf=true;Object.keys(f).forEach(k=>{try{w[k]=f[k];}catch(_){}});window.renderAll=w;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bmjlfInstala,0));else setTimeout(bmjlfInstala,0);
+window.bmJlFotos=bmJlFotos;
 window.bmcuEntra=bmcuEntra;
 /* v880 · La cara crece en su sitio. Si la foto va colocada con un `transform`
    de sólo desplazamiento (en «A vigilar» y en Disponibilidad, translateX(-50%)),
