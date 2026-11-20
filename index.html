@@ -13611,11 +13611,13 @@ function medDetailHtml(e){if(!e)return '';
    const wk=f.startDk?Math.floor(medDaysBetween(f.startDk,medToday())/7)+1:null;
    cur='<div class="med-kv" style="margin:2px 0 10px"><span>Fase actual: <b>'+medEsc(f.nom)+'</b>'+(f.sub?' <span class="muted">('+medEsc(f.sub)+')</span>':'')+'</span>'+(wk?'<span>Semana <b>'+wk+'</b> en fase</span>':'')+'<span>Criterios: <b>'+done+'/'+f.crit.length+'</b></span></div>';
    if(f.obj&&f.obj.length)cur+='<div class="med-obj">'+f.obj.map(o=>'<b>'+medEsc(o.b)+'</b> · '+o.items.map(medEsc).join(' · ')).join('<br>')+'</div>';
+   try{cur+=mocLineaHTML(e,e.phaseIdx,{editar:true})||'';}catch(err){}
    cur+=f.crit.map(c=>medCritHtml(e.id,c)).join('');
    cur+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">'
     +'<button class="med-chipbtn" onclick="medCritNew(\''+e.id+'\')">＋ Criterio</button>'
     +'<button class="med-chipbtn" onclick="medPhaseEdit(\''+e.id+'\')">Editar fase</button>'
     +'<button class="med-chipbtn" onclick="medPhaseAdd(\''+e.id+'\')">＋ Fase</button>'
+    +'<button class="med-chipbtn" onclick="mocEditar(\''+e.id+'\')">Objetivos de carga</button>'
     +'<span class="r" style="margin-left:auto"></span>'
     +(e.phaseIdx<e.phases.length-1
       ?'<button class="btn ghost" style="padding:6px 14px;font-size:12px" onclick="medNextPhase(\''+e.id+'\')">Pasar a '+medEsc((e.phases[e.phaseIdx+1]||{}).nom||'siguiente')+' →</button>'
@@ -29518,7 +29520,11 @@ function plvHTML(name,e,k){
   /* geometría */
   const W=1000,pl=104,pr=8,iw=W-pl-pr,bw=iw/N,X=i=>pl+i*bw;
   const yF=14,yC=30,hC=104,yA=yC+hC+16,hA=50,yR=yA+hA+14,hR=12,H=yR+hR+24;
-  const maxU=Math.max(1,(pre||0)*1.25,...Object.values(ua));
+  /* v920 · la franja del objetivo de cada fase: la carga del equipo de ese día por el % que pide el cuerpo técnico */
+  const dsI={};ds.forEach((dk,i)=>dsI[dk]=i);const banda=[];
+  (e.phases||[]).forEach((f,i)=>{const o=mocObj(f);if(!o||o.hi==null)return;const tr=mocTramo(e,i);if(!tr)return;
+    dkRango(tr.ini,tr.fin).forEach(dk=>{const j=dsI[dk];if(j==null)return;let t=null;try{t=lbTeamDay(dk);}catch(x){}if(!t||!(t.ua>0))return;banda.push({j,lo:t.ua*(o.lo||0)/100,hi:t.ua*o.hi/100});});});
+  const maxU=Math.max(1,(pre||0)*1.25,...Object.values(ua),...banda.map(b=>b.hi));
   const YC=v=>yC+hC-Math.min(1,v/maxU)*hC;
   const ACMAX=2,YA=v=>yA+hA-(Math.max(0,Math.min(ACMAX,v))/ACMAX)*hA;
   const lo=(CONFIG.load&&CONFIG.load.acwrYellowLo)||0.8,hi=(CONFIG.load&&CONFIG.load.acwrYellowHi)||1.3;
@@ -29538,6 +29544,8 @@ function plvHTML(name,e,k){
   const MESL=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   ds.forEach((dk,i)=>{if(dk.slice(8)==='01')g+='<text x="'+(X(i)+3).toFixed(1)+'" y="'+(H-3)+'" font-size="11" fill="var(--muted)">'+MESL[+dk.slice(5,7)-1]+'</text>';});
   g+='<text x="'+X(i0).toFixed(1)+'" y="'+(H-3)+'" text-anchor="middle" font-size="11" font-weight="700" fill="'+colTinta(cE)+'">'+fd(e.dk)+'</text>';
+  /* v920 · objetivo de la fase, detrás de las barras y en neutro: no es una alerta */
+  banda.forEach(b=>{const y1=YC(b.hi),y0=YC(b.lo);g+='<rect class="plv-ob" x="'+X(b.j).toFixed(1)+'" y="'+y1.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1,y0-y1).toFixed(1)+'" fill="var(--txt)" opacity=".09"/>';});
   /* carga diaria */
   ds.forEach((dk,i)=>{const v=ua[dk];if(!v)return;const y=YC(v);g+='<rect x="'+(X(i)+bw*.14).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,bw*.72).toFixed(1)+'" height="'+(yC+hC-y).toFixed(1)+'" rx="'+Math.min(3,bw*.3).toFixed(1)+'" fill="var(--c-data,var(--accent))"/>';});
   if(pre){const y=YC(pre);g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="var(--txt)" stroke-width="1.2" stroke-dasharray="5 4" opacity=".6"/>';}
@@ -29563,10 +29571,11 @@ function plvHTML(name,e,k){
     +kk(pct!=null?pct+' %':'—',pct!=null?'de esa normal · últimos 7 días ('+u7.length+(u7.length===1?' día':' días')+' con carga)':'sin carga en los últimos 7 días')
     +kk(acHoy!=null?fmt(acHoy,2):'—','ACWR hoy',acHoy!=null?colTexto('var(--'+acwrClass(acHoy)+')'):'')
     +kk(recU!=null?Math.round(recU)+' %':'—','recuperación · 7 días'+(recPre!=null?' (antes '+Math.round(recPre)+' %)':''),recU!=null?colTexto('var(--'+recSev(recU)+')'):'')
+    +(()=>{try{const phs=e.phases||[];const v=mocVer(e,Math.max(0,Math.min(e.phaseIdx||0,phs.length-1)));if(!v||!v.m||v.m.pct==null||(v.o.lo==null&&v.o.hi==null))return '';return kk(v.m.pct+' %','carga del equipo · objetivo '+mocRango(v.o),MOC_TX[(v.carga||{}).est||'ok']);}catch(x){return '';}})()
     +'</div>';
   const tit=esc(e.title||'Episodio')+(e.zona?' · '+esc(e.zona):'');
   const ley='<div class="pltp-ley"><span><i class="pltp-sw" style="background:var(--c-data,var(--accent))"></i>Carga del día</span><span><i class="pltp-sw plv-dash"></i>Su normal antes'+(pre?' · '+Math.round(pre).toLocaleString('es-ES')+' UA':'')+'</span>'
-    +'<span><i class="pltp-sw" style="background:var(--ok);opacity:.35"></i>Banda del ACWR</span><span><i class="pltp-sw" style="background:'+cE+';opacity:.3"></i>Periodo de baja</span><span><i class="pltp-sw plv-fase"></i>Fases</span></div>';
+    +'<span><i class="pltp-sw" style="background:var(--ok);opacity:.35"></i>Banda del ACWR</span><span><i class="pltp-sw" style="background:'+cE+';opacity:.3"></i>Periodo de baja</span><span><i class="pltp-sw plv-fase"></i>Fases</span>'+(banda.length?'<span><i class="pltp-sw plv-obj"></i>Objetivo de la fase</span>':'')+'</div>';
   return '<div class="panel pltp plv" data-plv="'+k+'"><h2>El camino de vuelta <span class="r muted">'+tit+(st?' · '+esc(st.lab):'')+'</span></h2>'+ks
     +'<div class="pltp-lee" aria-live="polite">Pasa por el gráfico para ver cada día.</div>'
     +'<div class="pltp-gr"><svg class="pltp-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="El camino de vuelta: carga diaria contra su normal, ACWR y recuperación desde tres semanas antes">'+g+'</svg></div>'+ley
@@ -29605,6 +29614,166 @@ function renderPlVuelta(name){
   });
 }
 window.renderPlVuelta=renderPlVuelta;
+
+/* ═══ v920 · OBJETIVOS DE CARGA POR FASE DE READAPTACIÓN ═══
+   Daniel, 20/11/2026, propuesta 5 —pendiente desde hacía semanas en §8
+   («edición de objetivos por bloque de fase»—. Cada fase del plan de
+   readaptación lleva lo que pide el cuerpo técnico:
+     · la CARGA, en % de la que hace el equipo esos mismos días (de lo a hi):
+       así se ajusta sola a la semana —si el equipo afloja, su objetivo
+       también— y se puede comparar día a día;
+     · los MINUTOS al día, como mucho;
+     · el CONTACTO declarado, como mucho (la escala 1–5 del cuestionario).
+   **El objetivo lo pone el cuerpo técnico, no la app**: es la regla de los
+   bloques de temporada (v826). Lo que se deja vacío no se compara.
+   Se mide con lo de siempre y nada más: su carga es `contDailyTo`, la del
+   equipo `lbTeamDay().ua` —la misma pareja que la tarjeta de vuelta a la
+   competición (v749)—, los minutos `lbDayOf().dur` y el contacto el que
+   declaró en sus cuestionarios (sólo los de verdad, no los que fabrica la
+   app al convocar). La ventana son los últimos 7 días **dentro de la fase**:
+   en sus primeros días una fase no se juzga con la carga de la anterior.
+   El grado del desvío de la carga es `calDesvio`, el criterio del plan
+   contra real, con su rojo autorizado (§2.3); en minutos y contacto el
+   objetivo es un tope y no una franja, así que no hay anchura con la que
+   graduar: dentro o por encima, y por cuánto. */
+const MOC_VENT=7;
+function mocHoy(){let r=REF();try{r=refCarga();}catch(x){}return dkey(r);}
+function mocObj(f){const o=f&&f.objCarga;if(!o)return null;const n=v=>v==null||v===''||!isFinite(+v)?null:+v;
+  const r={lo:n(o.lo),hi:n(o.hi),min:n(o.min),con:n(o.con)};return (r.lo==null&&r.hi==null&&r.min==null&&r.con==null)?null:r;}
+/* De qué día a qué día ha durado (o lleva) la fase i. Una fase que aún no ha
+   empezado no tiene tramo. */
+function mocTramo(e,i){
+  const phs=(e&&e.phases)||[],f=phs[i];if(!f||!f.startDk)return null;
+  const idx=e.phaseIdx||0;if(i>idx)return null;
+  const hoy=mocHoy();if(f.startDk>hoy)return null;
+  let fin=null;
+  if(i<idx){for(let j=i+1;j<phs.length;j++){if(phs[j]&&phs[j].startDk&&phs[j].startDk>f.startDk){fin=dkSumaDias(phs[j].startDk,-1);break;}}}
+  if(!fin){const ff=plvFin(e);fin=ff&&ff<hoy?ff:hoy;}
+  if(fin>hoy)fin=hoy;
+  return fin<f.startDk?null:{ini:f.startDk,fin};
+}
+function mocMedir(name,ini,fin){
+  let ref=REF();try{ref=refCarga();}catch(x){}
+  const ua={};try{contDailyTo(name,ref).forEach(d=>{if(d.dk>=ini&&d.dk<=fin)ua[d.dk]=d.ua||0;});}catch(x){}
+  const reales={};(STATE.rpe||[]).forEach(r=>{if(r&&r.name===name&&r.dk>=ini&&r.dk<=fin&&!r.bloqueConvocado&&!r.sinRegistro)(reales[r.dk]=reales[r.dk]||[]).push(r);});
+  const ds=dkRango(ini,fin);let suyo=0,eq=0,diasEq=0,minMax=null,diasMin=0,conMax=null,sinCuest=0;
+  ds.forEach(dk=>{
+    suyo+=ua[dk]||0;
+    let t=null;try{t=lbTeamDay(dk);}catch(x){}
+    if(t&&t.ua>0){eq+=t.ua;diasEq++;if(!reales[dk])sinCuest++;}
+    let x=null;try{x=lbDayOf(dk,name);}catch(z){}
+    const d=x&&+x.dur||0;if(d>0){diasMin++;minMax=Math.max(minMax||0,d);}
+    (reales[dk]||[]).forEach(r=>{const c=+r.contacto;if(c>0)conMax=Math.max(conMax||0,c);});
+  });
+  return {ini,fin,dias:ds.length,suyo:Math.round(suyo),eq:Math.round(eq),diasEq,pct:eq>0?Math.round(suyo/eq*100):null,minMax,diasMin,conMax,sinCuest};
+}
+/* El estado de cada métrica contra su objetivo. */
+function mocCargaEst(pct,lo,hi){
+  if(pct==null)return null;
+  if(lo!=null&&hi!=null)return calDesvio(pct,lo,hi);
+  if(hi!=null)return pct>hi?{est:'leve',dir:1,fuera:pct-hi}:{est:'ok',dir:0,fuera:0};
+  if(lo!=null)return pct<lo?{est:'leve',dir:-1,fuera:lo-pct}:{est:'ok',dir:0,fuera:0};
+  return null;
+}
+function mocVer(e,i,toda){
+  const f=((e&&e.phases)||[])[i],o=mocObj(f);if(!o)return null;
+  const tr=mocTramo(e,i);
+  if(!tr)return {o,tr:null};
+  const ini=toda?tr.ini:(()=>{const a=dkSumaDias(tr.fin,-(MOC_VENT-1));return a>tr.ini?a:tr.ini;})();
+  const m=mocMedir(e.name,ini,tr.fin);
+  return {o,tr,m,carga:mocCargaEst(m.pct,o.lo,o.hi),
+    min:(o.min!=null&&m.minMax!=null)?(m.minMax>o.min?{est:'leve',dir:1,fuera:Math.round(m.minMax-o.min)}:{est:'ok',dir:0}):null,
+    con:(o.con!=null&&m.conMax!=null)?(m.conMax>o.con?{est:'leve',dir:1,fuera:m.conMax-o.con}:{est:'ok',dir:0}):null};
+}
+const MOC_TX={ok:'var(--ok-text)',leve:'var(--warn-text)',fuerte:'var(--bad-text)'};
+const MOC_PT={ok:'var(--ok)',leve:'var(--warn)',fuerte:'var(--bad)'};
+function mocPal(s){if(!s)return '';return s.dir>0?'↑ por encima':(s.dir<0?'↓ por debajo':'✓ dentro');}
+function mocRango(o){
+  if(o.lo!=null&&o.hi!=null)return o.lo+'–'+o.hi+' %';
+  if(o.hi!=null)return 'hasta '+o.hi+' %';
+  if(o.lo!=null)return 'desde '+o.lo+' %';return '';
+}
+function mocFd(dk){const q=String(dk).split('-');return (+q[2])+'/'+(+q[1]);}
+/* La línea del objetivo, en el detalle del episodio y en el informe. */
+function mocLineaHTML(e,i,opts){
+  opts=opts||{};const v=mocVer(e,i,opts.toda);if(!v)return '';
+  const o=v.o,E=bmEsc;
+  const it=(lab,val,sub,s)=>'<span class="moc-i"><em>'+lab+'</em><b'+(s?' style="color:'+MOC_TX[s.est]+'"':'')+'>'+val+'</b><small>'+sub+'</small>'+(s?'<i style="color:'+MOC_TX[s.est]+'">'+mocPal(s)+'</i>':'')+'</span>';
+  const m=v.m;let h='';
+  if(o.lo!=null||o.hi!=null)h+=it('Carga',m&&m.pct!=null?m.pct+' %':'—','del equipo · objetivo '+mocRango(o),v.carga);
+  if(o.min!=null)h+=it('Minutos al día',m&&m.minMax!=null?Math.round(m.minMax)+'′':'—','el día más largo · objetivo ≤ '+o.min+'′',v.min);
+  if(o.con!=null)h+=it('Contacto',m&&m.conMax!=null?String(m.conMax):'—','el más alto declarado · objetivo ≤ '+o.con,v.con);
+  const cuando=!v.tr?'la fase aún no ha empezado'
+    :(opts.toda?'toda la fase · del '+mocFd(v.tr.ini)+' al '+mocFd(v.tr.fin)
+      :(m.dias<MOC_VENT?'sus '+m.dias+(m.dias===1?' día':' días')+' en la fase':'últimos 7 días de la fase'))
+    +(m&&m.sinCuest?' · '+m.sinCuest+(m.sinCuest===1?' día':' días')+' de entreno sin su cuestionario':'');
+  return '<div class="moc-l"'+(opts.id?' id="'+opts.id+'"':'')+'><div class="moc-h"><span>Objetivo de la fase</span><small>'+E(cuando)+'</small>'
+    +(opts.editar?'<button type="button" class="med-chipbtn" onclick="mocEditar(\''+String(e.id).replace(/'/g,"\\'")+'\')">Cambiar</button>':'')+'</div>'
+    +'<div class="moc-is">'+h+'</div></div>';
+}
+/* Para la tarjeta de vuelta a la competición (v749): una línea corta. */
+function mocTarjetaHTML(e){
+  const phs=e.phases||[];const i=Math.max(0,Math.min(e.phaseIdx||0,phs.length-1));
+  const v=mocVer(e,i);if(!v||!v.tr||!v.m)return '';
+  const o=v.o,m=v.m,p=[];
+  if((o.lo!=null||o.hi!=null)&&m.pct!=null)p.push('carga <b style="color:'+MOC_TX[(v.carga||{}).est||'ok']+'">'+m.pct+' %</b> ('+mocRango(o)+')');
+  if(o.min!=null&&m.minMax!=null)p.push('minutos <b style="color:'+MOC_TX[(v.min||{}).est||'ok']+'">'+Math.round(m.minMax)+'′</b> (≤ '+o.min+')');
+  if(o.con!=null&&m.conMax!=null)p.push('contacto <b style="color:'+MOC_TX[(v.con||{}).est||'ok']+'">'+m.conMax+'</b> (≤ '+o.con+')');
+  if(!p.length)return '';
+  return '<div class="mcx-moc"><span>Objetivo de la fase</span>'+p.join(' · ')+(m.dias<MOC_VENT?' <small>· '+m.dias+' d en fase</small>':'')+'</div>';
+}
+/* La franja del objetivo en la barra de la tarjeta, en la misma escala 0–100 % */
+function mocBandaTarjeta(e){
+  const phs=e.phases||[];const f=phs[Math.max(0,Math.min(e.phaseIdx||0,phs.length-1))];const o=mocObj(f);
+  if(!o||(o.lo==null&&o.hi==null))return '';
+  const lo=Math.max(0,Math.min(100,o.lo||0)),hi=Math.max(lo,Math.min(100,o.hi!=null?o.hi:100));
+  return '<div class="mcx-cbr" aria-hidden="true" title="Objetivo de la fase"><em style="left:'+lo+'%;width:'+Math.max(1,hi-lo)+'%"></em></div>';
+}
+/* ── El editor: todas las fases de una vez ── */
+function mocEditar(injId){
+  const e=medInj(injId);if(!e)return;
+  const phs=e.phases||[];
+  const filas=phs.map((f,i)=>({f,i})).filter(x=>x.f&&x.f.type!=='hito');
+  if(!filas.length){toast('Este episodio no tiene fases de readaptación');return;}
+  const E=bmEsc,idx=e.phaseIdx||0;
+  const ov=ensureInfoOverlay();const t=document.getElementById('info-mtitle');if(t)t.textContent='Objetivos de carga · '+(e.name||'');
+  const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';
+  const val=v=>v==null||v===''?'':String(v);
+  const conOpts=sel=>['','1','2','3','4','5'].map(v=>'<option value="'+v+'"'+(String(sel==null?'':sel)===v?' selected':'')+'>'+(v||'—')+'</option>').join('');
+  const body='<div class="moc-ed">'
+    +'<p class="moc-ed-i">Lo que pedís en cada fase. La carga va en % de la que hace el equipo esos mismos días, así se ajusta sola a la semana. Lo que dejéis vacío no se compara.</p>'
+    +'<div class="moc-ed-h" aria-hidden="true"><span>Fase</span><span>Carga · % del equipo</span><span>Minutos al día · máx.</span><span>Contacto · máx.</span></div>'
+    +filas.map(({f,i})=>{const o=f.objCarga||{};
+      return '<div class="moc-ed-r" data-i="'+i+'"><div class="moc-ed-n"><b>F'+(i+1)+' · '+E(f.nom||'Fase')+'</b>'+(f.sub?'<small>'+E(f.sub)+'</small>':'')+(i===idx&&e.open?'<span class="moc-ed-cur">en curso</span>':(i<idx?'<span class="moc-ed-done">hecha</span>':''))+'</div>'
+        +'<label class="moc-ed-c"><span class="moc-ed-l">Carga · % del equipo</span><span class="moc-ed-rg"><input type="number" inputmode="numeric" min="0" max="300" step="5" data-k="lo" value="'+val(o.lo)+'" aria-label="Carga desde, en %"><i>a</i><input type="number" inputmode="numeric" min="0" max="300" step="5" data-k="hi" value="'+val(o.hi)+'" aria-label="Carga hasta, en %"><i>%</i></span></label>'
+        +'<label class="moc-ed-c"><span class="moc-ed-l">Minutos al día · máx.</span><input type="number" inputmode="numeric" min="0" max="600" step="5" data-k="min" value="'+val(o.min)+'" aria-label="Minutos al día, como mucho"></label>'
+        +'<label class="moc-ed-c"><span class="moc-ed-l">Contacto · máx.</span><select data-k="con" aria-label="Contacto, como mucho">'+conOpts(o.con)+'</select></label>'
+        +'</div>';}).join('')
+    +'<div class="moc-ed-acc"><button class="btn" onclick="mocGuardar(\''+String(injId).replace(/'/g,"\\'")+'\')">Guardar objetivos</button></div></div>';
+  document.getElementById('info-mbody').innerHTML=body;ov.style.display='flex';
+  setTimeout(()=>{try{const x=ov.querySelector('.moc-ed-r[data-i="'+idx+'"] input')||ov.querySelector('.moc-ed input');if(x)x.focus();}catch(z){}},60);
+}
+function mocGuardar(injId){
+  const e=medInj(injId);if(!e)return;const ov=document.getElementById('info-overlay');if(!ov)return;
+  const rows=[...ov.querySelectorAll('.moc-ed-r')];const nuevos={};
+  for(const r of rows){
+    const i=+r.dataset.i,g=k=>{const el=r.querySelector('[data-k="'+k+'"]');const s=el?String(el.value).trim().replace(',','.'):'';return s===''?null:+s;};
+    const o={lo:g('lo'),hi:g('hi'),min:g('min'),con:g('con')};
+    const mal=(el,msg)=>{toast(msg);try{(r.querySelector('[data-k="'+el+'"]')||{}).focus&&r.querySelector('[data-k="'+el+'"]').focus();}catch(z){}return true;};
+    if(['lo','hi','min','con'].some(k=>o[k]!=null&&!isFinite(o[k]))){mal('lo','Hay una cifra que no se entiende en la fase '+(i+1));return;}
+    if((o.lo!=null&&(o.lo<0||o.lo>300))||(o.hi!=null&&(o.hi<0||o.hi>300))){mal('lo','La carga va de 0 a 300 % (fase '+(i+1)+')');return;}
+    if(o.lo!=null&&o.hi!=null&&o.lo>o.hi){mal('hi','En la fase '+(i+1)+' el «hasta» es menor que el «desde»');return;}
+    if(o.min!=null&&(o.min<0||o.min>600)){mal('min','Los minutos van de 0 a 600 (fase '+(i+1)+')');return;}
+    nuevos[i]=o;
+  }
+  Object.keys(nuevos).forEach(k=>{const f=e.phases[+k];if(!f)return;const o=nuevos[k];
+    if(o.lo==null&&o.hi==null&&o.min==null&&o.con==null)delete f.objCarga;else f.objCarga=o;});
+  medPersist();closeInfoEdit();
+  try{renderMedico();}catch(x){}
+  try{if(window.fichaRepinta)fichaRepinta();}catch(x){}
+  toast('Objetivos de carga guardados');
+}
+window.mocEditar=mocEditar;window.mocGuardar=mocGuardar;window.mocLineaHTML=mocLineaHTML;window.mocTarjetaHTML=mocTarjetaHTML;window.mocBandaTarjeta=mocBandaTarjeta;window.mocVer=mocVer;window.mocTramo=mocTramo;window.mocObj=mocObj;
 
 /* v783 · sacado de renderPlayer para que el inspector use el MISMO desglose; con `max`, sólo los primeros */
 function rdFactoresHTML(p,max){const fs=max?(p.factors||[]).slice(0,max):(p.factors||[]);return fs.length?fs.map(f=>{if(f.info){const col=f.info==='down'?'--ok':'--warn';const sign=f.info==='down'?'↓ alivia':'↑ agrava';const pct=clamp(f.pen/2*100,4,100);return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small" style="color:var(${col}-text)">${sign}</span></div>`;}const pct=clamp(f.pen/2*100,4,100);const col=f.pen>0.6?"--bad":f.pen>0.3?"--warn":"--accent";return`<div class="factor"><span style="flex:0 0 130px">${f.label}</span><div class="pb"><div class="pf" style="width:${pct}%;background:var(${col})"></div></div><span class="mono small">${f.z!=null&&!isNaN(f.z)?'z '+fmt(f.z,2):'—'}</span></div>`;}).join(''):'<p class="muted small">Sin factores negativos relevantes.</p>';}
@@ -52023,12 +52192,13 @@ details.rh-block[open]>summary.rh-bh{margin-bottom:8px}
    +k(v.pct!=null?v.pct+' %':'—','carga del equipo · 7 d',v.pct!=null?('Ha hecho '+v.suyo+' UA en los últimos 7 días; el equipo, '+v.eq+' UA de media por jugador'):'Sin carga del equipo registrada en los últimos 7 días')
    +k(ac!=null?fmt(ac,2):'—','ACWR',ac!=null?'El mismo ACWR de su ficha · banda 0,8–1,3':'Sin bloque de carga suficiente para calcularlo',acC)
    +'</div>'
-   +(v.pct!=null?'<div class="mcx-cb" aria-hidden="true"><i style="width:'+Math.min(100,v.pct)+'%"></i></div>':'');
+   +(v.pct!=null?'<div class="mcx-cb" aria-hidden="true"><i style="width:'+Math.min(100,v.pct)+'%"></i></div>'+(window.mocBandaTarjeta?mocBandaTarjeta(e):''):'');
   if(v.crit){
    h+='<div class="mcx-crit"><b>'+v.crit.ok+' de '+v.crit.n+'</b> criterios de esta fase'
     +(v.crit.falta.length?' · faltan: '+v.crit.falta.slice(0,3).map(esc).join(', ')+(v.crit.falta.length>3?' y '+(v.crit.falta.length-3)+' más':''):' · <span style="color:'+colTexto('var(--ok)')+'">listo para pasar</span>')
     +'</div>';
   }
+  try{h+=window.mocTarjetaHTML?mocTarjetaHTML(e):'';}catch(x){}
   return h+'</div>';
  }
  function medCoachCard(e){
@@ -60387,6 +60557,53 @@ html[data-theme="dark"]{--cmp-b:#cf5aa8}
   .cal-aj-r{grid-template-columns:minmax(0,1fr) auto;row-gap:6px;padding:9px 0}
   .cal-aj-ua{grid-column:2;grid-row:1}
   .cal-aj-s{grid-column:1/-1;grid-row:2;min-height:44px}
+}
+</style>
+<style id="bm-v920">
+/* v920 · objetivos de carga por fase de readaptación */
+.moc-l{margin:4px 0 12px;padding:10px 12px;border-radius:12px;background:var(--panel2)}
+.moc-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.moc-h>span{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.moc-h small{font-size:12px;color:var(--muted)}
+.moc-h .med-chipbtn{margin-left:auto}
+.moc-is{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 14px}
+.moc-i{display:flex;flex-direction:column;min-width:0}
+.moc-i em{font-style:normal;font-size:12px;font-weight:600;color:var(--txt)}
+.moc-i b{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt);line-height:1.2}
+.moc-i small{font-size:11.5px;color:var(--muted);line-height:1.3}
+.moc-i i{font-style:normal;font-size:12px;font-weight:600;margin-top:2px}
+.mcx-cbr{position:relative;height:3px;margin-top:3px}
+.mcx-cbr em{position:absolute;top:0;bottom:0;background:var(--txt);opacity:.32;border-radius:99px}
+.mcx-moc{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.4}
+.mcx-moc>span{font-weight:600;color:var(--txt);margin-right:4px}
+.mcx-moc b{font-weight:700;font-variant-numeric:tabular-nums}
+.plv-obj{background:var(--txt);opacity:.18}
+.moc-ed{display:flex;flex-direction:column;gap:10px;max-width:760px}
+.moc-ed-i{margin:0;font-size:var(--fs-sm);color:var(--muted);line-height:1.45}
+.moc-ed-h,.moc-ed-r{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.3fr) minmax(0,.9fr) minmax(0,.8fr);gap:10px;align-items:center}
+.moc-ed-h{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:0 2px}
+.moc-ed-r{padding:10px 0;border-top:.5px solid var(--line)}
+.moc-ed-n{display:flex;flex-direction:column;gap:1px;min-width:0}
+.moc-ed-n b{font-size:var(--fs-body);font-weight:600;color:var(--txt)}
+.moc-ed-n small{font-size:var(--fs-xs);color:var(--muted)}
+.moc-ed-cur,.moc-ed-done{align-self:flex-start;margin-top:3px;font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px}
+.moc-ed-cur{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--acc-seg,var(--accent))}
+.moc-ed-done{background:var(--panel2);color:var(--muted)}
+.moc-ed-c{display:flex;flex-direction:column;gap:4px;min-width:0}
+.moc-ed-l{display:none;font-size:var(--fs-xs);color:var(--muted)}
+.moc-ed-rg{display:flex;align-items:center;gap:6px}
+.moc-ed-rg i{font-style:normal;font-size:var(--fs-sm);color:var(--muted)}
+.moc-ed input,.moc-ed select{width:100%;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font:inherit;font-size:var(--fs-body);font-variant-numeric:tabular-nums}
+.moc-ed-rg input{width:64px;flex:1 1 0}
+.moc-ed-acc{display:flex;justify-content:flex-end;margin-top:4px}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .moc-ed-h{display:none}
+  .moc-ed-r{grid-template-columns:1fr 1fr;gap:8px 10px}
+  .moc-ed-n{grid-column:1/-1}
+  .moc-ed-c:first-of-type{grid-column:1/-1}
+  .moc-ed-l{display:block}
+  .moc-ed input,.moc-ed select{min-height:44px}
+  .moc-h .med-chipbtn{min-height:44px}
 }
 </style>
 <style id="bm-v749">
