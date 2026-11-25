@@ -35846,6 +35846,25 @@ function buildTests(){
   const t={};
   names.forEach(n=>{const o={};TESTS.forEach(tt=>{const u=hashStr(n+'|'+tt.k);const z=(u-0.5)*2;let v=tt.base+z*tt.sd*1.5;v=Math.max(tt.lowerBetter?tt.base-tt.sd*2:0,v);o[tt.k]=Math.round(v*100)/100;});t[n]=o;});
   STATE.tests=t;
+  /* v939 · se guarda aparte lo inventado para poder quitarlo cuando lleguen los datos */
+  STATE.testsFab=JSON.parse(JSON.stringify(t));
+}
+/* v939 · Las marcas de ejemplo NO pueden quedarse cuando llegan las de verdad.
+   Daniel, 25/11/2026: *«me parece un poco raro que Marquinhos no sea el mejor
+   físicamente»*. `buildTests` rellena todas las pruebas de todos los jugadores
+   con valores inventados (sacados del nombre) mientras la hoja de valoraciones
+   no ha llegado, y al llegar, `vhCommit` escribía ENCIMA sólo lo que la hoja
+   traía: lo que nadie ha medido se quedaba inventado y contaba en la nota.
+   Medido el 25/11/2026: Sprint 10, 20 y 30 m, 1RM sentadilla y su fuerza relativa,
+   inventados en los 15; el T-test, en 5; y siete pruebas más de Maiko. Al llegar
+   cualquier dato real se quita lo que sigue valiendo lo inventado. Autorizado
+   por Daniel ese mismo día. */
+function testsQuitaInventados(){
+  const F=STATE.testsFab;if(!F||!STATE.tests)return;
+  Object.keys(F).forEach(n=>{const o=STATE.tests[n],f=F[n];if(!o||!f)return;
+    Object.keys(f).forEach(k=>{if(o[k]===f[k])delete o[k];});});
+  STATE.testsFab=null;
+  try{tsaProgInvalidar();}catch(e){}
 }
 function testStats(){const names=Object.keys(STATE.tests||{});const st={};TESTS.forEach(t=>{const vals=names.map(n=>(STATE.tests[n]||{})[t.k]).filter(v=>v!=null&&!isNaN(v));st[t.k]={m:vals.length?mean(vals):0,s:vals.length?sd(vals):0,n:vals.length};});return st;}
 /* ===================== TSA v2 · ponderado y con progreso (v362) ==============
@@ -36932,7 +36951,7 @@ function ingestTests(rows){
     data[nm]=Object.assign(data[nm]||{},o);
   });
   const n=Object.keys(data).length;
-  if(n){STATE.tests=data;STATE.testsReal=true;}
+  if(n){STATE.tests=data;STATE.testsReal=true;STATE.testsFab=null;}
   return n;
 }
 function loadTestsPasted(){const txt=(document.getElementById('tests-csv')||{}).value||'';const msg=document.getElementById('tests-msg');
@@ -36946,7 +36965,7 @@ function buildManualGrid(){const box=document.getElementById('tests-manual');if(
   <div class="ctrlrow" style="margin-top:10px"><button class="btn" onclick="saveManual()">Guardar cambios</button><button class="btn ghost" onclick="exportTestsCSV()">Exportar CSV</button></div>`;}
 function saveManual(){const inputs=document.querySelectorAll('#tests-manual input[data-n]');const data={};
   inputs.forEach(inp=>{const n=inp.dataset.n,k=inp.dataset.k;const v=parseFloat((inp.value||'').replace(',','.'));if(!data[n])data[n]={};if(!isNaN(v))data[n][k]=v;});
-  STATE.tests=data;STATE.testsReal=true;const msg=document.getElementById('tests-msg');if(msg)msg.textContent='Tests guardados (sesión actual). Usa "Exportar CSV" para conservarlos en tu hoja.';renderTests();}
+  STATE.tests=data;STATE.testsReal=true;STATE.testsFab=null;const msg=document.getElementById('tests-msg');if(msg)msg.textContent='Tests guardados (sesión actual). Usa "Exportar CSV" para conservarlos en tu hoja.';renderTests();}
 function exportTestsCSV(){const names=Object.keys(STATE.players);const head=['Jugador',...TESTS.map(t=>t.name)].join(',');
   const lines=names.map(n=>[n,...TESTS.map(t=>{const v=((STATE.tests||{})[n]||{})[t.k];return v==null?'':v;})].join(','));
   const csv=[head,...lines].join('\n');const ta=document.getElementById('tests-export');if(ta){ta.style.display='block';ta.value=csv;ta.select();}
@@ -37840,7 +37859,7 @@ function testLogLoad(){if(!STATE.testLog)STATE.testLog=lsLeer('bmnava_testlog',{
 function testLogPersist(){testLogLoad();return lsGuardar('bmnava_testlog',STATE.testLog||{});}
 function testDefByK(k){return TESTS.find(t=>t.k===k);}
 function testRecValue(r){if(r.side==='uni'){const arr=[r.valL,r.valR].map(x=>+x).filter(x=>!isNaN(x));return arr.length?arr.reduce((s,x)=>s+x,0)/arr.length:null;}const v=+r.val;return isNaN(v)?null:v;}
-function testLogApply(){testLogLoad();const log=STATE.testLog||{};STATE.tests=STATE.tests||{};STATE.testHist=STATE.testHist||{};Object.keys(log).forEach(name=>{const recs=(log[name]||[]).slice().sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));if(!recs.length)return;STATE.tests[name]=STATE.tests[name]||{};STATE.testHist[name]=STATE.testHist[name]||[];recs.forEach(r=>{const v=testRecValue(r);if(v==null)return;const rv=Math.round(v*100)/100;STATE.tests[name][r.k]=rv;let snap=STATE.testHist[name].find(sn=>sn.date===r.dk);if(!snap){snap={date:r.dk,vals:{},real:true};STATE.testHist[name].push(snap);}snap.vals[r.k]=rv;snap.real=true;});STATE.testHist[name].sort((a,b)=>String(a.date).localeCompare(String(b.date)));STATE.testsReal=true;});}
+function testLogApply(){testLogLoad();const log=STATE.testLog||{};STATE.tests=STATE.tests||{};if(Object.keys(log).some(n=>(log[n]||[]).length))testsQuitaInventados();STATE.testHist=STATE.testHist||{};Object.keys(log).forEach(name=>{const recs=(log[name]||[]).slice().sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));if(!recs.length)return;STATE.tests[name]=STATE.tests[name]||{};STATE.testHist[name]=STATE.testHist[name]||[];recs.forEach(r=>{const v=testRecValue(r);if(v==null)return;const rv=Math.round(v*100)/100;STATE.tests[name][r.k]=rv;let snap=STATE.testHist[name].find(sn=>sn.date===r.dk);if(!snap){snap={date:r.dk,vals:{},real:true};STATE.testHist[name].push(snap);}snap.vals[r.k]=rv;snap.real=true;});STATE.testHist[name].sort((a,b)=>String(a.date).localeCompare(String(b.date)));STATE.testsReal=true;});}
 function openQuickTest(name){testLogLoad();try{buildTests();}catch(e){}const ov=ensureInfoOverlay();const t=document.getElementById('info-mtitle');if(t)t.textContent='Añadir valoración física';QT_SEL={name:name||STATE.curPlayer||(Object.keys(STATE.players||{})[0]||''),k:(TESTS[0]||{}).k,dk:dkey(new Date()),uni:false};quickTestBody();const head=ov.querySelector('.info-mhead > div');if(head)head.innerHTML='<button class="btn ghost" onclick="closeInfoEdit()">Cerrar ✕</button>';ov.style.display='flex';}
 function quickTestBody(){const b=document.getElementById('info-mbody');if(!b)return;const names=Object.keys(STATE.players||{}).sort((a,b)=>a.localeCompare(b));const playerOpts=names.map(n=>`<option value="${String(n).replace(/"/g,'&quot;')}"${n===QT_SEL.name?' selected':''}>${n}</option>`).join('');const catGroups=CATS.map(c=>`<optgroup label="${c}">${TESTS.filter(t=>t.cat===c).map(t=>`<option value="${t.k}"${t.k===QT_SEL.k?' selected':''}>${t.name}${t.unit?' ('+t.unit+')':''}</option>`).join('')}</optgroup>`).join('');const def=testDefByK(QT_SEL.k)||TESTS[0];const unit=def.unit||'';const valField=QT_SEL.uni?`<div class="qt-uni"><label>Izquierda<input id="qt-valL" type="number" step="any" placeholder="${unit}"></label><label>Derecha<input id="qt-valR" type="number" step="any" placeholder="${unit}"></label></div>`:`<label>Valor <span class="muted" style="font-weight:400">${unit?'· '+unit:''}</span><input id="qt-val" type="number" step="any" placeholder="${unit}"></label>`;b.innerHTML=`<div class="qt-form"><label>Jugador<select id="qt-name" onchange="QT_SEL.name=this.value">${playerOpts}</select></label><label>Fecha<input id="qt-date" type="date" value="${QT_SEL.dk}" onchange="QT_SEL.dk=this.value"></label><label>Tipo de valoración<select id="qt-k" onchange="QT_SEL.k=this.value;quickTestBody()">${catGroups}</select></label><label class="qt-check"><input type="checkbox" id="qt-uni" ${QT_SEL.uni?'checked':''} onchange="QT_SEL.uni=this.checked;quickTestBody()"> Medición unilateral (izquierda / derecha)</label>${valField}<label>Comentario <span class="muted" style="font-weight:400">(opcional)</span><textarea id="qt-note" rows="2" placeholder="Condiciones, material, observaciones…"></textarea></label></div><button class="btn" style="margin-top:14px" onclick="quickTestSave()">Guardar valoración</button><div class="small muted" style="margin-top:10px">Se guarda en este dispositivo y alimenta el perfil físico (z-scores, percentiles y evolución). En unilateral se usa la media de los dos lados para el z-score; ambos valores quedan en el histórico.</div>`;}
 function quickTestSave(){const g=id=>{const el=document.getElementById(id);return el?el.value:'';};const name=g('qt-name')||QT_SEL.name;const dk=g('qt-date')||dkey(new Date());const k=g('qt-k')||QT_SEL.k;const uni=!!(document.getElementById('qt-uni')&&document.getElementById('qt-uni').checked);const note=(g('qt-note')||'').trim();const def=testDefByK(k);if(!name){toast('Selecciona un jugador');return;}if(!def){toast('Tipo no válido');return;}const rec={id:'tl_'+Date.now(),dk,k,note};if(uni){const L=parseFloat(g('qt-valL')),R=parseFloat(g('qt-valR'));if(isNaN(L)&&isNaN(R)){toast('Introduce al menos un lado');return;}rec.side='uni';rec.valL=isNaN(L)?null:L;rec.valR=isNaN(R)?null:R;}else{const v=parseFloat(g('qt-val'));if(isNaN(v)){toast('Introduce un valor');return;}rec.side='bi';rec.val=v;}testLogLoad();STATE.testLog[name]=STATE.testLog[name]||[];STATE.testLog[name].push(rec);testLogPersist();testLogApply();toast('Valoración guardada · '+def.name+' · '+name);closeInfoEdit();try{const tv=document.getElementById('v-tests');if(tv&&tv.classList.contains('on'))renderTests();}catch(e){}}
@@ -65633,6 +65652,7 @@ function vhIngestWide(rows,colName,colDate){
 function vhCommit(acc,res){
   STATE.testHist=STATE.testHist||{};
   STATE.tests=STATE.tests||{};
+  if(Object.keys(acc||{}).length)testsQuitaInventados();
   const players=Object.keys(acc);
   players.forEach(nm=>{
     const dks=Object.keys(acc[nm]).sort();
@@ -67238,8 +67258,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.9*/
-const VER_ACTUAL='2026-11-25.9';
+/*BUILD:2026-11-25.10*/
+const VER_ACTUAL='2026-11-25.10';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
