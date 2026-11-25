@@ -18535,7 +18535,7 @@ function bieSemanas(){
   const k=W.findIndex(w=>w.conCarga>0);return k<0?[]:W.slice(k);
 }
 function bieSemanasSVG(W){
-  const w=682,h=138,pl=40,pr=86,pt=12,pb=30,iw=w-pl-pr,ih=h-pt-pb,base=pt+ih;
+  const w=682,h=126,pl=40,pr=86,pt=12,pb=30,iw=w-pl-pr,ih=h-pt-pb,base=pt+ih;
   const mx=Math.max(1,...W.map(x=>x.ua)),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
   const y=v=>base-(v/top)*ih,bw=iw/W.length;
   let ps=[];try{ps=calPartidosDks();}catch(e){}
@@ -18575,7 +18575,7 @@ function bieSemTipoDatos(R){
   const cal=STATE.calendar||{};
   return MD_ORDEN.map(md=>{
     const f=(R.filas||[]).find(x=>x.md===md)||{n:0,dias:[]},D=f.dias||[];
-    const pis=[],gym=[],rpe=[],ct=[],z45=[],z5=[],plan=[],rec=[],fat=[],doms=[],sue=[],niv=[0,0,0];let gymN=0;
+    const pis=[],gym=[],rpe=[],ct=[],z45=[],z5=[],plan=[],rec=[],fat=[],doms=[],sue=[],niv=[0,0,0],nivP=[0,0,0];let gymN=0;
     D.forEach(dk=>{let t=null;try{t=lbTeamDay(dk);}catch(e){}
       const conG=(cal[dk]||[]).some(e=>e&&!evSP(e)&&e.type==='fuerza');
       if(t&&t.pista&&t.pista.dur>0)pis.push(t.pista.dur);
@@ -18583,12 +18583,13 @@ function bieSemTipoDatos(R){
       if(t&&t.rpe>0)rpe.push(t.rpe);
       let sm=null;try{sm=sessMeta(dk+'|semana-tipo',dk);}catch(e){}if(sm&&sm.contacto!=null)ct.push(sm.contacto);
       const lv=U[dk];if(lv!=null&&lv>=0&&lv<=2)niv[lv]++;
+      const lp=bieNivProg(dk);if(lp!=null)nivP[lp]++;
       let z=null;try{z=calZonasDia(dk);}catch(e){}
       if(z&&z.fuente==='polar'&&isFinite(z.z4)&&isFinite(z.z5)){z45.push(z.z4+z.z5);z5.push(z.z5);}
       try{const pl=calDayPlan(dk);if(pl&&pl.n){const u=calPlanUA(dk);if(u>0)plan.push(u);}}catch(e){}
       (WD[dk]||[]).forEach(w=>{const r=recPct(twVal(w));if(isFinite(r))rec.push(r);if(isFinite(w.fatiga))fat.push(w.fatiga);if(isFinite(w.doms))doms.push(w.doms);if(w.horas_sueno>0)sue.push(w.horas_sueno);});
     });
-    return {md,n:f.n||0,ua:f.n?{m:f.media,min:f.min,max:f.max}:null,plan:med(plan),pista:med(pis),gym:med(gym),gymN,rpe:med(rpe),ct:med(ct),niv,
+    return {md,n:f.n||0,ua:f.n?{m:f.media,min:f.min,max:f.max}:null,plan:med(plan),pista:med(pis),gym:med(gym),gymN,rpe:med(rpe),ct:med(ct),niv,nivP,
       z45:med(z45),z5:med(z5),zn:z45.length,rec:med(rec),fat:med(fat),doms:med(doms),sue:med(sue)};
   });
 }
@@ -18636,11 +18637,22 @@ async function bmInformeEntrenador(){
    lesiones de las métricas del COI (`lesCoiDatos`). Los partidos no entran en los
    minutos ni en el RPE de las sesiones (v480: su cuestionario no recoge lo que
    pesan). El mes en curso va hasta hoy, así que la carga va por semana. */
+/* v942 · La intensidad PROGRAMADA de un día: la del semáforo del calendario (el pico de
+   las sesiones de pista y gimnasio, `evIntens`), de 0 baja a 2 alta. Daniel, 25/11/2026:
+   *«lo de la intensidad de las sesiones está mal puesto, ¿no? En noviembre pone 0 rojos,
+   pero hemos tenido varios»*. El informe sólo contaba la que SALIÓ (`classifySession`,
+   con carga, esfuerzo, contacto y pulso) y el calendario enseña la programada: las dos
+   son ciertas y miden cosas distintas, así que van las dos y con su nombre. */
+function bieNivProg(dk){
+  const ev=((STATE.calendar||{})[dk]||[]).filter(e=>e&&!evSP(e)&&(e.type==='entreno'||e.type==='fuerza'));
+  if(!ev.length)return null;
+  const lv=Math.max(...ev.map(evIntens))-1;return lv>=0&&lv<=2?lv:null;
+}
 function bieMeses(){
   const hoy=dkey(new Date()),refk=dkey(REF()),fin=refk<hoy?refk:hoy;
   const ks=[];let y=+TEMP_INICIO.slice(0,4),m=+TEMP_INICIO.slice(5,7);
   for(let g=0;g<24;g++){const k=y+'-'+String(m).padStart(2,'0');if(k>fin.slice(0,7))break;ks.push(k);m++;if(m>12){m=1;y++;}}
-  const M={};ks.forEach(k=>{M[k]={k,ent:0,gym:0,par:0,dur:[],rpe:[],ua:0,dias:0,niv:[0,0,0],z:[],rec:[],sue:[],fat:[],doms:[],dolor:0,partes:0,les:0,mol:0,disp:null};});
+  const M={};ks.forEach(k=>{M[k]={k,ent:0,gym:0,par:0,dur:[],rpe:[],ua:0,dias:0,niv:[0,0,0],nivP:[0,0,0],z:[],rec:[],sue:[],fat:[],doms:[],dolor:0,partes:0,les:0,mol:0,disp:null};});
   const de=dk=>M[String(dk).slice(0,7)];
   try{calLoad();}catch(e){}
   const cal=STATE.calendar||{};
@@ -18655,6 +18667,7 @@ function bieMeses(){
     if(!(d.ua>0)||ps.has(d.dk))return;if(d.dur>0)o.dur.push(d.dur);if(d.rpe>0)o.rpe.push(d.rpe);});
   let U=[];try{U=ultimasSesiones(9999)||[];}catch(e){}
   U.forEach(u=>{if(!u||u.dk<TEMP_INICIO||u.dk>fin||ps.has(u.dk))return;const o=de(u.dk),lv=u.c&&u.c.level;if(o&&lv!=null&&lv>=0&&lv<=2)o.niv[lv]++;});
+  dkRango(TEMP_INICIO,fin).forEach(dk=>{if(ps.has(dk))return;const o=de(dk),lv=bieNivProg(dk);if(o&&lv!=null)o.nivP[lv]++;});
   dkRango(TEMP_INICIO,fin).forEach(dk=>{if(ps.has(dk))return;let z=null;try{z=calZonasDia(dk);}catch(e){}
     if(z&&z.fuente==='polar'&&isFinite(z.z4)&&isFinite(z.z5)){const o=de(dk);if(o)o.z.push(z.z4+z.z5);}});
   (STATE.wellness||[]).forEach(w=>{if(!w||!w.dk||w.dk<TEMP_INICIO||w.dk>fin)return;const o=de(w.dk);if(!o)return;o.partes++;
@@ -18753,8 +18766,8 @@ function bieHTML(){
         const c=f.col?f.col(v):null;
         return '<td><b'+(c?' style="color:'+c+'"':'')+'>'+f.fmt(v)+'</b>'+(f.barra===true&&mx>0?'<i class="bie-mb"><i style="width:'+(v>0?Math.max(3,v/mx*100):0).toFixed(1)+'%'+(f.bc?';background:'+f.bc(v):'')+'"></i></i>':'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
   const med=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
-  const niv=o=>{const t=o.niv[0]+o.niv[1]+o.niv[2];if(!t)return '<span class="bie-mu">—</span>';
-    return '<i class="bie-nb">'+o.niv.map((v,i)=>v?'<i style="flex:'+v+';background:'+LV[i][1]+'"></i>':'').join('')+'</i><span class="bie-nbt bie-nbn">'+[2,1,0].map(i=>'<b style="color:var(--'+['ok','warn','bad'][i]+'-text)">'+o.niv[i]+'</b>').join(' · ')+'</span>';};
+  const nivH=a=>{const t=a[0]+a[1]+a[2];if(!t)return '<span class="bie-mu">—</span>';
+    return '<i class="bie-nb">'+a.map((v,i)=>v?'<i style="flex:'+v+';background:'+LV[i][1]+'"></i>':'').join('')+'</i><span class="bie-nbt bie-nbn">'+[2,1,0].map(i=>'<b style="color:var(--'+['ok','warn','bad'][i]+'-text)">'+a[i]+'</b>').join(' · ')+'</span>';};
   let fr1='Todavía no hay semanas con carga registrada esta temporada.';
   if(SV&&SV.cerr.length){const mxw=SV.cerr.reduce((a,b)=>b.ua>a.ua?b:a);
     fr1='Una semana normal son unas <b>'+n0(SV.md)+' UA por jugador</b> (esfuerzo × minutos); la más cargada fue la del '+dm(dkey(mxw.ini))+', con '+n0(mxw.ua)+'.';}
@@ -18764,7 +18777,7 @@ function bieHTML(){
   const glo=[
     ['UA · carga','Esfuerzo (RPE) × minutos: 90 minutos a un esfuerzo de 7 son 630 UA.'],
     ['RPE · esfuerzo','Lo dura que le ha parecido la sesión, de 0 (nada) a 10 (lo máximo). Lo dice el jugador al acabar.'],
-    ['Intensidad de la sesión','Baja, media o alta, según la carga, el esfuerzo, el contacto y, si hay pulsómetros, el pulso.'],
+    ['Intensidad de la sesión','Baja, media o alta. La programada es la del calendario; la que salió la calcula la app con la carga, el esfuerzo, el contacto y el pulso.'],
     ['Pulsaciones altas','El tiempo de la sesión en las zonas 4 y 5 del pulsómetro, las dos más altas.'],
     ['Recuperación','Cómo se levanta (sueño, fatiga, dolor, estrés y ánimo), de 0 a 100: verde, 75 o más; ámbar, 55 a 74; rojo, menos.'],
     ['Cuestionario de la mañana','Cada pregunta va de 1 (muy bien) a 5 (muy mal): en fatiga o dolor, cuanto más bajo, mejor.'],
@@ -18776,16 +18789,17 @@ function bieHTML(){
       +kpi('Horas por jugador',hJ!=null?n0(hJ):'—','de entrenamiento y partido')+kpi('Semana normal',SV&&SV.md!=null?n0(SV.md)+' UA':'—','puntos de carga por jugador')+'</div>'
     +ttl('La carga, semana a semana',fr1)
     +(SV?'<div class="bie-fig">'+SV.svg+'<div class="bie-ley"><span><i class="bie-l-b"></i>carga de la semana, media por jugador</span><span><i class="bie-l-p"></i>semana en curso</span><span><i class="bie-l-pt"></i>semana con partido</span><span><i class="bie-l-m"></i>semana normal (la mediana)</span></div></div>':'')
-    +ttl('El trabajo, mes a mes','Lo programado en el calendario y lo que declararon los jugadores al acabar cada sesión. El mes en curso va hasta hoy.')
+    +ttl('El trabajo, mes a mes','Lo programado en el calendario y lo que declararon los jugadores. En la intensidad, las cifras son altas · medias · bajas. El mes en curso va hasta hoy.')
     +tabla([
       {lab:'Sesiones de pista',v:o=>o.ent,fmt:v=>String(v)},
       {lab:'Sesiones de gimnasio',v:o=>o.gym,fmt:v=>String(v)},
       {lab:'Partidos',v:o=>o.par,fmt:v=>String(v)},
-      {lab:'Minutos por sesión',sub:'media de los días de entrenamiento',v:o=>med(o.dur),fmt:v=>n0(v)+'′'},
-      {lab:'Esfuerzo (RPE)',sub:'de 0 a 10, lo que dicen al acabar',v:o=>med(o.rpe),fmt:v=>fmt(v,1)},
+      {lab:'Minutos por sesión',sub:'días de entrenamiento',v:o=>med(o.dur),fmt:v=>n0(v)+'′'},
+      {lab:'Esfuerzo (RPE)',sub:'de 0 a 10',v:o=>med(o.rpe),fmt:v=>fmt(v,1)},
       {lab:'Carga por jugador',sub:'UA por semana',barra:true,v:o=>o.dias?o.ua/o.dias*7:null,fmt:v=>n0(v)},
-      {lab:'Intensidad de las sesiones',sub:'altas · medias · bajas',cero:true,v:o=>o.niv[0]+o.niv[1]+o.niv[2],html:niv},
-      {lab:'Pulsaciones altas',sub:'% de la sesión en zonas 4 y 5 · días con pulsómetro',v:o=>med(o.z),fmt:v=>n0(v)+' %'}])
+      {lab:'Intensidad programada',sub:'la del calendario',cero:true,v:o=>o.nivP[0]+o.nivP[1]+o.nivP[2],html:o=>nivH(o.nivP)},
+      {lab:'Intensidad que salió',sub:'la que calcula la app',cero:true,v:o=>o.niv[0]+o.niv[1]+o.niv[2],html:o=>nivH(o.niv)},
+      {lab:'Pulsaciones altas',sub:'% en zonas 4 y 5',v:o=>med(o.z),fmt:v=>n0(v)+' %'}])
     +'<p class="bie-pie">La carga es la media de la plantilla. Los partidos no entran en los minutos ni en el esfuerzo: su cuestionario no recoge lo que pesa un partido.</p>'});
 
   /* ── v936 · 2 · Cómo ha respondido el equipo ── */
@@ -18885,8 +18899,8 @@ function bieHTML(){
     const grupo=t=>'<div class="bie-stg">'+t+'</div>';
     const cab='<div class="bie-stl"></div>'+P.map(p=>{const lv=p.md!=='MD'&&p.ua?nivelUA(Math.round(p.ua.m)):null;
       return '<div class="bie-sth"><b>'+E(BIE_MDH[p.md])+'</b><span>'+p.md+(p.n?' · '+p.n+(p.n===1?' día':' días'):'')+'</span>'+(lv!=null?'<em style="color:'+['var(--ok-text)','var(--warn-text)','var(--bad-text)'][lv]+'">'+['Baja','Media','Alta'][lv]+'</em>':p.md==='MD'?'<em class="bie-mu">partido</em>':'<em class="bie-mu">sin datos</em>')+'</div>';}).join('');
-    const niv=p=>{const t=p.niv[0]+p.niv[1]+p.niv[2];if(!t)return null;
-      return '<i class="bie-nb">'+p.niv.map((v,i)=>v?'<i style="flex:'+v+';background:'+LV[i][1]+'"></i>':'').join('')+'</i><span class="bie-nbn">'+[2,1,0].map(i=>'<b style="color:var(--'+['ok','warn','bad'][i]+'-text)">'+p.niv[i]+'</b>').join(' · ')+'</span>';};
+    const nivH=a=>{const t=a[0]+a[1]+a[2];if(!t)return null;
+      return '<i class="bie-nb">'+a.map((v,i)=>v?'<i style="flex:'+v+';background:'+LV[i][1]+'"></i>':'').join('')+'</i><span class="bie-nbn">'+[2,1,0].map(i=>'<b style="color:var(--'+['ok','warn','bad'][i]+'-text)">'+a[i]+'</b>').join(' · ')+'</span>';};
     p4=clave(k4)+ttl('De un partido al siguiente',fr)
       +'<div class="bie-fig">'+bieSemTipoSVG(P)
       +'<div class="bie-ley bie-ley--st"><span><i class="bie-l-niv"></i>lo habitual (la media), en el color de su nivel</span><span><i class="bie-l-rg"></i>del día más suave al más duro</span><span><i class="bie-l-r"></i>lo programado, de media</span></div>'
@@ -18898,7 +18912,8 @@ function bieHTML(){
       +fila('Gimnasio','minutos · días',p=>p.gymN?(p.gym!=null?n0(p.gym)+'′':'')+'<small>'+p.gymN+' de '+p.n+'</small>':null)
       +fila('Esfuerzo (RPE)','de 0 a 10',p=>p.rpe!=null?fmt(p.rpe,1):null)
       +fila('Contacto','de 1 a 5',p=>p.ct!=null?fmt(p.ct,1):null)
-      +fila('Intensidad','altas · medias · bajas',niv)
+      +fila('Intensidad programada','altas · medias · bajas',p=>nivH(p.nivP))
+      +fila('Intensidad que salió','altas · medias · bajas',p=>nivH(p.niv))
       +fila('Pulsaciones altas','% en zonas 4 y 5',p=>p.z45!=null?n0(p.z45)+' %<small>Z5 '+fmt(p.z5,1)+' % · '+p.zn+(p.zn===1?' día':' días')+'</small>':null)
       +grupo('Cómo se levantan esa mañana')
       +fila('Recuperación',mj('alto')+'de 0 a 100',p=>p.rec!=null?'<b style="color:var(--'+recSev(Math.round(p.rec))+'-text)">'+Math.round(p.rec)+' %</b>':null)
@@ -61004,7 +61019,7 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .bie-por-m h1{margin:2px 0 0;font-size:36px;line-height:1.08;font-weight:700;letter-spacing:-.015em;color:#1d1d1f}
 .bie-lead{margin:14px 0 18px;font-size:14px;line-height:1.45;color:#3a3a3c;max-width:640px}
 .bie-ks{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.bie-k{padding:12px 14px;border-radius:12px;background:#f5f5f7}
+.bie-k{padding:9px 14px 10px;border-radius:12px;background:#f5f5f7}
 .bie-k em{display:block;font-style:normal;font-size:11px;font-weight:600;color:#6e6e73}
 .bie-k b{display:block;margin:3px 0 1px;font-size:26px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums;color:#1d1d1f}
 .bie-k span{display:block;font-size:11px;line-height:1.3;color:#6e6e73}
@@ -61161,8 +61176,8 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .bie-mt{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums;margin-bottom:6px}
 .bie-mt th{padding:0 6px 5px;font-size:11px;font-weight:700;color:#1d1d1f;text-align:left;border-bottom:1px solid #d1d1d6;text-transform:capitalize}
 .bie-mt th small{display:block;font-size:9.5px;font-weight:500;color:#6e6e73;text-transform:none}
-.bie-mt td{padding:5px 6px;border-bottom:1px solid #eeeef0;vertical-align:middle;color:#1d1d1f}
-.bie-mt td:first-child{width:180px}
+.bie-mt td{padding:4px 6px;border-bottom:1px solid #eeeef0;vertical-align:middle;color:#1d1d1f}
+.bie-mt td:first-child{width:190px}
 .bie-mt td:first-child b{display:block;font-size:11.5px;font-weight:600}
 .bie-mt td:first-child span{display:block;font-size:10px;color:#6e6e73;line-height:1.25}
 .bie-mt td>b{font-size:12.5px;font-weight:700}
@@ -67332,8 +67347,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.12*/
-const VER_ACTUAL='2026-11-25.12';
+/*BUILD:2026-11-25.13*/
+const VER_ACTUAL='2026-11-25.13';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
