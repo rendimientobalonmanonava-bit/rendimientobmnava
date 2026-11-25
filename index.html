@@ -18535,7 +18535,7 @@ function bieSemanas(){
   const k=W.findIndex(w=>w.conCarga>0);return k<0?[]:W.slice(k);
 }
 function bieSemanasSVG(W){
-  const w=682,h=168,pl=40,pr=86,pt=12,pb=30,iw=w-pl-pr,ih=h-pt-pb,base=pt+ih;
+  const w=682,h=138,pl=40,pr=86,pt=12,pb=30,iw=w-pl-pr,ih=h-pt-pb,base=pt+ih;
   const mx=Math.max(1,...W.map(x=>x.ua)),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
   const y=v=>base-(v/top)*ih,bw=iw/W.length;
   let ps=[];try{ps=calPartidosDks();}catch(e){}
@@ -18725,7 +18725,7 @@ function bieHTML(){
      summary … helping people grasp essential information at a glance»; Writing:
      «put the most important information first», «avoid jargon»). Ni una cifra ni
      un umbral nuevos. */
-  const clave=items=>{const L=items.filter(Boolean);return L.length?'<div class="bie-key"><em>En pocas palabras</em><ul>'+L.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>':'';};
+  const clave=items=>{const L=items.filter(Boolean);return L.length?'<div class="bie-key"><em>Resumen</em><ul>'+L.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>':'';};
   /* qué es lo bueno en cada escala: con el color solo, «fatiga 2,7» no dice si es mucho o poco */
   const mj=m=>m?'<i class="bie-mj">'+(m==='alto'?'↑':'↓')+' mejor</i>':'';
   const corto=n=>{try{if(typeof cvCorto==='function')return cvCorto(n);}catch(e){}return String(n).split(' ')[0];};
@@ -18758,14 +18758,21 @@ function bieHTML(){
   let fr1='Todavía no hay semanas con carga registrada esta temporada.';
   if(SV&&SV.cerr.length){const mxw=SV.cerr.reduce((a,b)=>b.ua>a.ua?b:a);
     fr1='Una semana normal son unas <b>'+n0(SV.md)+' UA por jugador</b> (esfuerzo × minutos); la más cargada fue la del '+dm(dkey(mxw.ini))+', con '+n0(mxw.ua)+'.';}
-  const k1=[];
-  {const sa=W.filter(x=>x.ua>0).length,du=[].concat(...MS.map(o=>o.dur));
-    if(sa&&(sesE+sesG))k1.push('<b>Cada semana, de media, '+fmt(sesE/sa,1)+' sesiones de pista y '+fmt(sesG/sa,1)+' de gimnasio</b>'+(du.length?', de unos '+n0(med(du))+' minutos':'')+(parT?', más el partido':'')+'.');}
-  k1.push('<b>La carga mide cuánto pesa el trabajo</b>: el esfuerzo que dice cada jugador al acabar (de 0 a 10) por los minutos. 90 minutos a un esfuerzo de 7 son 630 puntos (UA).'+(SV&&SV.md!=null?' Una semana normal le pide a cada jugador unas <b>'+n0(SV.md)+' UA</b>.':''));
-  {const nv=[0,1,2].map(i=>MS.reduce((a,o)=>a+o.niv[i],0)),t=nv[0]+nv[1]+nv[2];
-    if(t){const top=nv.indexOf(Math.max(...nv));k1.push('<b>Lo más habitual son las sesiones de intensidad '+['baja','media','alta'][top]+'</b>: de '+t+' sesiones, '+nv[2]+' altas, '+nv[1]+' medias y '+nv[0]+' bajas.');}}
+  /* v941 · Daniel, 25/11/2026: *«en la primera página quita lo de “en pocas palabras” y haz
+     una mini-chuleta de qué significan los conceptos como UA, RPE»*. Las definiciones son las
+     de la app, dichas en llano; la semana normal sale de la propia hoja. */
+  const glo=[
+    ['UA · carga','Esfuerzo (RPE) × minutos: 90 minutos a un esfuerzo de 7 son 630 UA.'],
+    ['RPE · esfuerzo','Lo dura que le ha parecido la sesión, de 0 (nada) a 10 (lo máximo). Lo dice el jugador al acabar.'],
+    ['Intensidad de la sesión','Baja, media o alta, según la carga, el esfuerzo, el contacto y, si hay pulsómetros, el pulso.'],
+    ['Pulsaciones altas','El tiempo de la sesión en las zonas 4 y 5 del pulsómetro, las dos más altas.'],
+    ['Recuperación','Cómo se levanta (sueño, fatiga, dolor, estrés y ánimo), de 0 a 100: verde, 75 o más; ámbar, 55 a 74; rojo, menos.'],
+    ['Cuestionario de la mañana','Cada pregunta va de 1 (muy bien) a 5 (muy mal): en fatiga o dolor, cuanto más bajo, mejor.'],
+    ['MD','El día de partido: MD-1 es la víspera, MD-3 tres días antes y MD+1 el día después.'],
+    ['Nota física','De 40 a 95: junta condición, fuerza y explosividad, frente al resto de la plantilla.']];
+  const chuleta='<div class="bie-key bie-glo"><em>Qué significa cada cosa</em><dl>'+glo.map(g=>'<div><dt>'+E(g[0])+'</dt><dd>'+E(g[1])+'</dd></div>').join('')+'</dl></div>';
   pags.push({tit:'Cómo hemos trabajado',sub:'Lo que venimos haciendo · temporada '+tem+' · del 1 de julio al '+fl(refk),cuerpo:
-    clave(k1)+'<div class="bie-ks">'+kpi('Sesiones',String(sesE+sesG),sesE+' de pista y '+sesG+' de gimnasio')+kpi('Partidos',String(parT),'desde el 1 de julio')
+    chuleta+'<div class="bie-ks">'+kpi('Sesiones',String(sesE+sesG),sesE+' de pista y '+sesG+' de gimnasio')+kpi('Partidos',String(parT),'desde el 1 de julio')
       +kpi('Horas por jugador',hJ!=null?n0(hJ):'—','de entrenamiento y partido')+kpi('Semana normal',SV&&SV.md!=null?n0(SV.md)+' UA':'—','puntos de carga por jugador')+'</div>'
     +ttl('La carga, semana a semana',fr1)
     +(SV?'<div class="bie-fig">'+SV.svg+'<div class="bie-ley"><span><i class="bie-l-b"></i>carga de la semana, media por jugador</span><span><i class="bie-l-p"></i>semana en curso</span><span><i class="bie-l-pt"></i>semana con partido</span><span><i class="bie-l-m"></i>semana normal (la mediana)</span></div></div>':'')
@@ -18779,7 +18786,7 @@ function bieHTML(){
       {lab:'Carga por jugador',sub:'UA por semana',barra:true,v:o=>o.dias?o.ua/o.dias*7:null,fmt:v=>n0(v)},
       {lab:'Intensidad de las sesiones',sub:'altas · medias · bajas',cero:true,v:o=>o.niv[0]+o.niv[1]+o.niv[2],html:niv},
       {lab:'Pulsaciones altas',sub:'% de la sesión en zonas 4 y 5 · días con pulsómetro',v:o=>med(o.z),fmt:v=>n0(v)+' %'}])
-    +'<p class="bie-pie">La carga es la media de la plantilla (la del Dashboard de Cargas). Los partidos no entran en los minutos ni en el RPE de las sesiones: su cuestionario no recoge lo que pesa un partido.</p>'});
+    +'<p class="bie-pie">La carga es la media de la plantilla. Los partidos no entran en los minutos ni en el esfuerzo: su cuestionario no recoge lo que pesa un partido.</p>'});
 
   /* ── v936 · 2 · Cómo ha respondido el equipo ── */
   const WR=bieRecSemanas(W);
@@ -61072,6 +61079,10 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .bie-key li{position:relative;padding-left:15px;font-size:12.5px;line-height:1.45;color:#3a3a3c}
 .bie-key li::before{content:"";position:absolute;left:1px;top:.55em;width:6px;height:6px;border-radius:50%;background:#3056c4}
 .bie-key li b{font-weight:600;color:#1d1d1f}
+.bie-glo dl{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;margin:0}
+.bie-glo dl>div{min-width:0}
+.bie-glo dt{font-size:12px;font-weight:700;color:#1d1d1f}
+.bie-glo dd{margin:1px 0 0;font-size:11px;line-height:1.36;color:#3a3a3c}
 .bie-mj{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:#eef1fb;font-style:normal;font-size:9.5px;font-weight:600;line-height:1.5;color:#3056c4;white-space:nowrap;vertical-align:1px}
 .bie-st .bie-stl .bie-mj{margin-left:4px}
 .bie-ft td small{display:inline;margin-left:6px;font-size:9.5px;color:#6e6e73;font-weight:400}
@@ -67321,8 +67332,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.11*/
-const VER_ACTUAL='2026-11-25.11';
+/*BUILD:2026-11-25.12*/
+const VER_ACTUAL='2026-11-25.12';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
