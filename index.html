@@ -10507,9 +10507,6 @@ window.lsTumbarIds=lsTumbarIds;window.lsHrId=lsHrId;
    · David Fernández, Clement Esparon y Tahu Lufuanitu — despedidos. Fuera por
      decisión de Daniel el 24/11/2026, **salvo de Nutrición**: lo que deban se
      sigue viendo para poder cobrarlo (v930, abajo).
-   · El entrenador hasta el 25/11/2026 (v931). No es un jugador: entra para que
-     ningún registro con su nombre vuelva por la sincronización, y en Nutrición
-     sale de la gente de fuera; si tuviera cobros, se quedan como «sin ficha».
 
    El filtro vive en la LECTURA de localStorage, no repartido por los módulos,
    por dos razones. Una: hay quince bloques guardados con forma distinta —mapas
@@ -10537,9 +10534,7 @@ const BAJAS=[
   {n:'Hugo Lima'},
   {n:'David Fernández',solo:['fernandez'],cobros:true},
   {n:'Clement Esparon',solo:['clement','esparon'],cobros:true},
-  {n:'Tahu Lufuanitu',solo:['tahu','lufuanitu','luafanitu'],otras:['luafanitu']},
-  /* «villagran» NO va en `solo`: la lleva Óscar Marugán Villagrán */
-  {n:'Carlos Villagrán',solo:['carlos'],cobros:true}];
+  {n:'Tahu Lufuanitu',solo:['tahu','lufuanitu','luafanitu'],otras:['luafanitu']}];
 const BAJAS_NT=s=>String(s==null?'':s).toLowerCase().normalize('NFD')
   .replace(/[̀-ͯ]/g,'').split(/[^a-z0-9]+/).filter(Boolean);
 const BAJAS_TOK=BAJAS.map(b=>({tok:BAJAS_NT(b.n).concat(b.otras||[]),solo:b.solo||[],cobros:!!b.cobros}));
@@ -33081,10 +33076,13 @@ function nutSembrar(){
 
    **No duplica**: si ya hay alguien de fuera que sea esta persona, no se
    toca. La comparación va **solo contra la gente de fuera y los nombres con
-   cobros sin ficha**, nunca contra la plantilla: «Pablo Gallego» comparte nombre con Pablo
-   Herranz García, así que comparándolo con la plantilla no se sembraría. */
+   cobros sin ficha**, nunca contra la plantilla: «Carlos Villagrán» comparte
+   apellido con Óscar Marugán Villagrán y «Pablo Gallego» nombre con Pablo
+   Herranz García, así que comparándolos con la plantilla no se sembraría
+   ninguno de los dos. */
 const NUT_SEED_STAFF_FLAG='bmnava_nutri_seed_staff_2026';
 const NUT_SEED_STAFF=[
+  ['Carlos Villagrán','Primer entrenador'],
   ['Virginia Virseda','Fisioterapeuta'],
   ['Pablo Gallego','Staff'],
   ['Victor Recio','Staff']
@@ -33108,8 +33106,9 @@ function nutSembrarStaff(){
   /* **Sin plantilla no se siembra, y NO se pone la marca.** Las hojas de
      Google tardan unos segundos (§4.1.1) y `nutLoad` puede correr antes: con
      `STATE.players` vacío, los jugadores con cobros pasarían por «gente sin
-     ficha» y la guarda bloquearía a Pablo Gallego —por Pablo Herranz—, dejándolo sin
-     dar de alta para siempre. Es el fallo que `phScanFolder` ya tuvo en la v253. */
+     ficha» y la guarda bloquearía a Carlos Villagrán —por Óscar Marugán
+     Villagrán— y a Pablo Gallego —por Pablo Herranz—, dejándolos sin dar de
+     alta para siempre. Es el fallo que `phScanFolder` ya tuvo en la v253. */
   if(!Object.keys(STATE.players||{}).length)return false;
   if(!Array.isArray(N.externos))N.externos=[];
   /* Con quién se compara: la gente de fuera y quien tenga cobros sin estar
@@ -38645,7 +38644,7 @@ function availMatrix(roster){
    Almacén propio (bmnava_reuniones), con el mismo portero de siempre
    —lsLeer/lsGuardar— así que se sincroniza y entra en la copia de seguridad. */
 const REU_LS='bmnava_reuniones';
-const REU_QUIEN=['Pablo Gallego',
+const REU_QUIEN=['Carlos Villagrán','Pablo Gallego','Carlos y Pablo',
   'Virginia Vírseda','Héctor Cano','Victor Recio','Daniel Gutiérrez'];
 const REU_MOTIVOS=['Rendimiento','Minutos y rol','Actitud','Planificación',
   'Vuelta de lesión','Personal','Seguimiento de un acuerdo','Otro'];
@@ -65641,7 +65640,7 @@ function phOf(name){return phLoad()[name]||PH_FILE[name]||null;}
 window.phOf=phOf;
 /* ══ v516 · La foto de alguien que NO está en la plantilla ══════════════
    `phScanFolder` recorre `STATE.players` más los jugadores históricos, y el
-   cuerpo técnico —Héctor, Virginia…— no está en ninguna de las dos
+   cuerpo técnico —Héctor, Virginia, Carlos…— no está en ninguna de las dos
    listas, así que su archivo en `fotos/` no se buscaba nunca. Esto lo busca
    **bajo demanda y no en el arranque**: son varios nombres por hasta seis
    extensiones, o sea decenas de peticiones que no tiene por qué pagar quien
@@ -66053,8 +66052,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.2*/
-const VER_ACTUAL='2026-11-25.2';
+/*BUILD:2026-11-25.3*/
+const VER_ACTUAL='2026-11-25.3';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
