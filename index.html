@@ -17368,8 +17368,10 @@ window.renderMapaPlantilla=renderMapaPlantilla;
    minutaje del equipo, que se le pondría a quien no jugó). */
 const PART_CAT=[['ent','Entrenó','disp'],['mod','Modificado o readaptación','modif'],['fis','Fuera · físico','noentto'],['sel','Con la selección','seleccion'],['otro','Fuera · otro motivo','cita'],['sin','Sin registro',null]];
 let PART={k:null,v:null};
-function partDatos(){
-  const refk=dkey(REF()),k=BM_DV+'|'+refk+'|'+Object.keys(STATE.players||{}).length;
+/* v935 · `hasta` corta la temporada en otro día (el informe de salida, en su último
+   día), y cada jugador lleva además su día a día (`dd`), con la misma categoría */
+function partDatos(hasta){
+  const refk=hasta||dkey(REF()),k=BM_DV+'|'+refk+'|'+Object.keys(STATE.players||{}).length;
   if(PART.k===k&&PART.v)return PART.v;
   try{calLoad();}catch(e){}
   const cal=STATE.calendar||{},rec={},realN={};
@@ -17380,13 +17382,13 @@ function partDatos(){
     if((cal[dk]||[]).some(e=>e&&!evSP(e)&&(e.type==='entreno'||e.type==='fuerza')))return true;
     return (realN[dk]||0)>=3;});
   let sd={};try{sd=sessDurGet()||{};}catch(e){}
-  const J=Object.keys(STATE.players||{}).map(n=>{const c={ent:0,mod:0,fis:0,sel:0,otro:0,sin:0};
+  const J=Object.keys(STATE.players||{}).map(n=>{const c={ent:0,mod:0,fis:0,sel:0,otro:0,sin:0},dd=[];
     dias.forEach(dk=>{let st=null;try{const ev=effectiveStatus(n,dk);st=ev&&ev.status;}catch(e){}
-      if(st==='seleccion')c.sel++;else if(NOAV_FIS_ST.includes(st))c.fis++;else if(NOAV_ST.includes(st))c.otro++;
-      else if(st==='modif'||st==='readapt')c.mod++;else if(rec[n+'\u0000'+dk])c.ent++;else c.sin++;});
+      const q=st==='seleccion'?'sel':NOAV_FIS_ST.includes(st)?'fis':NOAV_ST.includes(st)?'otro':(st==='modif'||st==='readapt')?'mod':rec[n+'\u0000'+dk]?'ent':'sin';
+      c[q]++;dd.push({dk,c:q});});
     let pj=0,min=0;par.forEach(dk=>{const v=+((sd[dk]||{})[n+'::pista']);if(v>0){pj++;min+=v;}});
     const D=dias.length;
-    return {n,c,D,pct:D?Math.round((c.ent+c.mod)/D*100):null,pj,min};});
+    return {n,c,D,pct:D?Math.round((c.ent+c.mod)/D*100):null,pj,min,dd};});
   PART={k,v:{dias:dias.length,partidos:par.length,J}};return PART.v;
 }
 function renderDispoPart(){
@@ -18740,6 +18742,69 @@ document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.targ
   try{sessionStorage.setItem('bmnava-salida',b.dataset.bs);}catch(x){toast('Este navegador no deja guardar la elección');return;}
   location.reload();});
 function bmSalidaSale(){try{sessionStorage.removeItem('bmnava-salida');}catch(x){}location.reload();}
+/* ═══ v935 · Lo que el fallo del 24–25/11 se llevó ═══
+   Daniel, 25/11/2026, con los primeros informes delante: *«están un poco
+   regular en cuanto a disponibilidad: David Fernández ha estado lesionado,
+   Clement ha perdido algún día suelto y Tahu no ha comenzado con el grupo hasta
+   más adelante»*. El estado de cada día sale de los partes de fisioterapia y de
+   los episodios de Médico (`bmnava_physio`), y hasta la v931 el filtro de bajas
+   hacía que guardar un bloque pusiera tumba a sus registros (§5.0): lo que se
+   llevó no se ve, ni siquiera en el modo de salida. Para el informe se recupera
+   el estado de ANTES de la v930 de dos sitios —la copia automática diaria de
+   este equipo (las cuatro últimas, `bmnava_bkpauto`) y el historial del
+   servidor (`bmnava_state_hist`, si se aplicó `historial.sql`)— y se junta EN
+   MEMORIA con lo que hay: sólo sus registros, sin guardar nada y sin tocar las
+   tumbas. Lo que ya está no se duplica (se compara por su identidad). */
+const BS_T=Date.parse('2026-11-25T00:19:19Z');   /* la v930 */
+const BS_CLAVES=['bmnava_physio','bmnava_meddb','bmnava_medlog','bmnava_hr','bmnava_sessdur','bmnava_asist','bmnava_vendajes','bmnava_iso','bmnava_testlog','bmnava_partidos'];
+let BS_F=null,BS_REC=null;
+async function bsFuentes(){
+  if(BS_F)return BS_F;
+  const F={bloques:{},origen:[]};
+  const add=(k,v)=>{try{const o=typeof v==='string'?JSON.parse(v):v;if(o)(F.bloques[k]=F.bloques[k]||[]).push(o);}catch(e){}};
+  /* 1 · la copia automática más reciente de antes de la v930 */
+  try{const h=JSON.parse(localStorage.getItem(BKPA)||'[]')||[];
+    const c=h.filter(x=>x&&x.fecha&&Date.parse(x.fecha)<BS_T).pop();
+    if(c&&c.datos){let m=0;BS_CLAVES.forEach(k=>{if(c.datos[k]!=null){add(k,c.datos[k]);m++;}});if(m)F.origen.push('la copia automática del '+c.dia.split('-').reverse().join('/'));}}catch(e){}
+  /* 2 · el historial del servidor: la versión que estaba puesta cuando llegó la v930 */
+  try{if(SY&&SY.url&&SY.token){let ok=0;
+    for(const k of BS_CLAVES){
+      const q='?select=k,v,archived_at&k=eq.'+encodeURIComponent(k)+'&archived_at=gte.'+encodeURIComponent(new Date(BS_T).toISOString())+'&order=archived_at.asc&limit=1';
+      let r=await syFetch(SY.url+'/rest/v1/bmnava_state_hist'+q,{headers:syHeaders()});
+      if(r.status===401&&await syRefresh())r=await syFetch(SY.url+'/rest/v1/bmnava_state_hist'+q,{headers:syHeaders()});
+      if(!r.ok){if(!ok)break;continue;}   /* sin la tabla, la primera ya falla */
+      ok++;const rows=await r.json();if(rows&&rows[0]&&rows[0].v!=null)add(k,rows[0].v);
+    }
+    if(ok)F.origen.push('el historial del servidor');}}catch(e){}
+  BS_F=F;return F;
+}
+function bsEsEl(nm){try{return BAJA_SALIDA_I>=0&&nm!=null&&bajaCasa(BAJAS_NT(String(nm)),BAJAS_TOK[BAJA_SALIDA_I]);}catch(e){return false;}}
+function bsFusiona(n,F){
+  const c={},sum=(k,v)=>{c[k]=(c[k]||0)+v;},B=k=>(F&&F.bloques[k])||[];
+  const idOf=o=>o&&(o.id!=null?String(o.id):(o._id!=null?String(o._id):null));
+  const mete=(arr,items,lab,clave)=>{const f=clave||idOf;const ids=new Set(arr.map(f).filter(Boolean));let m=0;
+    items.forEach(o=>{const id=f(o);if(!id||ids.has(id))return;arr.push(o);ids.add(id);m++;});if(m)sum(lab,m);};
+  const porNombre=(k,obj,lab,clave)=>B(k).forEach(b=>{Object.keys(b||{}).forEach(key=>{if(!bsEsEl(key)||!Array.isArray(b[key]))return;obj[n]=obj[n]||[];mete(obj[n],b[key].map(o=>Object.assign({},o)),lab,clave);});});
+  try{physioEnsure();porNombre('bmnava_physio',STATE.physioUser,'partes y estados',o=>o&&(o._id!=null?String(o._id):JSON.stringify([o.dk,o.status,o.to,!!o.ep])));}catch(e){}
+  try{medDbLoad();B('bmnava_meddb').forEach(b=>{['inj','treat'].forEach(t=>{STATE.med[t]=STATE.med[t]||[];
+    mete(STATE.med[t],((b&&b[t])||[]).filter(o=>o&&bsEsEl(o.name)).map(o=>Object.assign({},o,{name:n})),t==='inj'?'lesiones y molestias':'tratamientos');});});}catch(e){}
+  try{if(!STATE.medLog)STATE.medLog=lsLeer('bmnava_medlog',{});porNombre('bmnava_medlog',STATE.medLog,'citas y pruebas');}catch(e){}
+  try{STATE.hr=STATE.hr||[];B('bmnava_hr').forEach(b=>{mete(STATE.hr,(Array.isArray(b)?b:[]).filter(o=>o&&o.dk&&bsEsEl(o.name)).map(o=>{const a=String(o.dk).split('-').map(Number);
+      return Object.assign({},o,{name:n,date:new Date(a[0],a[1]-1,a[2]),manual:true});}),'sesiones de pulsómetro',o=>lsHrId(o));});}catch(e){}
+  const mapa=(k,obj,lab)=>B(k).forEach(b=>{Object.keys(b||{}).forEach(dk=>{const d=b[dk];if(!d||typeof d!=='object')return;
+    Object.keys(d).forEach(kk=>{const i=kk.indexOf('::');if(i<0||!bsEsEl(kk.slice(0,i)))return;const nk=n+kk.slice(i);obj[dk]=obj[dk]||{};if(obj[dk][nk]==null){obj[dk][nk]=d[kk];sum(lab,1);}});});});
+  try{mapa('bmnava_sessdur',sessDurGet(),'minutos');}catch(e){}
+  try{mapa('bmnava_asist',asistGet(),'convocatorias');}catch(e){}
+  try{const V=vendLoad();B('bmnava_vendajes').forEach(b=>mete(V.reg,((b&&b.reg)||[]).filter(o=>o&&bsEsEl(o.jugador)).map(o=>Object.assign({},o,{jugador:n})),'vendajes'));}catch(e){}
+  try{const I=isoLoad();B('bmnava_iso').forEach(b=>mete(I,(Array.isArray(b)?b:[]).filter(o=>o&&o.jugador&&bsEsEl(o.jugador.canon||o.jugador.nombre)).map(o=>Object.assign({},o,{jugador:Object.assign({},o.jugador,{canon:n})})),'isocinéticos',o=>o&&(o.id!=null?String(o.id):JSON.stringify([(o.prueba||{}).fecha,n]))));}catch(e){}
+  try{testLogLoad();porNombre('bmnava_testlog',STATE.testLog,'pruebas físicas',o=>o&&(o.id!=null?String(o.id):JSON.stringify([o.dk,o.k])));}catch(e){}
+  try{const P=ptLoad();B('bmnava_partidos').forEach(b=>mete(P,(Array.isArray(b)?b:[]).filter(o=>o&&bsEsEl(o.name)).map(o=>Object.assign({},o,{name:n})),'partidos medidos',o=>lsPtId(o)));}catch(e){}
+  return {n:Object.values(c).reduce((a,b)=>a+b,0),c};
+}
+/* v935 · Su foto. Salió del repositorio en la v930 y no vuelve: se lee de la
+   versión publicada de antes (es el mismo archivo, ya público en el historial). */
+const BS_FOTO_COMMIT='7014ff47e3c6ccf01dc57d925402ee71edd39de6';
+function bsFoto(){if(BAJA_SALIDA_I<0)return '';return 'https://raw.githubusercontent.com/rendimientobalonmanonava-bit/rendimientobmnava/'+BS_FOTO_COMMIT+'/fotos/'+encodeURIComponent(BAJAS[BAJA_SALIDA_I].n)+'.png';}
 function bsBanda(){
   if(typeof BAJA_SALIDA_I!=='number'||BAJA_SALIDA_I<0)return;
   let b=document.getElementById('bs-banda');
@@ -18835,8 +18900,48 @@ function bsDatos(n){
   const pruebas=Object.values(prue).map(o=>{let lv=null;try{const r=puesto?refNivel(o.def.k,o.ult.v,puesto):null;lv=r?r.lv:null;}catch(e){}return Object.assign(o,{lv});});
   const CAT_ORD=['Condición','Fuerza','Explosividad'];
   pruebas.sort((a,b)=>{const ca=CAT_ORD.indexOf(a.def.cat),cb=CAT_ORD.indexOf(b.def.cat);return (ca<0?9:ca)-(cb<0?9:cb)||String(a.def.name).localeCompare(String(b.def.name),'es');});
+  /* v935 · con el grupo: la participación de Disponibilidad (`partDatos`, v825), hasta su último día */
+  let part=null;try{const P=partDatos(fin);part=(P.J||[]).find(j=>j.n===n)||null;}catch(e){}
+  /* «con el grupo desde» es su primer entrenamiento normal con el grupo: la readaptación o el trabajo modificado de antes se cuentan aparte */
+  const desde=part&&part.dd?((part.dd.find(x=>x.c==='ent')||{}).dk||null):null;
+  const cD={ent:0,mod:0,fis:0,sel:0,otro:0,sin:0},cPre={ent:0,mod:0,fis:0,sel:0,otro:0,sin:0};
+  if(part&&part.dd)part.dd.forEach(x=>{if(!desde||x.dk>=desde)cD[x.c]++;else cPre[x.c]++;});
+  const nD=Object.values(cD).reduce((a,b)=>a+b,0);
+  /* la plantilla, esas mismas semanas y esos mismos días */
+  const eqMed=plMediana(wk.filter(w=>!w.parcial&&w.ua>0&&eq[w.week]>0).map(w=>eq[w.week]));
+  const recEqL=WE.map(w=>recPct(twVal(w))).filter(v=>isFinite(v)),recEq=recEqL.length?recEqL.reduce((a,b)=>a+b,0)/recEqL.length:null;
+  /* v935 · cómo responde su corazón: la radiografía de Pulsómetros › Jugador (por nivel de sesión, `hrpNivel`),
+     contra la plantilla con el mismo cálculo, y su modelo pulso → RPE (`hrpModelo`) */
+  const GRP=[{lab:'Sesión baja',c:LV[0][1],f:x=>x.nivel===0},{lab:'Sesión media',c:LV[1][1],f:x=>x.nivel===1},{lab:'Sesión alta',c:LV[2][1],f:x=>x.nivel===2},{lab:'Partido',c:'#6d5ae0',f:x=>x.partido}];
+  const eqH=[];if(H.length)Object.keys(STATE.players||{}).forEach(m=>{if(m===n)return;try{(hrpDatos(m,0)||[]).forEach(x=>{if(x&&x.tot>0)eqH.push(x);});}catch(e){}});
+  const perfil=GRP.map(g=>{const L=H.filter(g.f);return {lab:g.lab,c:g.c,n:L.length,z:hrpResumen(L.map(x=>x.z45)),fc:hrpResumen(L.map(x=>x.hrAvg).filter(v=>v>0)),eq:hrpResumen(eqH.filter(g.f).map(x=>x.z45))};});
+  let mod=null;try{mod=H.length?hrpModelo(H):null;}catch(e){}
+  const ctMed=plMediana(H.map(x=>x.ct).filter(v=>v!=null&&isFinite(v)));
   return {n,p,ini,fin,ds,S,carga,conC,normalDia,wk,normalSem,eq,ac,acFin,fueraBanda,rpe,nRpe:rp.length,par,minutos,jugados,
-    fuera,molestia,sel,est,dispPct,W,wv,horas,recD,recM,zonas,conDolor,golpes,H,zt,ztt,hrP,hrE,z45m,hm,eps,tr,porTipo,citas,vend,iso,CJ,puesto,fotos,pruebas};
+    fuera,molestia,sel,est,dispPct,W,wv,horas,recD,recM,zonas,conDolor,golpes,H,zt,ztt,hrP,hrE,z45m,hm,eps,tr,porTipo,citas,vend,iso,CJ,puesto,fotos,pruebas,
+    part,desde,cD,cPre,nD,eqMed,recEq,perfil,mod,ctMed};
+}
+/* v935 · Lo primero que lee su próximo preparador o entrenador: una frase por
+   área, con las cifras de las secciones de abajo y contra la plantilla cuando
+   tiene sentido. No se interpreta ni se recomienda nada: se dice lo que hubo. */
+function bsResumen(D,u){
+  const {fl,dm,n0,f1}=u,E=bmEsc,L=[];
+  if(D.nD){const c=D.cD,q=D.cPre,ses=v=>v+(v===1?' sesión':' sesiones'),pre=[q.mod?ses(q.mod)+' del equipo en readaptación o con el entrenamiento modificado':'',q.fis?ses(q.fis)+' fuera por lesión o enfermedad':'',q.otro?ses(q.otro)+' fuera por otro motivo':'',q.sel?ses(q.sel)+' con la selección':''].filter(Boolean);
+    L.push(['Disponibilidad',(D.desde&&pre.length?'Empezó a entrenar con el grupo el '+fl(D.desde)+' (antes: '+pre.join(', ')+'). Desde entonces, ':(D.desde&&q.sin?'Su primer entrenamiento con el grupo registrado es del '+fl(D.desde)+'. Desde entonces, ':''))+'entrenó con el grupo en '+(c.ent+c.mod)+' de '+D.nD+' sesiones'+(c.mod?' ('+c.mod+' con el entrenamiento modificado o en readaptación)':'')+'; '+(c.fis?c.fis+(c.fis===1?' sesión':' sesiones')+' fuera por lesión o enfermedad':'ninguna fuera por lesión')+'.']);}
+  const les=D.eps.filter(x=>x.kind==='Lesión'),mol=D.eps.filter(x=>x.kind==='Molestia');
+  L.push(['Lesiones',les.length?les.map(x=>E(x.tit||'Lesión')+(x.zona?' · '+E(x.zona):'')+' ('+dm(x.dk)+(x.fuera?', '+x.fuera+' días fuera':'')+(x.open?', sigue abierta':'')+')').join('; ')+(mol.length?'. Además, '+mol.length+(mol.length===1?' molestia':' molestias')+'.':'.'):'Ninguna registrada'+(mol.length?'; '+mol.length+(mol.length===1?' molestia':' molestias')+'.':'.')]);
+  if(D.normalSem!=null)L.push(['Carga',"Su semana normal, "+n0(D.normalSem)+' UA'+(D.eqMed?': el '+n0(D.normalSem/D.eqMed*100)+' % de lo que hizo la plantilla esas mismas semanas':'')+(D.rpe!=null?'. Declara un RPE medio de '+f1(D.rpe)+' sobre 10':'')+'.']);
+  if(D.CJ&&D.CJ.nota!=null){const cs=(D.CJ.caps||[]).filter(x=>x.lv!=null);const lv=c=>REF_NIV[c.lv][2];
+    /* lo más fuerte y lo más flojo sólo si de verdad están en niveles distintos del baremo */
+    const mx=Math.max(...cs.map(x=>x.lv)),mn=Math.min(...cs.map(x=>x.lv));
+    const txt=!cs.length?'':(mx===mn?'. '+(cs.length===3?'Las tres capacidades':cs.map(x=>x.c.toLowerCase()).join(' y '))+' en '+lv(cs[0])+' en el baremo de su puesto'
+      :'. En el baremo de su puesto, '+cs.filter(x=>x.lv===mx).map(x=>x.c.toLowerCase()).join(' y ')+' en '+lv(cs.find(x=>x.lv===mx))+'; '+cs.filter(x=>x.lv===mn).map(x=>x.c.toLowerCase()).join(' y ')+' en '+lv(cs.find(x=>x.lv===mn))+(cs.length===3&&cs.some(x=>x.lv!==mx&&x.lv!==mn)?'; '+cs.filter(x=>x.lv!==mx&&x.lv!==mn).map(x=>x.c.toLowerCase()).join(' y ')+' en '+lv(cs.find(x=>x.lv!==mx&&x.lv!==mn)):''));
+    L.push(['Físico','Nota física '+Math.round(D.CJ.nota)+' sobre 95'+txt+'.']);}
+  const al=(D.perfil||[]).find(g=>g.lab==='Sesión alta'),pa=(D.perfil||[]).find(g=>g.lab==='Partido');
+  if(al&&al.z)L.push(['Pulso','En una sesión alta pasa un '+n0(al.z.p50)+' % del tiempo en Z4+Z5'+(al.eq?' (la plantilla, un '+n0(al.eq.p50)+' %)':'')+(pa&&pa.z?'; en partido, un '+n0(pa.z.p50)+' %':'')+'.']);
+  if(D.recM!=null)L.push(['Bienestar','Recuperación media del '+Math.round(D.recM)+' %'+(D.recEq!=null?' (la plantilla, '+Math.round(D.recEq)+' %)':'')+(D.horas.el!=null?'; duerme '+f1(D.horas.el)+' h de media':'')+'.']);
+  if(!L.length)return '';
+  return '<div class="bs-res"><h3>En resumen · para su próximo preparador físico y cuerpo técnico</h3>'+L.map(x=>'<div><b>'+x[0]+'</b><span>'+x[1].charAt(0).toUpperCase()+x[1].slice(1)+'</span></div>').join('')+'</div>';
 }
 function bsHTML(D){
   const E=bmEsc,n0=v=>Math.round(v).toLocaleString('es-ES'),f1=v=>fmt(v,1),f2=v=>fmt(v,2);
@@ -18850,17 +18955,40 @@ function bsHTML(D){
   const inic=String(D.n).split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
   const nota=D.CJ&&D.CJ.nota!=null?Math.round(D.CJ.nota):null;
   /* ── portada ── */
-  B.push('<section class="bs-b bs-por"><div class="bs-id"><span class="bs-mono">'+E(inic)+'</span><div><small>Club Balonmano Nava · Informe del jugador</small><h1>'+E(D.n)+'</h1>'
+  const foto=bsFoto();
+  B.push('<section class="bs-b bs-por"><div class="bs-id"><span class="bs-av"><b>'+E(inic)+'</b>'+(foto?'<img src="'+E(foto)+'" alt="" onerror="this.remove()">':'')+'</span><div><small>Club Balonmano Nava · Informe del jugador</small><h1>'+E(D.n)+'</h1>'
     +'<p>'+E(pos)+' · temporada '+TEMP_INICIO.slice(0,4)+'/'+String(+TEMP_INICIO.slice(2,4)+1).padStart(2,'0')+' · del '+fl(D.ini)+' al '+fl(D.fin)+'</p></div></div>'
-    +'<p class="bie-lead">Resumen de su seguimiento durante la temporada en el club: valoración física, cargas de entrenamiento, pulsómetros, bienestar diario, lesiones y tratamientos. Todas las cifras salen de lo registrado día a día por el área de preparación física y fisioterapia.</p>'
     +'<div class="bie-ks bs-ks">'
       +k('Días con registro',String(D.ds.length?new Set(D.W.map(w=>w.dk).concat(D.conC.map(d=>dkey(d.date)))).size:0),'entre partes y cuestionarios')
       +k('Sesiones con carga',String(D.conC.length),D.carga?n0(D.carga)+' UA en total':'sin carga calculable')
       +k('Minutos de partido',D.jugados?n0(D.minutos)+'′':'—',D.jugados?D.jugados+(D.jugados===1?' partido':' partidos')+' con minutos':'sin minutos apuntados')
-      +k('Disponibilidad',D.dispPct!=null?f1(D.dispPct)+' %':'—','de los días, sin baja')
+      +k('Con el grupo',D.nD?Math.round((D.cD.ent+D.cD.mod)/D.nD*100)+' %':'—',D.nD?(D.cD.ent+D.cD.mod)+' de '+D.nD+' sesiones del equipo'+(D.desde?' desde el '+dm(D.desde):''):'sin sesiones del equipo')
       +k('Nota física',nota!=null?String(nota):'—',D.CJ&&D.CJ.ultima?'última valoración '+dma(typeof D.CJ.ultima==='string'?D.CJ.ultima:dkey(D.CJ.ultima)):'sin valoración esta temporada')
       +k('Lesiones',String(D.eps.filter(x=>x.kind==='Lesión').length),D.eps.filter(x=>x.kind==='Molestia').length+' molestias registradas')
-    +'</div></section>');
+    +'</div>'+bsResumen(D,{fl,dm,n0,f1})+'</section>');
+  /* ── disponibilidad: con el grupo, sesión a sesión (v935) ── */
+  {
+    const P=D.part;
+    const colCat=c=>{const st=(PART_CAT.find(x=>x[0]===c)||[])[2];return st?((PHYSTAT[st]||{}).c||'#8e8e93'):'#d8d8dd';};
+    let tira='';
+    if(P&&P.dd&&P.dd.length){
+      const W=682,h=36,nn=P.dd.length,cw=W/nn;let g='',mes=-1;
+      P.dd.forEach((x,i)=>{g+='<rect x="'+(i*cw).toFixed(2)+'" y="0" width="'+Math.max(1,cw-(cw>4?1.2:.4)).toFixed(2)+'" height="20" rx="'+(cw>6?2:1)+'" style="fill:'+colCat(x.c)+'"/>';
+        const m=+x.dk.slice(5,7)-1;if(m!==mes){mes=m;g+='<text class="bie-ax bie-mes" x="'+(i*cw).toFixed(1)+'" y="33">'+CAL_MES[m].slice(0,3)+'</text>';}});
+      if(D.desde){const i=P.dd.findIndex(x=>x.dk===D.desde);if(i>0)g+='<line class="bs-desde" x1="'+(i*cw).toFixed(1)+'" x2="'+(i*cw).toFixed(1)+'" y1="-4" y2="24"/>';}
+      tira='<svg class="bie-svg" viewBox="0 0 '+W+' '+h+'" width="'+W+'" height="'+h+'" role="img" aria-label="Lo que hizo en cada sesión del equipo">'+g+'</svg>'
+        +'<div class="bie-ley">'+PART_CAT.filter(([c])=>P.c[c]>0).map(([c,l])=>'<span><i style="background:'+colCat(c)+'"></i>'+l+' · '+P.c[c]+'</span>').join('')+'</div>';
+    }
+    const tab=D.eps.length?'<table class="bie-t bs-t3"><thead><tr><th>Desde</th><th>Qué</th><th>Zona</th><th>Hasta</th><th>Días</th><th>Días fuera</th></tr></thead><tbody>'
+      +D.eps.map(x=>'<tr><td>'+dma(x.dk)+'</td><td><b>'+E(x.kind)+'</b>'+(x.tit?' · '+E(x.tit):'')+(x.tipo||x.clasif?'<br><i>'+E([x.tipo,x.clasif].filter(Boolean).join(' · '))+'</i>':'')+'</td><td>'+E(x.zona||'—')+'</td><td>'+(x.open?'sigue abierto':dma(x.fin))+'</td><td>'+x.dias+'</td><td>'+(x.fuera||'—')+'</td></tr>').join('')+'</tbody></table>'
+      :'<p class="bie-pie">Sin lesiones ni molestias registradas en el módulo médico.</p>';
+    const c=D.cD;
+    const q=D.cPre||{};blq('Disponibilidad, lesiones y molestias',(D.desde&&(q.mod||q.fis||q.otro||q.sel)?'Empezó a entrenar con el grupo el '+fl(D.desde)+' (la raya). ':'')+'Cada cuadro es una sesión de entrenamiento del equipo desde el 1 de julio, con lo que hizo él: «sin registro» es que no hay cuestionario ni estado apuntado ese día, así que no se sabe si entrenó.',
+      '<div class="bie-ks bs-ks4">'+k('Sesiones del equipo',P?String(P.D):'—','de entrenamiento desde el 1 de julio')
+        +k('Readaptación o modificado',P?String(P.c.mod):'—',P&&P.c.mod===1?'sesión':'sesiones')+k('Fuera · lesión o enfermedad',P?String(P.c.fis):'—',P&&P.c.fis===1?'sesión':'sesiones')
+        +k('Días de baja',String(D.fuera),'días de calendario'+(D.molestia?' · '+D.molestia+' con molestia':''))+'</div>'
+      +tira+'<div class="bs-sp"></div>'+tab);
+  }
   /* ── valoración física ── */
   const NV=['var(--bad)','var(--warn)','var(--ok)','var(--champ)'],NT=['var(--bad-text)','var(--warn-text)','var(--ok-text)','var(--champ)'];
   if(D.pruebas.length){
@@ -18928,31 +19056,33 @@ function bsHTML(D){
       +(rs?'<div class="bie-tt bs-sub"><h2>Su recuperación, día a día</h2><p>Un cuadro por parte: verde 75 o más, ámbar de 55 a 74, rojo por debajo.</p></div><div class="bs-rs">'+rs+'</div>':'')
       +(zs.length?'<div class="bie-tt bs-sub"><h2>Dónde le ha dolido</h2></div><div class="bs-zs">'+zs.map(z=>'<span><b>'+z[1]+'</b> '+E(z[0])+'</span>').join('')+'</div>':''));
   }
-  /* ── pulsómetros ── */
+  /* ── pulsómetros: cómo responde su corazón (v935) ── */
   if(D.H.length){
-    const zb=D.ztt?D.zt.map((s,i)=>'<i style="flex:'+(s/D.ztt*100).toFixed(2)+';background:'+PL_ZCOL[i]+'" title="Z'+(i+1)+'"></i>').join(''):'';
+    const G=D.perfil.filter(g=>g.z);
+    const top=Math.max(30,Math.ceil(Math.max(1,...G.map(g=>Math.max(g.z.p75,g.eq?g.eq.p50:0)))/10)*10);
+    const px=v=>Math.max(0,Math.min(100,v/top*100));
+    const filas=D.perfil.map(g=>!g.z?'<div class="bs-hr bs-hr--x"><span><i style="background:'+g.c+'"></i>'+g.lab+'</span><i class="bs-hr-b"></i><b class="bie-mu">—</b><em class="bie-mu">ninguna medida</em></div>'
+      :'<div class="bs-hr"><span><i style="background:'+g.c+'"></i>'+g.lab+'<small>'+g.n+'</small></span>'
+        +'<i class="bs-hr-b"><i style="left:'+px(g.z.p25).toFixed(1)+'%;width:'+Math.max(1.5,px(g.z.p75)-px(g.z.p25)).toFixed(1)+'%;background:'+g.c+'"></i>'
+        +(g.eq?'<s style="left:'+px(g.eq.p50).toFixed(1)+'%"></s>':'')+'<u style="left:'+px(g.z.p50).toFixed(1)+'%"></u></i>'
+        +'<b>'+n0(g.z.p50)+' %</b><em>'+(g.eq?'plantilla '+n0(g.eq.p50)+' %':'')+(g.fc?(g.eq?' · ':'')+'FC media '+n0(g.fc.p50)+' %':'')+'</em></div>').join('');
+    const M=D.mod;let modelo='';
+    /* sin fiabilidad mínima no se enseña como predicción (la regla de `hrpModelo`): se dice */
+    if(M&&M.ok&&M.grado==='flojo')modelo='<div class="bie-tt bs-sub"><h2>Su pulso y el esfuerzo que declara</h2><p>Con '+M.n+' sesiones con pulsómetro, RPE y contacto, su pulso sólo explica el '+n0(Math.max(0,M.r2)*100)+' % de lo dura que le parece una sesión: en él, el esfuerzo que declara depende poco del tiempo que pasa en zona alta.</p></div>';
+    else if(M&&M.ok){const ct=Math.max(1,Math.min(5,D.ctMed!=null?Math.round(D.ctMed):3));
+      modelo='<div class="bie-tt bs-sub"><h2>Su pulso y el esfuerzo que declara</h2><p>Con '+M.n+' sesiones con pulsómetro, RPE y contacto, su pulso explica el '+n0(Math.max(0,M.r2)*100)+' % de lo dura que le parece una sesión (modelo '+M.grado+(M.rmse!=null?', con un error de ±'+f1(M.rmse)+' puntos':'')+'). Lo que suele declarar con un contacto '+(HRP_CTLAB[ct-1]||'medio')+', según cuánto tiempo pase en zona alta:</p></div>'
+        +'<div class="bs-mod">'+[10,20,30,40].map(z=>{const r=M.pred(z,ct),fuera=z<M.zMin-5||z>M.zMax+5;
+          return '<div class="'+(fuera?'fuera':'')+'"><span>'+z+' % en Z4+Z5</span><b><i style="background:'+hrpColRpe(r)+'"></i>RPE '+f1(r)+'</b><em>'+(fuera?'fuera de lo que ha vivido':hrpRpeLab(r))+'</em></div>';}).join('')+'</div>';}
+    else modelo='<p class="bie-pie">Su modelo individual de pulso → esfuerzo necesita 15 sesiones con pulsómetro, RPE y contacto; tiene '+(M&&M.n!=null?M.n:0)+'.</p>';
+    const zb=D.ztt?D.zt.map((s,i)=>'<i style="flex:'+(s/D.ztt*100).toFixed(2)+';background:'+PL_ZCOL[i]+'"></i>').join(''):'';
     const zl=D.ztt?D.zt.map((s,i)=>'<span style="--c:'+PL_ZCOL[i]+'"><b>Z'+(i+1)+'</b> '+n0(s/D.ztt*100)+' %</span>').join(''):'';
-    const ult=D.H.slice(-10).reverse();
-    blq('Pulsómetros','Polar: frecuencia cardiaca y tiempo en cada zona, en todas sus sesiones medidas'+(D.H.length?' (del '+fl(D.H[0].dk)+' al '+fl(D.H[D.H.length-1].dk)+')':'')+'.',
-      '<div class="bie-ks bs-ks4">'+k('Sesiones medidas',String(D.H.length),n0(D.H.reduce((a,x)=>a+(x.min||0),0))+' minutos en total')
-        +k('FC media',D.hm('hrAvg')!=null?n0(D.hm('hrAvg'))+' %':'—','de su FC máxima configurada')+k('FC máxima',D.hm('hrMax')!=null?n0(D.hm('hrMax'))+' %':'—','media de sus picos')
-        +k('Tiempo en Z4+Z5',D.z45m(D.H)!=null?n0(D.z45m(D.H))+' %':'—',(D.hrP.length&&D.z45m(D.hrP)!=null?'en partido '+n0(D.z45m(D.hrP))+' %':'')+(D.hrE.length&&D.z45m(D.hrE)!=null?(D.hrP.length?' · ':'')+'entrenando '+n0(D.z45m(D.hrE))+' %':''))+'</div>'
-      +(zb?'<div class="bs-zb">'+zb+'</div><div class="bs-zl">'+zl+'</div>':'')
-      +'<table class="bie-t bs-t2"><thead><tr><th>Fecha</th><th>Sesión</th><th>Minutos</th><th>FC media</th><th>FC máx</th><th>Z4+Z5</th><th>TRIMP</th></tr></thead><tbody>'
-      +ult.map(x=>'<tr><td>'+dma(x.dk)+'</td><td>'+E(x.partido?'Partido':(x.lab||'Sesión'))+'</td><td>'+n0(x.min)+'′</td><td>'+(x.hrAvg?n0(x.hrAvg)+' %':'—')+'</td><td>'+(x.hrMax?n0(x.hrMax)+' %':'—')+'</td><td>'+(x.z45!=null?n0(x.z45)+' %':'—')+'</td><td>'+(x.trimp?n0(x.trimp):'—')+'</td></tr>').join('')+'</tbody></table>'
-      +(D.H.length>10?'<p class="bie-pie">Las diez últimas de '+D.H.length+' sesiones.</p>':''));
-  }
-  /* ── disponibilidad y lesiones ── */
-  {
-    const lab=s=>(PHYSTAT[s]&&PHYSTAT[s].lab)||s;
-    const est=Object.entries(D.est).sort((a,b)=>b[1]-a[1]);
-    const tab=D.eps.length?'<table class="bie-t bs-t3"><thead><tr><th>Desde</th><th>Qué</th><th>Zona</th><th>Hasta</th><th>Días</th><th>Días fuera</th></tr></thead><tbody>'
-      +D.eps.map(x=>'<tr><td>'+dma(x.dk)+'</td><td><b>'+E(x.kind)+'</b>'+(x.tit?' · '+E(x.tit):'')+(x.tipo||x.clasif?'<br><i>'+E([x.tipo,x.clasif].filter(Boolean).join(' · '))+'</i>':'')+'</td><td>'+E(x.zona||'—')+'</td><td>'+(x.open?'sigue abierto':dma(x.fin))+'</td><td>'+x.dias+'</td><td>'+(x.fuera||'—')+'</td></tr>').join('')+'</tbody></table>'
-      :'<p class="bie-pie">Sin lesiones ni molestias registradas en el módulo médico.</p>';
-    blq('Disponibilidad, lesiones y molestias','El estado de cada día según el cuerpo médico y fisioterapia. En la tabla, «días fuera» son los de baja, sin entrenar o enfermo dentro de cada episodio.',
-      '<div class="bie-ks bs-ks4">'+k('Disponibilidad',D.dispPct!=null?f1(D.dispPct)+' %':'—','de '+D.ds.length+' días')+k('Días fuera',String(D.fuera),'de baja, sin entrenar o enfermo')
-        +k('Días con molestia',String(D.molestia),'entrenando, en tratamiento o con dolor')+k('Con la selección',String(D.sel),D.sel?'días convocado':'ningún día')+'</div>'
-      +(est.length?'<div class="bs-est">'+est.map(e=>'<span style="--c:'+((PHYSTAT[e[0]]||{}).c||'var(--muted)')+'"><b>'+e[1]+'</b> '+E(lab(e[0]))+'</span>').join('')+'</div>':'')+tab);
+    const fcMax=D.hm('hrMax');
+    blq('Pulsómetros · cómo responde su corazón','Cuánto tiempo pasa en zona alta (Z4+Z5) según lo dura que es la sesión, frente a la plantilla en las mismas sesiones, y cómo se relaciona su pulso con el esfuerzo que declara. '+D.H.length+' sesiones medidas, del '+fl(D.H[0].dk)+' al '+fl(D.H[D.H.length-1].dk)+'.',
+      '<div class="bs-hrs">'+filas+'<div class="bs-hr bs-hr-esc"><span></span><i><em>0 %</em><em>'+top+' % del tiempo en Z4+Z5</em></i><b></b><em></em></div></div>'
+      +'<p class="bie-pie">La barra es su rango habitual (de un cuarto a tres cuartos de sus sesiones), la raya negra su sesión típica y la gris la de la plantilla. El nivel de cada sesión es el con el que la app la clasifica.</p>'
+      +modelo
+      +(zb?'<div class="bie-tt bs-sub"><h2>Su tiempo en cada zona</h2><p>De todas sus sesiones medidas. FC media habitual '+(D.hm('hrAvg')!=null?n0(D.hm('hrAvg'))+' %':'—')+' y pico habitual '+(fcMax!=null?n0(fcMax)+' %':'—')+' de su FC máxima configurada.</p></div><div class="bs-zb">'+zb+'</div><div class="bs-zl">'+zl+'</div>':'')
+      +(fcMax!=null&&fcMax>100?'<p class="bie-pie">Su pico supera el 100 %: la FC máxima configurada en Polar está por debajo de la real, así que sus porcentajes salen algo altos.</p>':''));
   }
   /* ── tratamientos y pruebas médicas ── */
   if(D.tr.length||D.citas.length||(D.vend&&D.vend.tot)||D.iso.length){
@@ -18967,16 +19097,24 @@ function bsHTML(D){
       +(D.iso.length?'<div class="bie-tt bs-sub"><h2>Isocinético</h2></div><table class="bie-t bs-t4"><thead><tr><th>Fecha</th><th>LSI extensores</th><th>LSI flexores</th><th>H/Q pierna operada</th></tr></thead><tbody>'
         +D.iso.map(x=>{const l=x.R.lenta||{};return '<tr><td>'+E((x.D.prueba||{}).fecha||'—')+'</td><td>'+(l.lsiExt!=null?n0(l.lsiExt)+' %':'—')+'</td><td>'+(l.lsiFlex!=null?n0(l.lsiFlex)+' %':'—')+'</td><td>'+(l.hqOp!=null?n0(l.hqOp)+' %':'—')+'</td></tr>';}).join('')+'</tbody></table>':''));
   }
-  B.push('<section class="bs-b bs-fin"><p>Informe elaborado por el área de preparación física del Club Balonmano Nava con los datos registrados en la temporada '+TEMP_INICIO.slice(0,4)+'/'+String(+TEMP_INICIO.slice(2,4)+1).padStart(2,'0')+'. Contiene datos de salud: se entrega al jugador, o con su consentimiento.</p></section>');
   return B;
 }
 async function bmInformeSalida(){
   const n=bsJug();if(!n){toast('Todavía no están sus datos: espera unos segundos');return;}
   for(let i=0;i<40&&window.__RD_CALC;i++)await new Promise(r=>setTimeout(r,150));
+  /* v935 · lo de antes del 25/11, en memoria (ver `bsFuentes`) */
+  let rec={n:0,c:{}},F=null;
+  try{F=await bsFuentes();rec=bsFusiona(n,F);}catch(e){console.error('bmnava · informe de salida · recuperar',e);}
+  if(rec.n){BM_DV++;try{hreqInvalidar();}catch(e){}if(rec.c['pruebas físicas'])try{testLogApply();}catch(e){}
+    try{renderAll();}catch(e){}for(let i=0;i<80&&window.__RD_CALC;i++)await new Promise(r=>setTimeout(r,200));}
+  /* lo recuperado se cuenta en total: la segunda vez ya no hay nada nuevo que juntar */
+  const T0=(BS_REC&&BS_REC.rec)||{n:0,c:{}};Object.keys(rec.c).forEach(k=>{T0.c[k]=(T0.c[k]||0)+rec.c[k];});T0.n+=rec.n;
+  BS_REC={rec:T0,F};
   let B;try{B=bsHTML(bsDatos(n));}catch(err){console.error('bmnava · informe de salida',err);toast('No he podido montar el informe');return;}
   const E=bmEsc,tit='Informe del jugador';
   const hd=c=>'<div class="bmit-hd"><img src="escudo.png" alt="" onerror="this.remove()"><div><b>'+E(n)+(c?' <small>· continúa</small>':'')+'</b><span>'+tit+' · Club Balonmano Nava</span></div></div>';
-  const ft='<div class="bmit-ft"><span>BM Nava · '+tit+' · '+E(n)+'</span><span></span></div>';
+  /* la nota de los datos de salud va en el pie de cada hoja: sola, ocupaba una hoja entera */
+  const ft='<div class="bmit-ft"><span>BM Nava · preparación física · '+E(n)+' · contiene datos de salud: se entrega al jugador o con su consentimiento</span><span></span></div>';
   let v=document.getElementById('bmit');if(!v){v=document.createElement('div');v.id='bmit';v.setAttribute('role','dialog');document.body.appendChild(v);}
   v.setAttribute('aria-label',tit+' · '+n);
   v.innerHTML='<div class="bmit-bar"><b>'+E(tit)+' · '+E(n)+'</b><span class="bil-np"></span>'
@@ -18994,10 +19132,20 @@ async function bmInformeSalida(){
     const nc=sec.querySelector('.bmit-c');
     while(!cabe(c)&&c.querySelectorAll(':scope>.bs-b').length>1){const u=[...c.querySelectorAll(':scope>.bs-b')].pop();nc.insertBefore(u,nc.firstChild);}
     pags.push(nc);}
+  /* el hueco de una hoja se rellena con el primer bloque de las siguientes que quepa entero (la regla de la v921); la nota final se queda al final */
+  for(let a=0;a<pags.length-1;a++){const c=pags[a];
+    for(let b=a+1;b<pags.length;b++){[...pags[b].querySelectorAll(':scope>.bs-b:not(.bs-fin)')].forEach(bl=>{const sig=bl.nextSibling,pb=pags[b];c.appendChild(bl);if(!cabe(c))pb.insertBefore(bl,sig);});}}
+  const finB=doc.querySelector('.bs-fin');
+  pags=pags.filter(c=>{if(c.querySelector(':scope>.bs-b:not(.bs-fin)'))return true;const sec=c.closest('.bmit-p');if(sec&&!sec.contains(finB))sec.remove();else if(sec&&sec.contains(finB))return true;return false;});
+  if(finB){const ult=pags.filter(c=>c.querySelector(':scope>.bs-b:not(.bs-fin)')).pop();
+    if(ult&&!ult.contains(finB)){const de=finB.parentNode;ult.appendChild(finB);
+      if(!cabe(ult))de.appendChild(finB);else{const sec=de&&de.closest('.bmit-p');if(sec&&!de.querySelector(':scope>.bs-b')){sec.remove();pags=pags.filter(c=>c!==de);}}}}
   /* un bloque solo que no cabe en su hoja se encoge en vez de cortarse */
   pags.forEach(c=>{if(!cabe(c)){const k=Math.max(.75,c.clientHeight/c.scrollHeight*.99);[...c.children].forEach(b=>{b.style.zoom=k.toFixed(3);});}});
   const nP=pags.length;[...doc.querySelectorAll('.bmit-ft')].forEach((f,i)=>{const s=f.querySelectorAll('span');if(s[1])s[1].textContent=(i+1)+' / '+nP;});
-  const np=v.querySelector('.bil-np');if(np)np.textContent=nP===1?'1 página A4':nP+' páginas A4';
+  const np=v.querySelector('.bil-np');if(np){const R=BS_REC||{},o=(R.F&&R.F.origen)||[];
+    np.textContent=(nP===1?'1 página A4':nP+' páginas A4')+(R.rec&&R.rec.n?' · recuperados '+R.rec.n+' registros de '+o.join(' y '):(o.length?' · nada que recuperar de '+o.join(' y '):' · sin copia ni historial de antes del 25/11'));
+    np.title=R.rec&&R.rec.n?Object.entries(R.rec.c).map(x=>x[1]+' '+x[0]).join(' · '):'';}
   try{bmItAjusta();}catch(x){}
 }
 window.bmInformeSalida=bmInformeSalida;window.bmInformeSalidaElige=bmInformeSalidaElige;window.bmSalidaSale=bmSalidaSale;
@@ -60812,6 +60960,36 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .bs-est b{font-weight:700;color:#1d1d1f}
 .bs-fin p{margin:0;padding-top:10px;border-top:1px solid #e5e5ea;font-size:10.5px;line-height:1.45;color:#6e6e73}
 /* el modo de salida, en la app */
+.bs-av{position:relative;flex:none;width:96px;height:96px;border-radius:50%;overflow:hidden;background:#1d2836;display:grid;place-items:center}
+.bs-av b{color:#fff;font-size:30px;font-weight:700}
+.bs-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 12%;background:#e9e9ee}
+.bs-res{margin-top:14px;padding:14px 16px;border-radius:12px;background:#f5f5f7}
+.bs-res h3{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6e6e73}
+.bs-res>div{display:grid;grid-template-columns:96px 1fr;gap:10px;padding:5px 0;border-top:1px solid #e5e5ea;font-size:12px;line-height:1.42}
+.bs-res>div:first-of-type{border-top:0}
+.bs-res b{font-weight:700;color:#1d1d1f}.bs-res span{color:#3a3a3c}
+.bs-hrs{display:flex;flex-direction:column;gap:7px;margin-bottom:6px}
+.bs-hr{display:grid;grid-template-columns:120px 1fr 48px 170px;gap:12px;align-items:center;font-size:11.5px}
+.bs-hr>span{display:flex;align-items:center;gap:7px;color:#1d1d1f;font-weight:600}
+.bs-hr>span i{flex:none;width:9px;height:9px;border-radius:50%}
+.bs-hr>span small{font-size:10px;font-weight:500;color:#6e6e73}
+.bs-hr-b{position:relative;display:block;height:10px;border-radius:5px;background:#ececf0}
+.bs-hr-b>i{position:absolute;top:0;bottom:0;border-radius:5px;opacity:.55}
+.bs-hr-b u{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1.5px;border-radius:2px;background:#1d1d1f}
+.bs-hr-b s{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1.5px;border-radius:2px;background:#8e8e93}
+.bs-hr>b{text-align:right;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.bs-hr>em{font-style:normal;color:#6e6e73;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bs-hr-esc>i{display:flex;justify-content:space-between;font-style:normal}
+.bs-hr-esc>i em{font-style:normal;font-size:10px;color:#6e6e73}
+.bs-mod{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:6px}
+.bs-mod>div{padding:10px 12px;border-radius:10px;background:#f5f5f7}
+.bs-mod span{display:block;font-size:10.5px;color:#6e6e73}
+.bs-mod b{display:flex;align-items:center;gap:6px;margin:3px 0 1px;font-size:16px;font-weight:700;color:#1d1d1f;font-variant-numeric:tabular-nums}
+.bs-mod b i{width:9px;height:9px;border-radius:50%}
+.bs-mod em{font-style:normal;font-size:10.5px;color:#3a3a3c}
+.bs-mod .fuera b,.bs-mod .fuera em{color:#6e6e73}
+.bs-desde{stroke:#1d1d1f;stroke-width:2}
+.bs-sp{height:12px}
 #bs-banda{position:fixed;z-index:955;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:6px 6px 6px 14px;border-radius:999px;background:#1d2836;color:#fff;font-size:13px;box-shadow:0 8px 28px rgba(0,0,0,.28)}
 #bs-banda span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #bs-banda button{flex:none;min-height:30px;padding:0 12px;border:0;border-radius:999px;background:rgba(255,255,255,.16);color:#fff;font:inherit;font-weight:600;cursor:pointer}
@@ -66862,8 +67040,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.5*/
-const VER_ACTUAL='2026-11-25.5';
+/*BUILD:2026-11-25.6*/
+const VER_ACTUAL='2026-11-25.6';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
