@@ -14563,6 +14563,7 @@ function bmbIndice(){
   A('Su semana · imagen para el jugador','Su carga, su sueño, su recuperación y su readiness de la semana, contra lo suyo, para mandárselo',()=>{if(window.bmTuSemana)bmTuSemana();},'tu semana jugador imagen whatsapp resumen semanal');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
   A('Informe de la temporada','Un documento de varias páginas para imprimir o guardar en PDF: disponibilidad, lesiones, carga, minutos y valoraciones',()=>{if(window.bmInformeTemporada)bmInformeTemporada();},'informe temporada pdf directiva memoria documento');
+  A('Lo que venimos haciendo · informe para el entrenador','Cuatro páginas para imprimir o guardar en PDF: qué medimos, las cargas, el perfil físico de cada jugador y el microciclo',()=>{if(window.bmInformeEntrenador)bmInformeEntrenador();},'informe entrenador nuevo cuerpo tecnico resumen pdf cargas perfil fisico microciclo');
   A('Notas para ti','Las notas que te avisan, con sus respuestas',()=>{if(window.bmNotasMias)bmNotasMias();},'notas mensajes avisos para mi respuestas');
   A('Informe del partido','El último partido: minutos, carga, cómo llegó cada uno y cómo se recuperó',()=>{if(window.bmInformePartido)bmInformePartido();},'informe partido post partido minutos recuperacion md+1');
   A('Bitácora de la temporada','Notas, lesiones y altas, partes, «Ojo hoy», partidos y valoraciones en una línea de tiempo',()=>{if(window.bmBitacora)bmBitacora('');},'bitacora historial cronologia linea tiempo temporada lesiones notas');
@@ -18427,6 +18428,274 @@ document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.targ
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('bmit')&&document.getElementById('bmit').classList.contains('on')){e.preventDefault();e.stopPropagation();bmItCierra();}},true);
 window.addEventListener('resize',()=>{if(document.querySelector('#bmit.on'))bmItAjusta();},{passive:true});
 window.bmInformeTemporada=bmInformeTemporada;
+/* ═══ v933 · «LO QUE VENIMOS HACIENDO» · EL INFORME PARA EL ENTRENADOR NUEVO ═══
+   Daniel, 25/11/2026: un resumen de 3 o 4 páginas en PDF para el entrenador que
+   llega, «para que entienda lo que venimos haciendo»: (1) las cargas, (2) el
+   perfil físico de los jugadores y (3) cómo repartimos la carga en el
+   microciclo, con fotos y muy visual. Lo lee alguien sin formación en
+   preparación física, así que cada bloque abre con una frase que dice lo que
+   se ve, y la primera hoja explica qué medimos y cómo se lee.
+   Cuatro hojas A4 en el visor de los documentos (#bmit, v819), fijadas a claro.
+   **Ni una cifra ni un umbral nuevos**: la carga del equipo es la del Dashboard
+   (`cgSerieEquipo`, `cgSemanasEquipo`); el readiness, el ACWR y la carga de 7
+   días, los de la ficha; el perfil, el de la carta del jugador (`cjDatos`);
+   lo que dejó cada fase, `vhComparaFases`; la semana tipo, `calRefMD` (la
+   carga, en la unidad del plan) y `ctDiaTipo` (minutos, RPE y %Z4+Z5); y el
+   ciclo en curso, `calMicrociclo` y `calProyeccionACWR`. Los cortes que se
+   explican son los de la app: readiness 75/55, ACWR 0,8 · 1,3 · 1,5
+   (`CONFIG.load`), carga de sesión 600/900 UA (`NIV_UA`) y el baremo por puesto. */
+const BIE_TIT='Lo que venimos haciendo';
+const BIE_MDH={'MD+1':'Día después','MD+2':'2 días después','MD+3':'3 días después','MD-3':'3 días antes','MD-2':'2 días antes','MD-1':'Víspera','MD':'Partido'};
+function bieFoto(n){const p=(STATE.players||{})[n]||{};return p.avatar||photoFor(n)||'';}
+function bieAv(n,cls,c){return '<span class="bie-av'+(cls?' '+cls:'')+'"'+(c?' style="--c:'+c+'"':'')+'><img src="'+bmEsc(bieFoto(n))+'" alt=""></span>';}
+function bieNom(n){try{return cvCorto(n);}catch(e){return String(n).split(' ')[0];}}
+function biePlantilla(){
+  const ps=STATE.players||{},ord=(a,b)=>a.localeCompare(b,'es');
+  const ns=Object.keys(ps).filter(n=>!(typeof esBaja==='function'&&esBaja(n)));
+  const gr=JL_GR.map(g=>({k:g[0],t:g[1],ns:ns.filter(n=>(ps[n]||{}).pos===g[0]).sort(ord)}));
+  const resto=ns.filter(n=>!JL_GR.some(g=>g[0]===(ps[n]||{}).pos)).sort(ord);
+  if(resto.length)gr.push({k:'',t:'Sin puesto',ns:resto});
+  return gr.filter(g=>g.ns.length);
+}
+function biePuesto(n){try{return posDetailOf(n)||((STATE.players||{})[n]||{}).pos||'';}catch(e){return '';}}
+function bieMediana(a){const v=a.filter(x=>x!=null&&isFinite(x)).sort((x,y)=>x-y);if(!v.length)return null;const h=(v.length-1)/2;return (v[Math.floor(h)]+v[Math.ceil(h)])/2;}
+/* la parte de arriba redondeada de una barra que sale de la línea de base */
+function bieBarra(x,y,w,base,cls,st){const h=base-y;if(!(h>0.5))return '';const r=Math.min(4,w/2,h);
+  return '<path class="'+cls+'"'+(st?' style="'+st+'"':'')+' d="M'+x.toFixed(1)+','+base.toFixed(1)+'V'+(y+r).toFixed(1)+'Q'+x.toFixed(1)+','+y.toFixed(1)+' '+(x+r).toFixed(1)+','+y.toFixed(1)+'H'+(x+w-r).toFixed(1)+'Q'+(x+w).toFixed(1)+','+y.toFixed(1)+' '+(x+w).toFixed(1)+','+(y+r).toFixed(1)+'V'+base.toFixed(1)+'Z"/>';}
+function bieBalon(cx,cy,r){const f=v=>v.toFixed(1);
+  return '<g class="bie-bal"><circle cx="'+f(cx)+'" cy="'+f(cy)+'" r="'+r+'"/><path d="M'+f(cx)+','+f(cy-r)+'C'+f(cx-r*.75)+','+f(cy-r*.3)+' '+f(cx-r*.75)+','+f(cy+r*.3)+' '+f(cx)+','+f(cy+r)+'M'+f(cx)+','+f(cy-r)+'C'+f(cx+r*.75)+','+f(cy-r*.3)+' '+f(cx+r*.75)+','+f(cy+r*.3)+' '+f(cx)+','+f(cy+r)+'M'+f(cx-r)+','+f(cy)+'H'+f(cx+r)+'"/></g>';}
+function biePaso(mx){const c=[50,100,250,500,1000,2000,2500,5000];for(const p of c){if(mx/p<=5)return p;}return 10000;}
+function bieSemanas(){
+  let W=[];try{W=cgSemanasEquipo(cgSerieEquipo());}catch(e){}
+  const ini=dkey(calWeekStart(dkToDate(TEMP_INICIO)));
+  W=W.filter(w=>dkey(w.ini)>=ini);
+  /* desde la primera semana con carga: julio puede empezar con vacaciones */
+  const k=W.findIndex(w=>w.conCarga>0);return k<0?[]:W.slice(k);
+}
+function bieSemanasSVG(W){
+  const w=682,h=168,pl=40,pr=86,pt=12,pb=30,iw=w-pl-pr,ih=h-pt-pb,base=pt+ih;
+  const mx=Math.max(1,...W.map(x=>x.ua)),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
+  const y=v=>base-(v/top)*ih,bw=iw/W.length;
+  let ps=[];try{ps=calPartidosDks();}catch(e){}
+  const n0=v=>Math.round(v).toLocaleString('es-ES');
+  let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Carga del equipo por semana">';
+  for(let v=0;v<=top+0.1;v+=paso)s+='<line class="bie-gr" x1="'+pl+'" x2="'+(w-pr)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="bie-ax" x="'+(pl-6)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+n0(v)+'</text>';
+  let mesAnt=-1;
+  W.forEach((x,i)=>{const bx=pl+i*bw+bw*.17,bwi=bw*.66;
+    s+=bieBarra(bx,y(x.ua),bwi,base,'bie-b'+(x.parcial?' bie-b--p':''));
+    const d0=dkey(x.ini),d6=dkSumaDias(d0,6);
+    if(ps.some(p=>p>=d0&&p<=d6))s+='<circle class="bie-pt" cx="'+(bx+bwi/2).toFixed(1)+'" cy="'+(base+7)+'" r="2.6"/>';
+    const m=x.ini.getMonth();
+    if(m!==mesAnt){mesAnt=m;s+='<text class="bie-ax bie-mes" x="'+bx.toFixed(1)+'" y="'+(h-4)+'">'+CAL_MES[m].slice(0,3)+'</text>';}});
+  const cerr=W.filter(x=>!x.parcial&&x.ua>0),md=bieMediana(cerr.map(x=>x.ua));
+  if(md!=null){const yy=y(md).toFixed(1);s+='<line class="bie-med" x1="'+pl+'" x2="'+(w-pr+4)+'" y1="'+yy+'" y2="'+yy+'"/><text class="bie-medt" x="'+(w-pr+8)+'" y="'+(+yy-2)+'">Semana</text><text class="bie-medt" x="'+(w-pr+8)+'" y="'+(+yy+10)+'">normal · '+n0(md)+'</text>';}
+  return {svg:s+'</svg>',md,cerr};
+}
+function bieAcwrBanda(r){
+  const w=104,h=18,lo=.4,hi=2,X=v=>Math.max(3,Math.min(w-3,(v-lo)/(hi-lo)*w));
+  const v=Math.round(r*100)/100,c=acwrClass(v);
+  return '<svg class="bie-ac" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" aria-hidden="true"><rect class="bie-ac-c" x="0" y="7" width="'+w+'" height="4" rx="2"/>'
+    +'<rect class="bie-ac-b" x="'+X(CONFIG.load.acwrYellowLo).toFixed(1)+'" y="4" width="'+(X(CONFIG.load.acwrYellowHi)-X(CONFIG.load.acwrYellowLo)).toFixed(1)+'" height="10" rx="2"/>'
+    +'<line class="bie-ac-1" x1="'+X(1).toFixed(1)+'" x2="'+X(1).toFixed(1)+'" y1="3" y2="15"/>'
+    +'<circle cx="'+X(v).toFixed(1)+'" cy="9" r="4.6" style="fill:var(--'+c+')" class="bie-ac-p"/></svg>';
+}
+function bieSemTipoSVG(R,T){
+  const w=682,h=168,pl=110,pt=18,pb=6,cw=(w-pl)/7,base=h-pb,ih=base-pt;
+  const F=MD_ORDEN.map(md=>({md,r:(R.filas||[]).find(f=>f.md===md)||{n:0},t:(T.P||[]).find(p=>p.md===md)||null}));
+  const mx=Math.max(1,...F.filter(f=>f.md!=='MD'&&f.r.n).map(f=>f.r.media)),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
+  const y=v=>base-(v/top)*ih,n0=v=>Math.round(v).toLocaleString('es-ES');
+  let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Carga habitual de cada día del ciclo">';
+  for(let v=0;v<=top+0.1;v+=paso)s+='<line class="bie-gr" x1="'+pl+'" x2="'+w+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="bie-ax" x="'+(pl-8)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+n0(v)+' UA</text>';
+  F.forEach((f,i)=>{const cx=pl+i*cw+cw/2,bw=Math.min(52,cw*.56);
+    if(f.md==='MD'){s+=bieBalon(cx,base-16,13);return;}
+    if(!f.r.n)return;
+    const lv=nivelUA(Math.round(f.r.media)),pocos=f.r.n<MDH_MIN;
+    s+=bieBarra(cx-bw/2,y(f.r.media),bw,base,'bie-sb'+(pocos?' bie-sb--poco':''),'fill:'+LV[lv][1]);
+    s+='<text class="bie-val" x="'+cx.toFixed(1)+'" y="'+(y(f.r.media)-6).toFixed(1)+'" text-anchor="middle">'+n0(f.r.media)+'</text>';});
+  return {svg:s+'</svg>',F};
+}
+function bieCicloSVG(C,R){
+  const D=C.dias||[],w=682,h=176,pl=40,pt=20,pb=4,cw=(w-pl)/Math.max(1,D.length),base=h-pb,ih=base-pt;
+  const ref=md=>{const f=(R.filas||[]).find(x=>x.md===md);return f&&f.n>=MDH_MIN?f.media:null;};
+  const vals=[];D.forEach(d=>{vals.push(d.plan||0,d.real||0);const r=ref(d.md&&d.md.txt);if(r)vals.push(r);});
+  const mx=Math.max(1,...vals),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
+  const y=v=>base-(v/top)*ih,n0=v=>Math.round(v).toLocaleString('es-ES');
+  let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Programado y hecho en el ciclo en curso">';
+  for(let v=0;v<=top+0.1;v+=paso)s+='<line class="bie-gr" x1="'+pl+'" x2="'+w+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="bie-ax" x="'+(pl-6)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+n0(v)+'</text>';
+  D.forEach((d,i)=>{const cx=pl+i*cw+cw/2,bw=Math.min(40,cw*.5);
+    if(d.hoy)s+='<rect class="bie-hoy" x="'+(pl+i*cw+2).toFixed(1)+'" y="'+(pt-14)+'" width="'+(cw-4).toFixed(1)+'" height="'+(base-pt+14)+'" rx="8"/>';
+    if(d.partido){s+=bieBalon(cx,base-14,11);return;}
+    if(d.plan>0)s+=bieBarra(cx-bw/2,y(d.plan),bw,base,'bie-cyp');
+    if(d.real!=null&&d.real>0)s+=bieBarra(cx-bw*.3,y(d.real),bw*.6,base,'bie-cyr');
+    const r=ref(d.md&&d.md.txt);if(r)s+='<line class="bie-cref" x1="'+(cx-bw/2-5).toFixed(1)+'" x2="'+(cx+bw/2+5).toFixed(1)+'" y1="'+y(r).toFixed(1)+'" y2="'+y(r).toFixed(1)+'"/>';
+    const lab=d.real!=null&&d.real>0?d.real:(d.plan>0?d.plan:null);
+    if(lab!=null){const top2=Math.min(y(lab),r?y(r):1e9,d.plan>0?y(d.plan):1e9);s+='<text class="bie-val'+(d.real!=null&&d.real>0?'':' bie-val--p')+'" x="'+cx.toFixed(1)+'" y="'+(top2-5).toFixed(1)+'" text-anchor="middle">'+n0(lab)+'</text>';}});
+  return s+'</svg>';
+}
+async function bmInformeEntrenador(){
+  /* con la serie de readiness recorriendo los días, REF() es prestado (§2.1) */
+  for(let i=0;i<40&&window.__RD_CALC;i++)await new Promise(r=>setTimeout(r,150));
+  let H;try{H=bieHTML();}catch(err){console.error('bmnava · informe para el entrenador',err);toast('No he podido montar el informe');return;}
+  let v=document.getElementById('bmit');if(!v){v=document.createElement('div');v.id='bmit';v.setAttribute('role','dialog');document.body.appendChild(v);}
+  v.setAttribute('aria-label',BIE_TIT);
+  v.innerHTML=H;v.classList.add('on');document.documentElement.classList.add('bmit-on');
+  const pg=v.querySelector('.bmit-pages');if(pg)pg.style.zoom='';
+  /* si algo no cabe en su hoja (más jugadores, nombres largos), el contenido se encoge un poco en vez de pisar el pie */
+  v.querySelectorAll('.bmit-p.bie>.bmit-c').forEach(c=>{const i=c.querySelector(':scope>.bie-in');if(!i)return;
+    for(let t=0;t<3&&i.getBoundingClientRect().height>c.clientHeight+.5;t++){const k=Math.max(.8,(+i.style.zoom||1)*c.clientHeight/i.getBoundingClientRect().height*.99);i.style.zoom=k.toFixed(3);}});
+  bmItAjusta();
+}
+function bieHTML(){
+  const E=bmEsc,n0=v=>Math.round(v).toLocaleString('es-ES'),ps=STATE.players||{},hoy=dkey(new Date()),refk=dkey(REF());
+  const tem=TEMP_INICIO.slice(2,4)+'/'+String(+TEMP_INICIO.slice(2,4)+1).padStart(2,'0');
+  const fl=dk=>{const d=dkToDate(dk);return d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase()+' de '+d.getFullYear();};
+  const dm=dk=>{const d=dkToDate(dk);return d.getDate()+'/'+(d.getMonth()+1);};
+  const G=biePlantilla(),NS=[].concat(...G.map(g=>g.ns));
+  const X=bmItDatos(),J={};X.jug.forEach(j=>{J[j.n]=j;});
+  const pags=[];
+  const hd=(t,s)=>'<div class="bmit-hd"><img src="escudo.png" alt="" onerror="this.remove()"><div><b>'+E(t)+'</b><span>'+E(s)+'</span></div></div>';
+  const ttl=(t,s)=>'<div class="bie-tt"><h2>'+t+'</h2>'+(s?'<p>'+s+'</p>':'')+'</div>';
+  const kpi=(t,v,s)=>'<div class="bie-k"><em>'+t+'</em><b>'+v+'</b><span>'+s+'</span></div>';
+
+  /* ── 1 · Cómo trabajamos ── */
+  const conSel=n=>{try{return conLaSeleccion(n,refk);}catch(e){return false;}};
+  const rds=NS.map(n=>ps[n]).filter(p=>p&&p.readiness!=null&&!conSel(p.name));
+  const rdm=rds.length?Math.round(rds.reduce((a,p)=>a+p.readiness,0)/rds.length):null;
+  const rdSev=rdm==null?'muted':rdm>=75?'ok':rdm>=55?'warn':'bad';
+  const D=X.D||{};
+  const caras=G.map(g=>'<div class="bie-pg"><em>'+E(g.t)+'</em><div>'+g.ns.map(n=>'<span class="bie-pc">'+bieAv(n)+'<i>'+E(bieNom(n))+'</i></span>').join('')+'</div></div>').join('');
+  /* la escala es una leyenda, no un gráfico: tramos iguales para que quepa cada rótulo */
+  const esc=(segs)=>'<div class="bie-esc">'+segs.map(s=>'<span style="--c:'+s[1]+'"><b>'+s[2]+'</b>'+(s[3]?'<i>'+s[3]+'</i>':'')+'</span>').join('')+'</div>';
+  const til=(ic,t,txt,extra)=>'<div class="bie-til"><div class="bie-til-h"><span class="bie-ic">'+ic+'</span><b>'+t+'</b></div><p>'+txt+'</p>'+extra+'</div>';
+  const IC={
+    sol:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg>',
+    pesa:'<svg viewBox="0 0 24 24"><path d="M3 9.5v5M6 7v10M18 7v10M21 9.5v5M6 12h12"/></svg>',
+    curva:'<svg viewBox="0 0 24 24"><path d="M3 17c3 0 4-9 7-9s3.5 6 6 6 3-4 5-4"/></svg>',
+    pulso:'<svg viewBox="0 0 24 24"><path d="M2.5 12h4l2-5 3.5 10 2.5-7 1.5 2h5.5"/></svg>',
+    rayo:'<svg viewBox="0 0 24 24"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6l1-8z"/></svg>',
+    app:'<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>'};
+  const L=CONFIG.load,f1=v=>fmt(v,1);
+  const tiles=
+    til(IC.sol,'Cómo se levanta','Cada mañana responde cinco preguntas, del 1 (muy bien) al 5 (muy mal): sueño, fatiga, dolor muscular, estrés y ánimo. Con eso, su carga reciente y su dolor sale el <b>readiness</b>, de 0 a 100: cómo de preparado llega a entrenar.',
+      esc([[55,'var(--bad)','menos de 55','hay que mirarlo'],[20,'var(--warn)','55–74','vigilar'],[25,'var(--ok)','75 o más','bien']]))
+    +til(IC.pesa,'Cuánto pesa cada sesión','Al acabar, cada jugador puntúa del 0 al 10 lo dura que le ha parecido (<b>RPE</b>). El RPE por los minutos es la <b>carga</b> de la sesión, en UA: 7 × 90 minutos son 630 UA.',
+      esc([[NIV_UA[0],'var(--ok)','menos de '+n0(NIV_UA[0]),'sesión baja'],[NIV_UA[1]-NIV_UA[0],'var(--warn)',n0(NIV_UA[0])+'–'+n0(NIV_UA[1]),'media'],[NIV_UA[0],'var(--bad)','más de '+n0(NIV_UA[1]),'alta']]))
+    +til(IC.curva,'Si la carga sube de golpe','El <b>ACWR</b> compara lo que ha hecho en los últimos 7 días con su media de las últimas 3 semanas. Cerca de 1 es lo normal; lo que hay que evitar son los saltos bruscos, hacia arriba o hacia abajo.',
+      esc([[0,'var(--bad)','menos de '+f1(L.acwrYellowLo),'por debajo'],[0,'var(--ok)',f1(L.acwrYellowLo)+'–'+f1(L.acwrYellowHi),'en su sitio'],[0,'var(--warn)',f1(L.acwrYellowHi)+'–'+f1(L.acwrRedHi),'subiendo'],[0,'var(--bad)','más de '+f1(L.acwrRedHi),'salto grande']]))
+    +til(IC.pulso,'Lo que dice el pulso','Con los pulsómetros Polar vemos cuánto tiempo pasa cada uno en cada zona de frecuencia cardiaca, de la Z1 (suave) a la Z5 (máxima). El tiempo en <b>Z4 y Z5</b> es la intensidad de verdad de la sesión.',
+      '<div class="bie-zs">'+['Z1','Z2','Z3','Z4','Z5'].map((z,i)=>'<span style="--c:'+PL_ZCOL[i]+'"'+(i>=3?' class="alta"':'')+'>'+z+'</span>').join('')+'<em>alta intensidad</em></div>')
+    +til(IC.rayo,'Cómo está físicamente','Varias veces por temporada hacemos pruebas de fuerza, salto, velocidad, lanzamiento y resistencia. Cada marca se compara con el <b>baremo de su puesto</b>, desde rojo hasta el listón de un jugador de Champions League.',
+      '<div class="bie-nv">'+REF_NIV.map((r,i)=>'<span style="--c:'+r[1]+'">'+(i===3?'★ ':'')+r[2]+'</span>').join('')+'</div>')
+    +til(IC.app,'Dónde verlo en la app','Todo esto está a la vista cada día en la aplicación del club:',
+      '<ul class="bie-ul"><li><b>Resumen</b> · cómo llega hoy el equipo</li><li><b>Cargas</b> · la carga de cada día y cada semana</li><li><b>Calendario</b> · lo programado contra lo hecho</li><li><b>Perfil físico</b> · las valoraciones de cada jugador</li></ul>');
+  pags.push({portada:true,cuerpo:
+    '<div class="bie-por"><div class="bie-por-m"><img src="escudo.png" alt="" onerror="this.remove()"><div><small>Club Balonmano Nava · Temporada '+tem+'</small><h1>'+BIE_TIT+'</h1></div></div>'
+    +'<p class="bie-lead">Un resumen para el cuerpo técnico: cómo medimos la carga, cómo está físicamente cada jugador y cómo repartimos el trabajo entre un partido y el siguiente. Datos al '+fl(refk)+'.</p>'
+    +'<div class="bie-ks">'+kpi('Sesiones',n0(X.ses),'de pista y gimnasio desde el 1 de julio')+kpi('Partidos',String(X.par.length),'jugados esta temporada')
+      +kpi('Disponibilidad',D.disp!=null?fmt(D.disp,1)+' %':'—','de los días, jugadores sin baja')
+      +'<div class="bie-k"><em>Readiness del equipo</em><b style="color:var(--'+rdSev+'-text)">'+(rdm!=null?rdm:'—')+'</b><span>media de hoy, sobre 100</span></div></div>'
+    +'<h3 class="bie-h3">La plantilla · '+NS.length+' jugadores</h3><div class="bie-pl">'+caras+'</div>'
+    +'<h3 class="bie-h3">Qué medimos y cómo se lee</h3><div class="bie-tiles">'+tiles+'</div></div>'});
+
+  /* ── 2 · Las cargas ── */
+  const W=bieSemanas(),SV=W.some(x=>x.ua>0)?bieSemanasSVG(W):null;
+  let frase2='Todavía no hay semanas con carga registrada esta temporada.';
+  if(SV&&SV.cerr.length){const mxw=SV.cerr.reduce((a,b)=>b.ua>a.ua?b:a);
+    frase2='Una semana normal son unas <b>'+n0(SV.md)+' UA por jugador</b>; la más cargada fue la del '+dm(dkey(mxw.ini))+', con '+n0(mxw.ua)+'. Cada barra es una semana, de lunes a domingo.';}
+  const filas=G.map(g=>'<tr class="bie-gt"><td colspan="6">'+E(g.t)+'</td></tr>'+g.ns.map(n=>{const p=ps[n]||{},j=J[n]||{};
+    let st=null;try{st=effectiveStatus(n,refk);}catch(e){}
+    const S=st&&st.status&&st.status!=='disp'&&PHYSTAT[st.status]?PHYSTAT[st.status]:null;
+    const rd=p.readiness!=null?p.readiness:null,rs=rd==null?'muted':rd>=75?'ok':rd>=55?'warn':'bad';
+    const ac=p.acwr&&p.acwr.rel&&isFinite(p.acwr.ratio)&&p.acwr.ratio>0?p.acwr.ratio:null;
+    const a7=p.acwr&&p.acwr.acute?Math.round(p.acwr.acute):null;
+    return '<tr><td><div class="bie-jn">'+bieAv(n)+'<div><b>'+E(n)+'</b><span>'+E(biePuesto(n))+(S?' · <i style="color:'+colTinta(S.c)+'">'+E(S.lab)+'</i>':'')+'</span></div></div></td>'
+      +'<td><span class="bie-rd" style="--c:var(--'+rs+')"><b style="color:var(--'+rs+'-text)">'+(rd!=null?rd:'—')+'</b></span></td>'
+      +'<td class="bie-acw">'+(ac!=null?bieAcwrBanda(ac)+'<b>'+fmt(Math.round(ac*100)/100,2)+'</b>':'<span class="bie-mu">sin datos suficientes</span>')+'</td>'
+      +'<td>'+(a7!=null?n0(a7):'—')+'</td><td>'+(j.mediaSem!=null?n0(j.mediaSem):'—')+'</td></tr>';}).join('')).join('');
+  pags.push({tit:'Las cargas',sub:'Cuánto entrena el equipo y cómo llega cada jugador · desde el 1 de julio',cuerpo:
+    ttl('La temporada, semana a semana',frase2)
+    +(SV?'<div class="bie-fig">'+SV.svg+'<div class="bie-ley"><span><i class="bie-l-b"></i>carga de la semana, media por jugador</span><span><i class="bie-l-p"></i>semana en curso</span><span><i class="bie-l-pt"></i>semana con partido</span><span><i class="bie-l-m"></i>semana normal (la mediana)</span></div></div>':'')
+    +ttl('Cómo llega cada jugador hoy','El readiness dice cómo se ha levantado; el ACWR, si su carga ha subido o bajado de golpe. La franja verde es la zona en la que queremos a todos.')
+    +'<table class="bie-t"><thead><tr><th>Jugador</th><th>Readiness</th><th>ACWR</th><th>Carga 7 días</th><th>Su semana media</th></tr></thead><tbody>'+filas+'</tbody></table>'
+    +'<p class="bie-pie">Carga en UA (RPE × minutos). «Su semana media», sobre las semanas de la temporada en que tuvo carga. Un día sin cuestionario no cuenta como cero.</p>'});
+
+  /* ── 3 · El perfil físico ── */
+  const CJ={};NS.forEach(n=>{try{CJ[n]=cjDatos(n);}catch(e){CJ[n]=null;}});
+  const conVal=NS.filter(n=>CJ[n]&&(CJ[n].nota!=null||CJ[n].caps.some(c=>c.lv!=null)));
+  const ult=conVal.map(n=>CJ[n].ultima).filter(Boolean).map(d=>typeof d==='string'?d:dkey(d)).sort().pop();
+  const champT=conVal.reduce((a,n)=>a+(CJ[n].champ||0),0);
+  const nvCol=lv=>REF_NIV[lv][1],nvTx=lv=>lv===3?'var(--champ)':['var(--bad-text)','var(--warn-text)','var(--ok-text)'][lv];
+  const carta=n=>{const C=CJ[n];
+    if(!C||conVal.indexOf(n)<0)return '<div class="bie-cd bie-cd--x"><div class="bie-cd-h">'+bieAv(n,'g')+'<div><b>'+E(n)+'</b><div class="bie-cd-s"><span>'+E(biePuesto(n))+'</span></div></div></div><p class="bie-mu">Sin valoración esta temporada.</p></div>';
+    const caps=C.caps.map(x=>{if(x.lv==null)return '<div class="bie-cp"><span>'+E(x.c)+'</span><i class="bie-cb"></i><em class="bie-mu">sin prueba</em></div>';
+      const wv=Math.max(4,Math.min(100,(x.v!=null?x.v:x.lv+.5)/3*100));
+      return '<div class="bie-cp"><span>'+E(x.c)+'</span><i class="bie-cb"><i style="width:'+wv.toFixed(1)+'%;background:'+nvCol(x.lv)+'"></i></i><em style="color:'+nvTx(x.lv)+'">'+(x.lv===3?'★ ':'')+REF_NIV[x.lv][2]+'</em></div>';}).join('');
+    return '<div class="bie-cd"><div class="bie-cd-h">'+bieAv(n,'g')+'<div><b>'+E(n)+'</b><div class="bie-cd-s"><span>'+E(biePuesto(n))+'</span>'
+      +'<span class="bie-nota"><b>'+(C.nota!=null?Math.round(C.nota):'—')+'</b> nota física</span></div></div></div>'+caps
+      +'<div class="bie-cd-f">'+(C.champ?'<em class="bie-ch">★ '+C.champ+' en Champions</em>':'<span></span>')
+      +(C.julio!=null?'<em class="'+(C.julio>=0?'bie-up':'bie-dn')+'">'+(C.julio>0?'▲ +':C.julio<0?'▼ −':'')+Math.abs(C.julio)+' desde julio</em>':'')+'</div></div>';};
+  const Cf=X.C;let fases='';
+  if(Cf&&Cf.tests&&Cf.tests.length){
+    const nA=(Cf.A&&Cf.A.fase)||Cf.A,nB=(Cf.B&&Cf.B.fase)||Cf.B;
+    const T=Cf.tests.filter(o=>!o.neutro&&o.n>=3).slice(0,5);
+    const mej=Cf.tests.filter(o=>!o.neutro&&o.n>=3&&o.suben>o.bajan).length,tot=Cf.tests.filter(o=>!o.neutro&&o.n>=3).length;
+    if(T.length)fases=ttl('Qué ha dejado «'+E(nB)+'» frente a «'+E(nA)+'»','En <b>'+mej+' de '+tot+' pruebas</b> mejoran más jugadores de los que empeoran. El cambio es el de un jugador típico, en la unidad de cada prueba.')
+      +'<div class="bie-fs">'+T.map(o=>{const u=o.t.unit?' '+o.t.unit:'',a=Math.abs(o.med),dec=a>=10?0:a>=1?1:a>=.1?2:3,
+        mejor=o.t.lowerBetter?o.med<0:o.med>0,igual=o.med===0;
+        return '<div class="bie-f"><span class="bie-f-n">'+E(o.t.name)+'</span><b class="'+(igual?'':mejor?'bie-up':'bie-dn')+'">'+(o.med>0?'▲ +':o.med<0?'▼ −':'')+fmt(Math.abs(o.med),dec)+E(u)+'</b>'
+          +'<i class="bie-f-b"><i class="m" style="width:'+(o.suben/o.n*100).toFixed(1)+'%"></i><i class="p" style="width:'+(o.bajan/o.n*100).toFixed(1)+'%"></i></i><em>'+o.suben+' de '+o.n+' mejoran</em></div>';}).join('')+'</div>';
+  }
+  pags.push({tit:'El perfil físico',sub:'Las valoraciones de esta temporada · cada jugador contra el baremo de su puesto',cuerpo:
+    ttl(conVal.length+' de '+NS.length+' jugadores valorados esta temporada',
+      'La <b>nota física</b> (de 40 a 95) junta a partes iguales condición, fuerza y explosividad, frente al resto de la plantilla. Las barras, dónde está cada capacidad en el baremo de su puesto.'+(ult?' Última valoración: '+fl(ult)+'.':''))
+    +'<div class="bie-cds">'+NS.map(carta).join('')+'</div>'
+    +'<div class="bie-ley bie-ley--nv">'+REF_NIV.map((r,i)=>'<span><i style="background:'+r[1]+'"></i>'+(i===3?'★ ':'')+r[2]+'</span>').join('')+'<span class="bie-mu">· de lo más flojo al listón de un jugador de Champions League · ★ N: pruebas en ese nivel</span></div>'
+    +fases});
+
+  /* ── 4 · El microciclo ── */
+  let R={filas:[]},T={P:[]},Ci=null,Pr=null;
+  try{R=calRefMD();}catch(e){}try{T=ctDiaTipo();}catch(e){}try{Ci=calMicrociclo(hoy);}catch(e){}try{Pr=calProyeccionACWR(hoy);}catch(e){}
+  let p4='';
+  if(!R.partidos){p4=ttl('Nuestra semana tipo','Para sacar la semana tipo hacen falta los partidos metidos en el calendario.');}
+  else{
+    const ST=bieSemTipoSVG(R,T);
+    const ok=ST.F.filter(f=>f.md!=='MD'&&f.r.n>=MDH_MIN);
+    let fr='Cada columna es lo que suele cargar el equipo ese día del ciclo, contando desde el partido. El color es el nivel de la sesión.';
+    if(ok.length){const mx=ok.reduce((a,b)=>b.r.media>a.r.media?b:a),v1=ok.find(f=>f.md==='MD-1');
+      fr='El día más cargado suele ser el <b>'+mx.md+'</b> ('+BIE_MDH[mx.md].toLowerCase()+' del partido · '+n0(mx.r.media)+' UA)'+(v1&&v1.md!==mx.md?'; la víspera bajamos a '+n0(v1.r.media)+' UA':'')+'. El color es el nivel de la sesión.';}
+    const cel=(f,k)=>{const t=f.t&&f.t[k];return t&&t.m!=null?t:null;};
+    const fil=(lab,k,fmtv)=>ST.F.some(f=>cel(f,k))?'<div class="bie-stl">'+lab+'</div>'+ST.F.map(f=>{const t=cel(f,k);return '<div class="'+(f.r.n<MDH_MIN&&f.md!=='MD'?'bie-mu':'')+'">'+(t?fmtv(t.m):'—')+'</div>';}).join(''):'';
+    p4=ttl('Nuestra semana tipo',fr)
+      +'<div class="bie-fig">'+ST.svg+'<div class="bie-st">'
+      +'<div class="bie-stl"></div>'+ST.F.map(f=>{const lv=f.md!=='MD'&&f.r.n?nivelUA(Math.round(f.r.media)):null;
+        return '<div class="bie-sth"><b>'+f.md+'</b><span>'+E(BIE_MDH[f.md])+'</span>'+(lv!=null?'<em style="color:'+['var(--ok-text)','var(--warn-text)','var(--bad-text)'][lv]+'">'+['Baja','Media','Alta'][lv]+'</em>':f.md==='MD'?'<em class="bie-mu">partido</em>':'<em class="bie-mu">sin datos</em>')+'</div>';}).join('')
+      +fil('Minutos','dur',v=>n0(v)+'′')+fil('RPE (0–10)','rpe',v=>fmt(v,1))+fil('Tiempo en Z4+Z5','z',v=>n0(v)+' %')
+      +'<div class="bie-stl">Días contados</div>'+ST.F.map(f=>'<div class="bie-mu">'+(f.r.n||0)+'</div>').join('')
+      +'</div></div>';
+    if(Ci&&Ci.dias&&Ci.dias.length){
+      const riv=Ci.partidoSig?evRival(((STATE.calendar||{})[Ci.partidoSig]||[]).find(evEsPartido)||{}):'';
+      const dows=Ci.dias.map(d=>{let t=dkToDate(d.dk).toLocaleDateString('es',{weekday:'short'}).replace('.','');return t.charAt(0).toUpperCase()+t.slice(1);});
+      const fuera=Pr&&Pr.jug?Pr.jug.filter(x=>x.rel&&isFinite(x.fin)&&NS.indexOf(x.name)>=0&&acwrClass(Math.round(x.fin*100)/100)!=='ok'):[];
+      const pro=!Pr||!Pr.diasPlan?'<p class="bie-pie">No hay sesiones programadas en lo que queda de ciclo, así que no se puede prever cómo acabará cada uno.</p>'
+        :'<div class="bie-pro"><div><b>'+(fuera.length?fuera.length+(fuera.length===1?' jugador acabaría':' jugadores acabarían')+' el ciclo fuera de la franja verde':'Si se hace lo programado, todos acaban el ciclo en la franja verde')+'</b><span>'+(fuera.length?'si se hace lo programado. Es el momento de ajustar su sesión, antes y no después.':'el ACWR de cada uno, al cerrar el ciclo, entre '+f1(L.acwrYellowLo)+' y '+f1(L.acwrYellowHi)+'.')+'</span></div>'
+          +(fuera.length?'<div class="bie-pro-c">'+fuera.slice().sort((a,b)=>Math.abs(b.fin-1)-Math.abs(a.fin-1)).slice(0,6).map(x=>{const v=Math.round(x.fin*100)/100,c=acwrClass(v);return '<span class="bie-pj">'+bieAv(x.name,'','var(--'+c+')')+'<i>'+E(bieNom(x.name))+'</i><b style="color:var(--'+c+'-text)">'+fmt(v,2)+'</b></span>';}).join('')+(fuera.length>6?'<em>y '+(fuera.length-6)+' más</em>':'')+'</div>':'')+'</div>';
+      p4+=ttl('Este microciclo',(Ci.partidoPrev?'Del partido del '+dm(Ci.partidoPrev)+' ':'')+(Ci.partidoSig?'al del '+dm(Ci.partidoSig)+(riv?' contra '+E(riv):''):'· falta meter el próximo partido en el calendario')+'. Lo programado en gris, lo hecho en azul y, en cada día, la raya de lo que suele cargar.')
+        +'<div class="bie-fig">'+bieCicloSVG(Ci,R)
+        +'<div class="bie-cl" style="grid-template-columns:40px repeat('+Ci.dias.length+',1fr)"><span></span>'+Ci.dias.map((d,i)=>'<div class="'+(d.hoy?'hoy':'')+'"><b>'+(d.partido?'Partido':E((d.md&&d.md.txt)||''))+'</b><span>'+dows[i]+' '+dm(d.dk)+(d.hoy?' · hoy':'')+'</span></div>').join('')+'</div>'
+        +'<div class="bie-ley"><span><i class="bie-l-cp"></i>programado</span><span><i class="bie-l-b"></i>hecho</span><span><i class="bie-l-r"></i>lo que suele cargar ese día</span></div></div>'+pro;
+    }
+  }
+  pags.push({tit:'El microciclo',sub:'Cómo repartimos la carga entre un partido y el siguiente · desde el 1 de septiembre',cuerpo:p4
+    +'<p class="bie-pie">La carga de esta hoja es la de la sesión, en la misma unidad en la que se programa en el calendario. La semana tipo cuenta los días con carga registrada desde el 1 de septiembre; con menos de '+MDH_MIN+' días, la columna va atenuada.</p>'});
+
+  const tot=pags.length;
+  /* en el móvil, la barra corta de los documentos (bil-lg / bil-co, v921) */
+  return '<div class="bmit-bar"><b>'+BIE_TIT+'</b><span>'+tot+' páginas A4 · para el cuerpo técnico</span><button type="button" class="btn" data-bmit="print"><span class="bil-lg">Imprimir o guardar en PDF</span><span class="bil-co">PDF</span></button><button type="button" class="btn ghost" data-bmit="x">Cerrar</button></div>'
+    +'<div class="bmit-pages">'+pags.map((p,i)=>'<section class="bmit-p bie'+(p.portada?' bie-p1':'')+'">'+(p.portada?'':hd(p.tit,p.sub))
+      +'<div class="bmit-c"><div class="bie-in">'+p.cuerpo+'</div></div><div class="bmit-ft"><span>BM Nava · '+BIE_TIT+' · temporada '+tem+'</span><span>'+(i+1)+' / '+tot+'</span></div></section>').join('')+'</div>';
+}
+window.bmInformeEntrenador=bmInformeEntrenador;
+
 /* ═══ v816 · SELECCIONAR UN TRAMO EN UN GRÁFICO DE DÍAS ═══
    Daniel, 18/11/2026, propuesta 4. Como en Salud o Garmin: se arrastra sobre
    el gráfico (en el teléfono, se mantiene el dedo y se desliza), el tramo se
@@ -50359,6 +50628,7 @@ function bmTbMenu(e){
     {t:'Bitácora de la temporada',f:()=>{try{bmBitacora('');}catch(err){}}},
     {t:'Informe del último partido',f:()=>{try{bmInformePartido();}catch(err){}}},
     {t:'Informe de la temporada…',f:()=>{try{bmInformeTemporada();}catch(err){}}},
+    {t:'Informe para el entrenador…',f:()=>{try{bmInformeEntrenador();}catch(err){}}},
     {t:'Notas para ti'+(()=>{const c=(typeof notasSinLeer==='function')?notasSinLeer():0;return c?' ('+c+')':'';})(),f:()=>{try{bmNotasMias();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Inspector del jugador',k:'I',f:()=>{try{bmInspAlterna();}catch(err){}}},
@@ -60017,6 +60287,156 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
   body.bmit-print .bmit-p:last-child{break-after:auto;page-break-after:auto}
 }
 </style>
+<style id="bm-v933">
+/* v933 · «Lo que venimos haciendo», el informe para el entrenador nuevo (documento: fijado a claro) */
+.bmit-p.bie{--champ:#15224a;--champ-gold:#c9a227;padding:42px 52px 32px}
+.bie>.bmit-c{overflow:hidden}
+.bie .bmit-hd{margin-bottom:14px}
+.bie .bmit-hd b{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.bie-svg{display:block;width:100%;height:auto;overflow:visible}
+.bie-gr{stroke:#ececf0;stroke-width:1}
+.bie-ax{font-size:10px;fill:#6e6e73;font-variant-numeric:tabular-nums}
+.bie-mes{text-transform:capitalize}
+.bie-b{fill:var(--accent)}.bie-b--p{fill:#a9b9e6}
+.bie-pt{fill:#1d2836}
+.bie-med{stroke:#1d1d1f;stroke-width:1.2;stroke-dasharray:4 3}
+.bie-medt{font-size:10.5px;fill:#1d1d1f;font-weight:600;font-variant-numeric:tabular-nums}
+.bie-val{font-size:10.5px;font-weight:600;fill:#1d1d1f;font-variant-numeric:tabular-nums}
+.bie-val--p{fill:#6e6e73;font-weight:500}
+.bie-sb--poco{opacity:.4}
+.bie-bal circle{fill:var(--accent)}.bie-bal path{fill:none;stroke:#fff;stroke-width:1.4;stroke-linecap:round}
+.bie-hoy{fill:rgba(48,86,196,.07)}
+.bie-cyp{fill:#d8d8dd}.bie-cyr{fill:var(--accent)}
+.bie-cref{stroke:#1d1d1f;stroke-width:2;stroke-dasharray:3 2}
+/* página 1 */
+.bie-por-m{display:flex;align-items:center;gap:16px}
+.bie-por-m img{width:64px;height:64px;object-fit:contain;flex:none}
+.bie-por-m small{display:block;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#6e6e73}
+.bie-por-m h1{margin:2px 0 0;font-size:36px;line-height:1.08;font-weight:700;letter-spacing:-.015em;color:#1d1d1f}
+.bie-lead{margin:14px 0 18px;font-size:14px;line-height:1.45;color:#3a3a3c;max-width:640px}
+.bie-ks{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.bie-k{padding:12px 14px;border-radius:12px;background:#f5f5f7}
+.bie-k em{display:block;font-style:normal;font-size:11px;font-weight:600;color:#6e6e73}
+.bie-k b{display:block;margin:3px 0 1px;font-size:26px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums;color:#1d1d1f}
+.bie-k span{display:block;font-size:11px;line-height:1.3;color:#6e6e73}
+.bie-h3{margin:24px 0 11px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6e6e73}
+.bie-pl{display:flex;flex-wrap:wrap;gap:12px 14px}
+.bie-pg em{display:block;font-style:normal;font-size:10.5px;font-weight:600;color:#6e6e73;margin-bottom:6px}
+.bie-pg>div{display:flex;gap:3px}
+.bie-pc{display:flex;flex-direction:column;align-items:center;gap:4px;width:40px}
+.bie-pc i{font-style:normal;font-size:10px;line-height:1.1;color:#3a3a3c;white-space:nowrap}
+.bie-av{display:block;flex:none;width:36px;height:36px;border-radius:50%;overflow:hidden;background:#e9e9ee;box-shadow:0 0 0 2px var(--c,transparent)}
+.bie-av img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 12%}
+.bie-av.g{width:40px;height:40px}
+.bie-tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.bie-til{padding:15px 16px 14px;border-radius:14px;background:#f5f5f7;display:flex;flex-direction:column}
+.bie-til-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.bie-ic{flex:none;width:26px;height:26px;border-radius:7px;background:var(--accent);display:grid;place-items:center}
+.bie-ic svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.bie-til-h b{font-size:14px;font-weight:600;color:#1d1d1f}
+.bie-til p{margin:0 0 12px;font-size:12px;line-height:1.45;color:#3a3a3c}
+.bie-til p b{color:#1d1d1f;font-weight:600}
+.bie-esc{display:flex;gap:3px;margin-top:auto}
+.bie-esc span{flex:1;display:flex;flex-direction:column;min-width:0}
+.bie-esc span::before{content:"";height:6px;border-radius:3px;background:var(--c);margin-bottom:5px}
+.bie-esc b{font-size:10.5px;font-weight:600;color:#1d1d1f;white-space:nowrap}
+.bie-esc i{font-style:normal;font-size:10px;color:#6e6e73;white-space:nowrap}
+.bie-zs{position:relative;display:flex;gap:3px;margin-top:auto;padding-top:20px}
+.bie-zs span{flex:1;position:relative;padding-top:11px;text-align:center;font-size:10.5px;font-weight:600;color:#1d1d1f}
+.bie-zs span::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;border-radius:3px;background:var(--c)}
+.bie-zs em{position:absolute;right:0;top:0;width:calc(40% - 2px);height:14px;font-style:normal;font-size:10px;font-weight:600;text-align:center;color:#1d1d1f;border:1px solid #1d1d1f;border-bottom:none;border-radius:3px 3px 0 0;line-height:1;padding-top:2px;box-sizing:border-box;background:#f5f5f7}
+.bie-zs em{top:2px;height:13px}
+.bie-nv{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:auto}
+.bie-nv span{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#1d1d1f}
+.bie-nv span::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--c)}
+.bie-ul{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:11.5px;color:#3a3a3c}
+.bie-ul b{color:#1d1d1f;font-weight:600}
+/* títulos de bloque */
+.bie-tt{margin:2px 0 10px}
+.bie-tt h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.005em;color:#1d1d1f}
+.bie-tt p{margin:3px 0 0;font-size:12px;line-height:1.45;color:#3a3a3c}
+.bie-tt p b{color:#1d1d1f;font-weight:600}
+.bie-fig{margin-bottom:18px}
+.bie-ley{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;font-size:10.5px;color:#6e6e73}
+.bie-ley span{display:inline-flex;align-items:center;gap:6px}
+.bie-ley i{display:inline-block;width:10px;height:10px;border-radius:3px}
+.bie-l-b{background:var(--accent)}.bie-l-p{background:#a9b9e6}.bie-l-cp{background:#d8d8dd}
+.bie-ley .bie-l-pt{width:6px;height:6px;border-radius:50%;background:#1d2836}
+.bie-ley .bie-l-m,.bie-ley .bie-l-r{width:16px;height:0;border-radius:0;border-top:1.5px dashed #1d1d1f}
+.bie-ley .bie-l-r{border-top-width:2px}
+/* página 2 */
+.bie-t{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.bie-t th{padding:0 6px 5px;text-align:right;font-size:10.5px;font-weight:600;color:#6e6e73;border-bottom:1px solid #d1d1d6}
+.bie-t th:first-child,.bie-t td:first-child{text-align:left}
+.bie-t td{padding:1px 6px;text-align:right;vertical-align:middle;color:#1d1d1f;border-bottom:1px solid #eeeef0;white-space:nowrap}
+.bie-t .bie-gt td{padding:7px 6px 2px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6e6e73;border-bottom:none}
+.bie-jn{display:flex;align-items:center;gap:9px}
+.bie-jn .bie-av{width:26px;height:26px}
+.bie-jn b{display:block;font-size:12.5px;font-weight:600;line-height:1.2}
+.bie-jn span{display:block;font-size:10.5px;color:#6e6e73}
+.bie-jn i{font-style:normal;font-weight:600}
+.bie-rd{display:inline-flex;align-items:center;gap:6px}
+.bie-rd::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+.bie-rd b{font-size:14px;font-weight:700}
+.bie-acw svg{display:inline-block;vertical-align:middle;margin-right:8px}
+.bie-acw b{display:inline-block;min-width:30px;font-weight:600;text-align:right}
+.bie-ac-c{fill:#ececf0}.bie-ac-b{fill:rgba(30,168,99,.3)}.bie-ac-1{stroke:#8e8e93;stroke-width:1}.bie-ac-p{stroke:#fff;stroke-width:1.5}
+.bie-mu{color:#6e6e73}
+.bie-pie{margin:8px 0 0;font-size:10.5px;line-height:1.4;color:#6e6e73}
+/* página 3 */
+.bie-cds{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.bie-cd{display:flex;flex-direction:column;gap:3px;padding:8px 11px 7px;border-radius:12px;background:#f5f5f7}
+.bie-cd-h{display:flex;align-items:center;gap:9px;margin-bottom:3px}
+.bie-cd-h>div{flex:1;min-width:0}
+.bie-cd-h>div>b{display:block;font-size:12.5px;font-weight:600;line-height:1.2;color:#1d1d1f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bie-cd-s{display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-top:1px;font-size:10.5px;color:#6e6e73}
+.bie-cd-s>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bie-nota{flex:none;white-space:nowrap}
+.bie-nota b{font-size:19px;font-weight:700;line-height:1;color:#1d1d1f;font-variant-numeric:tabular-nums}
+.bie-cd--x{justify-content:flex-start}.bie-cd--x p{margin:2px 0 0;font-size:11px}
+.bie-cp{display:grid;grid-template-columns:72px 1fr 64px;align-items:center;gap:8px;font-size:10.5px}
+.bie-cp span{color:#3a3a3c}
+.bie-cb{display:block;height:6px;border-radius:3px;background:linear-gradient(90deg,#e1e1e6 0 32.9%,#f5f5f7 32.9% 33.8%,#e1e1e6 33.8% 66.2%,#f5f5f7 66.2% 67.1%,#e1e1e6 67.1%)}
+.bie-cb i{display:block;height:100%;border-radius:3px}
+.bie-cp em{font-style:normal;font-weight:600;text-align:right;white-space:nowrap}
+.bie-cd-f{display:flex;justify-content:space-between;gap:6px;min-height:12px;margin-top:2px;font-size:10px;white-space:nowrap}
+.bie-cd-f em{font-style:normal;font-weight:600}
+.bie-ch{color:var(--champ)}
+.bie-up{color:var(--ok-text)}.bie-dn{color:#3a3a3c}
+.bie-ley--nv{margin:7px 0 14px}
+.bie-fs{display:flex;flex-direction:column}
+.bie-f{display:grid;grid-template-columns:1fr 84px 130px 96px;align-items:center;gap:10px;padding:4px 0;font-size:11.5px;border-bottom:1px solid #eeeef0}
+.bie-f-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1d1d1f}
+.bie-f b{font-weight:600;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bie-f-b{display:flex;height:6px;border-radius:3px;background:#ececf0;overflow:hidden}
+.bie-f-b .m{background:var(--ok)}.bie-f-b .p{background:#c7c7cc}
+.bie-f em{font-style:normal;text-align:right;white-space:nowrap;color:#6e6e73}
+/* página 4 */
+.bie-st{display:grid;grid-template-columns:110px repeat(7,1fr);font-size:11px;text-align:center;font-variant-numeric:tabular-nums;color:#1d1d1f}
+.bie-st>div{padding:4px 2px;border-top:1px solid #eeeef0}
+.bie-st>.bie-stl{text-align:left;font-size:10.5px;color:#6e6e73}
+.bie-st>.bie-sth,.bie-st>.bie-stl:first-child{border-top:none;padding-top:6px}
+.bie-sth{display:flex;flex-direction:column;gap:1px}
+.bie-sth b{font-size:12px;font-weight:700}
+.bie-sth span{font-size:9.5px;line-height:1.2;color:#6e6e73}
+.bie-sth em{font-style:normal;font-size:10.5px;font-weight:600}
+.bie-cl{display:grid;font-size:10.5px;text-align:center}
+.bie-cl>div{display:flex;flex-direction:column;padding-top:4px}
+.bie-cl b{font-size:11.5px;font-weight:700;color:#1d1d1f}
+.bie-cl span{font-size:9.5px;color:#6e6e73}
+.bie-cl .hoy b,.bie-cl .hoy span{color:var(--accent)}
+.bie-pro{display:flex;flex-direction:column;align-items:stretch;gap:10px;margin-top:2px;padding:12px 14px;border-radius:12px;background:#f5f5f7}
+.bie-pro>div:first-child{flex:1;min-width:0}
+.bie-pro>div:first-child>b{display:block;font-size:13px;font-weight:600;color:#1d1d1f}
+.bie-pro>div:first-child>span{display:block;margin-top:2px;font-size:11px;color:#6e6e73}
+.bie-pro-c{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 14px}
+.bie-pj{display:flex;align-items:center;gap:8px;min-width:0;font-size:11.5px}
+.bie-pj .bie-av{width:26px;height:26px}
+.bie-pj i{flex:1;min-width:0;font-style:normal;color:#1d1d1f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bie-pj b{font-weight:700;font-variant-numeric:tabular-nums}
+.bie-pro-c em{font-style:normal;font-size:11px;color:#6e6e73;align-self:center}
+</style>
+
 <style id="bm-v820">
 /* v820 · el icono de la categoría en cada cabecera */
 .bmcab{display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;margin-right:9px;border-radius:7px;background:var(--cc);color:#fff;vertical-align:-5px;font-style:normal}
@@ -66052,8 +66472,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.3*/
-const VER_ACTUAL='2026-11-25.3';
+/*BUILD:2026-11-25.4*/
+const VER_ACTUAL='2026-11-25.4';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
