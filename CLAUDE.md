@@ -365,15 +365,13 @@ AJUSTES             Conexión
 
 ---
 
-## 5. Plantilla canónica (temporada 26/27, 18 jugadores)
+## 5. Plantilla canónica (temporada 26/27, 15 jugadores)
 
 ```
 Alex Ugalde
 Alfredo Otero
 Baptiste Audiffred
 Brais González Blanco
-Clement Esparon
-David Fernández
 David Roca
 Dzmitry Patotski
 Javier Carrión Ortiz
@@ -385,10 +383,9 @@ Mateus M. Buda
 Pablo Herranz García
 Pancho Ahumada Collado
 Paulo Moreno
-Tahu Lufuanitu
 ```
 
-**Estos son los literales de la hoja de plantilla**, leídos el 10/11/2026: la hoja manda, y esta lista se había quedado con «Clemet Esparon» y «Pancho Ahumada», que no es lo que pone. Si un nombre no cuadra, se vuelve a leer de la hoja, no de aquí.
+**Estos son los literales de la hoja de plantilla**, leídos el 10/11/2026 —sin los tres despedidos el 24/11/2026, que la hoja todavía trae (§5.0)—: la hoja manda, y esta lista se había quedado con «Clemet Esparon» y «Pancho Ahumada», que no es lo que pone. Si un nombre no cuadra, se vuelve a leer de la hoja, no de aquí.
 
 En el roster se usan nombres cortos canónicos (p. ej. "Óscar Marugán", "Pancho Ahumada").
 
@@ -397,8 +394,19 @@ En el roster se usan nombres cortos canónicos (p. ej. "Óscar Marugán", "Panch
 | Jugador | Fecha | Motivo |
 |---|---|---|
 | Hugo Lima | 01/10/2026 | Expulsado del club. Daniel pidió sus datos fuera de toda la aplicación |
+| David Fernández | 24/11/2026 | Despedido. Fuera de toda la aplicación **salvo Nutrición** (v930) |
+| Clement Esparon | 24/11/2026 | Despedido. Fuera de toda la aplicación **salvo Nutrición** (v930) |
+| Tahu Lufuanitu | 24/11/2026 | Despedido. Fuera de toda la aplicación (v930) |
 
-La lista vive en `BAJAS` y se comprueba con `esBaja(nombre)`, **la misma regla de nombres que `canonicalName`**: dos palabras coincidentes o una de cinco letras o más. Así «Hugo Lima», «Lima, Hugo» y «HUGO LIMA» caen igual, y un «Hugo» suelto no arrastra a nadie que comparta nombre de pila.
+La lista vive en `BAJAS` y se comprueba con `esBaja(nombre)`: **dos palabras coincidentes, o una sola si está en la lista `solo` de esa baja**. Así «Hugo Lima», «Lima, Hugo» y «HUGO LIMA» caen igual, y un «Hugo» suelto no arrastra a nadie que comparta nombre de pila.
+
+**Hasta la v930 era la regla de `canonicalName`** —dos palabras o una de cinco letras o más— **y con «David Fernández» eso es una trampa**: «david» tiene cinco letras, así que David Roca habría salido del club con él. Ahora cada baja dice qué palabras de su nombre bastan solas, que son las que no lleva nadie más: «fernandez»; «clement» y «esparon»; «tahu», «lufuanitu» y la grafía «luafanitu» de los dorsales viejos. Hugo Lima no lleva ninguna y sigue necesitando las dos. *Comprobado en la copia de prueba: «David Fernández», «DAVID FERNANDEZ», «Fernández», «Tahu», «Tahu Luafanitu», «Clemet Esparon» (como lo escriben los cuestionarios de wellness y RPE) y «ESPARON Clément» caen; «David Roca», «David», «Davide Boro», «Hugo» y los 15 de la plantilla no.* **Al dar de baja a alguien hay que mirar si comparte una palabra con alguien que se queda**, y dejarla fuera de `solo`.
+
+**`canonicalName` no resuelve a ninguna baja** (v930). Es el otro lado de la misma trampa: con David Fernández fuera de `ROSTER_PDF`, un «David Fernández» que se escapase de cualquier filtro casaba con David Roca por «david» y sus partes y su carga se le habrían colgado a él. Ahora devuelve `null`, y `filterToSquad` lo descarta.
+
+**Nutrición es la excepción, por decisión de Daniel el 24/11/2026**: David Fernández y Clement tenían pedido y cuotas, y quitarlos de ahí escondía lo que deben. Las bajas con `cobros:true` se filtran en `bmnava_nutri` con `esBajaNutri`, que no las cuenta: sus cobros y las líneas del pedido de octubre se quedan, y salen como «sin ficha» para que Carlos les cobre. **Lo que sí se les quita**: la marca de «lleva el servicio» (`bajaLimpiarNutri`), porque con ella «Generar la cuota del mes» les crearía un apunte nuevo cada mes; y en la pantalla no aparecen en las pastillas del servicio ni en los desplegables para apuntar un pedido. **La siembra del pedido de octubre sigue metiendo sus líneas a propósito**: los ids de las líneas son correlativos (`fg-2026-10-lN`) y saltarse las suyas movería los de todas las siguientes, que en un equipo nuevo no casarían con los del servidor.
+
+**Lo que cambia al quitarlos, y está medido** (huella antes y después, mismos datos): de los otros 15 no cambia ni un registro real de wellness, RPE ni pulsómetro. **Cambian las medias del equipo de los días en que entrenaron** —el 17/11, de 618 a 608 UA; el 27/10, de 634 a 619— y, por la misma razón, el RPE que la app estima para quien no rellenó el cuestionario, que sale de la media de los que sí lo rellenaron: tres registros estimados en octubre y noviembre.
 
 **El filtro va en la lectura de `localStorage` (`lsLeer` → `bajaLimpiar`), no repartido por los módulos.** Dos razones, y las dos importan:
 
@@ -415,7 +423,9 @@ Además se filtra en los puntos por donde entran las hojas de Google, que no pas
 - **No borra lo que ya esté en Supabase.** Deja de verse y deja de reescribirse, pero el registro sigue en el servidor hasta que se borre allí.
 - **El nombre sigue en el código**, en `BAJAS`. Es lo que hace funcionar el filtro; no se puede quitar sin quitar el mecanismo.
 
-La foto (`fotos/<nombre>.png`) **sí se borra del repositorio**: es un archivo servido por URL y el filtro no lo tapa.
+La foto (`fotos/<nombre>.png` y su miniatura en `fotos/m/`) **sí se borra del repositorio**: es un archivo servido por URL y el filtro no lo tapa.
+
+**Y se quitan de los datos que van escritos en el código** (v930): su fila de `ROSTER_PDF` —con los datos personales que llevaba—, las 283 filas de David Fernández en `HIST_W`, `HIST_R` y `HIST_HR` (25/26), los dorsales viejos de `NUM` y la plantilla de la demo. **Siguen en el historial de Git**: el repositorio es público y lo que se subió antes no se borra así.
 
 ### 5.1 Resolución de nombres — es frágil
 
@@ -1986,6 +1996,7 @@ Español neutro, técnico, directo. **Sin adulación.** Daniel especifica requis
 - **La monotonía de la tabla semanal del Calendario en el ORDENADOR** sigue saliendo de `calWeekSummary`, que se salta los días libres (11,58 contra 2,02 del Dashboard en la semana del 26/10). En el móvil ya usa la del Dashboard (v630); en el ordenador no se ha tocado porque Daniel pidió no cambiar nada ahí. Falta que decida si se iguala
 
 **Trabajo pendiente:**
+- **Lo de la v930**: que Daniel quite a David Fernández, Clement Esparon y Tahu Lufuanitu de las hojas de Google si los quiere fuera también ahí (la app ya los descarta al leer, §5.0), y que Carlos cobre lo que deban David y Clement en Nutrición, donde salen como «sin ficha»
 - **Las diez propuestas (v566–v579)**: Daniel confirmó el 12/11/2026 que funcionan en su iPhone **salvo compartir el parte a WhatsApp**. La v580 quita la espera de diez segundos; falta que confirme que con eso ya llega, o que diga en qué paso se queda. Ver §6.12.8
 - **Lo de la v928–v929**: que Virginia mire en Fisioterapia › Calendario el día 19 si quedaron copias del tratamiento de Alfredo y borre las que sobren (§6.38)
 - **Lo de la v922–v927**: que Daniel y Virginia lo usen con una readaptación real: llevar el objetivo al calendario, enlazar los criterios a sus pruebas, mandar «Su vuelta» al jugador (§6.37)
@@ -2316,6 +2327,7 @@ No los repitas.
 | Dar por foto lo que devuelve `photoFor` | Sin foto, `photoFor` devuelve un dibujo SVG con las iniciales (`data:image/svg+xml`), y html2canvas no pinta su texto: en la imagen exportada salía un cuadro vacío. En un documento que se exporta, una foto que empieza por `data:` no es una foto |
 | Un documento nuevo fuera de `BMG_DOC` | El informe de la temporada (v819) no estaba en la lista de documentos, así que las pasadas del móvil —tamaño de letra, pliegues, cifras— podían tocarlo. Al añadir el de la lesión se metió `.bmit-p`, que cubre los dos. **Un documento nuevo entra en `BMG_DOC` el mismo día** |
 | `mix-blend-mode` y `mask-image` en el mismo elemento | El destello del escudo (v916) existía, tenía su máscara y su animación, y no se veía: con `screen` y la máscara a la vez Chrome no pintaba nada. Sin el modo de fusión se ve. Se vio quitando las propiedades una a una |
+| Dar de baja a alguien con la regla de nombres de `canonicalName` | «Una palabra de cinco letras basta» es lo que hace que «David Fernández» y «David Roca» compartan «david»: con esa regla el filtro de bajas se habría llevado a David Roca, y `canonicalName`, con David Fernández ya fuera de la plantilla, le habría colgado a David Roca todo lo de su compañero. Se vio leyendo el filtro antes de añadir los nombres, no en pantalla. **Cada baja dice qué palabras bastan solas, y `canonicalName` no resuelve a una baja** (v930, §5.0) |
 
 ---
 
