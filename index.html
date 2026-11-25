@@ -18549,37 +18549,54 @@ function bieAcwrBanda(r){
     +'<line class="bie-ac-1" x1="'+X(1).toFixed(1)+'" x2="'+X(1).toFixed(1)+'" y1="3" y2="15"/>'
     +'<circle cx="'+X(v).toFixed(1)+'" cy="9" r="4.6" style="fill:var(--'+c+')" class="bie-ac-p"/></svg>';
 }
-function bieSemTipoSVG(R,T){
-  const w=682,h=168,pl=110,pt=18,pb=6,cw=(w-pl)/7,base=h-pb,ih=base-pt;
-  const F=MD_ORDEN.map(md=>({md,r:(R.filas||[]).find(f=>f.md===md)||{n:0},t:(T.P||[]).find(p=>p.md===md)||null}));
-  const mx=Math.max(1,...F.filter(f=>f.md!=='MD'&&f.r.n).map(f=>f.r.media)),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
+/* v937 · La semana tipo, más a fondo. Los días de cada posición del ciclo son los
+   de `calRefMD` (desde el 1 de septiembre, con carga registrada), así que todo lo
+   de una columna describe los mismos días: la carga y su rango (`calRefMD`), lo
+   programado (`calPlanUA`), los minutos de pista y de gimnasio y el RPE
+   (`lbTeamDay`; el gimnasio, los días que lo había en el calendario), el contacto
+   (`sessMeta`, que pondera portero y extremo), el nivel de la sesión
+   (`ultimasSesiones`), el pulso (`calZonasDia`) y el parte de esa mañana. */
+function bieSemTipoDatos(R){
+  const med=a=>{const v=a.filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((x,y)=>x+y,0)/v.length:null;};
+  const U={};try{(ultimasSesiones(9999)||[]).forEach(u=>{if(u&&u.dk)U[u.dk]=u.c?u.c.level:null;});}catch(e){}
+  const WD={};(STATE.wellness||[]).forEach(w=>{if(w&&w.dk)(WD[w.dk]=WD[w.dk]||[]).push(w);});
+  const cal=STATE.calendar||{};
+  return MD_ORDEN.map(md=>{
+    const f=(R.filas||[]).find(x=>x.md===md)||{n:0,dias:[]},D=f.dias||[];
+    const pis=[],gym=[],rpe=[],ct=[],z45=[],z5=[],plan=[],rec=[],fat=[],doms=[],sue=[],niv=[0,0,0];let gymN=0;
+    D.forEach(dk=>{let t=null;try{t=lbTeamDay(dk);}catch(e){}
+      const conG=(cal[dk]||[]).some(e=>e&&!evSP(e)&&e.type==='fuerza');
+      if(t&&t.pista&&t.pista.dur>0)pis.push(t.pista.dur);
+      if(conG){gymN++;if(t&&t.gym&&t.gym.dur>0)gym.push(t.gym.dur);}
+      if(t&&t.rpe>0)rpe.push(t.rpe);
+      let sm=null;try{sm=sessMeta(dk+'|semana-tipo',dk);}catch(e){}if(sm&&sm.contacto!=null)ct.push(sm.contacto);
+      const lv=U[dk];if(lv!=null&&lv>=0&&lv<=2)niv[lv]++;
+      let z=null;try{z=calZonasDia(dk);}catch(e){}
+      if(z&&z.fuente==='polar'&&isFinite(z.z4)&&isFinite(z.z5)){z45.push(z.z4+z.z5);z5.push(z.z5);}
+      try{const pl=calDayPlan(dk);if(pl&&pl.n){const u=calPlanUA(dk);if(u>0)plan.push(u);}}catch(e){}
+      (WD[dk]||[]).forEach(w=>{const r=recPct(twVal(w));if(isFinite(r))rec.push(r);if(isFinite(w.fatiga))fat.push(w.fatiga);if(isFinite(w.doms))doms.push(w.doms);if(w.horas_sueno>0)sue.push(w.horas_sueno);});
+    });
+    return {md,n:f.n||0,ua:f.n?{m:f.media,min:f.min,max:f.max}:null,plan:med(plan),pista:med(pis),gym:med(gym),gymN,rpe:med(rpe),ct:med(ct),niv,
+      z45:med(z45),z5:med(z5),zn:z45.length,rec:med(rec),fat:med(fat),doms:med(doms),sue:med(sue)};
+  });
+}
+/* El gráfico de la semana tipo: la media en el color de su nivel, detrás el rango
+   de la temporada (del día más suave al más duro) y la raya de lo programado. */
+function bieSemTipoSVG(P){
+  const w=682,h=184,pl=110,pt=22,pb=6,cw=(w-pl)/7,base=h-pb,ih=base-pt;
+  const vs=[];P.forEach(p=>{if(p.md==='MD')return;if(p.ua)vs.push(p.ua.max,p.ua.m);if(p.plan!=null)vs.push(p.plan);});
+  const mx=Math.max(1,...vs),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
   const y=v=>base-(v/top)*ih,n0=v=>Math.round(v).toLocaleString('es-ES');
   let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Carga habitual de cada día del ciclo">';
   for(let v=0;v<=top+0.1;v+=paso)s+='<line class="bie-gr" x1="'+pl+'" x2="'+w+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="bie-ax" x="'+(pl-8)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+n0(v)+' UA</text>';
-  F.forEach((f,i)=>{const cx=pl+i*cw+cw/2,bw=Math.min(52,cw*.56);
-    if(f.md==='MD'){s+=bieBalon(cx,base-16,13);return;}
-    if(!f.r.n)return;
-    const lv=nivelUA(Math.round(f.r.media)),pocos=f.r.n<MDH_MIN;
-    s+=bieBarra(cx-bw/2,y(f.r.media),bw,base,'bie-sb'+(pocos?' bie-sb--poco':''),'fill:'+LV[lv][1]);
-    s+='<text class="bie-val" x="'+cx.toFixed(1)+'" y="'+(y(f.r.media)-6).toFixed(1)+'" text-anchor="middle">'+n0(f.r.media)+'</text>';});
-  return {svg:s+'</svg>',F};
-}
-function bieCicloSVG(C,R){
-  const D=C.dias||[],w=682,h=176,pl=40,pt=20,pb=4,cw=(w-pl)/Math.max(1,D.length),base=h-pb,ih=base-pt;
-  const ref=md=>{const f=(R.filas||[]).find(x=>x.md===md);return f&&f.n>=MDH_MIN?f.media:null;};
-  const vals=[];D.forEach(d=>{vals.push(d.plan||0,d.real||0);const r=ref(d.md&&d.md.txt);if(r)vals.push(r);});
-  const mx=Math.max(1,...vals),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
-  const y=v=>base-(v/top)*ih,n0=v=>Math.round(v).toLocaleString('es-ES');
-  let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Programado y hecho en el ciclo en curso">';
-  for(let v=0;v<=top+0.1;v+=paso)s+='<line class="bie-gr" x1="'+pl+'" x2="'+w+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="bie-ax" x="'+(pl-6)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+n0(v)+'</text>';
-  D.forEach((d,i)=>{const cx=pl+i*cw+cw/2,bw=Math.min(40,cw*.5);
-    if(d.hoy)s+='<rect class="bie-hoy" x="'+(pl+i*cw+2).toFixed(1)+'" y="'+(pt-14)+'" width="'+(cw-4).toFixed(1)+'" height="'+(base-pt+14)+'" rx="8"/>';
-    if(d.partido){s+=bieBalon(cx,base-14,11);return;}
-    if(d.plan>0)s+=bieBarra(cx-bw/2,y(d.plan),bw,base,'bie-cyp');
-    if(d.real!=null&&d.real>0)s+=bieBarra(cx-bw*.3,y(d.real),bw*.6,base,'bie-cyr');
-    const r=ref(d.md&&d.md.txt);if(r)s+='<line class="bie-cref" x1="'+(cx-bw/2-5).toFixed(1)+'" x2="'+(cx+bw/2+5).toFixed(1)+'" y1="'+y(r).toFixed(1)+'" y2="'+y(r).toFixed(1)+'"/>';
-    const lab=d.real!=null&&d.real>0?d.real:(d.plan>0?d.plan:null);
-    if(lab!=null){const top2=Math.min(y(lab),r?y(r):1e9,d.plan>0?y(d.plan):1e9);s+='<text class="bie-val'+(d.real!=null&&d.real>0?'':' bie-val--p')+'" x="'+cx.toFixed(1)+'" y="'+(top2-5).toFixed(1)+'" text-anchor="middle">'+n0(lab)+'</text>';}});
+  P.forEach((p,i)=>{const cx=pl+i*cw+cw/2,bw=Math.min(44,cw*.5);
+    if(p.md==='MD'){s+=bieBalon(cx,base-16,13);return;}
+    if(!p.ua)return;
+    const poco=p.n<MDH_MIN;
+    if(p.n>1&&p.ua.max>p.ua.min)s+='<rect class="bie-rg" x="'+(cx-bw/2-8).toFixed(1)+'" y="'+y(p.ua.max).toFixed(1)+'" width="'+(bw+16).toFixed(1)+'" height="'+(y(p.ua.min)-y(p.ua.max)).toFixed(1)+'" rx="5"/>';
+    s+=bieBarra(cx-bw/2,y(p.ua.m),bw,base,'bie-sb'+(poco?' bie-sb--poco':''),'fill:'+LV[nivelUA(Math.round(p.ua.m))][1]);
+    if(p.plan!=null)s+='<line class="bie-cref" x1="'+(cx-bw/2-8).toFixed(1)+'" x2="'+(cx+bw/2+8).toFixed(1)+'" y1="'+y(p.plan).toFixed(1)+'" y2="'+y(p.plan).toFixed(1)+'"/>';
+    s+='<text class="bie-val" x="'+cx.toFixed(1)+'" y="'+(Math.min(y(p.ua.m),p.n>1?y(p.ua.max):1e9,p.plan!=null?y(p.plan):1e9)-6).toFixed(1)+'" text-anchor="middle">'+n0(p.ua.m)+'</text>';});
   return s+'</svg>';
 }
 async function bmInformeEntrenador(){
@@ -18777,41 +18794,56 @@ function bieHTML(){
     +'<div class="bie-cds">'+NS.map(carta).join('')+'</div>'
     +'<div class="bie-ley bie-ley--nv">'+REF_NIV.map((r,i)=>'<span><i style="background:'+r[1]+'"></i>'+(i===3?'★ ':'')+r[2]+'</span>').join('')+'<span class="bie-mu">· de lo más flojo al listón de un jugador de Champions League · ★ N: pruebas en ese nivel</span></div>'});
 
-  /* ── 4 · El microciclo ── */
-  let R={filas:[]},T={P:[]},Ci=null,Pr=null;
-  try{R=calRefMD();}catch(e){}try{T=ctDiaTipo();}catch(e){}try{Ci=calMicrociclo(hoy);}catch(e){}try{Pr=calProyeccionACWR(hoy);}catch(e){}
+  /* ── v937 · 4 · Nuestra semana tipo, a fondo ──
+     Daniel, 25/11/2026: *«quita lo de “este microciclo” y profundiza más en
+     Nuestra semana tipo»*. Cada posición del ciclo con los MISMOS días que
+     `calRefMD` (desde el 1 de septiembre, con carga registrada): lo habitual y su
+     rango, lo programado, cómo se reparte entre pista y gimnasio, el RPE, el
+     contacto, la intensidad de las sesiones, el pulso y cómo se levanta la
+     plantilla esa mañana (`bieSemTipoDatos`). */
+  let R={filas:[]};try{R=calRefMD();}catch(e){}
   let p4='';
-  if(!R.partidos){p4=ttl('Nuestra semana tipo','Para sacar la semana tipo hacen falta los partidos metidos en el calendario.');}
+  if(!R.partidos)p4=ttl('Nuestra semana tipo','Para sacar la semana tipo hacen falta los partidos metidos en el calendario.');
   else{
-    const ST=bieSemTipoSVG(R,T);
-    const ok=ST.F.filter(f=>f.md!=='MD'&&f.r.n>=MDH_MIN);
-    let fr='Cada columna es lo que suele cargar el equipo ese día del ciclo, contando desde el partido. El color es el nivel de la sesión.';
-    if(ok.length){const mx=ok.reduce((a,b)=>b.r.media>a.r.media?b:a),v1=ok.find(f=>f.md==='MD-1');
-      fr='El día más cargado suele ser el <b>'+mx.md+'</b> ('+BIE_MDH[mx.md].toLowerCase()+' del partido · '+n0(mx.r.media)+' UA)'+(v1&&v1.md!==mx.md?'; la víspera bajamos a '+n0(v1.r.media)+' UA':'')+'. El color es el nivel de la sesión.';}
-    const cel=(f,k)=>{const t=f.t&&f.t[k];return t&&t.m!=null?t:null;};
-    const fil=(lab,k,fmtv)=>ST.F.some(f=>cel(f,k))?'<div class="bie-stl">'+lab+'</div>'+ST.F.map(f=>{const t=cel(f,k);return '<div class="'+(f.r.n<MDH_MIN&&f.md!=='MD'?'bie-mu':'')+'">'+(t?fmtv(t.m):'—')+'</div>';}).join(''):'';
-    p4=ttl('Nuestra semana tipo',fr)
-      +'<div class="bie-fig">'+ST.svg+'<div class="bie-st">'
-      +'<div class="bie-stl"></div>'+ST.F.map(f=>{const lv=f.md!=='MD'&&f.r.n?nivelUA(Math.round(f.r.media)):null;
-        return '<div class="bie-sth"><b>'+f.md+'</b><span>'+E(BIE_MDH[f.md])+'</span>'+(lv!=null?'<em style="color:'+['var(--ok-text)','var(--warn-text)','var(--bad-text)'][lv]+'">'+['Baja','Media','Alta'][lv]+'</em>':f.md==='MD'?'<em class="bie-mu">partido</em>':'<em class="bie-mu">sin datos</em>')+'</div>';}).join('')
-      +fil('Minutos','dur',v=>n0(v)+'′')+fil('RPE (0–10)','rpe',v=>fmt(v,1))+fil('Tiempo en Z4+Z5','z',v=>n0(v)+' %')
-      +'<div class="bie-stl">Días contados</div>'+ST.F.map(f=>'<div class="bie-mu">'+(f.r.n||0)+'</div>').join('')
+    const P=bieSemTipoDatos(R);
+    const ok=P.filter(p=>p.md!=='MD'&&p.n>=MDH_MIN&&p.ua);
+    let fr='Cada columna es lo que suele hacer el equipo ese día del ciclo, contando desde el partido.';
+    if(ok.length){const mx=ok.reduce((a,b)=>b.ua.m>a.ua.m?b:a),v1=ok.find(p=>p.md==='MD-1');
+      fr='El día más cargado suele ser el <b>'+mx.md+'</b> ('+BIE_MDH[mx.md].toLowerCase()+' del partido · '+n0(mx.ua.m)+' UA)'+(v1&&v1.md!==mx.md?'; la víspera bajamos a '+n0(v1.ua.m)+' UA':'')+'.';}
+    const rs=P.filter(p=>p.rec!=null&&(p.n>=MDH_MIN||p.md==='MD'));
+    if(rs.length>1){const lo=rs.reduce((a,b)=>b.rec<a.rec?b:a),hi=rs.reduce((a,b)=>b.rec>a.rec?b:a);
+      fr+=' Se levantan peor el <b>'+lo.md+'</b> ('+Math.round(lo.rec)+' % de recuperación) y mejor el <b>'+hi.md+'</b> ('+Math.round(hi.rec)+' %).';}
+    const poco=p=>p.n<MDH_MIN&&p.md!=='MD';
+    const fila=(lab,sub,fn)=>{const v=P.map(fn);if(!v.some(x=>x!=null&&x!==''))return '';
+      return '<div class="bie-stl">'+lab+(sub?'<small>'+sub+'</small>':'')+'</div>'+P.map((p,i)=>'<div class="'+(poco(p)?'bie-st-poco':'')+'">'+(v[i]==null||v[i]===''?'<span class="bie-mu">—</span>':v[i])+'</div>').join('');};
+    const grupo=t=>'<div class="bie-stg">'+t+'</div>';
+    const cab='<div class="bie-stl"></div>'+P.map(p=>{const lv=p.md!=='MD'&&p.ua?nivelUA(Math.round(p.ua.m)):null;
+      return '<div class="bie-sth"><b>'+p.md+'</b><span>'+E(BIE_MDH[p.md])+'</span>'+(lv!=null?'<em style="color:'+['var(--ok-text)','var(--warn-text)','var(--bad-text)'][lv]+'">'+['Baja','Media','Alta'][lv]+'</em>':p.md==='MD'?'<em class="bie-mu">partido</em>':'<em class="bie-mu">sin datos</em>')+'</div>';}).join('');
+    const niv=p=>{const t=p.niv[0]+p.niv[1]+p.niv[2];if(!t)return null;
+      return '<i class="bie-nb">'+p.niv.map((v,i)=>v?'<i style="flex:'+v+';background:'+LV[i][1]+'"></i>':'').join('')+'</i><span class="bie-nbn">'+[2,1,0].map(i=>'<b style="color:var(--'+['ok','warn','bad'][i]+'-text)">'+p.niv[i]+'</b>').join(' · ')+'</span>';};
+    p4=ttl('De un partido al siguiente',fr)
+      +'<div class="bie-fig">'+bieSemTipoSVG(P)
+      +'<div class="bie-ley bie-ley--st"><span><i class="bie-l-niv"></i>lo habitual (la media), en el color de su nivel</span><span><i class="bie-l-rg"></i>del día más suave al más duro</span><span><i class="bie-l-r"></i>lo programado, de media</span></div>'
+      +'<div class="bie-st bie-st2">'+cab
+      +grupo('Qué hacemos')
+      +fila('Carga','UA de la sesión',p=>p.ua?'<b>'+n0(p.ua.m)+'</b>'+(p.n>1?'<small>'+n0(p.ua.min)+'–'+n0(p.ua.max)+'</small>':''):null)
+      +fila('Programado','UA en el calendario',p=>p.plan!=null?n0(p.plan):null)
+      +fila('Pista','minutos',p=>p.pista!=null?n0(p.pista)+'′':null)
+      +fila('Gimnasio','minutos · días',p=>p.gymN?(p.gym!=null?n0(p.gym)+'′':'')+'<small>'+p.gymN+' de '+p.n+'</small>':null)
+      +fila('RPE','de 0 a 10',p=>p.rpe!=null?fmt(p.rpe,1):null)
+      +fila('Contacto','de 1 a 5',p=>p.ct!=null?fmt(p.ct,1):null)
+      +fila('Intensidad','altas · medias · bajas',niv)
+      +fila('Tiempo en Z4+Z5','días con pulsómetro',p=>p.z45!=null?n0(p.z45)+' %<small>Z5 '+fmt(p.z5,1)+' % · '+p.zn+(p.zn===1?' día':' días')+'</small>':null)
+      +grupo('Cómo se levantan esa mañana')
+      +fila('Recuperación','de 0 a 100',p=>p.rec!=null?'<b style="color:var(--'+recSev(Math.round(p.rec))+'-text)">'+Math.round(p.rec)+' %</b>':null)
+      +fila('Fatiga','de 1 a 5',p=>p.fat!=null?fmt(p.fat,1):null)
+      +fila('Dolor muscular','de 1 a 5',p=>p.doms!=null?fmt(p.doms,1):null)
+      +fila('Horas de sueño','la noche anterior',p=>p.sue!=null?fmt(p.sue,1)+' h':null)
+      +'<div class="bie-stl">Días contados</div>'+P.map(p=>'<div class="bie-mu">'+(p.n||0)+'</div>').join('')
       +'</div></div>';
-    if(Ci&&Ci.dias&&Ci.dias.length){
-      const riv=Ci.partidoSig?evRival(((STATE.calendar||{})[Ci.partidoSig]||[]).find(evEsPartido)||{}):'';
-      const dows=Ci.dias.map(d=>{let t=dkToDate(d.dk).toLocaleDateString('es',{weekday:'short'}).replace('.','');return t.charAt(0).toUpperCase()+t.slice(1);});
-      const fuera=Pr&&Pr.jug?Pr.jug.filter(x=>x.rel&&isFinite(x.fin)&&NS.indexOf(x.name)>=0&&acwrClass(Math.round(x.fin*100)/100)!=='ok'):[];
-      const pro=!Pr||!Pr.diasPlan?'<p class="bie-pie">No hay sesiones programadas en lo que queda de ciclo, así que no se puede prever cómo acabará cada uno.</p>'
-        :'<div class="bie-pro"><div><b>'+(fuera.length?fuera.length+(fuera.length===1?' jugador acabaría':' jugadores acabarían')+' el ciclo fuera de la franja verde':'Si se hace lo programado, todos acaban el ciclo en la franja verde')+'</b><span>'+(fuera.length?'si se hace lo programado. Es el momento de ajustar su sesión, antes y no después.':'el ACWR de cada uno, al cerrar el ciclo, entre '+f1(L.acwrYellowLo)+' y '+f1(L.acwrYellowHi)+'.')+'</span></div>'
-          +(fuera.length?'<div class="bie-pro-c">'+fuera.slice().sort((a,b)=>Math.abs(b.fin-1)-Math.abs(a.fin-1)).slice(0,6).map(x=>{const v=Math.round(x.fin*100)/100,c=acwrClass(v);return '<span class="bie-pj">'+bieAv(x.name,'','var(--'+c+')')+'<i>'+E(bieNom(x.name))+'</i><b style="color:var(--'+c+'-text)">'+fmt(v,2)+'</b></span>';}).join('')+(fuera.length>6?'<em>y '+(fuera.length-6)+' más</em>':'')+'</div>':'')+'</div>';
-      p4+=ttl('Este microciclo',(Ci.partidoPrev?'Del partido del '+dm(Ci.partidoPrev)+' ':'')+(Ci.partidoSig?'al del '+dm(Ci.partidoSig)+(riv?' contra '+E(riv):''):'· falta meter el próximo partido en el calendario')+'. Lo programado en gris, lo hecho en azul y, en cada día, la raya de lo que suele cargar.')
-        +'<div class="bie-fig">'+bieCicloSVG(Ci,R)
-        +'<div class="bie-cl" style="grid-template-columns:40px repeat('+Ci.dias.length+',1fr)"><span></span>'+Ci.dias.map((d,i)=>'<div class="'+(d.hoy?'hoy':'')+'"><b>'+(d.partido?'Partido':E((d.md&&d.md.txt)||''))+'</b><span>'+dows[i]+' '+dm(d.dk)+(d.hoy?' · hoy':'')+'</span></div>').join('')+'</div>'
-        +'<div class="bie-ley"><span><i class="bie-l-cp"></i>programado</span><span><i class="bie-l-b"></i>hecho</span><span><i class="bie-l-r"></i>lo que suele cargar ese día</span></div></div>'+pro;
-    }
   }
-  pags.push({tit:'El microciclo',sub:'Cómo repartimos la carga entre un partido y el siguiente · desde el 1 de septiembre',cuerpo:p4
-    +'<p class="bie-pie">La carga de esta hoja es la de la sesión, en la misma unidad en la que se programa en el calendario. La semana tipo cuenta los días con carga registrada desde el 1 de septiembre; con menos de '+MDH_MIN+' días, la columna va atenuada.</p>'});
+  pags.push({tit:'Nuestra semana tipo',sub:'Cómo repartimos el trabajo entre un partido y el siguiente · desde el 1 de septiembre',cuerpo:p4
+    +'<p class="bie-pie">La carga de esta hoja es la de la sesión, en la misma unidad en la que se programa en el calendario. Cuenta los días con carga registrada desde el 1 de septiembre; con menos de '+MDH_MIN+' días, la columna va en gris. El partido no lleva nivel: su cuestionario no recoge lo que pesa. «Cómo se levantan» es el parte de esa misma mañana.</p>'});
 
   const tot=pags.length;
   /* en el móvil, la barra corta de los documentos (bil-lg / bil-co, v921) */
@@ -61012,6 +61044,18 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 
 <style id="bm-v936">
 /* v936 · el logo de Handball Performance en los documentos A4 */
+.bie-st2>div{padding:3px 2px}
+.bie-st2 small{display:block;font-size:9.5px;line-height:1.2;color:#6e6e73;font-weight:500}
+.bie-st2>.bie-stl small{font-size:9.5px}
+.bie-st2 b{font-weight:700}
+.bie-stg{grid-column:1/-1;padding:10px 0 3px!important;border-top:none!important;text-align:left;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6e6e73}
+.bie-st-poco,.bie-st-poco b,.bie-st-poco small{color:#8e8e93!important}
+.bie-st2 .bie-nb{margin:2px 4px 0}
+.bie-rg{fill:#ececf0}
+.bie-ley .bie-l-rg{background:#ececf0;border:1px solid #d1d1d6}
+.bie-ley .bie-l-niv{background:linear-gradient(90deg,var(--ok) 0 33%,var(--warn) 33% 66%,var(--bad) 66%)}
+.bie-ley--st{margin-bottom:8px}
+
 .bie-mt{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums;margin-bottom:6px}
 .bie-mt th{padding:0 6px 5px;font-size:11px;font-weight:700;color:#1d1d1f;text-align:left;border-bottom:1px solid #d1d1d6;text-transform:capitalize}
 .bie-mt th small{display:block;font-size:9.5px;font-weight:500;color:#6e6e73;text-transform:none}
@@ -67183,8 +67227,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.7*/
-const VER_ACTUAL='2026-11-25.7';
+/*BUILD:2026-11-25.8*/
+const VER_ACTUAL='2026-11-25.8';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
