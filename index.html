@@ -10532,13 +10532,19 @@ window.lsTumbarIds=lsTumbarIds;window.lsHrId=lsHrId;
    así que sigue igual que antes: hacen falta las dos palabras. */
 const BAJAS=[
   {n:'Hugo Lima'},
-  {n:'David Fernández',solo:['fernandez'],cobros:true},
-  {n:'Clement Esparon',solo:['clement','esparon'],cobros:true},
-  {n:'Tahu Lufuanitu',solo:['tahu','lufuanitu','luafanitu'],otras:['luafanitu']}];
+  {n:'David Fernández',solo:['fernandez'],cobros:true,informe:true,pos:'LD'},
+  {n:'Clement Esparon',solo:['clement','esparon'],cobros:true,informe:true,pos:'LI'},
+  {n:'Tahu Lufuanitu',solo:['tahu','lufuanitu','luafanitu'],otras:['luafanitu'],informe:true,pos:'ED'}];
 const BAJAS_NT=s=>String(s==null?'':s).toLowerCase().normalize('NFD')
   .replace(/[̀-ͯ]/g,'').split(/[^a-z0-9]+/).filter(Boolean);
 const BAJAS_TOK=BAJAS.map(b=>({tok:BAJAS_NT(b.n).concat(b.otras||[]),solo:b.solo||[],cobros:!!b.cobros}));
 const BAJAS_CACHE=Object.create(null),BAJAS_CACHE_NUT=Object.create(null);
+/* v934 · El modo del informe de salida. En ESTA pestaña, y sólo mientras dure,
+   el jugador elegido deja de contar como baja: la app se carga con él dentro y
+   su informe sale de los cálculos de siempre. Vive en sessionStorage, que ni
+   se guarda con los datos ni se sincroniza; al salir, la pestaña se vuelve a
+   cargar sin él. Sólo las bajas con `informe:true` (Hugo Lima, no). */
+const BAJA_SALIDA_I=(()=>{try{const v=sessionStorage.getItem('bmnava-salida');if(!v)return -1;return BAJAS.findIndex(b=>b.informe&&b.n===v);}catch(e){return -1;}})();
 function bajaCasa(at,bt){
   let sc=0,solo=false;
   at.forEach(a=>{if(bt.tok.indexOf(a)>=0){sc++;if(bt.solo.indexOf(a)>=0)solo=true;}});
@@ -10554,10 +10560,13 @@ function esBaja(name){
   const hit=BAJAS_CACHE[s];
   if(hit!==undefined)return hit;
   const at=BAJAS_NT(s);
-  const r=BAJAS_TOK.some(bt=>bajaCasa(at,bt));
+  const r=BAJAS_TOK.some((bt,i)=>i!==BAJA_SALIDA_I&&bajaCasa(at,bt));
   BAJAS_CACHE[s]=r;
   return r;
 }
+/* v934 · La de siempre, sin la excepción del modo de salida: Nutrición no cambia
+   por estar sacando un informe (su marca de servicio sigue fuera) */
+function esBajaSiempre(name){if(name==null||!BAJAS_TOK.length)return false;const at=BAJAS_NT(String(name));return BAJAS_TOK.some(bt=>bajaCasa(at,bt));}
 /* La misma pregunta para Nutrición: las bajas con `cobros` no cuentan. */
 function esBajaNutri(name){
   if(name==null)return false;
@@ -10605,8 +10614,8 @@ function bajaLimpiarNutri(x){
   bajaLimpiar(x,0,esBajaNutri);
   /* v931 · y fuera de la gente de fuera (la lista de personas de Nutrición):
      una baja que no es jugador vive ahí, y sus cobros se quedan como «sin ficha» */
-  try{if(x&&Array.isArray(x.externos))x.externos=x.externos.filter(e=>!(e&&esBaja(e.nombre)));}catch(e){}
-  try{const J=x&&x.cuota&&x.cuota.jugadores;if(J&&typeof J==='object')Object.keys(J).forEach(k=>{if(esBaja(k))delete J[k];});}catch(e){}
+  try{if(x&&Array.isArray(x.externos))x.externos=x.externos.filter(e=>!(e&&esBajaSiempre(e.nombre)));}catch(e){}
+  try{const J=x&&x.cuota&&x.cuota.jugadores;if(J&&typeof J==='object')Object.keys(J).forEach(k=>{if(esBajaSiempre(k))delete J[k];});}catch(e){}
   return x;
 }
 function lsLeer(clave,vacio){
@@ -14563,6 +14572,7 @@ function bmbIndice(){
   A('Su semana · imagen para el jugador','Su carga, su sueño, su recuperación y su readiness de la semana, contra lo suyo, para mandárselo',()=>{if(window.bmTuSemana)bmTuSemana();},'tu semana jugador imagen whatsapp resumen semanal');
   A('Comparar dos jugadores','Lado a lado: carga, readiness, capacidades y pruebas',()=>{if(window.bmComparar)bmComparar();},'comparar comparativa');
   A('Informe de la temporada','Un documento de varias páginas para imprimir o guardar en PDF: disponibilidad, lesiones, carga, minutos y valoraciones',()=>{if(window.bmInformeTemporada)bmInformeTemporada();},'informe temporada pdf directiva memoria documento');
+  A('Informe de salida de un jugador','La radiografía completa de un jugador que ha salido del club: valoración física, cargas, pulsómetros, bienestar, lesiones y tratamientos',()=>{if(window.bmInformeSalidaElige)bmInformeSalidaElige();},'informe salida jugador baja despedido otro club radiografia historial');
   A('Lo que venimos haciendo · informe para el entrenador','Cuatro páginas para imprimir o guardar en PDF: qué medimos, las cargas, el perfil físico de cada jugador y el microciclo',()=>{if(window.bmInformeEntrenador)bmInformeEntrenador();},'informe entrenador nuevo cuerpo tecnico resumen pdf cargas perfil fisico microciclo');
   A('Notas para ti','Las notas que te avisan, con sus respuestas',()=>{if(window.bmNotasMias)bmNotasMias();},'notas mensajes avisos para mi respuestas');
   A('Informe del partido','El último partido: minutos, carga, cómo llegó cada uno y cómo se recuperó',()=>{if(window.bmInformePartido)bmInformePartido();},'informe partido post partido minutos recuperacion md+1');
@@ -18695,6 +18705,303 @@ function bieHTML(){
       +'<div class="bmit-c"><div class="bie-in">'+p.cuerpo+'</div></div><div class="bmit-ft"><span>BM Nava · '+BIE_TIT+' · temporada '+tem+'</span><span>'+(i+1)+' / '+tot+'</span></div></section>').join('')+'</div>';
 }
 window.bmInformeEntrenador=bmInformeEntrenador;
+/* ═══ v934 · EL INFORME DE SALIDA DE UN JUGADOR ═══
+   Daniel, 25/11/2026: de los tres jugadores que salieron el 24/11 —David
+   Fernández, Tahu Lufuanitu y Clement Esparon—, un documento con «toda la
+   radiografía del jugador» para facilitárselo de cara a los clubes a los que
+   vaya: valoración física, cargas, pulsómetros, lesiones, tratamientos… todo.
+   **El problema es que la app los esconde a propósito** (§5.0): el filtro de
+   bajas los quita al leer. Para no escribir una segunda forma de calcular
+   nada, el informe se saca en un **modo de salida**: en ESA pestaña
+   (sessionStorage, que ni se guarda ni se sincroniza) el filtro deja pasar a
+   ese jugador, la app se vuelve a cargar con él dentro y todo sale de los
+   cálculos de siempre. Al salir, la pestaña vuelve a cargar sin la excepción.
+   Sólo las bajas con `informe:true` (las tres de noviembre; Hugo Lima no).
+   **Nada se borra ni se crea por estar en el modo**: lo que se guarde ahí lleva
+   sus registros, que son los mismos que ya están en el servidor, y no se
+   anota ninguna tumba porque la comparación de la v931 ve lo mismo a los dos
+   lados. Nutrición no cambia: su marca de servicio sigue fuera (`esBajaSiempre`).
+   El documento NO dice por qué se fue del club: es un informe de rendimiento y
+   salud, y lo que no es de eso no le corresponde. */
+const BS_MIN_T=3;
+function bsJug(){
+  if(typeof BAJA_SALIDA_I!=='number'||BAJA_SALIDA_I<0)return null;
+  const bt=BAJAS_TOK[BAJA_SALIDA_I];
+  return Object.keys(STATE.players||{}).find(n=>bajaCasa(BAJAS_NT(n),bt))||null;
+}
+function bmInformeSalidaElige(){
+  const L=BAJAS.filter(b=>b.informe);
+  const h='<p class="bs-el-p">El informe se saca en un modo aparte: esta pestaña se vuelve a cargar con el jugador elegido dentro, la app calcula su informe con sus cuentas de siempre y, al salir, todo vuelve a estar como ahora. <b>Sólo en esta pestaña</b>: nadie más lo ve.</p>'
+    +'<div class="bs-el">'+L.map(b=>'<button type="button" class="bs-el-b" data-bs="'+bmEsc(b.n)+'"><b>'+bmEsc(b.n)+'</b><span>Abrir su informe ›</span></button>').join('')+'</div>'
+    +'<p class="bs-el-n">Sus datos de bienestar, RPE y valoraciones salen de las hojas de Google: si se borran de ahí antes de sacar el informe, ya no estarán.</p>';
+  bmHoja({id:'bsel',titulo:'Informe de salida de un jugador',html:h});
+}
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('[data-bs]');if(!b)return;
+  try{sessionStorage.setItem('bmnava-salida',b.dataset.bs);}catch(x){toast('Este navegador no deja guardar la elección');return;}
+  location.reload();});
+function bmSalidaSale(){try{sessionStorage.removeItem('bmnava-salida');}catch(x){}location.reload();}
+function bsBanda(){
+  if(typeof BAJA_SALIDA_I!=='number'||BAJA_SALIDA_I<0)return;
+  let b=document.getElementById('bs-banda');
+  if(!b){b=document.createElement('div');b.id='bs-banda';b.setAttribute('role','status');document.body.appendChild(b);}
+  const n=bsJug();
+  b.innerHTML='<span><b>Informe de salida</b> · '+bmEsc(n||BAJAS[BAJA_SALIDA_I].n)+(n?'':' · cargando sus datos…')+'</span>'
+    +'<button type="button" onclick="bmInformeSalida()"'+(n?'':' disabled')+'>Ver informe</button><button type="button" onclick="bmSalidaSale()">Salir</button>';
+}
+/* abre solo el informe cuando la app ya tiene sus datos (las hojas, la serie de readiness y un rato para la sincronización) */
+(function bsArranque(){
+  if(typeof BAJA_SALIDA_I!=='number'||BAJA_SALIDA_I<0)return;
+  let t0=Date.now(),abierto=false;
+  const paso=()=>{try{bsBanda();}catch(e){}
+    const n=bsJug(),listo=n&&(STATE.wellness||[]).length&&!window.__RD_CALC;
+    if(listo&&!abierto&&Date.now()-t0>9000){abierto=true;try{bmInformeSalida();}catch(e){console.error(e);}return;}
+    if(Date.now()-t0<90000)setTimeout(paso,800);};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(paso,800));else setTimeout(paso,800);
+})();
+function bsDatos(n){
+  const p=(STATE.players||{})[n]||{},hoy=dkey(new Date());
+  const real=r=>r&&!r.bloqueConvocado&&!r.sinRegistro;
+  const dks=[];
+  (STATE.wellness||[]).forEach(w=>{if(w&&w.name===n&&w.dk>=TEMP_INICIO&&w.dk<=hoy)dks.push(w.dk);});
+  (STATE.rpe||[]).forEach(r=>{if(real(r)&&r.name===n&&r.dk>=TEMP_INICIO&&r.dk<=hoy)dks.push(r.dk);});
+  dks.sort();
+  const ini=dks[0]||TEMP_INICIO,fin=dks[dks.length-1]||hoy;
+  const ds=dkRango(ini,fin),refEnd=new Date(dkToDate(fin).getTime()+86399000);
+  /* carga: la de su ficha (contDailyTo, weekly, acwrDeSerie) */
+  let serie=[];try{serie=contDailyTo(n,refEnd)||[];}catch(e){}
+  const S=serie.filter(d=>{const k=dkey(d.date);return k>=ini&&k<=fin;});
+  const conC=S.filter(d=>d.ua>0),carga=conC.reduce((a,d)=>a+d.ua,0);
+  const normalDia=plMediana(conC.map(d=>d.ua));
+  let wk=[];try{wk=(weekly(n,'ua',refEnd)||[]).filter(w=>w.week>=weekKey(dkToDate(ini)));}catch(e){}
+  const k0=wk.findIndex(w=>w.ua>0);wk=k0<0?[]:wk.slice(k0);
+  const normalSem=plMediana(wk.filter(w=>!w.parcial&&w.ua>0).map(w=>w.ua));
+  let eq={};try{cgSemanasEquipo(cgSerieEquipo()).forEach(w=>{eq[w.week]=w.ua;});}catch(e){}
+  const ac=[];serie.forEach((d,i)=>{const k=dkey(d.date);if(k<ini||k>fin)return;
+    try{const r=acwrDeSerie(serie.slice(0,i+1),'ua');ac.push({dk:k,v:(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0)?r.ratio:null});}catch(e){}});
+  const acV=ac.filter(x=>x.v!=null),acFin=acV.length?acV[acV.length-1].v:null;
+  const fueraBanda=acV.filter(x=>acwrClass(Math.round(x.v*100)/100)!=='ok').length;
+  const rp=(STATE.rpe||[]).filter(r=>real(r)&&r.name===n&&r.dk>=ini&&r.dk<=fin&&+r.rpe>0).map(r=>+r.rpe);
+  const rpe=rp.length?rp.reduce((a,b)=>a+b,0)/rp.length:null;
+  /* partidos: sólo los minutos apuntados a él (regla de la v825) */
+  const sd=(window.sessDurGet?sessDurGet():(STATE.sessDur||{}));
+  let par=[];try{par=calPartidosDks().filter(dk=>dk>=ini&&dk<=fin).map(dk=>{const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};
+    const m=(sd[dk]||{})[n+'::pista'];return {dk,riv:evRival(ev)||'Partido',min:(m!=null&&m!=='')?+m:null};});}catch(e){}
+  const minutos=par.reduce((a,x)=>a+(x.min||0),0),jugados=par.filter(x=>x.min>0).length;
+  /* disponibilidad, día a día */
+  let fuera=0,molestia=0,sel=0;const est={};
+  ds.forEach(dk=>{let e=null;try{e=effectiveStatus(n,dk);}catch(_){}const st=e&&e.status;if(!st||st==='disp')return;
+    if(st==='seleccion'){sel++;return;}
+    if(NOAV_ST.includes(st))fuera++;else if(CARE_ST.includes(st))molestia++;else return;est[st]=(est[st]||0)+1;});
+  const dispPct=ds.length?(ds.length-fuera)/ds.length*100:null;
+  /* bienestar: sus partes contra los del equipo esos mismos días */
+  const W=(p.w||[]).filter(w=>w&&w.dk>=ini&&w.dk<=fin);
+  const WE=(STATE.wellness||[]).filter(w=>w&&w.name!==n&&w.dk>=ini&&w.dk<=fin);
+  const med=(L,k)=>{const v=L.map(x=>x[k]).filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+  const wv=TW_KEYS.map(k=>({k,el:med(W,k),eq:med(WE,k)}));
+  const horas={el:med(W,'horas_sueno'),eq:med(WE,'horas_sueno')};
+  const recD=W.map(w=>({dk:w.dk,pct:recPct(twVal(w))})).filter(x=>isFinite(x.pct));
+  const recM=recD.length?recD.reduce((a,x)=>a+x.pct,0)/recD.length:null;
+  const zonas={};let conDolor=0,golpes=0;
+  W.forEach(w=>{if(!w.dolor)return;conDolor++;if(w.golpe)golpes++;
+    let zs=[];try{zs=fisZonas(w.zona||'')||[];}catch(e){}
+    (zs.length?zs:[{z:w.zona||'sin zona'}]).forEach(z=>{const nm=(typeof z==='string'?z:(z.z||z.zona||z.nombre||'')).toString().trim();if(!nm)return;
+      let r=nm;try{r=zoneRegion(nm)||nm;}catch(e){}zonas[r]=(zonas[r]||0)+1;});});
+  /* pulsómetros: todas sus sesiones (hrpDatos, la radiografía de Pulsómetros) */
+  let H=[];try{H=(hrpDatos(n,0)||[]).filter(x=>x&&x.tot>0);}catch(e){}
+  const hm=k=>{const v=H.map(x=>x[k]).filter(x=>x!=null&&isFinite(x)&&x>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+  const zt=[0,0,0,0,0];H.forEach(x=>(x.z||[]).forEach((s,i)=>{zt[i]+=+s||0;}));
+  const ztt=zt.reduce((a,b)=>a+b,0);
+  const hrP=H.filter(x=>x.partido),hrE=H.filter(x=>!x.partido);
+  const z45m=L=>{const v=L.map(x=>x.z45).filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+  /* salud */
+  const inj=((STATE.med||{}).inj||[]).filter(e=>e&&e.name===n).sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+  const eps=inj.map(e=>{const f=e.open?hoy:(e.closeDk||e.sportDischargeReal||e.altaDk||e.dk);
+    let df=0;try{dkRango(e.dk,f>hoy?hoy:f).forEach(dk=>{try{const s=effectiveStatus(n,dk);if(s&&NOAV_FIS_ST.includes(s.status))df++;}catch(x){}});}catch(x){}
+    const lado=e.lado==='I'?'izq.':e.lado==='D'?'der.':(e.lado||'');
+    return {e,dk:e.dk,fin:e.open?null:f,open:!!e.open,kind:e.kind==='lesion'?'Lesión':'Molestia',zona:[e.zona,lado].filter(Boolean).join(' '),
+      tit:e.title||'',tipo:e.tipo||'',clasif:e.clasif||'',dias:Math.max(1,dkRango(e.dk,e.open?hoy:f).length),fuera:df,
+      fases:(e.phases||[]).filter(x=>x&&x.type!=='hito').length};});
+  const tr=((STATE.med||{}).treat||[]).filter(t=>t&&t.name===n).sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+  const porTipo={};tr.forEach(t=>{const k=(t.tipo||'Tratamiento').toString().trim()||'Tratamiento';const o=porTipo[k]||(porTipo[k]={n:0,min:0,ult:''});o.n++;o.min+=+t.dur||0;if(t.dk>o.ult)o.ult=t.dk;});
+  const citas=((STATE.medLog||{})[n]||[]).filter(m=>{try{return medEsCita(m);}catch(e){return false;}}).sort((a,b)=>String(a.dk).localeCompare(String(b.dk)));
+  let vend=null;try{vend=vendDeJugador(n);}catch(e){}
+  let iso=[];try{iso=(window.isoDeJugador?isoDeJugador(n):[]).map(D=>({D,R:isoCalc(D)})).filter(x=>x.R);}catch(e){}
+  /* valoración física: la de la carta (nota, capacidades) y todas sus pruebas, de la primera a la última */
+  let CJ=null;try{CJ=cjDatos(n);}catch(e){}
+  const puesto=(CJ&&CJ.puesto)||(window.refPuesto?refPuesto(n):null);
+  const fotos=((STATE.testHist||{})[n]||[]).filter(s=>s&&s.real===true).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const prue={};fotos.forEach(s=>Object.keys(s.vals||{}).forEach(k=>{const v=s.vals[k];if(v==null||!isFinite(v))return;const def=testDefByK(k);if(!def)return;
+    const o=prue[k]||(prue[k]={def,pri:{dk:s.date,v},ult:{dk:s.date,v},n:0});o.ult={dk:s.date,v};o.n++;}));
+  const pruebas=Object.values(prue).map(o=>{let lv=null;try{const r=puesto?refNivel(o.def.k,o.ult.v,puesto):null;lv=r?r.lv:null;}catch(e){}return Object.assign(o,{lv});});
+  const CAT_ORD=['Condición','Fuerza','Explosividad'];
+  pruebas.sort((a,b)=>{const ca=CAT_ORD.indexOf(a.def.cat),cb=CAT_ORD.indexOf(b.def.cat);return (ca<0?9:ca)-(cb<0?9:cb)||String(a.def.name).localeCompare(String(b.def.name),'es');});
+  return {n,p,ini,fin,ds,S,carga,conC,normalDia,wk,normalSem,eq,ac,acFin,fueraBanda,rpe,nRpe:rp.length,par,minutos,jugados,
+    fuera,molestia,sel,est,dispPct,W,wv,horas,recD,recM,zonas,conDolor,golpes,H,zt,ztt,hrP,hrE,z45m,hm,eps,tr,porTipo,citas,vend,iso,CJ,puesto,fotos,pruebas};
+}
+function bsHTML(D){
+  const E=bmEsc,n0=v=>Math.round(v).toLocaleString('es-ES'),f1=v=>fmt(v,1),f2=v=>fmt(v,2);
+  const fl=dk=>{const d=dkToDate(dk);return d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase()+' de '+d.getFullYear();};
+  const dma=dk=>{const p=String(dk).split('-');return +p[2]+'/'+(+p[1])+'/'+p[0].slice(2);};
+  const dm=dk=>{const p=String(dk).split('-');return +p[2]+'/'+(+p[1]);};
+  const B=[];
+  const blq=(t,s,cuerpo)=>B.push('<section class="bs-b"><div class="bie-tt"><h2>'+t+'</h2>'+(s?'<p>'+s+'</p>':'')+'</div>'+cuerpo+'</section>');
+  const k=(t,v,s,c)=>'<div class="bie-k"><em>'+t+'</em><b'+(c?' style="color:'+c+'"':'')+'>'+v+'</b><span>'+s+'</span></div>';
+  const pos=biePuesto(D.n);
+  const inic=String(D.n).split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  const nota=D.CJ&&D.CJ.nota!=null?Math.round(D.CJ.nota):null;
+  /* ── portada ── */
+  B.push('<section class="bs-b bs-por"><div class="bs-id"><span class="bs-mono">'+E(inic)+'</span><div><small>Club Balonmano Nava · Informe del jugador</small><h1>'+E(D.n)+'</h1>'
+    +'<p>'+E(pos)+' · temporada '+TEMP_INICIO.slice(0,4)+'/'+String(+TEMP_INICIO.slice(2,4)+1).padStart(2,'0')+' · del '+fl(D.ini)+' al '+fl(D.fin)+'</p></div></div>'
+    +'<p class="bie-lead">Resumen de su seguimiento durante la temporada en el club: valoración física, cargas de entrenamiento, pulsómetros, bienestar diario, lesiones y tratamientos. Todas las cifras salen de lo registrado día a día por el área de preparación física y fisioterapia.</p>'
+    +'<div class="bie-ks bs-ks">'
+      +k('Días con registro',String(D.ds.length?new Set(D.W.map(w=>w.dk).concat(D.conC.map(d=>dkey(d.date)))).size:0),'entre partes y cuestionarios')
+      +k('Sesiones con carga',String(D.conC.length),D.carga?n0(D.carga)+' UA en total':'sin carga calculable')
+      +k('Minutos de partido',D.jugados?n0(D.minutos)+'′':'—',D.jugados?D.jugados+(D.jugados===1?' partido':' partidos')+' con minutos':'sin minutos apuntados')
+      +k('Disponibilidad',D.dispPct!=null?f1(D.dispPct)+' %':'—','de los días, sin baja')
+      +k('Nota física',nota!=null?String(nota):'—',D.CJ&&D.CJ.ultima?'última valoración '+dma(typeof D.CJ.ultima==='string'?D.CJ.ultima:dkey(D.CJ.ultima)):'sin valoración esta temporada')
+      +k('Lesiones',String(D.eps.filter(x=>x.kind==='Lesión').length),D.eps.filter(x=>x.kind==='Molestia').length+' molestias registradas')
+    +'</div></section>');
+  /* ── valoración física ── */
+  const NV=['var(--bad)','var(--warn)','var(--ok)','var(--champ)'],NT=['var(--bad-text)','var(--warn-text)','var(--ok-text)','var(--champ)'];
+  if(D.pruebas.length){
+    const caps=D.CJ&&D.CJ.caps?D.CJ.caps.map(x=>{if(x.lv==null)return '<div class="bie-cp"><span>'+E(x.c)+'</span><i class="bie-cb"></i><em class="bie-mu">sin prueba</em></div>';
+      const wv=Math.max(4,Math.min(100,(x.v!=null?x.v:x.lv+.5)/3*100));
+      return '<div class="bie-cp"><span>'+E(x.c)+'</span><i class="bie-cb"><i style="width:'+wv.toFixed(1)+'%;background:'+NV[x.lv]+'"></i></i><em style="color:'+NT[x.lv]+'">'+(x.lv===3?'★ ':'')+REF_NIV[x.lv][2]+'</em></div>';}).join(''):'';
+    const filas=D.pruebas.map(o=>{const u=o.def.unit?' '+o.def.unit:'',d=o.ult.v-o.pri.v,neu=['peso','talla'].indexOf(o.def.k)>=0;
+      /* los decimales de la propia medida: un 90 km/h no se escribe 90,00 */
+      const dv=v=>{const t=String(Math.round(v*100)/100),i=t.indexOf('.');return i<0?0:Math.min(2,t.length-i-1);};
+      const dec=()=>Math.max(dv(o.pri.v),dv(o.ult.v));
+      const mejor=neu?null:(o.def.lowerBetter?d<0:d>0);
+      const ch=o.n>1&&o.pri.dk!==o.ult.dk?'<b class="'+(Math.abs(d)<1e-9||mejor==null?'':(mejor?'bie-up':'bie-dn'))+'">'+(d>0?'▲ +':d<0?'▼ −':'= ')+fmt(Math.abs(d),dec())+'</b>':'<span class="bie-mu">—</span>';
+      return '<tr><td>'+E(o.def.name)+'</td><td class="bie-mu">'+E(o.def.cat||'')+'</td><td>'+(o.n>1&&o.pri.dk!==o.ult.dk?fmt(o.pri.v,dv(o.pri.v))+E(u)+' <i>'+dma(o.pri.dk)+'</i>':'<span class="bie-mu">—</span>')+'</td>'
+        +'<td><b>'+fmt(o.ult.v,dv(o.ult.v))+E(u)+'</b> <i>'+dma(o.ult.dk)+'</i></td><td>'+ch+'</td>'
+        +'<td>'+(o.lv!=null?'<span class="bs-nv" style="--c:'+NV[o.lv]+';color:'+NT[o.lv]+'">'+(o.lv===3?'★ ':'')+REF_NIV[o.lv][2]+'</span>':'<span class="bie-mu">—</span>')+'</td></tr>';}).join('');
+    blq('Valoración física','Todas sus pruebas en el club, de la primera medición a la última. El nivel compara la última marca con el baremo de su puesto'+(D.puesto?' ('+E(D.puesto)+')':'')+', desde rojo hasta el listón de un jugador de Champions League.',
+      (caps?'<div class="bs-fis"><div class="bs-nota"><b>'+(nota!=null?nota:'—')+'</b><span>nota física<br>de 40 a 95, frente a la plantilla</span>'+(D.CJ&&D.CJ.champ?'<em class="bie-ch">★ '+D.CJ.champ+(D.CJ.champ===1?' prueba':' pruebas')+' en nivel Champions</em>':'')+'</div><div class="bs-caps">'+caps+'</div></div>':'')
+      +'<table class="bie-t bs-t"><thead><tr><th>Prueba</th><th>Capacidad</th><th>Primera</th><th>Última</th><th>Cambio</th><th>Nivel</th></tr></thead><tbody>'+filas+'</tbody></table>'
+      +'<p class="bie-pie">La nota física junta a partes iguales condición, fuerza y explosividad. En peso y talla el cambio no lleva color: no tienen un lado bueno.</p>');
+  }
+  /* ── cargas ── */
+  if(D.wk.length&&D.carga>0){
+    const W=D.wk,w=682,h=170,pl=40,pr=10,pt=14,pb=26,iw=w-pl-pr,ih=h-pt-pb,base=pt+ih;
+    const mx=Math.max(1,...W.map(x=>Math.max(x.ua||0,D.eq[x.week]||0))),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
+    const y=v=>base-(v/top)*ih,bw=iw/W.length;let s='';
+    for(let v=0;v<=top+.1;v+=paso)s+='<line class="bie-gr" x1="'+pl+'" x2="'+(w-pr)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="bie-ax" x="'+(pl-6)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+n0(v)+'</text>';
+    let mes=-1,lin='';
+    W.forEach((x,i)=>{const bx=pl+i*bw+bw*.17,bwi=bw*.66;s+=bieBarra(bx,y(x.ua||0),bwi,base,'bie-b'+(x.parcial?' bie-b--p':''));
+      const e=D.eq[x.week];if(e!=null&&e>0)lin+=(lin?'L':'M')+(bx+bwi/2).toFixed(1)+','+y(e).toFixed(1);
+      const m=dkToDate(x.week).getMonth();if(m!==mes){mes=m;s+='<text class="bie-ax bie-mes" x="'+bx.toFixed(1)+'" y="'+(h-6)+'">'+CAL_MES[m].slice(0,3)+'</text>';}});
+    if(lin)s+='<path class="bs-eq" d="'+lin+'"/>';
+    const i0=D.ac.findIndex(x=>x.v!=null),AC=i0<0?[]:D.ac.slice(i0),ach=AC.filter(x=>x.v!=null);
+    let acS='';
+    if(ach.length>4){const w2=682,h2=92,pl2=40,pr2=10,pt2=8,pb2=18,iw2=w2-pl2-pr2,ih2=h2-pt2-pb2,lo=.4,hi=Math.max(2,...ach.map(x=>x.v)),
+        X=i=>pl2+i/(AC.length-1||1)*iw2,Y=v=>pt2+ih2-(Math.min(hi,v)-lo)/(hi-lo)*ih2;
+      acS='<svg class="bie-svg" viewBox="0 0 '+w2+' '+h2+'" width="'+w2+'" height="'+h2+'" role="img" aria-label="ACWR día a día">'
+        +'<rect class="bs-band" x="'+pl2+'" width="'+iw2+'" y="'+Y(CONFIG.load.acwrYellowHi).toFixed(1)+'" height="'+(Y(CONFIG.load.acwrYellowLo)-Y(CONFIG.load.acwrYellowHi)).toFixed(1)+'"/>'
+        +[.5,1,1.5,2].filter(v=>v<=hi).map(v=>'<text class="bie-ax" x="'+(pl2-6)+'" y="'+(Y(v)+3.5).toFixed(1)+'" text-anchor="end">'+fmt(v,1)+'</text>').join('');
+      let pth='',on=false;AC.forEach((x,i)=>{if(x.v==null){on=false;return;}pth+=(on?'L':'M')+X(i).toFixed(1)+','+Y(Math.max(lo,x.v)).toFixed(1);on=true;});
+      acS+='<path class="bs-acl" d="'+pth+'"/><text class="bie-ax" x="'+pl2+'" y="'+(h2-3)+'">'+dm(AC[0].dk)+'</text><text class="bie-ax" x="'+(w2-pr2)+'" y="'+(h2-3)+'" text-anchor="end">'+dm(AC[AC.length-1].dk)+'</text></svg>';}
+    blq('Cargas de entrenamiento','Cada barra es su carga de una semana (RPE × minutos, en UA); la línea, la media de la plantilla esas mismas semanas.',
+      '<div class="bie-ks bs-ks4">'+k('Carga total',n0(D.carga)+' UA',D.conC.length+' días con carga')
+        +k('Su semana normal',D.normalSem!=null?n0(D.normalSem)+' UA':'—','la mediana de sus semanas cerradas')
+        +k('Su día normal',D.normalDia!=null?n0(D.normalDia)+' UA':'—','RPE medio '+(D.rpe!=null?f1(D.rpe):'—')+' sobre 10')
+        +(()=>{const nv=D.ac.filter(x=>x.v!=null).length;return k('ACWR en su franja',nv?Math.round((nv-D.fueraBanda)/nv*100)+' %':'—',nv?'de '+nv+' días entre 0,8 y 1,3':'sin ACWR calculable');})()+'</div>'
+      +'<div class="bie-fig"><svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Carga semanal">'+s+'</svg>'
+      +'<div class="bie-ley"><span><i class="bie-l-b"></i>su carga semanal</span><span><i class="bie-l-p"></i>semana sin terminar</span><span><i class="bs-l-eq"></i>media de la plantilla</span></div></div>'
+      +(acS?'<div class="bie-tt bs-sub"><h2>ACWR, día a día</h2><p>Carga de 7 días contra la media de 21. La franja verde (0,8–1,3) es donde se le quería tener.</p></div>'+acS:''));
+  }
+  /* ── partidos ── */
+  if(D.par.length)blq('Partidos','Los minutos apuntados a él en cada partido. Donde no hay minutos apuntados no se sabe si jugó.',
+    '<div class="bs-par">'+D.par.map(x=>'<div><span>'+dm(x.dk)+'</span><b>'+E(x.riv)+'</b><em>'+(x.min!=null?x.min+'′':'—')+'</em></div>').join('')+'</div>'
+    +'<p class="bie-pie">'+(D.jugados?D.jugados+' partidos con minutos · '+n0(D.minutos)+' minutos en total · '+n0(D.minutos/D.jugados)+' de media.':'Sin minutos apuntados.')+'</p>');
+  /* ── bienestar ── */
+  if(D.W.length){
+    const lab={fatiga:'Fatiga',sueno:'Sueño',doms:'Dolor muscular',stress:'Estrés',mood:'Ánimo'};
+    const fil=D.wv.map(x=>{if(x.el==null)return '';const dif=x.eq!=null?x.el-x.eq:null;
+      return '<div class="bs-w"><span>'+lab[x.k]+'</span><i class="bs-w-b"><i style="left:'+((x.el-1)/4*100).toFixed(1)+'%" class="el"></i>'+(x.eq!=null?'<i style="left:'+((x.eq-1)/4*100).toFixed(1)+'%" class="eq"></i>':'')+'</i><b>'+f1(x.el)+'</b><em>'+(dif!=null?'equipo '+f1(x.eq):'')+'</em></div>';}).join('');
+    const rs=D.recD.map(x=>'<i style="background:var(--'+recSev(x.pct)+')"></i>').join('');
+    const zs=Object.entries(D.zonas).sort((a,b)=>b[1]-a[1]).slice(0,6);
+    blq('Bienestar diario','Su parte de cada mañana, del 1 (muy bien) al 5 (muy mal), contra la media del resto de la plantilla esos mismos días.',
+      '<div class="bie-ks bs-ks4">'+k('Partes respondidos',String(D.W.length),'de '+D.ds.length+' días')+k('Recuperación media',D.recM!=null?Math.round(D.recM)+' %':'—','cómo se levanta, de 0 a 100',D.recM!=null?'var(--'+recSev(Math.round(D.recM))+'-text)':'')
+        +k('Horas de sueño',D.horas.el!=null?f1(D.horas.el)+' h':'—',D.horas.eq!=null?'la plantilla, '+f1(D.horas.eq)+' h':'')+k('Días con dolor',String(D.conDolor),'declarados por él en el parte'+(D.golpes?' · '+D.golpes+' por un golpe':''))+'</div>'
+      +'<div class="bs-ws">'+fil+'<p class="bie-pie"><span class="bs-eld">●</span> él · <span class="bs-eqd">●</span> la plantilla. La escala va del 1 (muy bien, a la izquierda) al 5 (muy mal).</p></div>'
+      +(rs?'<div class="bie-tt bs-sub"><h2>Su recuperación, día a día</h2><p>Un cuadro por parte: verde 75 o más, ámbar de 55 a 74, rojo por debajo.</p></div><div class="bs-rs">'+rs+'</div>':'')
+      +(zs.length?'<div class="bie-tt bs-sub"><h2>Dónde le ha dolido</h2></div><div class="bs-zs">'+zs.map(z=>'<span><b>'+z[1]+'</b> '+E(z[0])+'</span>').join('')+'</div>':''));
+  }
+  /* ── pulsómetros ── */
+  if(D.H.length){
+    const zb=D.ztt?D.zt.map((s,i)=>'<i style="flex:'+(s/D.ztt*100).toFixed(2)+';background:'+PL_ZCOL[i]+'" title="Z'+(i+1)+'"></i>').join(''):'';
+    const zl=D.ztt?D.zt.map((s,i)=>'<span style="--c:'+PL_ZCOL[i]+'"><b>Z'+(i+1)+'</b> '+n0(s/D.ztt*100)+' %</span>').join(''):'';
+    const ult=D.H.slice(-10).reverse();
+    blq('Pulsómetros','Polar: frecuencia cardiaca y tiempo en cada zona, en todas sus sesiones medidas'+(D.H.length?' (del '+fl(D.H[0].dk)+' al '+fl(D.H[D.H.length-1].dk)+')':'')+'.',
+      '<div class="bie-ks bs-ks4">'+k('Sesiones medidas',String(D.H.length),n0(D.H.reduce((a,x)=>a+(x.min||0),0))+' minutos en total')
+        +k('FC media',D.hm('hrAvg')!=null?n0(D.hm('hrAvg'))+' %':'—','de su FC máxima configurada')+k('FC máxima',D.hm('hrMax')!=null?n0(D.hm('hrMax'))+' %':'—','media de sus picos')
+        +k('Tiempo en Z4+Z5',D.z45m(D.H)!=null?n0(D.z45m(D.H))+' %':'—',(D.hrP.length&&D.z45m(D.hrP)!=null?'en partido '+n0(D.z45m(D.hrP))+' %':'')+(D.hrE.length&&D.z45m(D.hrE)!=null?(D.hrP.length?' · ':'')+'entrenando '+n0(D.z45m(D.hrE))+' %':''))+'</div>'
+      +(zb?'<div class="bs-zb">'+zb+'</div><div class="bs-zl">'+zl+'</div>':'')
+      +'<table class="bie-t bs-t2"><thead><tr><th>Fecha</th><th>Sesión</th><th>Minutos</th><th>FC media</th><th>FC máx</th><th>Z4+Z5</th><th>TRIMP</th></tr></thead><tbody>'
+      +ult.map(x=>'<tr><td>'+dma(x.dk)+'</td><td>'+E(x.partido?'Partido':(x.lab||'Sesión'))+'</td><td>'+n0(x.min)+'′</td><td>'+(x.hrAvg?n0(x.hrAvg)+' %':'—')+'</td><td>'+(x.hrMax?n0(x.hrMax)+' %':'—')+'</td><td>'+(x.z45!=null?n0(x.z45)+' %':'—')+'</td><td>'+(x.trimp?n0(x.trimp):'—')+'</td></tr>').join('')+'</tbody></table>'
+      +(D.H.length>10?'<p class="bie-pie">Las diez últimas de '+D.H.length+' sesiones.</p>':''));
+  }
+  /* ── disponibilidad y lesiones ── */
+  {
+    const lab=s=>(PHYSTAT[s]&&PHYSTAT[s].lab)||s;
+    const est=Object.entries(D.est).sort((a,b)=>b[1]-a[1]);
+    const tab=D.eps.length?'<table class="bie-t bs-t3"><thead><tr><th>Desde</th><th>Qué</th><th>Zona</th><th>Hasta</th><th>Días</th><th>Días fuera</th></tr></thead><tbody>'
+      +D.eps.map(x=>'<tr><td>'+dma(x.dk)+'</td><td><b>'+E(x.kind)+'</b>'+(x.tit?' · '+E(x.tit):'')+(x.tipo||x.clasif?'<br><i>'+E([x.tipo,x.clasif].filter(Boolean).join(' · '))+'</i>':'')+'</td><td>'+E(x.zona||'—')+'</td><td>'+(x.open?'sigue abierto':dma(x.fin))+'</td><td>'+x.dias+'</td><td>'+(x.fuera||'—')+'</td></tr>').join('')+'</tbody></table>'
+      :'<p class="bie-pie">Sin lesiones ni molestias registradas en el módulo médico.</p>';
+    blq('Disponibilidad, lesiones y molestias','El estado de cada día según el cuerpo médico y fisioterapia. En la tabla, «días fuera» son los de baja, sin entrenar o enfermo dentro de cada episodio.',
+      '<div class="bie-ks bs-ks4">'+k('Disponibilidad',D.dispPct!=null?f1(D.dispPct)+' %':'—','de '+D.ds.length+' días')+k('Días fuera',String(D.fuera),'de baja, sin entrenar o enfermo')
+        +k('Días con molestia',String(D.molestia),'entrenando, en tratamiento o con dolor')+k('Con la selección',String(D.sel),D.sel?'días convocado':'ningún día')+'</div>'
+      +(est.length?'<div class="bs-est">'+est.map(e=>'<span style="--c:'+((PHYSTAT[e[0]]||{}).c||'var(--muted)')+'"><b>'+e[1]+'</b> '+E(lab(e[0]))+'</span>').join('')+'</div>':'')+tab);
+  }
+  /* ── tratamientos y pruebas médicas ── */
+  if(D.tr.length||D.citas.length||(D.vend&&D.vend.tot)||D.iso.length){
+    const pt=Object.entries(D.porTipo).sort((a,b)=>b[1].n-a[1].n);
+    const VZ=D.vend&&D.vend.tot?Object.entries(D.vend.por).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]):[];
+    blq('Tratamientos y pruebas médicas','Las sesiones de fisioterapia registradas, los vendajes y las citas, reconocimientos y pruebas.',
+      (pt.length?'<table class="bie-t bs-t4"><thead><tr><th>Tratamiento</th><th>Sesiones</th><th>Minutos</th><th>Última</th></tr></thead><tbody>'
+        +pt.map(x=>'<tr><td>'+E(x[0])+'</td><td>'+x[1].n+'</td><td>'+(x[1].min?n0(x[1].min)+'′':'—')+'</td><td>'+dma(x[1].ult)+'</td></tr>').join('')+'</tbody></table>'
+        +'<p class="bie-pie">'+D.tr.length+' sesiones de tratamiento, del '+fl(D.tr[0].dk)+' al '+fl(D.tr[D.tr.length-1].dk)+'.</p>':'<p class="bie-pie">Sin tratamientos registrados.</p>')
+      +(VZ.length?'<div class="bie-tt bs-sub"><h2>Vendajes</h2></div><div class="bs-zs">'+VZ.map(z=>'<span><b>'+z[1]+'</b> '+E(z[0])+'</span>').join('')+'<span class="bie-mu">en '+D.vend.dias+' días</span></div>':'')
+      +(D.citas.length?'<div class="bie-tt bs-sub"><h2>Citas, reconocimientos y pruebas</h2></div><div class="bs-par">'+D.citas.map(m=>'<div><span>'+dma(m.dk)+'</span><b>'+E(m.title||m.type||'Consulta')+'</b><em>'+E(m.who||'')+'</em></div>').join('')+'</div>':'')
+      +(D.iso.length?'<div class="bie-tt bs-sub"><h2>Isocinético</h2></div><table class="bie-t bs-t4"><thead><tr><th>Fecha</th><th>LSI extensores</th><th>LSI flexores</th><th>H/Q pierna operada</th></tr></thead><tbody>'
+        +D.iso.map(x=>{const l=x.R.lenta||{};return '<tr><td>'+E((x.D.prueba||{}).fecha||'—')+'</td><td>'+(l.lsiExt!=null?n0(l.lsiExt)+' %':'—')+'</td><td>'+(l.lsiFlex!=null?n0(l.lsiFlex)+' %':'—')+'</td><td>'+(l.hqOp!=null?n0(l.hqOp)+' %':'—')+'</td></tr>';}).join('')+'</tbody></table>':''));
+  }
+  B.push('<section class="bs-b bs-fin"><p>Informe elaborado por el área de preparación física del Club Balonmano Nava con los datos registrados en la temporada '+TEMP_INICIO.slice(0,4)+'/'+String(+TEMP_INICIO.slice(2,4)+1).padStart(2,'0')+'. Contiene datos de salud: se entrega al jugador, o con su consentimiento.</p></section>');
+  return B;
+}
+async function bmInformeSalida(){
+  const n=bsJug();if(!n){toast('Todavía no están sus datos: espera unos segundos');return;}
+  for(let i=0;i<40&&window.__RD_CALC;i++)await new Promise(r=>setTimeout(r,150));
+  let B;try{B=bsHTML(bsDatos(n));}catch(err){console.error('bmnava · informe de salida',err);toast('No he podido montar el informe');return;}
+  const E=bmEsc,tit='Informe del jugador';
+  const hd=c=>'<div class="bmit-hd"><img src="escudo.png" alt="" onerror="this.remove()"><div><b>'+E(n)+(c?' <small>· continúa</small>':'')+'</b><span>'+tit+' · Club Balonmano Nava</span></div></div>';
+  const ft='<div class="bmit-ft"><span>BM Nava · '+tit+' · '+E(n)+'</span><span></span></div>';
+  let v=document.getElementById('bmit');if(!v){v=document.createElement('div');v.id='bmit';v.setAttribute('role','dialog');document.body.appendChild(v);}
+  v.setAttribute('aria-label',tit+' · '+n);
+  v.innerHTML='<div class="bmit-bar"><b>'+E(tit)+' · '+E(n)+'</b><span class="bil-np"></span>'
+    +'<button type="button" class="btn" data-bmit="print"><span class="bil-lg">Imprimir o guardar en PDF</span><span class="bil-co">PDF</span></button><button type="button" class="btn ghost" data-bmit="x">Cerrar</button></div>'
+    +'<div class="bmit-pages"><div class="bil-doc" id="bs-doc"><section class="bmit-p bie bs-p">'+'<div class="bmit-c">'+B.join('')+'</div>'+ft+'</section></div></div>';
+  v.classList.add('on');document.documentElement.classList.add('bmit-on');
+  const pg=v.querySelector('.bmit-pages');if(pg)pg.style.zoom='';
+  /* los bloques que no caben pasan enteros a la hoja siguiente (la regla del informe de la lesión, v921) */
+  const doc=v.querySelector('#bs-doc');
+  const cabe=c=>c.scrollHeight<=c.clientHeight+1;
+  let pags=[doc.querySelector('.bmit-c')];
+  for(let g=0;g<12;g++){const c=pags[pags.length-1];if(cabe(c))break;
+    const bs=[...c.querySelectorAll(':scope>.bs-b')];if(bs.length<2)break;
+    const sec=document.createElement('section');sec.className='bmit-p bie bs-p';sec.innerHTML=hd(true)+'<div class="bmit-c"></div>'+ft;doc.appendChild(sec);
+    const nc=sec.querySelector('.bmit-c');
+    while(!cabe(c)&&c.querySelectorAll(':scope>.bs-b').length>1){const u=[...c.querySelectorAll(':scope>.bs-b')].pop();nc.insertBefore(u,nc.firstChild);}
+    pags.push(nc);}
+  /* un bloque solo que no cabe en su hoja se encoge en vez de cortarse */
+  pags.forEach(c=>{if(!cabe(c)){const k=Math.max(.75,c.clientHeight/c.scrollHeight*.99);[...c.children].forEach(b=>{b.style.zoom=k.toFixed(3);});}});
+  const nP=pags.length;[...doc.querySelectorAll('.bmit-ft')].forEach((f,i)=>{const s=f.querySelectorAll('span');if(s[1])s[1].textContent=(i+1)+' / '+nP;});
+  const np=v.querySelector('.bil-np');if(np)np.textContent=nP===1?'1 página A4':nP+' páginas A4';
+  try{bmItAjusta();}catch(x){}
+}
+window.bmInformeSalida=bmInformeSalida;window.bmInformeSalidaElige=bmInformeSalidaElige;window.bmSalidaSale=bmSalidaSale;
+
 
 /* ═══ v816 · SELECCIONAR UN TRAMO EN UN GRÁFICO DE DÍAS ═══
    Daniel, 18/11/2026, propuesta 4. Como en Salud o Garmin: se arrastra sobre
@@ -34209,7 +34516,7 @@ function renderNutri(){
   const jugadores=nomP.concat(sueltos);
   /* v930 · Los despedidos con cobros salen en la lista para cobrarles, pero no
      se les puede dar el servicio ni apuntarles un pedido nuevo. */
-  const vigentes=jugadores.filter(j=>!(typeof esBaja==='function'&&esBaja(j)));
+  const vigentes=jugadores.filter(j=>!(typeof esBajaSiempre==='function'&&esBajaSiempre(j)));
   const rolDe={},extDe={};
   personas.forEach(p=>{rolDe[p.nombre]=p.externo?(p.rol||'de fuera'):'';extDe[p.nombre]=!!p.externo;});
   sueltos.forEach(j=>{rolDe[j]='sin ficha';extDe[j]=true;});
@@ -37400,6 +37707,10 @@ const ROSTER_PDF=[
 {plantilla:'ASOBAL',pos:'ED',dorsal:'13',nombre:'Pancho',apellidos:'Ahumada Collado',nacimiento:'2001-07-19',dni:'',pasaporte:'F59194133',nac:'CHI',edad:'25',peso:'74',talla:'172',telefono:'611527539',telEsp:'',correo:'panchoahumada0@gmail.com',repre:'',estado:'Disponible',estatusClub:'Ya en el club',llegada:''},
 {plantilla:'ASOBAL',pos:'PI',dorsal:'53',nombre:'Paulo',apellidos:'Moreno',nacimiento:'1992-05-08',dni:'Z4988522B',pasaporte:'',nac:'',edad:'34',peso:'',talla:'',telefono:'351963577135',telEsp:'',correo:'paulomoreno013@gmail.com',repre:'',estado:'Disponible',estatusClub:'Nueva incorporación',llegada:''},
 ];
+/* v934 · en el modo del informe de salida, el jugador vuelve a la plantilla con su
+   nombre y su puesto (el baremo es por puesto) y NADA más: sus datos personales
+   salieron del código en la v930 y no vuelven */
+try{if(BAJA_SALIDA_I>=0){const b=BAJAS[BAJA_SALIDA_I],t=b.n.split(' ');ROSTER_PDF.push({nombre:t[0],apellidos:t.slice(1).join(' '),pos:b.pos||'',plantilla:'ASOBAL'});}}catch(e){}
 const POSLABEL={PO:'Portero',LI:'Lateral izq.',LD:'Lateral der.',EI:'Extremo izq.',ED:'Extremo der.',CE:'Central',PI:'Pivote'};
 const INFO_SECTIONS=[
  ['Identidad',[['nombre','Nombre','text'],['apellidos','Apellidos','text'],['apodo','Apodo','text'],['nacimiento','F. nacimiento','date'],['edad','Edad','number'],['nac','Nacionalidad','text'],['plantilla','Plantilla','sel-plantilla'],['pos','Posición','sel-pos'],['dorsal','Dorsal','text']]],
@@ -50629,6 +50940,7 @@ function bmTbMenu(e){
     {t:'Informe del último partido',f:()=>{try{bmInformePartido();}catch(err){}}},
     {t:'Informe de la temporada…',f:()=>{try{bmInformeTemporada();}catch(err){}}},
     {t:'Informe para el entrenador…',f:()=>{try{bmInformeEntrenador();}catch(err){}}},
+    {t:'Informe de salida de un jugador…',f:()=>{try{bmInformeSalidaElige();}catch(err){}}},
     {t:'Notas para ti'+(()=>{const c=(typeof notasSinLeer==='function')?notasSinLeer():0;return c?' ('+c+')':'';})(),f:()=>{try{bmNotasMias();}catch(err){}}},
     {t:'Presentar',k:'P',f:()=>{try{bmPresentar();}catch(err){}}},
     {t:'Inspector del jugador',k:'I',f:()=>{try{bmInspAlterna();}catch(err){}}},
@@ -60437,6 +60749,84 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .bie-pro-c em{font-style:normal;font-size:11px;color:#6e6e73;align-self:center}
 </style>
 
+<style id="bm-v934">
+/* v934 · el informe de salida de un jugador (documento: fijado a claro) y su modo */
+.bs-p .bmit-c>.bs-b{margin-bottom:22px}
+.bs-p .bmit-c>.bs-b:last-child{margin-bottom:0}
+.bs-por{padding-bottom:4px}
+.bs-id{display:flex;align-items:center;gap:16px}
+.bs-mono{flex:none;width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:#1d2836;color:#fff;font-size:26px;font-weight:700;letter-spacing:.02em}
+.bs-id small{display:block;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#6e6e73}
+.bs-id h1{margin:2px 0 3px;font-size:34px;line-height:1.08;font-weight:700;letter-spacing:-.015em;color:#1d1d1f}
+.bs-id p{margin:0;font-size:13px;color:#3a3a3c}
+.bs-ks{grid-template-columns:repeat(3,1fr)}
+.bs-ks4{grid-template-columns:repeat(4,1fr);margin-bottom:14px}
+.bs-ks4 .bie-k b{font-size:21px}
+.bs-fis{display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:center;padding:12px 14px;margin-bottom:12px;border-radius:12px;background:#f5f5f7}
+.bs-nota b{display:block;font-size:40px;line-height:1;font-weight:700;color:#1d1d1f;font-variant-numeric:tabular-nums}
+.bs-nota span{display:block;margin-top:4px;font-size:10.5px;line-height:1.3;color:#6e6e73}
+.bs-nota em{display:block;margin-top:6px;font-style:normal;font-size:10.5px;font-weight:600}
+.bs-caps{display:flex;flex-direction:column;gap:7px}
+.bs-caps .bie-cp{grid-template-columns:90px 1fr 84px;font-size:11.5px}
+.bs-t td i,.bs-t3 td i{font-style:normal;font-size:10px;color:#6e6e73}
+.bs-t td:nth-child(2),.bs-t th:nth-child(2){text-align:left}
+.bs-t td,.bs-t2 td,.bs-t3 td,.bs-t4 td{padding:3px 6px;font-size:11.5px}
+.bs-nv{display:inline-flex;align-items:center;gap:5px;font-weight:600;font-size:11px}
+.bs-nv::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+.bs-eq{fill:none;stroke:#1d1d1f;stroke-width:1.6;stroke-linejoin:round}
+.bie-ley .bs-l-eq{width:16px;height:0;border-radius:0;border-top:1.6px solid #1d1d1f}
+.bs-sub{margin-top:14px}
+.bs-sub h2{font-size:14px}
+.bs-band{fill:rgba(30,168,99,.16)}
+.bs-acl{fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round}
+.bs-par{display:grid;grid-template-columns:repeat(2,1fr);gap:0 22px}
+.bs-par>div{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:baseline;padding:4px 0;font-size:11.5px;border-bottom:1px solid #eeeef0}
+.bs-par span{color:#6e6e73;font-variant-numeric:tabular-nums}
+.bs-par b{font-weight:600;color:#1d1d1f;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bs-par em{font-style:normal;font-weight:600;font-variant-numeric:tabular-nums}
+.bs-ws{display:flex;flex-direction:column;gap:6px}
+.bs-w{display:grid;grid-template-columns:110px 1fr 40px 80px;gap:12px;align-items:center;font-size:11.5px}
+.bs-w>span{color:#3a3a3c}
+.bs-w b{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.bs-w em{font-style:normal;color:#6e6e73;white-space:nowrap}
+.bs-w-b{position:relative;display:block;height:6px;border-radius:3px;background:#ececf0}
+.bs-w-b i{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;border:2px solid #fff;box-sizing:border-box}
+.bs-w-b .el{background:var(--accent);z-index:1}.bs-w-b .eq{background:#8e8e93}
+.bs-eqd{color:#8e8e93}.bs-eld{color:var(--accent)}
+.bs-rs{display:flex;gap:1px;height:16px}
+.bs-rs i{flex:1;border-radius:2px;min-width:1px}
+.bs-zs{display:flex;flex-wrap:wrap;gap:6px}
+.bs-zs span{padding:4px 10px;border-radius:999px;background:#f5f5f7;font-size:11.5px;color:#3a3a3c}
+.bs-zs b{color:#1d1d1f;font-weight:700}
+.bs-zb{display:flex;gap:2px;height:12px;margin:2px 0 6px}
+.bs-zb i{border-radius:3px;min-width:2px}
+.bs-zl{display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:12px;font-size:11px;color:#3a3a3c}
+.bs-zl span{display:inline-flex;align-items:center;gap:6px}
+.bs-zl span::before{content:"";width:9px;height:9px;border-radius:3px;background:var(--c)}
+.bs-zl b{font-weight:700}
+.bs-t2 td:nth-child(2),.bs-t2 th:nth-child(2),.bs-t3 td:nth-child(-n+3),.bs-t3 th:nth-child(-n+3),.bs-t3 td:nth-child(4),.bs-t3 th:nth-child(4){text-align:left}
+.bs-t3 td{white-space:normal;vertical-align:top}
+.bs-est{display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:10px;font-size:11.5px;color:#3a3a3c}
+.bs-est span{display:inline-flex;align-items:center;gap:6px}
+.bs-est span::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c)}
+.bs-est b{font-weight:700;color:#1d1d1f}
+.bs-fin p{margin:0;padding-top:10px;border-top:1px solid #e5e5ea;font-size:10.5px;line-height:1.45;color:#6e6e73}
+/* el modo de salida, en la app */
+#bs-banda{position:fixed;z-index:955;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:6px 6px 6px 14px;border-radius:999px;background:#1d2836;color:#fff;font-size:13px;box-shadow:0 8px 28px rgba(0,0,0,.28)}
+#bs-banda span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bs-banda button{flex:none;min-height:30px;padding:0 12px;border:0;border-radius:999px;background:rgba(255,255,255,.16);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+#bs-banda button:first-of-type{background:#fff;color:#1d2836}
+#bs-banda button[disabled]{opacity:.5;cursor:default}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  #bs-banda{top:auto;bottom:calc(96px + env(safe-area-inset-bottom))}
+  #bs-banda button{min-height:44px}}
+.bs-el-p,.bs-el-n{margin:0 0 12px;font-size:14px;line-height:1.45;color:var(--txt)}
+.bs-el-n{margin:12px 0 0;font-size:12.5px;color:var(--muted)}
+.bs-el{display:flex;flex-direction:column;gap:8px}
+.bs-el-b{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:0 16px;border:0;border-radius:12px;background:var(--panel2);color:var(--txt);font:inherit;text-align:left;cursor:pointer}
+.bs-el-b b{font-size:15px;font-weight:600}.bs-el-b span{font-size:13px;color:var(--acc-seg,var(--accent))}
+</style>
+
 <style id="bm-v820">
 /* v820 · el icono de la categoría en cada cabecera */
 .bmcab{display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;margin-right:9px;border-radius:7px;background:var(--cc);color:#fff;vertical-align:-5px;font-style:normal}
@@ -66472,8 +66862,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.4*/
-const VER_ACTUAL='2026-11-25.4';
+/*BUILD:2026-11-25.5*/
+const VER_ACTUAL='2026-11-25.5';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
