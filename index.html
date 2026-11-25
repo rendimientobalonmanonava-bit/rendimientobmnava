@@ -18666,23 +18666,29 @@ function bieRecSemanas(W){
   let mes=-1;W.forEach((x,i)=>{const m=x.ini.getMonth();if(m!==mes){mes=m;s+='<text class="bie-ax bie-mes" x="'+(pl+i*bw+bw*.17).toFixed(1)+'" y="'+(h-4)+'">'+CAL_MES[m].slice(0,3)+'</text>';}});
   return s+'</svg>';
 }
-/* Las valoraciones físicas fase a fase: la marca de un jugador típico en cada fase
-   (mediana de quien se midió en ella) y el cambio de la primera a la última entre
-   quienes se midieron en las dos. Las fases salen de la hoja (`vhFasesLista`); con
-   más de tres, la primera y las dos últimas. */
+/* Las valoraciones físicas desde la primera fase: entre quienes se midieron en la
+   primera y en la última (las fases salen de la hoja, `vhFasesLista`), dónde está
+   ahora un jugador típico, cuánto ha cambiado cada uno (la mediana de los cambios de
+   cada jugador) y cuántos mejoran.
+   v938 · NO se enseña la marca de cada fase al lado del cambio: restar dos medianas
+   esconde la mejora. Con las valoraciones del 16/11, en el CMJ 12 de 15 mejoran de 2
+   a 8 cm y la mediana del grupo va de 41,5 a 41,6, porque dos bajadas grandes
+   cambian quién queda en el medio; y al revés, en «Vel. lanz. 9m» las medianas van
+   de 90,5 a 96,5 con un cambio típico de +0,5. Con las dos marcas a la vista el
+   cambio parecía una errata, así que se enseña la de ahora y el cambio de cada uno. */
 function bieFases(){
   if(!window.vhFasesLista||!window.vhValEnFase)return null;
   let FL=[];try{FL=vhFasesLista()||[];}catch(e){}
   if(FL.length<2)return null;
-  if(FL.length>3)FL=[FL[0]].concat(FL.slice(-2));
+  FL=[FL[0],FL[FL.length-1]];
   const ns=Object.keys(STATE.players||{}),A=FL[0],B=FL[FL.length-1],NEU=window.VHF_NEUTRAL||['peso','talla'];
   const tests=[];
   (typeof TESTS!=='undefined'?TESTS:[]).forEach(t=>{if(!t||NEU.indexOf(t.k)>=0)return;
-    const pares=[];ns.forEach(n=>{const a=vhValEnFase(n,t.k,A),b=vhValEnFase(n,t.k,B);if(a&&b)pares.push(b.v-a.v);});
+    const pares=[],quien=[];ns.forEach(n=>{const a=vhValEnFase(n,t.k,A),b=vhValEnFase(n,t.k,B);if(a&&b){pares.push(b.v-a.v);quien.push(n);}});
     if(pares.length<3)return;
-    const meds=FL.map(f=>{const v=ns.map(n=>{const x=vhValEnFase(n,t.k,f);return x?x.v:null;}).filter(v=>v!=null);return v.length?bieMediana(v):null;});
+    const ahora=bieMediana(quien.map(n=>vhValEnFase(n,t.k,B).v));
     const mejor=d=>t.lowerBetter?d<0:d>0;
-    tests.push({t,meds,n:pares.length,d:bieMediana(pares),suben:pares.filter(mejor).length,bajan:pares.filter(d=>d!==0&&!mejor(d)).length});});
+    tests.push({t,ahora,n:pares.length,d:bieMediana(pares),suben:pares.filter(mejor).length,bajan:pares.filter(d=>d!==0&&!mejor(d)).length});});
   tests.sort((a,b)=>b.n-a.n||String(a.t.name).localeCompare(String(b.t.name),'es'));
   return {fases:FL,tests,mejoran:tests.filter(o=>o.suben>o.bajan).length};
 }
@@ -18751,14 +18757,17 @@ function bieHTML(){
   let fasesH='';
   if(F&&F.tests.length){
     const FL=F.fases;
-    fasesH=ttl('Las valoraciones físicas, fase a fase','La marca de un jugador típico en cada fase y, a la derecha, cuánto ha cambiado de «'+E(FL[0].fase)+'» a «'+E(FL[FL.length-1].fase)+'» entre quienes se midieron en las dos. '+'En <b>'+F.mejoran+' de '+F.tests.length+' pruebas</b> mejoran más jugadores de los que empeoran.')
-      +'<table class="bie-ft"><thead><tr><th>Prueba</th>'+FL.map(f=>'<th>'+E(f.fase)+'</th>').join('')+'<th>Cambio</th><th>Mejoran</th></tr></thead><tbody>'
-      +F.tests.slice(0,8).map(o=>{const u=o.t.unit?' '+o.t.unit:'',dv=v=>{const a=Math.abs(v);return a>=100?0:a>=1?1:a>=.1?2:3;};
+    fasesH=ttl('Las valoraciones físicas, desde «'+E(FL[0].fase)+'»','Los que se midieron en «'+E(FL[0].fase)+'» y en «'+E(FL[1].fase)+'»: dónde está ahora un jugador típico, cuánto ha cambiado cada uno y cuántos han mejorado. '+'En <b>'+F.mejoran+' de '+F.tests.length+' pruebas</b> mejoran más jugadores de los que empeoran.')
+      +'<table class="bie-ft"><thead><tr><th>Prueba</th><th>Ahora<small>marca típica en «'+E(FL[1].fase)+'»</small></th><th>Cambio<small>el típico de cada jugador</small></th><th>Mejoran</th></tr></thead><tbody>'
+      +F.tests.slice(0,8).map(o=>{const u=o.t.unit?' '+o.t.unit:'',
+        /* los decimales los pone la escala de la prueba (los de la marca de ahora); el cambio lleva
+           al menos uno, y uno más si con esos se quedaría en cero */
+        dA=(x=>x>=100?0:x>=10?1:2)(Math.abs(o.ahora)),dC=(()=>{let k=Math.max(1,dA);while(k<3&&o.d!==0&&Math.round(Math.abs(o.d)*Math.pow(10,k))===0)k++;return k;})();
         const mejor=o.t.lowerBetter?o.d<0:o.d>0;
-        return '<tr><td>'+E(o.t.name)+'</td>'+o.meds.map(m=>'<td>'+(m!=null?fmt(m,dv(m))+E(u):'<span class="bie-mu">—</span>')+'</td>').join('')
-          +'<td><b class="'+(o.d===0?'':mejor?'bie-up':'bie-dn')+'">'+(o.d>0?'▲ +':o.d<0?'▼ −':'= ')+fmt(Math.abs(o.d),dv(o.d))+E(u)+'</b></td>'
+        return '<tr><td>'+E(o.t.name)+'</td><td>'+fmt(o.ahora,dA)+E(u)+'</td>'
+          +'<td><b class="'+(o.d===0?'':mejor?'bie-up':'bie-dn')+'">'+(o.d>0?'▲ +':o.d<0?'▼ −':'= ')+fmt(Math.abs(o.d),dC)+E(u)+'</b></td>'
           +'<td><i class="bie-f-b"><i class="m" style="width:'+(o.suben/o.n*100).toFixed(1)+'%"></i><i class="p" style="width:'+(o.bajan/o.n*100).toFixed(1)+'%"></i></i><em>'+o.suben+' de '+o.n+'</em></td></tr>';}).join('')+'</tbody></table>'
-      +'<p class="bie-pie">«Mejoran» cuenta a quien mejora entre la primera y la última fase; la barra verde son ellos y la gris, quienes empeoran. Peso y talla no entran: no tienen un lado bueno.</p>';
+      +'<p class="bie-pie">«Ahora» es la mediana del grupo con el último valor de cada uno en «'+E(FL[1].fase)+'». El cambio es el de cada jugador entre su última marca de una fase y la de la otra, y se da el del jugador típico (la mediana): no es la resta de dos marcas del grupo, que cambia de un jugador a otro. «Mejoran»: en verde, los que mejoran; en gris, los que empeoran. Peso y talla no entran: no tienen un lado bueno.</p>';
   }
   pags.push({tit:'Cómo ha respondido el equipo',sub:'Bienestar, disponibilidad y valoraciones físicas · mes a mes',cuerpo:
     ttl('La recuperación, semana a semana',fr2+' Cada punto es la media de la plantilla esa semana: verde de 75 en adelante, ámbar de 55 a 74.')
@@ -61076,6 +61085,8 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .bie-ft td:last-child{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 .bie-ft .bie-f-b{display:flex;width:64px;flex:none}
 .bie-ft em{font-style:normal;color:#6e6e73;min-width:44px;text-align:right}
+.bie-ft th small{display:block;font-size:9.5px;font-weight:400;color:#6e6e73;margin-top:1px}
+.bie-ft th{vertical-align:bottom}
 .bie-recl{fill:none;stroke:#1d1d1f;stroke-width:1.6;stroke-linejoin:round;opacity:.55}
 .bie-recp{stroke:#fff;stroke-width:1.5}
 
@@ -67227,8 +67238,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.8*/
-const VER_ACTUAL='2026-11-25.8';
+/*BUILD:2026-11-25.9*/
+const VER_ACTUAL='2026-11-25.9';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
