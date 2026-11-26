@@ -11761,6 +11761,19 @@ let BM_DV=0;
 const BMPC=new Map();
 function bmpcClave(){let c='';try{c=JSON.stringify([CONFIG.z,CONFIG.load,CONFIG.wellnessVars]);}catch(e){}
   return REF().getTime()+'|'+BM_DV+'|'+dkey(new Date())+'|'+(STATE.wellness||[]).length+'|'+rpeReales()+'|'+c.length+':'+c.slice(-60);}
+/* v944 · `sessDurApply` reparte los minutos y la carga de cada bloque sobre
+   TODOS los cuestionarios de la temporada, y se hacía en cada `buildPlayers`
+   que no estuviera recordado: o sea, en cada cambio de día, aunque el día que
+   se mira no entra en ese cálculo (depende de los datos, no de `REF()`). Era
+   un tercio de cambiar de día. Ahora se rehace sólo si cambian los datos
+   (`BM_DV`, que sube con cualquier escritura, con `renderAll` y con lo que
+   llega de las hojas), cuántos cuestionarios son de verdad o el día de hoy.
+   La LISTA no sirve de señal: `filterToSquad` la rehace en cada cálculo.
+   Repetirlo con lo mismo no cambiaba nada: ya era idempotente (v214). */
+const SDA={dv:-1,hoy:'',n:-1};
+function sdaToca(){const h=dkey(new Date()),n=rpeReales();
+  if(SDA.dv===BM_DV&&SDA.hoy===h&&SDA.n===n)return false;
+  SDA.dv=BM_DV;SDA.hoy=h;SDA.n=n;return true;}
 function bmpcHay(dk){const a=String(dk).split('-').map(Number);const t=new Date(a[0],a[1]-1,a[2],23,59,59).getTime();const pre=t+'|'+BM_DV+'|';for(const k of BMPC.keys())if(k.indexOf(pre)===0)return true;return false;}
 window.bmpcHay=bmpcHay;
 /* ═══ v777 · Los cálculos del equipo, recordados ═══
@@ -11793,7 +11806,7 @@ bmMemoLbTeamDay();
 function buildPlayers(){
   const _ck=bmpcClave();const _c=BMPC.get(_ck);
   if(_c){STATE.players=_c.p;STATE.alerts=_c.a;return;}
-  try{if(typeof sessDurApply==='function')sessDurApply();}catch(e){}
+  try{if(typeof sessDurApply==='function'&&sdaToca())sessDurApply();}catch(e){}
   try{filterToSquad();}catch(e){}
   const ref=REF(),refk=dkey(ref);
   const players={};const names=new Set([...STATE.wellness.map(w=>w.name),...STATE.rpe.map(r=>r.name)]);
@@ -11818,10 +11831,13 @@ function buildPlayers(){
     /* v285 · la ventana de carga cierra en el último día con RPE, no en el
        último con wellness: un día sin cerrar no es un día de descanso. */
     const refC=refCarga();
-    const ser=acwrToDate(name,refC);
+    /* v944 · una sola serie diaria para el ACWR y la carga de 14 días: es la
+       misma `contDailyTo(name,refC)` que hacían las dos por separado */
+    const cdC=contDailyTo(name,refC);
+    const ser=acwrDeSerie(cdC,'ua');
     const p={name,pos,last,stale,w:wAll,z:{},readiness:null,factors:[],mdx:last?last.mdx:"—"};
     p.acwr={ratio:ser.ratio,acute:ser.acute,ewma:ser.ewma,rel:ser.rel,dias:ser.dias,minDias:ser.minDias};
-    p.load14=sum(contDailyTo(name,refC).slice(-14).map(d=>d.ua));
+    p.load14=sum(cdC.slice(-14).map(d=>d.ua));
     if(last){
       let Pw=0,Pd=0,Pa=0,reds=0,factors=[];
       for(const key in CONFIG.wellnessVars){const cfg=CONFIG.wellnessVars[key];
@@ -50343,6 +50359,8 @@ function calWeekSummary(mon){const dks=calWeekDks(mon);const real=calRealMap();l
      Daniel SÓLO para este bloque; `calMonoTier` sigue como estaba.
    Semana pasada, en curso o planificada va por el reloj, no por el día elegido:
    el mes describe el mes (§2.1). En el ordenador no se ve: allí sigue la tabla. */
+(function calWkmCruce(){try{const mq=window.matchMedia('(max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse)');
+  mq.addEventListener('change',()=>{if(!mq.matches)return;const v=document.getElementById('v-cal');if(v&&v.classList.contains('on'))try{renderCalendar();}catch(e){}});}catch(e){}})();
 function calWkMovilHTML(lista){
   const hoy=dkey(new Date());
   const real=calRealMap();
@@ -50541,7 +50559,12 @@ function renderCalendar(){
     const barReal=s.nReal?`<div class="cal-wkbar"><div class="cal-wkbar-fill" style="width:${Math.round(s.realUA/maxLoad*100)}%;background:var(--c-data,#3f5572)"></div><span>${s.realUA}</span></div>`:'<span class="muted">—</span>';
     const barStr=isNaN(s.strain)?'<span class="muted">—</span>':`<div class="cal-wkbar"><div class="cal-wkbar-fill" style="width:${Math.round(s.strain/maxStrain*100)}%;background:${mt.c}"></div><span>${Math.round(s.strain)}</span></div>`;
     return `<tr><td>${label}</td><td>${barPlan}</td><td>${barReal}</td><td class="mono">${dev?`<span style="color:${colTexto(dev.col)};font-weight:800">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:'—'}</td><td class="mono" style="color:${colTexto(mt.c)};font-weight:800">${isNaN(s.mono)?'—':fmt(s.mono,2)}</td><td>${barStr}</td></tr>`;}).join('');
-  let wkMovil='';if(wkRows){try{wkMovil=calWkMovilHTML(wsums);}catch(e){console.error('bmnava · semanas del mes',e);}}
+  /* v944 · Las semanas del mes del móvil (v630) sólo se ven en el móvil: en el
+     ordenador eran casi la mitad del pintado del mes y quedaban ocultas. Se
+     construyen sólo en el diseño de móvil; al cruzar a él con el Calendario
+     delante lo repinta `calWkmCruce`, y si no, la clave de `bmrpClave` ya
+     incluye móvil/ordenador y el Calendario se repinta al entrar. */
+  let wkMovil='';if(wkRows&&esMovil()){try{wkMovil=calWkMovilHTML(wsums);}catch(e){console.error('bmnava · semanas del mes',e);}}
   const wkTable=wkRows?`<div class="cal-wksum"><div class="cal-wksum-h">Resumen por semana · monotonía y strain (sobre carga real)</div><div class="wrap-x"><table class="tbl cal-wktbl"><thead><tr><th>Semana</th><th>Plan UA</th><th>Real UA</th><th>Desv.</th><th>Monotonía</th><th>Strain</th></tr></thead><tbody>${wkRows}</tbody></table></div></div>`:'';
   box.innerHTML=`
    <div class="cal-head">
@@ -67453,8 +67476,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-26.1*/
-const VER_ACTUAL='2026-11-26.1';
+/*BUILD:2026-11-26.2*/
+const VER_ACTUAL='2026-11-26.2';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
