@@ -602,31 +602,37 @@ main{padding:20px 18px 80px}
 /* v490 · Daniel, 31/10/2026: «ocupa muchísimo, fíjate en todo el espacio vacío
    dentro de ese módulo» — un panel a todo lo ancho para una tarjeta de 205 px,
    la misma pega que puso al microciclo. Con avisos, dos columnas: la tira a la
-   izquierda en 2×3 y los avisos a la derecha. El selector mira si `#team-ojo`
-   tiene panel dentro, así que el reparto lo decide el contenido. */
-.eq-top:has(#team-ojo .panel){grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);margin:14px 0}
-.eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(2,minmax(0,1fr));margin:0}
-.eq-top:has(#team-ojo .panel) #team-ojo>.panel{margin:0}
+   izquierda en 2×3 y los avisos a la derecha. El reparto lo decide el
+   contenido: `.eq-con-ojo` la pone `eqOjoSync` cuando `#team-ojo` tiene panel.
+   v943 · Antes era `.eq-top:has(#team-ojo .panel)`, y ese `:has()` —con los
+   de la barra de arriba— hacía que CUALQUIER cambio en la página recalculase
+   el estilo entero en el ordenador: 1,9–3,7 ms cada vez, contra 0,01 sin él.
+   El `:is()` con el argumento antiguo conserva el mismo peso (especificidad)
+   que tenía el `:has()`, así que la cascada no cambia; el segundo argumento no
+   lo cumple nunca la propia `.eq-top`. */
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo){grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);margin:14px 0}
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-strip{grid-template-columns:repeat(2,minmax(0,1fr));margin:0}
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) #team-ojo>.panel{margin:0}
 /* v491 · Daniel, 31/10/2026: «hazme los mini bloques más pequeños para que
    queden totalmente alineados con el ojo para mañana y no quede ese espacio
    vacío debajo». Tres filas de titulares median 362 px contra los 283 del
    panel de avisos. Se recorta SÓLO en esta disposición —fuera de ella la tira
    sigue exactamente igual— y se recorta el aire, no el dato: relleno, el hueco
    sobre el micrográfico y un punto la cifra. */
-.eq-top:has(#team-ojo .panel) .eq-strip{gap:9px}
-.eq-top:has(#team-ojo .panel) .eq-tile{padding:7px 13px}
-.eq-top:has(#team-ojo .panel) .eq-v{font-size:22px;margin-top:2px}
-.eq-top:has(#team-ojo .panel) .eq-s{margin-top:2px}
-.eq-top:has(#team-ojo .panel) .eq-spark{margin-top:4px}
-.eq-top:has(#team-ojo .panel) .eq-spark svg{height:15px}
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-strip{gap:9px}
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-tile{padding:7px 13px}
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-v{font-size:22px;margin-top:2px}
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-s{margin-top:2px}
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-spark{margin-top:4px}
+.eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-spark svg{height:15px}
 /* Por debajo de 1100 px no caben dos columnas con contenido dentro: se apila y
    la tira vuelve a repartirse como siempre. */
 @media(max-width:1100px){
-  .eq-top:has(#team-ojo .panel){grid-template-columns:minmax(0,1fr)}
-  .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo){grid-template-columns:minmax(0,1fr)}
+  .eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 @media(max-width:860px){
-  .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 .eq-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:14px 0}
 .eq-tile{background:var(--glass);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:14px;padding:13px 15px;min-width:0}
@@ -6648,8 +6654,9 @@ html[data-theme="dark"] .panel .tbl tbody tr:hover{background:rgba(255,255,255,.
     </div>
     <!-- v490 · Cuando hay avisos de fisioterapia, la tira de titulares se queda
          a la IZQUIERDA en dos columnas y los avisos a la derecha. Sin avisos,
-         `#team-ojo` queda vacío y la tira recupera sus seis columnas: lo decide
-         el CSS con `:has`, así que el JS no tiene que avisar de nada. -->
+         `#team-ojo` queda vacío y la tira recupera sus seis columnas. Desde la
+         v943 lo marca `eqOjoSync` con `.eq-con-ojo` (antes, un `:has` que
+         encarecía cada cambio de la página en el ordenador). -->
     <div class="eq-top">
       <!-- v231 · Tira de titulares: los seis números que deciden la sesión de hoy.
            Antes había que leer el anillo, el donut y bajar hasta la tabla. -->
@@ -11379,6 +11386,23 @@ window.acwrDeSerie=acwrDeSerie;
 function acwrToDate(name,ref,field="ua"){
   return acwrDeSerie(contDailyTo(name,ref),field);
 }
+/* v943 · El ACWR de MUCHOS días seguidos de un jugador, con una sola serie.
+   «Su temporada», «El camino de vuelta», el informe del jugador y las líneas de
+   28 días llamaban a `acwrToDate` una vez por día, y cada llamada rehacía la
+   serie diaria entera desde su primer registro: unos 150 días × 150 días al
+   abrir la ficha. La serie hasta un día es EXACTAMENTE el principio de la serie
+   hasta el último (`contDailyTo` va día a día desde el primer registro), así
+   que se construye una vez hasta `refFin` y cada fecha toma su tramo: los
+   días cuya medianoche no pasa de esa fecha, la misma condición `dd<=ref` de
+   `contDailyTo`. Mismo resultado, cifra a cifra. `refFin` tiene que ser la
+   fecha más tardía que se vaya a pedir. */
+function acwrDiario(name,refFin,field){
+  field=field||'ua';
+  const full=contDailyTo(name,refFin),ts=full.map(d=>d.date.getTime());
+  return ref=>{const t=ref.getTime();let lo=0,hi=ts.length-1,k=-1;
+    while(lo<=hi){const m=(lo+hi)>>1;if(ts[m]<=t){k=m;lo=m+1;}else hi=m-1;}
+    return acwrDeSerie(k<0?[]:full.slice(0,k+1),field);};
+}
 /* v243 · «sesiones» significaba solo registros de RPE, así que un día con el
    entrenamiento planificado en el calendario salía como «Descanso · sin
    sesión» mientras nadie hubiera mandado el RPE. Se cuentan las dos cosas por
@@ -11698,12 +11722,18 @@ function dailyAgg(name){
 function dailyAggCalc(name){const s=STATE.rpe.filter(x=>x.name===name);const m={};s.forEach(x=>{if(!m[x.dk])m[x.dk]={dk:x.dk,date:x.date,ua:0,cal:0,n:0};m[x.dk].ua+=x.ua;m[x.dk].cal+=(x.cal||x.ua);m[x.dk].n++;});return Object.values(m).sort((a,b)=>a.date-b.date);}
 function contDaily(name){const ag=dailyAgg(name);if(!ag.length)return[];const start=ag[0].date,end=ag[ag.length-1].date,map={};ag.forEach(a=>map[a.dk]=a);const out=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){const k=dkey(d);out.push({date:new Date(d),dk:k,ua:map[k]?map[k].ua:0,cal:map[k]?map[k].cal:0});}return out;}
 function acwrAt(cont,idx,field="ua"){const acute=[],chronic=[];for(let i=0;i<CONFIG.load.chronic;i++){const j=idx-i;if(j<0)break;const v=cont[j][field];if(i<CONFIG.load.acute)acute.push(v);chronic.push(v);}const a=mean(acute),c=mean(chronic);return{acute:a*CONFIG.load.acute,chronic:c*CONFIG.load.acute,ratio:c>0?a/c:NaN};}
-function acwrSeries(name,field="ua",ref){const cont=ref?contDailyTo(name,ref):contDaily(name);return cont.map((d,i)=>{const r=acwrAt(cont,i,field);let ea=0,ec=0;for(let k=0;k<=i;k++){ea=cont[k][field]*CONFIG.load.ewmaAcute+ea*(1-CONFIG.load.ewmaAcute);ec=cont[k][field]*CONFIG.load.ewmaChronic+ec*(1-CONFIG.load.ewmaChronic);}return{date:d.date,dk:d.dk,ua:d[field],ra:r.ratio,acute:r.acute,chronic:r.chronic,ewma:ec>0?ea/ec:NaN};});}
-function weekly(name,field="ua",ref){const cont=ref?contDailyTo(name,ref):contDaily(name);const wk={};cont.forEach(d=>{const k=weekKey(d.date);(wk[k]=wk[k]||[]).push(d[field]);});const keys=Object.keys(wk).sort();const out=keys.map(k=>{const v=wk[k];const s=sum(v),m=mean(v),dev=sd(v);const mono=dev>0?m/dev:NaN;return{week:k,ua:s,meanD:m,mono,strain:isNaN(mono)?NaN:mono*s,dias:v.length,parcial:v.length<7};});const ser=acwrSeries(name,"ua",ref);/* v285 · La semana en curso tiene los días que lleva, no siete, y comparar sus
+/* v943 · La exponencial de cada día se rehacía desde el primer día (un bucle
+   dentro de otro). Se arrastra de un día al siguiente: son exactamente las
+   mismas operaciones en el mismo orden, así que da el mismo número bit a bit. */
+function acwrSeriesDe(cont,field){field=field||"ua";const A=CONFIG.load.ewmaAcute,C=CONFIG.load.ewmaChronic;let ea=0,ec=0;return cont.map((d,i)=>{const r=acwrAt(cont,i,field);ea=cont[i][field]*A+ea*(1-A);ec=cont[i][field]*C+ec*(1-C);return{date:d.date,dk:d.dk,ua:d[field],ra:r.ratio,acute:r.acute,chronic:r.chronic,ewma:ec>0?ea/ec:NaN};});}
+function acwrSeries(name,field="ua",ref){const cont=ref?contDailyTo(name,ref):contDaily(name);return acwrSeriesDe(cont,field);}
+function weekly(name,field="ua",ref){const cont=ref?contDailyTo(name,ref):contDaily(name);const wk={};const wks=cont.map(d=>weekKey(d.date));cont.forEach((d,i)=>{const k=wks[i];(wk[k]=wk[k]||[]).push(d[field]);});const keys=Object.keys(wk).sort();const out=keys.map(k=>{const v=wk[k];const s=sum(v),m=mean(v),dev=sd(v);const mono=dev>0?m/dev:NaN;return{week:k,ua:s,meanD:m,mono,strain:isNaN(mono)?NaN:mono*s,dias:v.length,parcial:v.length<7};});/* v943 · la serie del ACWR sale de la MISMA serie diaria (es la misma
+   expresión que usaba `acwrSeries`) y el último día de cada semana se apunta
+   una vez, en vez de recorrer la temporada entera por cada semana */const ser=acwrSeriesDe(cont,"ua");const lastDe={};ser.forEach((c,i)=>{lastDe[wks[i]]=c;});/* v285 · La semana en curso tiene los días que lleva, no siete, y comparar sus
    UA con una semana entera daba caídas que no existen: con tres días vividos
    salía «−68%» cuando el ritmo diario era el mismo. El salto de una semana
    incompleta no se calcula; se marca como parcial y quien lo pinte decide. */
-out.forEach((w,i)=>{w.delta=(i>0&&out[i-1].ua>0&&!w.parcial&&!out[i-1].parcial)?(w.ua-out[i-1].ua)/out[i-1].ua*100:NaN;const last=ser.filter(c=>weekKey(c.date)===w.week).pop();w.acwr=last?last.ra:NaN;});return out;}
+out.forEach((w,i)=>{w.delta=(i>0&&out[i-1].ua>0&&!w.parcial&&!out[i-1].parcial)?(w.ua-out[i-1].ua)/out[i-1].ua*100:NaN;const last=lastDe[w.week];w.acwr=last?last.ra:NaN;});return out;}
 function byType(name,winDays){const since=lastDate();const lim=new Date(since);lim.setDate(lim.getDate()-winDays);const s=STATE.rpe.filter(x=>x.name===name&&x.date>=lim);const m={};s.forEach(x=>{m[x.tipo]=(m[x.tipo]||0)+x.ua;});return m;}
 function teamByType(winDays){const since=REF();const lim=new Date(since);lim.setDate(lim.getDate()-winDays);const m={};STATE.rpe.filter(x=>x.date>=lim&&x.date<=since).forEach(x=>{m[x.tipo]=(m[x.tipo]||0)+x.ua;});return m;}
 function lastDate(){let mx=null;STATE.rpe.concat(STATE.wellness).forEach(x=>{if(!mx||x.date>mx)mx=x.date;});return mx||new Date();}
@@ -16362,7 +16392,23 @@ function bmBarraTit(){
   const acc=(BMTB_ACC[v]||[]).filter(a=>document.querySelector(a[0]));
   const ka=v+'|'+acc.map(a=>a[1]).join('|');
   if(x.dataset.k!==ka){x.dataset.k=ka;x.innerHTML=acc.map(a=>`<button type="button" class="${a[2]}" data-s="${a[0]}" title="${a[3]}">${a[1]}</button>`).join('');}
+  /* v943 · lo que antes miraba `.hub:has(#bm-tbx:not(:empty))` */
+  const ll=x.childNodes.length>0;if(hub.classList.contains('bm-tbx-on')!==ll)hub.classList.toggle('bm-tbx-on',ll);
 }
+/* v943 · Qué pantalla está encendida, como clase de <body>: `bm-von-<vista>`.
+   Sustituye a `body:has(#v-jugador.on)` y `body:has(#v-cal.on)`, que obligaban
+   al ordenador a recalcular el estilo de toda la página con cualquier cambio.
+   Lo mira un observador de la clase de cada vista (no de su contenido), así que
+   vale venga el cambio de `go()` o de donde venga. */
+function bmVonSync(){
+  const b=document.body;if(!b)return;
+  document.querySelectorAll('main>.view').forEach(v=>{const c='bm-von-'+v.id.replace(/^v-/,''),on=v.classList.contains('on');
+    if(b.classList.contains(c)!==on)b.classList.toggle(c,on);});
+}
+(function(){const ini=()=>{const m=document.querySelector('main');if(!m)return;
+  try{const mo=new MutationObserver(bmVonSync);m.querySelectorAll(':scope>.view').forEach(v=>mo.observe(v,{attributes:true,attributeFilter:['class']}));}catch(e){}
+  bmVonSync();};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else ini();})();
 /* v694 · ORDENADOR · Sin huecos. Daniel, 15/11/2026: «hay espacios vacíos,
    módulos mal colocados». Medido a 1.745 px: en Disponibilidad una tarjeta de
    209 px al lado de una columna de 1.495 dejaba ~1.290 px de columna vacía;
@@ -19515,7 +19561,7 @@ function bmalBloque(a){
         +(med!=null?' · su mediana '+fmt(med,hrs?1:0)+(hrs?' h':''):'')+(z&&isFinite(z.z)?' · z '+fmt(z.z,2):'')+(hrs?'':' · escala 1–5, 1 es lo mejor')+'</p>'
         +bmalBarras(vals,vals.map(col),med,{max:hrs?9:5})+'<p class="bmal-pie">Sus últimos '+ws.length+' partes · la raya es su mediana</p>';
     }else if(/^ACWR/.test(a.type)){
-      const hoy=REF(),vals=[];for(let i=27;i>=0;i--){const d=new Date(hoy);d.setDate(d.getDate()-i);let r=null;try{r=acwrToDate(a.name,d);}catch(e){}vals.push(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0?r.ratio:null);}
+      const hoy=REF(),vals=[];let ad=null;try{ad=acwrDiario(a.name,new Date(hoy));}catch(e){}for(let i=27;i>=0;i--){const d=new Date(hoy);d.setDate(d.getDate()-i);let r=null;try{r=ad?ad(d):acwrToDate(a.name,d);}catch(e){}vals.push(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0?r.ratio:null);}
       cuerpo='<p class="bmal-tx"><b>ACWR '+E(a.val)+'</b> · banda 0,8–1,3</p>'+bmalLinea(vals,[0.8,1.3],Math.max(2,...vals.filter(x=>x!=null)))+'<p class="bmal-pie">Sus últimos 28 días · la franja es la banda</p>';
     }else if(/carga semanal/i.test(a.type)||/^Monoton/.test(a.type)){
       const mono=/^Monoton/.test(a.type),ws=weekly(a.name,'ua',REF()).slice(-6),vals=ws.map(w=>mono?(isFinite(w.mono)?w.mono:null):(w.ua||0));
@@ -19600,7 +19646,7 @@ function bmHiHTML(tipo,n){
   const corto=(()=>{try{return cvCorto(n);}catch(e){return n;}})();
   let tit='',g='',pie='';
   if(tipo==='acwr'){
-    const hoy=REF(),vals=[];for(let i=27;i>=0;i--){const d=new Date(hoy);d.setDate(d.getDate()-i);let r=null;try{r=acwrToDate(n,d);}catch(e){}vals.push(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0?r.ratio:null);}
+    const hoy=REF(),vals=[];let ad=null;try{ad=acwrDiario(n,new Date(hoy));}catch(e){}for(let i=27;i>=0;i--){const d=new Date(hoy);d.setDate(d.getDate()-i);let r=null;try{r=ad?ad(d):acwrToDate(n,d);}catch(e){}vals.push(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0?r.ratio:null);}
     const ok=vals.filter(v=>v!=null);if(!ok.length)return '';
     tit='ACWR de '+corto;g=bmalLinea(vals,[0.8,1.3],Math.max(2,...ok));
     pie='28 días · la franja es la banda 0,8–1,3 · hoy '+fmt(ok[ok.length-1],2)+' · máx. '+fmt(Math.max(...ok),2);
@@ -22594,7 +22640,7 @@ function ijDatos(n,mes){
   let fuera=0,molestia=0;const estados={};
   ds.forEach(dk=>{let e=null;try{e=effectiveStatus(n,dk);}catch(_){}const st=e&&e.status;if(!st)return;
     if(NOAV_ST.includes(st)){fuera++;estados[st]=(estados[st]||0)+1;}else if(CARE_ST.includes(st)){molestia++;estados[st]=(estados[st]||0)+1;}});
-  let fueraBanda=0;ds.forEach(dk=>{try{const r=acwrToDate(n,new Date(dkToDate(dk).getTime()+86399000));if(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0&&acwrClass(r.ratio)!=='ok')fueraBanda++;}catch(e){}});
+  let fueraBanda=0;let adF=null;try{if(ds.length)adF=acwrDiario(n,new Date(dkToDate(ds[ds.length-1]).getTime()+86399000));}catch(e){}ds.forEach(dk=>{try{const t=new Date(dkToDate(dk).getTime()+86399000);const r=adF?adF(t):acwrToDate(n,t);if(r&&r.rel&&isFinite(r.ratio)&&r.ratio>0&&acwrClass(r.ratio)!=='ok')fueraBanda++;}catch(e){}});
   const rec=(p.w||[]).filter(w=>w&&w.dk>=ini&&w.dk<=fin).map(w=>{try{return recPct(twVal(w));}catch(e){return null;}}).filter(v=>v!=null&&isFinite(v));
   const recMedia=rec.length?rec.reduce((a,b)=>a+b,0)/rec.length:null;
   const partidos=[];try{calPartidosDks().filter(dk=>dk>=ini&&dk<=fin).forEach(dk=>{const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};partidos.push({dk,riv:evRival(ev)||'Partido',min:ptMinutos(dk,n)});});}catch(e){}
@@ -30383,7 +30429,8 @@ function renderPlTemporada(name){
   let ref=REF();try{ref=refCarga();}catch(e){}
   /* datos por día */
   const ua={};try{contDailyTo(name,ref).forEach(d=>{const k=dkey(d.date);if(k>=ini&&k<=fin&&d.ua>0)ua[k]=d.ua;});}catch(e){}
-  const ac={};ds.forEach(dk=>{if(dk>dkey(ref))return;try{const r=acwrToDate(name,new Date(dkToDate(dk).getTime()+86399000));if(r&&r.rel&&isFinite(r.ratio))ac[dk]=r.ratio;}catch(e){}});
+  const ac={};{const rk=dkey(ref);let ad=null;try{ad=acwrDiario(name,new Date(dkToDate(rk).getTime()+86399000));}catch(e){}
+    ds.forEach(dk=>{if(dk>rk)return;try{const t=new Date(dkToDate(dk).getTime()+86399000);const r=ad?ad(t):acwrToDate(name,t);if(r&&r.rel&&isFinite(r.ratio))ac[dk]=r.ratio;}catch(e){}});}
   const rec={};(p.w||[]).forEach(w=>{if(w&&w.dk>=ini&&w.dk<=fin){try{rec[w.dk]=recPct(twVal(w));}catch(e){}}});
   const est={};ds.forEach(dk=>{let e=null;try{e=effectiveStatus(name,dk);}catch(_){}const st=e&&e.status;if(st&&(NOAV_ST.includes(st)||CARE_ST.includes(st)))est[dk]={st,fuera:NOAV_ST.includes(st),lab:(PHYSTAT[st]||{}).lab||st,c:(PHYSTAT[st]||{}).c||'var(--warn)',z:e.zone?e.zone+(e.side?' '+e.side:''):''};});
   const par={};try{calPartidosDks().filter(dk=>dk>=ini&&dk<=fin).forEach(dk=>{const ev=((STATE.calendar||{})[dk]||[]).find(evEsPartido)||{};par[dk]={riv:evRival(ev)||'Partido',min:ptMinutos(dk,name)};});}catch(e){}
@@ -30529,7 +30576,8 @@ function plvHTML(name,e,k,O){
   const N=ds.length;if(N<8)return '';
   let ref=REF();try{ref=refCarga();}catch(x){}
   const ua={};try{contDailyTo(name,ref).forEach(d=>{const kk=dkey(d.date);if(kk>=ini&&kk<=fin&&d.ua>0)ua[kk]=d.ua;});}catch(x){}
-  const ac={};ds.forEach(dk=>{if(dk>dkey(ref))return;try{const r=acwrToDate(name,new Date(dkToDate(dk).getTime()+86399000));if(r&&r.rel&&isFinite(r.ratio))ac[dk]=r.ratio;}catch(x){}});
+  const ac={};{const rk=dkey(ref);let ad=null;try{ad=acwrDiario(name,new Date(dkToDate(rk).getTime()+86399000));}catch(x){}
+    ds.forEach(dk=>{if(dk>rk)return;try{const t=new Date(dkToDate(dk).getTime()+86399000);const r=ad?ad(t):acwrToDate(name,t);if(r&&r.rel&&isFinite(r.ratio))ac[dk]=r.ratio;}catch(x){}});}
   const rec={};(p.w||[]).forEach(w=>{if(w&&w.dk>=ini&&w.dk<=fin){try{const v=recPct(twVal(w));if(v!=null&&!isNaN(v))rec[w.dk]=v;}catch(x){}}});
   const ff=plvFin(e),finEp=ff&&ff<=fin?ff:fin;
   const pre=plMediana(ds.filter(dk=>dk<e.dk&&ua[dk]).map(dk=>ua[dk]));
@@ -40534,12 +40582,23 @@ function renderOjoResumen(){
   const box=document.getElementById('team-ojo');
   if(!box)return;
   const ab=ojoAbiertos();
-  if(!ab.length){box.innerHTML='';return;}
+  if(!ab.length){box.innerHTML='';eqOjoSync();return;}
   box.innerHTML='<div class="panel"><h2>Ojo hoy <span class="r muted">'+ab.length
     +' · lo marcó fisioterapia</span></h2>'
     +'<p class="small muted" style="margin:0 0 12px">Entrenan con normalidad; hay que valorarlos antes de la sesión.</p>'
     +'<div class="ojo-grid">'+ab.map(ojoTarjeta).join('')+'</div></div>';
+  eqOjoSync();
 }
+/* v943 · Lo que antes decidía `.eq-top:has(#team-ojo .panel)`: la marca la pone
+   quien pinta el bloque y, por si otro lo vacía o lo rellena (la animación de
+   «Ya pasó», un repintado), un observador sólo de sus hijos directos. */
+function eqOjoSync(){
+  const box=document.getElementById('team-ojo'),top=box&&box.closest('.eq-top');if(!top)return;
+  const on=!!box.querySelector('.panel');if(top.classList.contains('eq-con-ojo')!==on)top.classList.toggle('eq-con-ojo',on);
+}
+(function(){const ini=()=>{const b=document.getElementById('team-ojo');if(!b||b._eqo)return;b._eqo=1;
+  try{new MutationObserver(eqOjoSync).observe(b,{childList:true});}catch(e){}eqOjoSync();};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ini);else ini();})();
 /* ═══ v928 · Lo apuntado HOY con otra fecha ═══
    Virginia, 20/11/2026, vía Daniel: «está intentando meter un tratamiento de
    ayer de Alfredo y no se le guarda, el resto sí». Se guardaba: Fisioterapia ›
@@ -43237,7 +43296,7 @@ function sesCalSesiones(){
   const keys=[...new Set((STATE.hr||[]).map(hrKey))];
   const out=[];
   keys.forEach(key=>{
-    const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key&&(r.z||[]).some(v=>v>0));
+    const rows=hrFilas(key).filter(r=>(r.z||[]).some(v=>v>0));
     if(rows.length<5)return;
     const z=pctZones(rows);
     if(z&&isFinite(z.z5)&&isFinite(z.z4)&&isFinite(z.z54))
@@ -44061,7 +44120,7 @@ function hreqDatos(){
   const keys=[...new Set((STATE.hr||[]).map(hrKey))];
   const out=[];
   keys.forEach(key=>{
-    const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key);
+    const rows=hrFilas(key);
     if(rows.length<5)return;      /* con tres pulsómetros no se describe al equipo */
     const i=key.indexOf('|');
     const dk=key.slice(0,i);
@@ -44583,6 +44642,19 @@ function renderHRClass(rows,key,dk,target){
    <p class="small muted" style="margin-top:11px;line-height:1.6">Modelo BM Nava v1.0: prioriza <b>%Z4</b> y <b>%Z4+Z5</b> (la FC media no marca bien la sesión alta; Z5 es poco frecuente) y lo cruza con carga (UA), contacto y RPE. El nivel es la media ponderada de los cuatro criterios: zonas de FC 40%, carga en UA 25%, RPE 20% y contacto 15%. Las zonas pesan más que ninguno, pero ya no deciden solas: una sesión corta e intensa no castiga como una larga e intensa.</p>`;
 }
 function hrKey(r){return r.dk+'|'+(r.session||'Sesión');}
+/* v943 · Las lecturas de una sesión. Pulsómetros buscaba las de cada sesión
+   recorriendo TODAS las lecturas de la temporada, una vez por sesión y por
+   gráfico: unas 150.000 llamadas a `hrKey` al abrirlo. El índice se hace una
+   vez y se rehace solo si cambian los datos (otra lista, otra longitud o la
+   versión de los datos, `BM_DV`). Devuelve una lista NUEVA, en el mismo orden
+   que `STATE.hr`, como el `filter` al que sustituye. */
+const HRIX={src:null,n:-1,dv:-1,m:new Map()};
+function hrFilas(key){
+  const L=STATE.hr||[];
+  if(HRIX.src!==L||HRIX.n!==L.length||HRIX.dv!==BM_DV){HRIX.src=L;HRIX.n=L.length;HRIX.dv=BM_DV;HRIX.m=new Map();
+    for(const r of L){if(!r)continue;const k=hrKey(r);let a=HRIX.m.get(k);if(!a)HRIX.m.set(k,a=[]);a.push(r);}}
+  const a=HRIX.m.get(key);return a?a.slice():[];
+}
 /* HR_SES_LOCK: true cuando el usuario ha elegido a mano una sesión en el selector.
    Se limpia al cambiar el día (setRefDate) para que vuelva a seguir al calendario. */
 let HR_SES_LOCK=false;
@@ -46209,7 +46281,7 @@ function renderHRMdh(key){
   if(!I.ps.length){box.innerHTML='<div class="panel hrmd">'+cab('cada jugador contra lo suyo')+mdhSinPartidos()+'</div>';return;}
   const c=calMd(dk,I.ps);
   if(!c||MD_ORDEN.indexOf(c.txt)<0){box.innerHTML='<div class="panel hrmd">'+cab('cada jugador contra lo suyo')+'<p class="hint" style="margin:8px 0 0">'+(c?'Este día ('+E(c.txt)+') cae en un ciclo de más de una semana: no hay posición con la que compararlo.':'Sin posición en el ciclo.')+'</p></div>';return;}
-  const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key),vis={};
+  const rows=hrFilas(key),vis={};
   const F=[];rows.forEach(r=>{if(!r||vis[r.name])return;vis[r.name]=1;
     let t=0;for(let i=0;i<5;i++)t+=zOf(r,i);const z=t>0?(zOf(r,3)+zOf(r,4))/t*100:null;
     const rz=z!=null?mdhRef(r.name,dk,'z45'):null,v=mdhUA(r.name,dk),ru=v!=null?mdhRef(r.name,dk,'ua'):null;
@@ -46615,10 +46687,8 @@ function lesCarga(){
     .filter(x=>x&&x.name&&x.dk&&STATE.players&&STATE.players[x.name])
     .map(x=>({name:x.name,dk:x.dk,kind:x.kind||'lesion',zona:x.zona||'',title:x.title||''}))
     .sort((a,b)=>a.dk<b.dk?-1:1);
-  /* marcadores de carga de un jugador en un día */
-  const marc=(name,dk)=>{
-    let d;try{d=dkToDate(dk);}catch(e){return null;}
-    d.setDate(d.getDate()-1);                       // la víspera
+  /* marcadores de carga de un jugador en un día (la víspera, `d`) */
+  const marcDirecto=(name,d)=>{
     let a=null;try{a=acwrToDate(name,d,'ua');}catch(e){}
     if(!a||!isFinite(a.ratio)||!a.rel)return null;
     /* v408b · Un jugador sin carga calculable da una EWMA de prácticamente
@@ -46633,6 +46703,42 @@ function lesCarga(){
       const cont=contDailyTo(name,d).slice(-8).map(x=>x.ua||0);
       let mx=0;for(let i=1;i<cont.length;i++){const prev=cont[i-1];
         if(prev>50){const r=(cont[i]-prev)/prev;if(r>mx)mx=r;}}
+      salto=mx*100;
+    }catch(e){}
+    return {acwr:a.ratio,mono:isFinite(mono)?mono:null,salto:isFinite(salto)?salto:null};
+  };
+  /* v943 · Cada marcador rehacía la serie de la temporada del jugador tres
+     veces (el ACWR, la semana y el salto) y lo hacía para CADA día de la
+     población de control: con minutos en todos los días, más de medio segundo
+     de pantalla congelada cada vez que se entraba en Médico tras un cambio. La
+     serie hasta un día es el principio de la serie entera (ver `acwrDiario`),
+     así que se hace UNA por jugador y cada víspera lee su tramo; las tres cifras
+     se calculan igual que antes, con las mismas funciones y en el mismo orden.
+     Si alguna vez se pidiera una fecha posterior a la serie, va por el camino
+     de siempre (`marcDirecto`). */
+  const vispJug={};eps.forEach(e=>{try{const d=dkToDate(e.dk);d.setDate(d.getDate()-1);if(+d>(vispJug[e.name]||0))vispJug[e.name]=+d;}catch(x){}});
+  const SER={};
+  const serie=name=>{if(SER[name])return SER[name];let fin=vispJug[name]||0;
+    try{const ag=dailyAgg(name)||[];if(ag.length&&+ag[ag.length-1].date>fin)fin=+ag[ag.length-1].date;}catch(e){}
+    let full=[];if(fin){try{full=contDailyTo(name,new Date(fin))||[];}catch(e){full=[];}}
+    return SER[name]={full,fin,ts:full.map(x=>+x.date),wk:full.map(x=>weekKey(x.date))};};
+  const marc=(name,dk)=>{
+    let d;try{d=dkToDate(dk);}catch(e){return null;}
+    d.setDate(d.getDate()-1);                       // la víspera
+    const S=serie(name),t=+d;
+    if(t>S.fin)return marcDirecto(name,d);
+    let lo=0,hi=S.ts.length-1,k=-1;while(lo<=hi){const m=(lo+hi)>>1;if(S.ts[m]<=t){k=m;lo=m+1;}else hi=m-1;}
+    const cont=k<0?[]:S.full.slice(0,k+1);
+    let a=null;try{a=acwrDeSerie(cont,'ua');}catch(e){}
+    if(!a||!isFinite(a.ratio)||!a.rel)return null;
+    if(!(a.acute>0))return null;
+    /* la monotonía de la última semana de `weekly(name,'ua',d)`: los días de esa semana, en orden */
+    let mono=NaN;try{if(k>=0){const w=S.wk[k];let i=k;while(i>0&&S.wk[i-1]===w)i--;const v=[];for(;i<=k;i++)v.push(S.full[i].ua);const m=mean(v),dev=sd(v);mono=dev>0?m/dev:NaN;}}catch(e){}
+    let salto=NaN;
+    try{
+      const c8=cont.slice(-8).map(x=>x.ua||0);
+      let mx=0;for(let i=1;i<c8.length;i++){const prev=c8[i-1];
+        if(prev>50){const r=(c8[i]-prev)/prev;if(r>mx)mx=r;}}
       salto=mx*100;
     }catch(e){}
     return {acwr:a.ratio,mono:isFinite(mono)?mono:null,salto:isFinite(salto)?salto:null};
@@ -46870,7 +46976,7 @@ function famDatos(){
   const keys=[...new Set((STATE.hr||[]).map(hrKey))];
   const out=[];
   keys.forEach(key=>{
-    const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key&&(r.z||[]).some(v=>v>0));
+    const rows=hrFilas(key).filter(r=>(r.z||[]).some(v=>v>0));
     if(rows.length<4)return;
     const i=key.indexOf('|'),dk=key.slice(0,i);
     const z=pctZones(rows);
@@ -47123,7 +47229,7 @@ window.renderHREfic=renderHREfic;
 function hreqCumpl(key){
   if(!key)return null;
   const i=key.indexOf('|');const dk=key.slice(0,i);
-  const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key&&(r.z||[]).some(v=>v>0));
+  const rows=hrFilas(key).filter(r=>(r.z||[]).some(v=>v>0));
   if(rows.length<3)return {dk,motivo:'pocos',n:rows.length};
   const mod=hreqMod();
   if(!mod||!mod.ok)return {dk,motivo:'sinmodelo'};
@@ -47417,7 +47523,7 @@ function renderHR(){
     /* v744 · en el ordenador ancho, las mismas sesiones en una lista a la izquierda */
     try{hrListaPinta(sessions,sel.value);}catch(e){console.error('bmnava · lista de sesiones',e);}}
   const key=sel?sel.value:defKey;
-  const rows=STATE.hr.filter(r=>hrKey(r)===key);
+  const rows=hrFilas(key);
   renderHRIndiv(rows);
   try{renderHRMdh(key);}catch(e){console.error('bmnava · contra su MD',e);}
   try{renderHRCumpl(key);}catch(e){console.error('bmnava · cumplimiento',e);}
@@ -47459,13 +47565,13 @@ function renderHR(){
   if(teposEl)charts['ch-hr-tepos']=new Chart(teposEl,{type:'bar',data:{labels:posTEL,datasets:[{label:'Aeróbico',data:posTEL.map(p=>+mean(byPosTE[p].map(t=>t.aer)).toFixed(1)),backgroundColor:'#3bb3c4',borderRadius:3},{label:'Anaeróbico',data:posTEL.map(p=>+mean(byPosTE[p].map(t=>t.ana)).toFixed(1)),backgroundColor:'#1f5f6b',borderRadius:3}]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:10,usePointStyle:true}}},scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,min:0,max:5,title:{display:true,text:'TE',color:mc,font:{size:9}}}}}});
   // últimas sesiones TE + monotonía
   const lastSes=sessions.slice(0,8).reverse();
-  const sesAgg=lastSes.map(s=>{const rs=STATE.hr.filter(r=>hrKey(r)===s);const tes=rs.map(trainingEffect);const i=s.indexOf('|');const dd=s.slice(0,i).split('-');return {lab:dd[2]+'/'+dd[1],aer:+mean(tes.map(t=>t.aer)).toFixed(1),ana:+mean(tes.map(t=>t.ana)).toFixed(1),trimp:mean(rs.map(trimpOf))};});
+  const sesAgg=lastSes.map(s=>{const rs=hrFilas(s);const tes=rs.map(trainingEffect);const i=s.indexOf('|');const dd=s.slice(0,i).split('-');return {lab:dd[2]+'/'+dd[1],aer:+mean(tes.map(t=>t.aer)).toFixed(1),ana:+mean(tes.map(t=>t.ana)).toFixed(1),trimp:mean(rs.map(trimpOf))};});
   const monoLine=sesAgg.map((_,i)=>{const w=sesAgg.slice(Math.max(0,i-6),i+1).map(x=>x.trimp);const m=mean(w),s=sd(w);return s>0?+(m/s).toFixed(2):null;});
   const last7El=document.getElementById('ch-hr-last7');
   if(last7El)charts['ch-hr-last7']=new Chart(last7El,{data:{labels:sesAgg.map(x=>x.lab),datasets:[{type:'bar',label:'Aeróbico',data:sesAgg.map(x=>x.aer),backgroundColor:'#3bb3c4',borderRadius:3,yAxisID:'y'},{type:'bar',label:'Anaeróbico',data:sesAgg.map(x=>x.ana),backgroundColor:'#1f5f6b',borderRadius:3,yAxisID:'y'},{type:'line',label:'Monotonía',data:monoLine,borderColor:'#1ea863',backgroundColor:'#1ea863',borderWidth:2,pointRadius:2,tension:.3,yAxisID:'y2'}]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:9},boxWidth:8,usePointStyle:true}}},scales:{x:{...AX,ticks:{...AX.ticks,font:{size:9}}},y:{...AX,min:0,max:5,position:'left',title:{display:true,text:'TE',color:mc,font:{size:9}}},y2:{...AX,position:'right',grid:{display:false},title:{display:true,text:'monotonía',color:mc,font:{size:9}}}}}});
   // comparativa histórica TE
   const histSes=sessions.slice(0,10).reverse();const histLabels=histSes.map(s=>{const i=s.indexOf('|');const dd=s.slice(0,i).split('-');return dd[2]+'/'+dd[1];});
-  const ptsD=[];const avgD=[];histSes.forEach((s,xi)=>{const rs=STATE.hr.filter(r=>hrKey(r)===s);const vals=rs.map(r=>trainingEffect(r).aer);vals.forEach(v=>ptsD.push({x:xi,y:v}));avgD.push({x:xi,y:+mean(vals).toFixed(2)});});
+  const ptsD=[];const avgD=[];histSes.forEach((s,xi)=>{const rs=hrFilas(s);const vals=rs.map(r=>trainingEffect(r).aer);vals.forEach(v=>ptsD.push({x:xi,y:v}));avgD.push({x:xi,y:+mean(vals).toFixed(2)});});
   const histEl=document.getElementById('ch-hr-hist');
   if(histEl)charts['ch-hr-hist']=new Chart(histEl,{data:{datasets:[{type:'scatter',label:'Jugadores',data:ptsD,backgroundColor:rgba(PAL.data,.45),pointRadius:4},{type:'line',label:'Media',data:avgD,borderColor:cssVar('--ink')||'#222',backgroundColor:cssVar('--ink')||'#222',borderWidth:2,pointRadius:3,tension:.3}]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:9},boxWidth:8,usePointStyle:true}},tooltip:{callbacks:{label:c=>'TE aeróbico '+fmt(c.raw.y,1)}}},scales:{x:{...AX,type:'linear',min:-0.5,max:histSes.length-0.5,ticks:{...AX.ticks,stepSize:1,font:{size:9},callback:v=>histLabels[v]||''}},y:{...AX,min:0,max:5,title:{display:true,text:'TE aeróbico',color:mc,font:{size:9}}}}}});
   const teRows=rows.map(r=>({n:r.name,...trainingEffect(r)})).sort((a,b)=>(b.aer+b.ana)-(a.aer+a.ana));
@@ -47489,7 +47595,7 @@ function renderHR(){
   buildPosBaremo(rows);
   const selB=document.getElementById('hr-session-b');
   if(selB){if(!selB.options.length||![].some.call(selB.options,o=>o.value===selB.value)){selB.innerHTML=sessions.map(s=>{const i=s.indexOf('|');const dk=s.slice(0,i),lab=s.slice(i+1);const dd=dk.split('-');return `<option value="${s}">${dd[2]}/${dd[1]} · ${lab}</option>`;}).join('');selB.value=sessions.find(s=>s!==key)||sessions[0];}
-    const kb=selB.value;const za=HRZ.map((_,zi)=>sum(rows.map(r=>r.z[zi]||0)));const rb=STATE.hr.filter(r=>hrKey(r)===kb);const zb=HRZ.map((_,zi)=>sum(rb.map(r=>r.z[zi]||0)));
+    const kb=selB.value;const za=HRZ.map((_,zi)=>sum(rows.map(r=>r.z[zi]||0)));const rb=hrFilas(kb);const zb=HRZ.map((_,zi)=>sum(rb.map(r=>r.z[zi]||0)));
     const cmpEl=document.getElementById('ch-hr-cmp');
     if(cmpEl)charts['ch-hr-cmp']=new Chart(cmpEl,{type:'bar',data:{labels:HRZ.map(z=>z[0]),datasets:[{label:'Actual',data:za,backgroundColor:HRZ.map(z=>rgba(z[1],.85)),borderColor:HRZ.map(z=>z[1]),borderWidth:1,borderRadius:3},{label:'Comparada',data:zb,backgroundColor:HRZ.map(z=>rgba(z[1],.25)),borderColor:HRZ.map(z=>z[1]),borderWidth:2,borderRadius:3}]},options:{...BASE,plugins:{legend:{display:true,labels:{color:mc,font:{size:10},boxWidth:12,generateLabels:()=>[{text:'Actual (relleno)',fillStyle:mc,strokeStyle:mc,lineWidth:0},{text:'Comparada (contorno)',fillStyle:'rgba(0,0,0,0)',strokeStyle:mc,lineWidth:2}]}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtT(c.raw)}}},scales:{x:{...AX},y:{...AX,title:{display:true,text:'minutos (equipo)',color:mc,font:{size:9}}}}}});}
   const evoSel=document.getElementById('hr-evo-player');const hrNames=[...new Set(STATE.hr.map(r=>r.name))].sort();
@@ -48180,7 +48286,7 @@ function renderTeamIntensity(){
   const box=document.getElementById('team-intensity');if(!box)return;
   if(!STATE.hr||!STATE.hr.length){box.innerHTML='<p class="hint">Sin sesiones de pulso aún.</p>';return;}
   const keys=[...new Set(STATE.hr.map(hrKey))].sort();const key=hrKeyForRef(keys);
-  const rows=STATE.hr.filter(r=>hrKey(r)===key);const i=key.indexOf('|');const dk=key.slice(0,i),lab=key.slice(i+1);
+  const rows=hrFilas(key);const i=key.indexOf('|');const dk=key.slice(0,i),lab=key.slice(i+1);
   const trimp=mean(rows.map(trimpOf));
   /* v502 · la carga del equipo sale del grupo que hizo la sesion, igual que
      `lbTeamDay`; y el ACWR medio, de la misma poblacion que el Resumen. */
@@ -48225,7 +48331,7 @@ function ultimasSesiones(n){
     if(hasta&&dk>hasta)return;
     const prev=dias[dk];
     /* si un día tiene dos capturas, manda la de más jugadores */
-    const rows=(STATE.hr||[]).filter(r=>hrKey(r)===key);
+    const rows=hrFilas(key);
     if(prev&&prev.rows.length>=rows.length)return;
     dias[dk]={key,dk,lab:key.slice(i+1),rows,fuente:'polar'};
   });
@@ -48330,7 +48436,7 @@ function renderTeamHR(){
   const box=document.getElementById('team-hr');if(!box)return;
   if(!STATE.hr.length){box.innerHTML='<p class="hint">Sin sesiones de pulso aún. Cárgalas en la pestaña <b>Pulso · Polar</b>.</p>';return;}
   const keys=[...new Set(STATE.hr.map(hrKey))].sort();const key=hrKeyForRef(keys);
-  const rows=STATE.hr.filter(r=>hrKey(r)===key);
+  const rows=hrFilas(key);
   const i=key.indexOf('|');const dk=key.slice(0,i),lab=key.slice(i+1);const dd=dk.split('-');
   const whenEl=document.getElementById('team-hr-when');if(whenEl)whenEl.textContent=dd[2]+'/'+dd[1]+'/'+dd[0]+' · '+lab+'  ›';
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
@@ -56119,7 +56225,7 @@ html[data-theme="dark"]{--tb-bg:rgba(22,26,34,.93)}
   #v-equipo #team-posband>*{margin-top:0;margin-bottom:0}
   #v-equipo #team-posband>*+*{margin-top:12px}
   /* Los seis titulares, en 3 × 2: lo mismo en la mitad de alto. */
-  #v-equipo .eq-strip,#v-equipo .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  #v-equipo .eq-strip,#v-equipo .eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   #v-equipo .eq-tile{padding:9px 10px 8px}
   #v-equipo .eq-l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em}
   #v-equipo .eq-v{font-size:22px;margin-top:2px}
@@ -59854,7 +59960,7 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   @media (max-width:1180px){#v-jugador .phero{grid-template-columns:minmax(0,1fr) 210px}#v-jugador .phe-ph{width:210px!important;height:210px!important}#v-jugador .phero-name{font-size:32px!important}}
 }
 @media (min-width:761px) and (pointer:fine){
-  body:has(#v-jugador.on) #bm-atras-esc{display:inline-flex;order:-1;align-items:center;gap:2px;height:30px;padding:0 10px 0 4px;margin-right:4px;border:none;border-radius:8px;
+  body:is(.bm-von-jugador,#v-jugador.on) #bm-atras-esc{display:inline-flex;order:-1;align-items:center;gap:2px;height:30px;padding:0 10px 0 4px;margin-right:4px;border:none;border-radius:8px;
     background:transparent;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;flex:none}
   #bm-atras-esc:hover{background:var(--tb-hover,rgba(118,118,128,.16))}
   #bm-atras-esc svg{width:20px;height:20px}
@@ -59967,7 +60073,7 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   /* v710 · el título grande vuelve a todas las pantallas, como en el Resumen; el de la barra sobra */
   #bm-tbt{display:none!important}
   /* v701 · el Calendario conserva su título dentro de la pantalla: en la barra sobraría */
-  body:has(#v-cal.on) #bm-tbt{display:none!important}
+  body:is(.bm-von-cal,#v-cal.on) #bm-tbt{display:none!important}
   #bm-atras-esc{order:-2!important}
   #bm-tbt{display:flex;order:-1;align-items:center;gap:4px;flex:none;min-width:0;margin-right:10px}
   #bm-tbt .bm-tbt-t{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em;line-height:1;color:var(--txt);white-space:nowrap}
@@ -59987,7 +60093,7 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   #bm-tbx{display:flex;order:1;align-items:center;gap:6px;margin-left:auto;flex:none}
   #bm-tbx:empty{display:none}
   body.bm-tbs-on #bm-tbx{margin-left:0}
-  header .hub:has(#bm-tbx:not(:empty)) [onclick="focusSearch()"],body.bm-tbs-on header [onclick="focusSearch()"]{margin-left:8px!important}
+  header .hub:is(.bm-tbx-on,#bm-tbx:not(:empty)) [onclick="focusSearch()"],body.bm-tbs-on header [onclick="focusSearch()"]{margin-left:8px!important}
   #bm-tbx button{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 8px;border:none;border-radius:8px;background:transparent;color:var(--txt);
     font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
   #bm-tbx button:hover{background:var(--tb-hover)}
@@ -60019,7 +60125,7 @@ html[data-theme="dark"]{--tbar:rgba(30,31,36,.80);--tb-campo:rgba(118,118,128,.2
   }
   @media (max-width:1300px){
     /* con el botón atrás, el título sobra */
-    body:has(#v-jugador.on) #bm-tbt{display:none}
+    body:is(.bm-von-jugador,#v-jugador.on) #bm-tbt{display:none}
   }
 }
 </style>
@@ -60280,10 +60386,10 @@ html[data-theme="dark"]{--mac-alt:rgba(255,255,255,.035);--mac-fila-h:rgba(255,2
   #v-equipo .eq-tile>.eq-spark{grid-area:k;margin:0!important;align-self:center;width:88px}
   #v-equipo .eq-tile>.eq-spark .spark,#v-equipo .eq-tile>.eq-spark svg{width:88px!important;height:30px!important}
   /* con avisos: los recuadros en 3 × 2 y «Ojo hoy» al lado */
-  #v-equipo .eq-top:has(#team-ojo .panel){grid-template-columns:minmax(0,1.75fr) minmax(0,1fr)!important;align-items:stretch}
-  #v-equipo .eq-top:has(#team-ojo .panel) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
-  #v-equipo .eq-top:has(#team-ojo .panel) .eq-tile{padding:10px 14px!important}
-  #v-equipo .eq-top:has(#team-ojo .panel) .eq-spark svg{height:30px!important}
+  #v-equipo .eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo){grid-template-columns:minmax(0,1.75fr) minmax(0,1fr)!important;align-items:stretch}
+  #v-equipo .eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-strip{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
+  #v-equipo .eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-tile{padding:10px 14px!important}
+  #v-equipo .eq-top:is(.eq-con-ojo,#team-ojo .eq-con-ojo) .eq-spark svg{height:30px!important}
   #v-equipo #team-ojo>.panel{height:100%;box-sizing:border-box;padding:14px 16px!important}
   #v-equipo #team-ojo>.panel>h2{margin:0 0 2px!important}
   #v-equipo #team-ojo>.panel>p.small{margin:0 0 8px!important}
@@ -63933,7 +64039,7 @@ function qdSessionsForDay(dk){
   // Polar del día → por defecto pista/partido; nunca a fuerza sin confirmación
   const hrKeys=[...new Set((STATE.hr||[]).filter(r=>r.dk===dk).map(r=>hrKey(r)))];
   hrKeys.forEach(k=>{
-    const recs=STATE.hr.filter(r=>hrKey(r)===k);
+    const recs=hrFilas(k);
     const manual=qdManualMap('hr',k);
     let target=null,method='',conf=1;
     if(manual){target=sessions.find(s=>s.sessionId===manual.sessionId)||null;method='manual';conf=1;}
@@ -67347,8 +67453,8 @@ setInterval(function(){
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-25.13*/
-const VER_ACTUAL='2026-11-25.13';
+/*BUILD:2026-11-26.1*/
+const VER_ACTUAL='2026-11-26.1';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
