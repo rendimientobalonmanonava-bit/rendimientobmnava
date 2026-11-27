@@ -19088,23 +19088,11 @@ window.bmInformeTemporada=bmInformeTemporada;
    explican son los de la app: readiness 75/55, ACWR 0,8 · 1,3 · 1,5
    (`CONFIG.load`), carga de sesión 600/900 UA (`NIV_UA`) y el baremo por puesto. */
 const BIE_TIT='Lo que venimos haciendo';
-const BIE_FT_N=5;   /* v963 · cuántas pruebas lleva la tabla de valoraciones en la hoja 3 */
-const BIE_MDH={'MD+1':'Día después','MD+2':'2 días después','MD+3':'3 días después','MD-3':'3 días antes','MD-2':'2 días antes','MD-1':'Víspera','MD':'Partido'};
 /* v940 · El nombre de cada prueba en palabras de cualquiera; el técnico va debajo */
 const BIE_LLANO={cmj:'Salto vertical',cmju:'Salto a una pierna',cmja:'Asimetría del salto',rsi:'Reactividad (salto tras caída)',v7:'Lanzamiento desde 7 m',v9:'Lanzamiento desde 9 m',bench:'Fuerza máxima en banca',benchrel:'Fuerza en banca por kilo de peso',squat:'Fuerza máxima en sentadilla',squatrel:'Fuerza en sentadilla por kilo de peso',grip:'Fuerza de agarre',grasa:'Grasa corporal',masa:'Músculo (% del peso)',masakg:'Músculo (kg)',tobm:'Movilidad de tobillo',toba:'Asimetría de tobillo',vift:'Resistencia (30-15 IFT)',vo2:'Capacidad aeróbica (VO₂máx)',sp10:'Sprint 10 m',sp20:'Sprint 20 m',sp30:'Sprint 30 m',ttest:'Cambio de dirección (T-test)',acc20:'Aceleración 0–20 m',imo:'IMO (composición corporal)'};
 function bieLlano(t){return (t&&BIE_LLANO[t.k])||(t&&t.name)||'';}
-/* Qué entra en cada capacidad, dicho en corto: sólo las pruebas que cuentan esta temporada */
-const BIE_QUE={cmj:'salto',cmju:'salto',cmja:'salto',rsi:'reactividad',v7:'lanzamiento',v9:'lanzamiento',sp10:'sprint',sp20:'sprint',sp30:'sprint',ttest:'cambio de dirección',acc20:'aceleración',bench:'press de banca',benchrel:'press de banca',squat:'sentadilla',squatrel:'sentadilla',grip:'agarre',grasa:'composición corporal',masa:'composición corporal',masakg:'composición corporal',tobm:'movilidad',toba:'movilidad',vift:'resistencia',vo2:'resistencia'};
-function bieCapQue(){
-  if(typeof TESTS==='undefined')return '';
-  const vig=k=>typeof tempVigente!=='function'||tempVigente(k);
-  return ['Condición','Fuerza','Explosividad'].map(c=>{
-    const w=[];TESTS.forEach(t=>{if(t.cat!==c||!tsaEnNota(t)||!vig(t.k))return;const q=BIE_QUE[t.k];if(q&&w.indexOf(q)<0)w.push(q);});
-    return w.length?'la '+c.toLowerCase()+' ('+w.join(', ').replace(/, ([^,]*)$/,' y $1')+')':'';}).filter(Boolean).join(', ').replace(/, (la [^,(]*\([^)]*\))$/,' y $1');
-}
 function bieFoto(n){const p=(STATE.players||{})[n]||{};return p.avatar||photoFor(n)||'';}
 function bieAv(n,cls,c){return '<span class="bie-av'+(cls?' '+cls:'')+'"'+(c?' style="--c:'+c+'"':'')+'><img src="'+bmEsc(bieFoto(n))+'" alt=""></span>';}
-function bieNom(n){try{return cvCorto(n);}catch(e){return String(n).split(' ')[0];}}
 function biePlantilla(){
   const ps=STATE.players||{},ord=(a,b)=>a.localeCompare(b,'es');
   const ns=Object.keys(ps).filter(n=>!(typeof esBaja==='function'&&esBaja(n)));
@@ -19118,8 +19106,6 @@ function bieMediana(a){const v=a.filter(x=>x!=null&&isFinite(x)).sort((x,y)=>x-y
 /* la parte de arriba redondeada de una barra que sale de la línea de base */
 function bieBarra(x,y,w,base,cls,st){const h=base-y;if(!(h>0.5))return '';const r=Math.min(4,w/2,h);
   return '<path class="'+cls+'"'+(st?' style="'+st+'"':'')+' d="M'+x.toFixed(1)+','+base.toFixed(1)+'V'+(y+r).toFixed(1)+'Q'+x.toFixed(1)+','+y.toFixed(1)+' '+(x+r).toFixed(1)+','+y.toFixed(1)+'H'+(x+w-r).toFixed(1)+'Q'+(x+w).toFixed(1)+','+y.toFixed(1)+' '+(x+w).toFixed(1)+','+(y+r).toFixed(1)+'V'+base.toFixed(1)+'Z"/>';}
-function bieBalon(cx,cy,r){const f=v=>v.toFixed(1);
-  return '<g class="bie-bal"><circle cx="'+f(cx)+'" cy="'+f(cy)+'" r="'+r+'"/><path d="M'+f(cx)+','+f(cy-r)+'C'+f(cx-r*.75)+','+f(cy-r*.3)+' '+f(cx-r*.75)+','+f(cy+r*.3)+' '+f(cx)+','+f(cy+r)+'M'+f(cx)+','+f(cy-r)+'C'+f(cx+r*.75)+','+f(cy-r*.3)+' '+f(cx+r*.75)+','+f(cy+r*.3)+' '+f(cx)+','+f(cy+r)+'M'+f(cx-r)+','+f(cy)+'H'+f(cx+r)+'"/></g>';}
 function biePaso(mx){const c=[50,100,250,500,1000,2000,2500,5000];for(const p of c){if(mx/p<=5)return p;}return 10000;}
 function bieSemanas(){
   let W=[];try{W=cgSemanasEquipo(cgSerieEquipo());}catch(e){}
@@ -19127,33 +19113,6 @@ function bieSemanas(){
   W=W.filter(w=>dkey(w.ini)>=ini);
   /* desde la primera semana con carga: julio puede empezar con vacaciones */
   const k=W.findIndex(w=>w.conCarga>0);return k<0?[]:W.slice(k);
-}
-function bieSemanasSVG(W){
-  const w=682,h=126,pl=40,pr=86,pt=12,pb=30,iw=w-pl-pr,ih=h-pt-pb,base=pt+ih;
-  const mx=Math.max(1,...W.map(x=>x.ua)),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
-  const y=v=>base-(v/top)*ih,bw=iw/W.length;
-  let ps=[];try{ps=calPartidosDks();}catch(e){}
-  const n0=v=>Math.round(v).toLocaleString('es-ES');
-  let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Carga del equipo por semana">';
-  for(let v=0;v<=top+0.1;v+=paso)s+='<line class="bie-gr" x1="'+pl+'" x2="'+(w-pr)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="bie-ax" x="'+(pl-6)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+n0(v)+'</text>';
-  let mesAnt=-1;
-  W.forEach((x,i)=>{const bx=pl+i*bw+bw*.17,bwi=bw*.66;
-    s+=bieBarra(bx,y(x.ua),bwi,base,'bie-b'+(x.parcial?' bie-b--p':''));
-    const d0=dkey(x.ini),d6=dkSumaDias(d0,6);
-    if(ps.some(p=>p>=d0&&p<=d6))s+='<circle class="bie-pt" cx="'+(bx+bwi/2).toFixed(1)+'" cy="'+(base+7)+'" r="2.6"/>';
-    const m=x.ini.getMonth();
-    if(m!==mesAnt){mesAnt=m;s+='<text class="bie-ax bie-mes" x="'+bx.toFixed(1)+'" y="'+(h-4)+'">'+CAL_MES[m].slice(0,3)+'</text>';}});
-  const cerr=W.filter(x=>!x.parcial&&x.ua>0),md=bieMediana(cerr.map(x=>x.ua));
-  if(md!=null){const yy=y(md).toFixed(1);s+='<line class="bie-med" x1="'+pl+'" x2="'+(w-pr+4)+'" y1="'+yy+'" y2="'+yy+'"/><text class="bie-medt" x="'+(w-pr+8)+'" y="'+(+yy-2)+'">Semana</text><text class="bie-medt" x="'+(w-pr+8)+'" y="'+(+yy+10)+'">normal · '+n0(md)+'</text>';}
-  return {svg:s+'</svg>',md,cerr};
-}
-function bieAcwrBanda(r){
-  const w=104,h=18,lo=.4,hi=2,X=v=>Math.max(3,Math.min(w-3,(v-lo)/(hi-lo)*w));
-  const v=Math.round(r*100)/100,c=acwrClass(v);
-  return '<svg class="bie-ac" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" aria-hidden="true"><rect class="bie-ac-c" x="0" y="7" width="'+w+'" height="4" rx="2"/>'
-    +'<rect class="bie-ac-b" x="'+X(CONFIG.load.acwrYellowLo).toFixed(1)+'" y="4" width="'+(X(CONFIG.load.acwrYellowHi)-X(CONFIG.load.acwrYellowLo)).toFixed(1)+'" height="10" rx="2"/>'
-    +'<line class="bie-ac-1" x1="'+X(1).toFixed(1)+'" x2="'+X(1).toFixed(1)+'" y1="3" y2="15"/>'
-    +'<circle cx="'+X(v).toFixed(1)+'" cy="9" r="4.6" style="fill:var(--'+c+')" class="bie-ac-p"/></svg>';
 }
 /* v937 · La semana tipo, más a fondo. Los días de cada posición del ciclo son los
    de `calRefMD` (desde el 1 de septiembre, con carga registrada), así que todo lo
@@ -19187,25 +19146,6 @@ function bieSemTipoDatos(R){
       z45:med(z45),z5:med(z5),zn:z45.length,rec:med(rec),fat:med(fat),doms:med(doms),sue:med(sue)};
   });
 }
-/* El gráfico de la semana tipo: la media en el color de su nivel, detrás el rango
-   de la temporada (del día más suave al más duro) y la raya de lo programado. */
-function bieSemTipoSVG(P){
-  const w=682,h=158,pl=125,pt=22,pb=6,cw=(w-pl)/7,base=h-pb,ih=base-pt;   /* pl: la columna de rótulos de la tabla de debajo */
-  const vs=[];P.forEach(p=>{if(p.md==='MD')return;if(p.ua)vs.push(p.ua.max,p.ua.m);if(p.plan!=null)vs.push(p.plan);});
-  const mx=Math.max(1,...vs),paso=biePaso(mx),top=Math.ceil(mx/paso)*paso;
-  const y=v=>base-(v/top)*ih,n0=v=>Math.round(v).toLocaleString('es-ES');
-  let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Carga habitual de cada día del ciclo">';
-  for(let v=0;v<=top+0.1;v+=paso)s+='<line class="bie-gr" x1="'+pl+'" x2="'+w+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/><text class="bie-ax" x="'+(pl-8)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+n0(v)+' UA</text>';
-  P.forEach((p,i)=>{const cx=pl+i*cw+cw/2,bw=Math.min(44,cw*.5);
-    if(p.md==='MD'){s+=bieBalon(cx,base-16,13);return;}
-    if(!p.ua)return;
-    const poco=p.n<MDH_MIN;
-    if(p.n>1&&p.ua.max>p.ua.min)s+='<rect class="bie-rg" x="'+(cx-bw/2-8).toFixed(1)+'" y="'+y(p.ua.max).toFixed(1)+'" width="'+(bw+16).toFixed(1)+'" height="'+(y(p.ua.min)-y(p.ua.max)).toFixed(1)+'" rx="5"/>';
-    s+=bieBarra(cx-bw/2,y(p.ua.m),bw,base,'bie-sb'+(poco?' bie-sb--poco':''),'fill:'+LV[nivelUA(Math.round(p.ua.m))][1]);
-    if(p.plan!=null)s+='<line class="bie-cref" x1="'+(cx-bw/2-8).toFixed(1)+'" x2="'+(cx+bw/2+8).toFixed(1)+'" y1="'+y(p.plan).toFixed(1)+'" y2="'+y(p.plan).toFixed(1)+'"/>';
-    s+='<text class="bie-val" x="'+cx.toFixed(1)+'" y="'+(Math.min(y(p.ua.m),p.n>1?y(p.ua.max):1e9,p.plan!=null?y(p.plan):1e9)-6).toFixed(1)+'" text-anchor="middle">'+n0(p.ua.m)+'</text>';});
-  return s+'</svg>';
-}
 /* v963 · El cuadrante de carga y readiness, en el informe del entrenador.
    Daniel, 27/11/2026: *«mete los cuadrantes, que creo que son muy interesantes,
    y vamos a hacerlo dándole una vuelta para hacerlo de manera súper sencilla de
@@ -19226,7 +19166,7 @@ const BIE_CQ={
   alta:{t:'Mucha carga y la lleva bien',s:'vigilar que no se pase',c:'var(--warn)',ct:'var(--warn-text)',f:'rgba(224,168,0,.10)'},
   mirar:{t:'Se levanta peor sin carga alta',s:'preguntarle: no es por la carga',c:'var(--warn)',ct:'var(--warn-text)',f:'rgba(224,168,0,.10)'},
   bajar:{t:'Bajar la carga',s:'mucha carga y llega peor',c:'var(--bad)',ct:'var(--bad-text)',f:'rgba(226,59,50,.08)'}};
-const BIE_CQ_W=666,BIE_CQ_H=318;   /* el ancho del plano en la hoja (690 de contenido menos la columna del eje) */
+const BIE_CQ_W=666,BIE_CQ_H=300;   /* el ancho del plano en la hoja (690 de contenido menos la columna del eje) */
 function bieCqMide(t,font){const c=bieCqMide.c||(bieCqMide.c=document.createElement('canvas').getContext('2d'));
   c.font=font+" -apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif";return c.measureText(t).width;}
 function bieCqParte(t,font,mw){const w=String(t).split(' '),L=[];let cur='';
@@ -19286,7 +19226,7 @@ function bieCqHTML(D,W,H){
       if(best)break;}
     o.px=best?best[0]:o.px0;o.py=best?best[1]:o.py0;puestas.push(BX(o.px,o.py,o.w));});
   const f2=v=>v.toFixed(1);
-  let h='<div class="bie-cqw"><div class="bie-cqy"><span><i>← llega peor</i><b>Cómo llega hoy</b><i>llega mejor →</i></span></div>'
+  let h='<div class="bie-cqw"><div class="bie-cqy"><span style="width:'+H+'px"><i>← llega peor</i><b>Cómo llega hoy</b><i>llega mejor →</i></span></div>'
     +'<div class="bie-cq" style="width:'+W+'px;height:'+H+'px">';
   Object.keys(Z).forEach(k=>{const z=Z[k];h+='<i class="bie-cqz" style="left:'+f2(z[0])+'px;top:'+f2(z[1])+'px;width:'+f2(z[2])+'px;height:'+f2(z[3])+'px;background:'+BIE_CQ[k].f+'"></i>';});
   h+='<i class="bie-cqv" style="left:'+f2(xl)+'px;top:0;height:'+f2(y75)+'px"></i><i class="bie-cqv" style="left:'+f2(xh)+'px;top:0;height:'+H+'px"></i><i class="bie-cqh" style="top:'+f2(y75)+'px"></i>';
@@ -19373,23 +19313,6 @@ function bieMeses(){
   if(D&&D.eps)D.eps.forEach(e=>{const o=de(e.dk);if(!o)return;if(e.kind==='lesion')o.les++;else o.mol++;});
   const L=ks.map(k=>M[k]);L.D=D;return L;
 }
-/* La recuperación declarada de la plantilla, semana a semana, en las mismas columnas que la carga */
-function bieRecSemanas(W){
-  if(!W||!W.length)return '';
-  const w=682,h=112,pl=40,pr=86,pt=10,pb=22,iw=w-pl-pr,ih=h-pt-pb,bw=iw/W.length;
-  const R=W.map(x=>{const d0=dkey(x.ini),d6=dkSumaDias(d0,6);const v=(STATE.wellness||[]).filter(q=>q&&q.dk>=d0&&q.dk<=d6).map(q=>recPct(twVal(q))).filter(isFinite);
-    return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;});
-  const vv=R.filter(v=>v!=null);if(!vv.length)return '';
-  const lo=Math.min(50,Math.floor(Math.min(...vv)/10)*10),hi=100,y=v=>pt+ih-(v-lo)/(hi-lo)*ih,X=i=>pl+i*bw+bw/2;
-  let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="Recuperación de la plantilla por semana">';
-  [lo,75,100].concat(lo<55?[55]:[]).forEach(v=>{s+='<line class="'+(v===75||v===55?'bie-med':'bie-gr')+'" x1="'+pl+'" x2="'+(w-pr+4)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'"/>'+(v===lo&&Math.abs(lo-55)<8?'':'<text class="bie-ax" x="'+(pl-6)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+v+'</text>');});
-  s+='<text class="bie-medt" x="'+(w-pr+8)+'" y="'+(y(75)+3.5).toFixed(1)+'">75 · bien</text>'+(lo<55?'<text class="bie-medt" x="'+(w-pr+8)+'" y="'+(y(55)+3.5).toFixed(1)+'">55</text>':'');
-  let pth='',on=false;R.forEach((v,i)=>{if(v==null){on=false;return;}pth+=(on?'L':'M')+X(i).toFixed(1)+','+y(v).toFixed(1);on=true;});
-  s+='<path class="bie-recl" d="'+pth+'"/>';
-  R.forEach((v,i)=>{if(v==null)return;s+='<circle cx="'+X(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="4" style="fill:var(--'+recSev(Math.round(v))+')" class="bie-recp"/>';});
-  let mes=-1;W.forEach((x,i)=>{const m=x.ini.getMonth();if(m!==mes){mes=m;s+='<text class="bie-ax bie-mes" x="'+(pl+i*bw+bw*.17).toFixed(1)+'" y="'+(h-4)+'">'+CAL_MES[m].slice(0,3)+'</text>';}});
-  return s+'</svg>';
-}
 /* Las valoraciones físicas desde la primera fase: entre quienes se midieron en la
    primera y en la última (las fases salen de la hoja, `vhFasesLista`), dónde está
    ahora un jugador típico, cuánto ha cambiado cada uno (la mediana de los cambios de
@@ -19415,229 +19338,188 @@ function bieFases(){
   tests.sort((a,b)=>b.n-a.n||String(a.t.name).localeCompare(String(b.t.name),'es'));
   return {fases:FL,tests,mejoran:tests.filter(o=>o.suben>o.bajan).length};
 }
+/* ═══ v964 · EL INFORME PARA EL ENTRENADOR, EN 3 HOJAS Y ULTRA VISUAL ═══
+   Daniel, 27/11/2026: *«hazlo más visual y más estético para el entrenador, que
+   sea sencillo y muy visual; no sé el nivel técnico a nivel de fuerza, cargas,
+   entrenamiento… del entrenador, por lo que resúmelo en 2-3 hojas y hazlo ultra
+   visual y sencillo»*. Preguntado, eligió tres hojas —cómo trabajamos · cómo está
+   el equipo · cada jugador— y que **sustituya** al de cuatro: el detalle sigue en
+   la app. Reglas: **ni una cifra ni un umbral nuevos** (cada dibujo sale de lo que
+   ya calculaba el informe: `bieMeses`, `bieSemanas`, `calRefMD` con
+   `bieSemTipoDatos`, `cuaDatos`, `cjDatos`, `bieFases`); **sin unidades técnicas**
+   (ni UA, ni RPE, ni ACWR, ni z): las barras se comparan entre sí, sin eje; **cada
+   color va con su palabra o su forma** (se imprime, a veces en blanco y negro), y
+   el nivel de cada capacidad es un medidor de cuatro bloques que se lee por su
+   largo. El rojo, sólo donde la app ya lo usa: intensidad alta, «bajar la carga»
+   y el nivel rojo del baremo. */
+const BIE_IC={
+  pista:'<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M12 6v12"/><circle cx="12" cy="12" r="2.2"/><path d="M3 9.6c1.9 0 2.9 1 2.9 2.4S4.9 14.4 3 14.4M21 9.6c-1.9 0-2.9 1-2.9 2.4s1 2.4 2.9 2.4"/>',
+  gym:'<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
+  balon:'<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5c-3 3.2-3 13.8 0 17M12 3.5c3 3.2 3 13.8 0 17M3.5 12h17"/>',
+  reloj:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/>',
+  cruz:'<rect x="4" y="4" width="16" height="16" rx="4.5"/><path d="M12 8.2v7.6M8.2 12h7.6"/>',
+  luna:'<path d="M19 14.6A7.5 7.5 0 0 1 9.4 5a7.6 7.6 0 1 0 9.6 9.6z"/>',
+  gente:'<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c.6-3.2 2.9-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9.6" r="2.4"/><path d="M15.6 14.3c2.4.2 4.3 1.8 4.9 4.7"/>',
+  sol:'<circle cx="12" cy="12" r="3.8"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M5.6 18.4l1.6-1.6M16.8 7.2l1.6-1.6"/>'};
+function bieIco(k,c){return '<i class="bv-ic" style="background:'+c+'"><svg viewBox="0 0 24 24" aria-hidden="true">'+(BIE_IC[k]||'')+'</svg></i>';}
+/* un aro de 0 a 1: el valor se escribe dentro, el color lo pone quien llama */
+function bieAro(p,c,size,dentro){const sw=size>=80?8:6,r=(size-sw)/2-1,C=2*Math.PI*r,cx=size/2,q=Math.max(0,Math.min(1,p||0));
+  return '<span class="bv-aro" style="width:'+size+'px;height:'+size+'px"><svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'" aria-hidden="true"><circle cx="'+cx+'" cy="'+cx+'" r="'+r.toFixed(1)+'" style="fill:none;stroke:#e9e9ee;stroke-width:'+sw+'"/>'
+    +(q>0?'<circle cx="'+cx+'" cy="'+cx+'" r="'+r.toFixed(1)+'" style="fill:none;stroke:'+c+';stroke-width:'+sw+';stroke-linecap:round;stroke-dasharray:'+(C*q).toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(-90 '+cx+' '+cx+')"/>':'')+'</svg><span>'+dentro+'</span></span>';}
+/* la temporada, semana a semana: barras sin eje (se comparan entre sí), la semana normal en raya y la más dura señalada */
+function bieSemVisSVG(W){
+  const w=690,h=180,pt=20,pb=22,ih=h-pt-pb,base=pt+ih;
+  const mx=Math.max(1,...W.map(x=>x.ua)),bw=w/W.length,y=v=>base-v/mx*ih;
+  let ps=[];try{ps=calPartidosDks();}catch(e){}
+  const cerr=W.filter(x=>!x.parcial&&x.ua>0),md=bieMediana(cerr.map(x=>x.ua)),top=cerr.length?cerr.reduce((a,b)=>b.ua>a.ua?b:a):null;
+  let s='<svg class="bie-svg" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="El trabajo del equipo, semana a semana">';
+  s+='<line class="bv-base" x1="0" x2="'+w+'" y1="'+base+'" y2="'+base+'"/>';
+  let mesAnt=-1;
+  W.forEach((x,i)=>{const bx=i*bw+bw*.18,bwi=bw*.64;
+    s+=bieBarra(bx,y(x.ua),bwi,base,'bv-sb'+(x.parcial?' bv-sb--p':x===top?' bv-sb--top':''));
+    const d0=dkey(x.ini),d6=dkSumaDias(d0,6);
+    if(ps.some(p=>p>=d0&&p<=d6))s+='<circle class="bv-pt" cx="'+(bx+bwi/2).toFixed(1)+'" cy="'+(base+6)+'" r="2.4"/>';
+    if(x===top)s+='<text class="bv-top" x="'+(bx+bwi/2).toFixed(1)+'" y="'+(y(x.ua)-6).toFixed(1)+'" text-anchor="middle">la más dura</text>';
+    const m=x.ini.getMonth();if(m!==mesAnt){mesAnt=m;s+='<text class="bv-mes" x="'+bx.toFixed(1)+'" y="'+(h-3)+'">'+CAL_MES[m]+'</text>';}});
+  if(md!=null)s+='<line class="bv-norm" x1="0" x2="'+w+'" y1="'+y(md).toFixed(1)+'" y2="'+y(md).toFixed(1)+'"/>';
+  return s+'</svg>';
+}
 function bieHTML(){
-  const E=bmEsc,n0=v=>Math.round(v).toLocaleString('es-ES'),ps=STATE.players||{},hoy=dkey(new Date()),refk=dkey(REF());
+  const E=bmEsc,ps=STATE.players||{},hoy=dkey(new Date()),refk=dkey(REF());
   const tem=TEMP_INICIO.slice(2,4)+'/'+String(+TEMP_INICIO.slice(2,4)+1).padStart(2,'0');
-  const fl=dk=>{const d=dkToDate(dk);return d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase()+' de '+d.getFullYear();};
+  const fl=dk=>{const d=dkToDate(dk);return d.getDate()+' de '+CAL_MES[d.getMonth()].toLowerCase();};
   const dm=dk=>{const d=dkToDate(dk);return d.getDate()+'/'+(d.getMonth()+1);};
+  const n0=v=>Math.round(v).toLocaleString('es-ES'),med=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const corto=n=>{try{return cvCorto(n);}catch(e){return String(n).split(' ')[0];}};
+  const dos=n=>{const t=String(n).split(' ');let o=t[0];for(let k=1;k<t.length;k++){o+=' '+t[k];if(t[k].length>3&&!/\.$/.test(t[k]))break;}return o;};
   const G=biePlantilla(),NS=[].concat(...G.map(g=>g.ns));
-  const X=bmItDatos(),J={};X.jug.forEach(j=>{J[j.n]=j;});
   const pags=[];
   const hd=(t,s)=>'<div class="bmit-hd"><img src="escudo.png" alt="" onerror="this.remove()"><div><b>'+E(t)+'</b><span>'+E(s)+'</span></div></div>';
-  const ttl=(t,s)=>'<div class="bie-tt"><h2>'+t+'</h2>'+(s?'<p>'+s+'</p>':'')+'</div>';
-  const kpi=(t,v,s)=>'<div class="bie-k"><em>'+t+'</em><b>'+v+'</b><span>'+s+'</span></div>';
-  /* v940 · Daniel, 25/11/2026: *«imagínate que no tiene muchos conocimientos de
-     preparación física, quiero poder explicárselo de manera sencilla»*. Cada hoja
-     abre con tres frases que dicen lo que hay que llevarse, sin jerga y sacadas de
-     las cifras de esa misma hoja (HIG · Charting data: «a descriptive headline or
-     summary … helping people grasp essential information at a glance»; Writing:
-     «put the most important information first», «avoid jargon»). Ni una cifra ni
-     un umbral nuevos. */
-  const clave=items=>{const L=items.filter(Boolean);return L.length?'<div class="bie-key"><em>Resumen</em><ul>'+L.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>':'';};
-  /* qué es lo bueno en cada escala: con el color solo, «fatiga 2,7» no dice si es mucho o poco */
-  const mj=m=>m?'<i class="bie-mj">'+(m==='alto'?'↑':'↓')+' mejor</i>':'';
-  const corto=n=>{try{if(typeof cvCorto==='function')return cvCorto(n);}catch(e){}return String(n).split(' ')[0];};
-  const L=CONFIG.load,f1=v=>fmt(v,1);
+  const lead=t=>t?'<p class="bv-lead">'+t+'</p>':'';
+  const sec=(t,s)=>'<div class="bv-sec"><h2>'+t+'</h2>'+(s?'<p>'+s+'</p>':'')+'</div>';
+  const C_AZ='#3056c4',C_TE='#1f8a86',C_VI='#6e56cf',C_PI='#5b6b80';
 
-  /* ── v936 · 1 · Cómo hemos trabajado ──
-     Daniel, 25/11/2026: *«la primera hoja no me sirve para nada, quiero que sea
-     un informe en el que él pueda ver cómo se ha trabajado hasta ahora y cómo ha
-     respondido el equipo a nivel de parámetros físicos en estos meses»*. Fuera la
-     hoja de «qué medimos»: estas dos son la temporada mes a mes, primero el
-     trabajo y después la respuesta. Ni una cifra nueva: cada fila es la media o
-     la suma del mes de una serie que la app ya calcula (ver `bieMeses`). */
-  const MS=bieMeses(),mesL=k=>CAL_MES[+k.slice(5,7)-1].slice(0,3),enCurso=k=>k===hoy.slice(0,7);
-  const W=bieSemanas(),SV=W.some(x=>x.ua>0)?bieSemanasSVG(W):null;
+  /* ── 1 · Cómo hemos trabajado ── */
+  const MS=bieMeses();
   const sesE=MS.reduce((a,o)=>a+o.ent,0),sesG=MS.reduce((a,o)=>a+o.gym,0),parT=MS.reduce((a,o)=>a+o.par,0);
   const DC=MS.D,hJ=DC&&NS.length?DC.hT/NS.length:null;
-  const tabla=(filas)=>'<table class="bie-mt"><thead><tr><th></th>'+MS.map(o=>'<th>'+mesL(o.k)+(enCurso(o.k)?'<small>en curso</small>':'')+'</th>').join('')+'</tr></thead><tbody>'
-    +filas.map(f=>{
-      if(f.grupo)return '<tr class="bie-mt-g"><td colspan="'+(MS.length+1)+'">'+f.grupo+'</td></tr>';
-      const vs=MS.map(o=>f.v(o)),mx=Math.max(0,...vs.filter(v=>v!=null&&isFinite(v)));
-      if(!vs.some(v=>v!=null&&isFinite(v)&&(!f.cero||v>0)))return '';   /* una fila sin ningún dato no se pinta */
-      return '<tr><td><b>'+f.lab+'</b>'+(f.sub||f.mejor?'<span>'+mj(f.mejor)+(f.sub||'')+'</span>':'')+'</td>'+MS.map((o,i)=>{const v=vs[i];
-        if(f.html)return '<td>'+f.html(o)+'</td>';
-        if(v==null||!isFinite(v))return '<td class="bie-mu">—</td>';
-        const c=f.col?f.col(v):null;
-        return '<td><b'+(c?' style="color:'+c+'"':'')+'>'+f.fmt(v)+'</b>'+(f.barra===true&&mx>0?'<i class="bie-mb"><i style="width:'+(v>0?Math.max(3,v/mx*100):0).toFixed(1)+'%'+(f.bc?';background:'+f.bc(v):'')+'"></i></i>':'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
-  const med=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
-  const nivH=a=>{const t=a[0]+a[1]+a[2];if(!t)return '<span class="bie-mu">—</span>';
-    return '<i class="bie-nb">'+a.map((v,i)=>v?'<i style="flex:'+v+';background:'+LV[i][1]+'"></i>':'').join('')+'</i><span class="bie-nbt bie-nbn">'+[2,1,0].map(i=>'<b style="color:var(--'+['ok','warn','bad'][i]+'-text)">'+a[i]+'</b>').join(' · ')+'</span>';};
-  let fr1='Todavía no hay semanas con carga registrada esta temporada.';
-  if(SV&&SV.cerr.length){const mxw=SV.cerr.reduce((a,b)=>b.ua>a.ua?b:a);
-    fr1='Una semana normal son unas <b>'+n0(SV.md)+' UA por jugador</b> (esfuerzo × minutos); la más cargada fue la del '+dm(dkey(mxw.ini))+', con '+n0(mxw.ua)+'.';}
-  /* v941 · Daniel, 25/11/2026: *«en la primera página quita lo de “en pocas palabras” y haz
-     una mini-chuleta de qué significan los conceptos como UA, RPE»*. Las definiciones son las
-     de la app, dichas en llano; la semana normal sale de la propia hoja. */
-  const glo=[
-    ['UA · carga','Esfuerzo (RPE) × minutos: 90 minutos a un esfuerzo de 7 son 630 UA.'],
-    ['RPE · esfuerzo','Lo dura que le ha parecido la sesión, de 0 (nada) a 10 (lo máximo). Lo dice el jugador al acabar.'],
-    ['Intensidad de la sesión','Baja, media o alta. La programada es la del calendario; la que salió la calcula la app con la carga, el esfuerzo, el contacto y el pulso.'],
-    ['Pulsaciones altas','El tiempo de la sesión en las zonas 4 y 5 del pulsómetro, las dos más altas.'],
-    ['Recuperación','Cómo se levanta (sueño, fatiga, dolor, estrés y ánimo), de 0 a 100: verde, 75 o más; ámbar, 55 a 74; rojo, menos.'],
-    ['Cuestionario de la mañana','Cada pregunta va de 1 (muy bien) a 5 (muy mal): en fatiga o dolor, cuanto más bajo, mejor.'],
-    ['MD','El día de partido: MD-1 es la víspera, MD-3 tres días antes y MD+1 el día después.'],
-    ['Nota física','De 40 a 95: junta condición, fuerza y explosividad, frente al resto de la plantilla.']];
-  const chuleta='<div class="bie-key bie-glo"><em>Qué significa cada cosa</em><dl>'+glo.map(g=>'<div><dt>'+E(g[0])+'</dt><dd>'+E(g[1])+'</dd></div>').join('')+'</dl></div>';
-  pags.push({tit:'Cómo hemos trabajado',sub:'Lo que venimos haciendo · temporada '+tem+' · del 1 de julio al '+fl(refk),cuerpo:
-    chuleta+'<div class="bie-ks">'+kpi('Sesiones',String(sesE+sesG),sesE+' de pista y '+sesG+' de gimnasio')+kpi('Partidos',String(parT),'desde el 1 de julio')
-      +kpi('Horas por jugador',hJ!=null?n0(hJ):'—','de entrenamiento y partido')+kpi('Semana normal',SV&&SV.md!=null?n0(SV.md)+' UA':'—','puntos de carga por jugador')+'</div>'
-    +ttl('La carga, semana a semana',fr1)
-    +(SV?'<div class="bie-fig">'+SV.svg+'<div class="bie-ley"><span><i class="bie-l-b"></i>carga de la semana, media por jugador</span><span><i class="bie-l-p"></i>semana en curso</span><span><i class="bie-l-pt"></i>semana con partido</span><span><i class="bie-l-m"></i>semana normal (la mediana)</span></div></div>':'')
-    +ttl('El trabajo, mes a mes','Lo programado en el calendario y lo que declararon los jugadores. En la intensidad, las cifras son altas · medias · bajas. El mes en curso va hasta hoy.')
-    +tabla([
-      {lab:'Sesiones de pista',v:o=>o.ent,fmt:v=>String(v)},
-      {lab:'Sesiones de gimnasio',v:o=>o.gym,fmt:v=>String(v)},
-      {lab:'Partidos',v:o=>o.par,fmt:v=>String(v)},
-      {lab:'Minutos por sesión',sub:'días de entrenamiento',v:o=>med(o.dur),fmt:v=>n0(v)+'′'},
-      {lab:'Esfuerzo (RPE)',sub:'de 0 a 10',v:o=>med(o.rpe),fmt:v=>fmt(v,1)},
-      {lab:'Carga por jugador',sub:'UA por semana',barra:true,v:o=>o.dias?o.ua/o.dias*7:null,fmt:v=>n0(v)},
-      {lab:'Intensidad programada',sub:'la del calendario',cero:true,v:o=>o.nivP[0]+o.nivP[1]+o.nivP[2],html:o=>nivH(o.nivP)},
-      {lab:'Intensidad que salió',sub:'la que calcula la app',cero:true,v:o=>o.niv[0]+o.niv[1]+o.niv[2],html:o=>nivH(o.niv)},
-      {lab:'Pulsaciones altas',sub:'% en zonas 4 y 5',v:o=>med(o.z),fmt:v=>n0(v)+' %'}])
-    +'<p class="bie-pie">La carga es la media de la plantilla. Los partidos no entran en los minutos ni en el esfuerzo: su cuestionario no recoge lo que pesa un partido.</p>'});
+  /* una semana normal, por la cuenta del calendario: de la primera sesión a hoy */
+  let sem1='';
+  {const cal=STATE.calendar||{},fin=refk<hoy?refk:hoy;const dks=Object.keys(cal).filter(dk=>dk>=TEMP_INICIO&&dk<=fin&&(cal[dk]||[]).some(e=>e&&!evSP(e)&&(e.type==='entreno'||e.type==='fuerza'||e.type==='partido'))).sort();
+    if(dks.length){const nw=Math.max(1,(dkToDate(fin)-dkToDate(dks[0]))/864e5/7);
+      let pdk=[];try{pdk=calPartidosDks().filter(dk=>dk>=TEMP_INICIO&&dk<=fin).sort();}catch(e){}
+      const nwp=pdk.length?Math.max(1,((dkToDate(fin)-dkToDate(pdk[0]))/864e5+1)/7):1;
+      const pe=Math.round(sesE/nw),pg=Math.round(sesG/nw),pp=parT/nwp;
+      const par=pp>=.75?'<b>un partido</b>':pp>=.3?'un partido cada dos semanas':'';
+      const tr=['<b>unas '+pe+' sesiones de pista</b>'].concat(pg?['<b>'+pg+' de gimnasio</b>']:[]).concat(par?[par]:[]);
+      sem1='Una semana normal: '+(tr.length>1?tr.slice(0,-1).join(', ')+' y '+tr[tr.length-1]:tr[0])+'.';}}
+  const tile=(ic,c,v,l)=>'<div class="bv-t">'+bieIco(ic,c)+'<b>'+v+'</b><span>'+l+'</span></div>';
+  const W=bieSemanas();
+  let p1=lead(sem1)
+    +'<div class="bv-ts">'+tile('pista',C_AZ,String(sesE),'sesiones de pista')+tile('gym',C_TE,String(sesG),'sesiones de gimnasio')
+      +tile('balon',C_VI,String(parT),'partidos')+tile('reloj',C_PI,hJ!=null?n0(hJ):'—','horas por jugador, entrenando y jugando')+'</div>';
+  p1+=sec('La temporada, semana a semana','Cada barra es una semana: cuanto más alta, más trabajo. La raya es una semana normal.');
+  p1+=W.some(x=>x.ua>0)?'<div class="bv-fig">'+bieSemVisSVG(W)+'<div class="bv-ley"><span><i class="bv-l-b"></i>trabajo de la semana</span><span><i class="bv-l-n"></i>una semana normal</span><span><i class="bv-l-pt"></i>semana con partido</span><span><i class="bv-l-p"></i>semana en curso</span></div></div>'
+    :'<p class="bv-nada">Todavía no hay semanas con trabajo registrado esta temporada.</p>';
+  /* nuestra semana tipo: siete columnas, de partido a partido */
+  let R={filas:[]};try{R=calRefMD();}catch(e){}
+  if(!R.partidos)p1+=sec('Nuestra semana tipo','Para sacarla hacen falta los partidos metidos en el calendario.');
+  else{
+    const P=bieSemTipoDatos(R),ok=P.filter(p=>p.md!=='MD'&&p.ua&&p.n>=MDH_MIN);
+    const mxU=Math.max(1,...P.filter(p=>p.md!=='MD'&&p.ua).map(p=>p.ua.m));
+    const SAB={'MD+1':'domingo','MD+2':'lunes','MD+3':'martes','MD-3':'miércoles','MD-2':'jueves','MD-1':'viernes','MD':'sábado'};
+    const DIA={'MD+1':'Día después','MD+2':'2 días después','MD+3':'3 días después','MD-3':'3 días antes','MD-2':'2 días antes','MD-1':'La víspera','MD':'Partido'};
+    let fr='Lo habitual cada día, desde septiembre. Si jugamos el sábado, el día «3 días antes» es el miércoles.';
+    if(ok.length){const mx=ok.reduce((a,b)=>b.ua.m>a.ua.m?b:a),v1=ok.find(p=>p.md==='MD-1');
+      fr='<b>El día más fuerte, '+DIA[mx.md].toLowerCase()+' del partido</b>'+(v1&&v1!==mx?'; <b>la víspera, de intensidad '+['baja','media','alta'][nivelUA(Math.round(v1.ua.m))]+'</b>':'')+'. Si jugamos el sábado, «3 días antes» es el miércoles.';}
+    const LW=['Baja','Media','Alta'],LT=['var(--ok-text)','var(--warn-text)','var(--bad-text)'];
+    const col=p=>{const poco=p.md!=='MD'&&p.n<MDH_MIN;
+      let mid='',pie='';
+      if(p.md==='MD'){mid='<div class="bv-dbar bv-dbar--md">'+bieIco('balon',C_VI)+'</div><em class="bv-dl">Partido</em>';}
+      else if(p.ua){const lv=nivelUA(Math.round(p.ua.m));
+        mid='<div class="bv-dbar"><i style="height:'+Math.max(6,p.ua.m/mxU*100).toFixed(1)+'%;background:'+LV[lv][1]+'"></i></div><em class="bv-dl" style="color:'+LT[lv]+'">'+LW[lv]+'</em>';
+        pie=(p.pista!=null?'<span class="bv-dm">'+bieIco('reloj',C_PI)+n0(p.pista)+'′ de pista</span>':'')+(p.gymN&&p.gymN>=p.n/2?'<span class="bv-dm">'+bieIco('gym',C_TE)+'gimnasio</span>':'');}
+      else mid='<div class="bv-dbar"></div><em class="bv-dl bie-mu">libre o sin registro</em>';
+      const rec=p.rec!=null&&(p.n>=MDH_MIN||p.md==='MD')?'<span class="bv-dr" title="Cómo se levantan esa mañana"><i style="background:var(--'+recSev(Math.round(p.rec))+')"></i>'+Math.round(p.rec)+'</span>':'';
+      return '<div class="bv-dc'+(poco?' bv-dc--poco':'')+'"><b class="bv-dn">'+DIA[p.md]+'</b><span class="bv-dw">'+SAB[p.md]+'</span>'+mid+'<div class="bv-dp">'+pie+'</div>'+rec+'</div>';};
+    p1+=sec('Nuestra semana tipo, de partido a partido',fr)
+      +'<div class="bv-wk">'+P.map(col).join('')+'</div>'
+      +'<div class="bv-ley"><span><i style="background:var(--ok)"></i>intensidad baja</span><span><i style="background:var(--warn)"></i>media</span><span><i style="background:var(--bad)"></i>alta</span><span class="bv-ley-r"><i class="bv-l-rec"></i>cómo se levantan esa mañana, de 0 a 100</span></div>';
+  }
+  pags.push({tit:'Cómo hemos trabajado',sub:'Temporada '+tem+' · del 1 de julio al '+fl(refk<hoy?refk:hoy),cuerpo:p1});
 
-  /* ── v936 · 2 · Cómo ha respondido el equipo ── */
-  const F=bieFases();
-  const k2=[];
-  {const rr=[].concat(...MS.map(o=>o.rec));if(rr.length){const m=Math.round(med(rr)),sv=recSev(m),ms=MS.filter(o=>o.rec.length);
-    k2.push('<b>Se levantan, de media, al '+m+' % de recuperación</b> (de 0 a 100): '+(sv==='ok'?'en verde, 75 o más':sv==='warn'?'en ámbar, entre 55 y 74':'en rojo, por debajo de 55')+'.'
-      +(ms.length>1?' En '+CAL_MES[+ms[0].k.slice(5,7)-1].toLowerCase()+', '+Math.round(med(ms[0].rec))+' %; en '+CAL_MES[+ms[ms.length-1].k.slice(5,7)-1].toLowerCase()+', '+Math.round(med(ms[ms.length-1].rec))+' %.':''));}}
-  {const D=MS.D;let dj=0,fu=0;if(D&&D.meses)Object.keys(D.meses).forEach(k=>{const x=D.meses[k];if(x&&x.dj){dj+=x.dj;fu+=x.f;}});
-    const les=MS.reduce((a,o)=>a+o.les,0),mol=MS.reduce((a,o)=>a+o.mol,0);
-    if(dj)k2.push('<b>Hemos tenido disponible al '+fmt(100*(1-fu/dj),1)+' % de la plantilla</b> (días sin baja), con '+les+(les===1?' lesión nueva':' lesiones nuevas')+(mol?' y '+mol+(mol===1?' molestia':' molestias'):'')+' desde julio.');}
-  /* v963 · la frase de las valoraciones baja a la hoja 3 con su tabla; aquí entra la del cuadrante */
-  let fasesK='';
-  if(F&&F.tests.length){const b=F.tests.slice().sort((x,y)=>y.suben/y.n-x.suben/x.n||y.n-x.n)[0];
-    fasesK='<b>En '+F.mejoran+' de '+F.tests.length+' pruebas físicas mejoran más jugadores de los que empeoran</b>'+(b?'; donde más, '+E(bieLlano(b.t).toLowerCase())+' ('+b.suben+' de '+b.n+')':'')+'.';}
+  /* ── 2 · Cómo está el equipo ── */
+  const rr=[].concat(...MS.map(o=>o.rec)),recM=rr.length?Math.round(med(rr)):null;
+  let dj=0,fu=0;if(DC&&DC.meses)Object.keys(DC.meses).forEach(k=>{const x=DC.meses[k];if(x&&x.dj){dj+=x.dj;fu+=x.f;}});
+  const disp=dj?100*(1-fu/dj):null,les=MS.reduce((a,o)=>a+o.les,0),mol=MS.reduce((a,o)=>a+o.mol,0);
+  const SVP={ok:'bien',warn:'regular',bad:'mal'};
+  const gk=(aro,t,s)=>'<div class="bv-g">'+aro+'<div><b>'+t+'</b><span>'+s+'</span></div></div>';
+  let p2='';
+  {const L=[];if(disp!=null)L.push((disp>=95?'<b>Casi siempre los tenemos a todos</b>: ':'<b>Disponibles</b>: ')+fmt(disp,0)+' % de los días, sin bajas');
+    if(recM!=null)L.push('se levantan '+SVP[recSev(recM)]+' ('+recM+' de 100)');
+    if(L.length)p2+=lead(L.join('; ')+'.');}
+  p2+='<div class="bv-gs">'
+    +gk(bieAro(disp!=null?disp/100:0,C_AZ,84,'<b>'+(disp!=null?fmt(disp,0)+'<span class="bv-pc"> %</span>':'—')+'</b>'),'Disponibles','de los días, sin baja ni lesión')
+    +gk(bieAro(recM!=null?recM/100:0,recM!=null?'var(--'+recSev(recM)+')':'#d1d1d6',84,'<b>'+(recM!=null?recM:'—')+'</b>'),'Cómo se levantan','de media, de 0 a 100'+(recM!=null?' · <em style="color:var(--'+recSev(recM)+'-text)">'+SVP[recSev(recM)]+'</em>':''))
+    +gk('<span class="bv-gn">'+bieIco('cruz',C_PI)+'<b>'+les+'</b></span>',les===1?'Lesión':'Lesiones',(les===1?'nueva':'nuevas')+' desde julio'+(mol?' · y '+mol+(mol===1?' molestia':' molestias'):''))
+    +'</div>';
+  /* mes a mes: un círculo por mes, que se lee de un vistazo */
+  const mesL=k=>CAL_MES[+k.slice(5,7)-1];
+  const fila=(ic,c,lab,fn)=>'<div class="bv-ml">'+bieIco(ic,c)+'<b>'+lab+'</b></div>'+MS.map(o=>'<div class="bv-mc">'+fn(o)+'</div>').join('');
+  const cel=(v,sev,t)=>v==null?'<span class="bie-mu">—</span>':'<span class="bv-dot bv-dot--'+sev+'">'+t+'</span>';
+  p2+=sec('Mes a mes','Cómo se han levantado, cuánto han dormido y cuántos hemos tenido disponibles.')
+    +'<div class="bv-mt" style="grid-template-columns:150px repeat('+MS.length+',1fr)"><div class="bv-mh0"></div>'+MS.map(o=>'<div class="bv-mh">'+mesL(o.k)+(o.k===hoy.slice(0,7)?'<small>en curso</small>':'')+'</div>').join('')
+    +fila('sol','#c08a00','Cómo se levantan',o=>{const v=o.rec.length?Math.round(med(o.rec)):null;return cel(v,v!=null?recSev(v):'',v);})
+    +fila('luna',C_VI,'Horas de sueño',o=>{const v=o.sue.length?med(o.sue):null;return v==null?'<span class="bie-mu">—</span>':'<span class="bv-mv">'+fmt(v,1)+' h</span>';})
+    +fila('gente',C_AZ,'Disponibles',o=>o.disp==null?'<span class="bie-mu">—</span>':'<span class="bv-mv">'+fmt(o.disp,0)+' %</span><i class="bv-mb"><i style="width:'+Math.max(2,o.disp).toFixed(1)+'%"></i></i>')
+    +fila('cruz',C_PI,'Lesiones nuevas',o=>o.les?'<span class="bv-cx">'+Array(Math.min(o.les,6)).fill(bieIco('cruz',C_PI)).join('')+'</span>':'<span class="bv-mv bie-mu">0</span>')
+    +'</div>';
+  /* y hoy: el cuadrante de la v963 */
   let CQ=null;try{CQ=cuaDatos();}catch(e){console.error('bmnava · informe, cuadrante',e);}
   const cqHoy=refk===hoy;
-  {const fr=CQ&&CQ.P.length?bieCqFrase(CQ,cqHoy?'Hoy':'El '+dm(refk)):'';if(fr)k2.push(fr);}
-  let cqH=ttl('Cómo llega cada jugador '+(cqHoy?'hoy':'el '+fl(refk)),'Cada cara es un jugador: cuanto más a la derecha, más carga lleva esta semana; cuanto más arriba, mejor llega.');
+  p2+=sec('Cómo llega cada jugador '+(cqHoy?'hoy':'el '+fl(refk)),CQ&&CQ.P.length?bieCqFrase(CQ,cqHoy?'Hoy':'El '+dm(refk)):'');
   if(CQ&&CQ.P.length){
-    const ley=(CQ.P.some(x=>x.prio)?'<span><i class="bie-l-prio"></i>aro rojo: el primero al que mirar</span>':'')+(CQ.P.some(x=>!x.hoy)?'<span><i class="bie-l-viejo"></i>aro de puntos: aún sin el parte de ese día (va con el último)</span>':'');
-    cqH+=bieCqHTML(CQ,BIE_CQ_W,BIE_CQ_H)+bieCqFueraHTML(CQ,cqHoy,ley)
-      +'<p class="bie-pie">Para quien lo explica: la carga es el ACWR (7 días contra las 3 semanas anteriores; «lo suyo», de '+fmt(L.acwrYellowLo,1)+' a '+fmt(L.acwrYellowHi,1)+') y cómo llega, el readiness (parte, carga y dolor; bien con 75 o más). Aro rojo: readiness por debajo de 55 o ACWR por encima de '+fmt(L.acwrRedHi,1)+'.</p>';
-  }else cqH+='<p class="bie-pie">Nadie tiene todavía tres semanas de carga y el parte de ese día: sin las dos cosas no se puede colocar a nadie.</p>';
-  let fasesH='';
-  if(F&&F.tests.length){
-    const FL=F.fases;
-    const nv=Math.min(BIE_FT_N,F.tests.length);
-    fasesH=ttl('Las valoraciones físicas, desde «'+E(FL[0].fase)+'»',fasesK)
-      +'<table class="bie-ft"><thead><tr><th>Prueba</th><th>Ahora<small>marca típica en «'+E(FL[1].fase)+'»</small></th><th>Cambio<small>el típico de cada jugador</small></th><th>Mejoran</th></tr></thead><tbody>'
-      +F.tests.slice(0,nv).map(o=>{const u=o.t.unit?' '+o.t.unit:'',
-        /* los decimales los pone la escala de la prueba (los de la marca de ahora); el cambio lleva
-           al menos uno, y uno más si con esos se quedaría en cero */
-        dA=(x=>x>=100?0:x>=10?1:2)(Math.abs(o.ahora)),dC=(()=>{let k=Math.max(1,dA);while(k<3&&o.d!==0&&Math.round(Math.abs(o.d)*Math.pow(10,k))===0)k++;return k;})();
-        const mejor=o.t.lowerBetter?o.d<0:o.d>0;
-        const ll=bieLlano(o.t);
-        const nq=x=>String(x).toLowerCase().replace(/[^a-z0-9áéíóúñ ]/g,'').trim();
-        return '<tr><td><b>'+E(ll)+'</b>'+(nq(ll).indexOf(nq(o.t.name))<0?'<small>'+E(o.t.name)+'</small>':'')+'</td><td>'+fmt(o.ahora,dA)+E(u)+'</td>'
-          +'<td><b class="'+(o.d===0?'':mejor?'bie-up':'bie-dn')+'">'+(o.d>0?'▲ +':o.d<0?'▼ −':'= ')+fmt(Math.abs(o.d),dC)+E(u)+'</b>'+(o.d===0?'':'<small class="bie-mw">'+(mejor?'mejor':'peor')+'</small>')+'</td>'
-          +'<td><i class="bie-f-b"><i class="m" style="width:'+(o.suben/o.n*100).toFixed(1)+'%"></i><i class="p" style="width:'+(o.bajan/o.n*100).toFixed(1)+'%"></i></i><em>'+o.suben+' de '+o.n+'</em></td></tr>';}).join('')+'</tbody></table>'
-      +'<p class="bie-pie">'+(F.tests.length>nv?'Las '+nv+' pruebas con más jugadores medidos en las dos fases. ':'')+'En verde, los que mejoran; en gris, los que empeoran.</p>';
-  }
-  /* v963 · «La recuperación, semana a semana» sale de la hoja: la recuperación ya va mes a mes en
-     la tabla, y su sitio es para el cuadrante. Las valoraciones pasan a la hoja 3, la del perfil físico. */
-  pags.push({tit:'Cómo ha respondido el equipo',sub:'Bienestar y disponibilidad, mes a mes · y cómo llega hoy cada jugador',cuerpo:
-    clave(k2)
-    +ttl('La respuesta, mes a mes','Lo que declaran cada mañana y lo que registró el cuerpo médico.')
-    +tabla([
-      {lab:'Recuperación',mejor:'alto',barra:true,sub:'de 0 a 100',v:o=>med(o.rec),fmt:v=>Math.round(v)+' %',col:v=>'var(--'+recSev(Math.round(v))+'-text)',bc:v=>'var(--'+recSev(Math.round(v))+')'},
-      {lab:'Horas de sueño',mejor:'alto',v:o=>med(o.sue),fmt:v=>fmt(v,1)+' h'},
-      {lab:'Fatiga',mejor:'bajo',sub:'de 1 a 5',v:o=>med(o.fat),fmt:v=>fmt(v,1)},
-      {lab:'Dolor muscular',mejor:'bajo',sub:'de 1 a 5',v:o=>med(o.doms),fmt:v=>fmt(v,1)},
-      {lab:'Partes con dolor',mejor:'bajo',sub:'en el cuestionario',v:o=>o.partes?o.dolor/o.partes*100:null,fmt:v=>Math.round(v)+' %'},
-      {lab:'Disponibilidad',mejor:'alto',sub:'días sin baja',v:o=>o.disp,fmt:v=>fmt(v,1)+' %',barra:false},
-      {lab:'Lesiones nuevas',v:o=>o.les,fmt:v=>String(v)+(v?'':''),html:o=>'<b>'+o.les+'</b>'+(o.mol?'<span class="bie-nbt">'+o.mol+(o.mol===1?' molestia':' molestias')+'</span>':'')}])
-    +cqH});
-  /* ── 3 · El perfil físico ── */
+    const ley=(CQ.P.some(x=>x.prio)?'<span><i class="bie-l-prio"></i>aro rojo: el primero al que mirar</span>':'')+(CQ.P.some(x=>!x.hoy)?'<span><i class="bie-l-viejo"></i>aro de puntos: aún sin el parte de ese día</span>':'');
+    p2+=bieCqHTML(CQ,BIE_CQ_W,BIE_CQ_H)+bieCqFueraHTML(CQ,cqHoy,ley);
+  }else p2+='<p class="bv-nada">Nadie tiene todavía tres semanas de trabajo y el parte de ese día: sin las dos cosas no se puede colocar a nadie.</p>';
+  pags.push({tit:'Cómo está el equipo',sub:'Cómo han respondido desde julio · y cómo llega hoy cada uno',cuerpo:p2});
+
+  /* ── 3 · Cada jugador ── */
   const CJ={};NS.forEach(n=>{try{CJ[n]=cjDatos(n);}catch(e){CJ[n]=null;}});
   const conVal=NS.filter(n=>CJ[n]&&(CJ[n].nota!=null||CJ[n].caps.some(c=>c.lv!=null)));
   const ult=conVal.map(n=>CJ[n].ultima).filter(Boolean).map(d=>typeof d==='string'?d:dkey(d)).sort().pop();
-  const champT=conVal.reduce((a,n)=>a+(CJ[n].champ||0),0);
-  const nvCol=lv=>REF_NIV[lv][1],nvTx=lv=>lv===3?'var(--champ)':['var(--bad-text)','var(--warn-text)','var(--ok-text)'][lv];
-  const carta=n=>{const C=CJ[n];
-    if(!C||conVal.indexOf(n)<0)return '<div class="bie-cd bie-cd--x"><div class="bie-cd-h">'+bieAv(n,'g')+'<div><b>'+E(n)+'</b><div class="bie-cd-s"><span>'+E(biePuesto(n))+'</span></div></div></div><p class="bie-mu">Sin valoración esta temporada.</p></div>';
-    const caps=C.caps.map(x=>{if(x.lv==null)return '<div class="bie-cp"><span>'+E(x.c)+'</span><i class="bie-cb"></i><em class="bie-mu">sin prueba</em></div>';
-      const wv=Math.max(4,Math.min(100,(x.v!=null?x.v:x.lv+.5)/3*100));
-      return '<div class="bie-cp"><span>'+E(x.c)+'</span><i class="bie-cb"><i style="width:'+wv.toFixed(1)+'%;background:'+nvCol(x.lv)+'"></i></i><em style="color:'+nvTx(x.lv)+'">'+(x.lv===3?'★ ':'')+REF_NIV[x.lv][2]+'</em></div>';}).join('');
-    return '<div class="bie-cd"><div class="bie-cd-h">'+bieAv(n,'g')+'<div><b>'+E(n)+'</b><div class="bie-cd-s"><span>'+E(biePuesto(n))+'</span>'
-      +'<span class="bie-nota"><b>'+(C.nota!=null?Math.round(C.nota):'—')+'</b> nota física</span></div>'
-      +'<div class="bie-cd-f">'+(C.champ?'<em class="bie-ch">★ '+C.champ+' en Champions</em>':'<span></span>')
-      +(C.julio!=null?'<em class="'+(C.julio>=0?'bie-up':'bie-dn')+'">'+(C.julio>0?'▲ +':C.julio<0?'▼ −':'')+Math.abs(C.julio)+' desde julio</em>':'')+'</div></div></div>'+caps+'</div>';};
-  const k3=[];
+  /* el nivel, en un medidor de cuatro bloques: se lee por su largo, también en blanco y negro */
+  const met=lv=>lv==null?'<i class="bv-mt0">sin prueba</i>':'<span class="bv-mw"><i class="bv-me">'+[0,1,2,3].map(k=>'<i'+(k<=lv?' style="background:'+REF_NIV[lv][1]+'"':'')+'></i>').join('')+'</i>'+(lv===3?'<b class="bv-st">★</b>':'')+'</span>';
+  const card=n=>{const C=CJ[n],ft=bieFoto(n);
+    const cab='<div class="bv-cd-h"><img src="'+E(ft)+'" alt="">'+(C&&C.nota!=null?'<span class="bv-nt"><b>'+Math.round(C.nota)+'</b><small>nota</small></span>':'')+'</div>'
+      +'<b class="bv-cd-n">'+E(dos(n))+'</b><span class="bv-cd-p">'+E(biePuesto(n))+'</span>';
+    if(!C||conVal.indexOf(n)<0)return '<div class="bv-cd bv-cd--x">'+cab+'<p>Sin valoración esta temporada</p></div>';
+    return '<div class="bv-cd">'+cab+C.caps.map(x=>'<div class="bv-cp"><span>'+E(x.c)+'</span>'+met(x.lv)+'</div>').join('')+'</div>';};
+  let lead3='';
   {const top=conVal.filter(n=>CJ[n].nota!=null).sort((a,b)=>CJ[b].nota-CJ[a].nota).slice(0,3);
-    if(top.length)k3.push('<b>Los más completos: '+top.map(n=>E(corto(n))+' ('+Math.round(CJ[n].nota)+')').join(', ').replace(/, ([^,]*)$/,' y $1')+'.</b> La nota física va de 40 a 95.');
     const cs={};conVal.forEach(n=>CJ[n].caps.forEach(x=>{if(x.lv==null)return;const o=(cs[x.c]=cs[x.c]||{n:0,f:0});o.n++;if(x.lv<=1)o.f++;}));
     const ks=Object.keys(cs).sort((a,b)=>cs[b].f/cs[b].n-cs[a].f/cs[a].n);
-    if(ks.length&&cs[ks[0]].f)k3.push('<b>Donde la plantilla está más lejos de lo que pide su puesto es la '+E(ks[0].toLowerCase())+'</b>: '+cs[ks[0]].f+' de '+cs[ks[0]].n+' jugadores, en rojo o ámbar.');
-    }
-  /* v963 · «qué mide cada barra» baja a la leyenda de las tarjetas, que es donde se lee */
-  const que3=bieCapQue();
-  pags.push({tit:'El perfil físico',sub:'Las valoraciones de esta temporada · cada jugador contra el baremo de su puesto',cuerpo:
-    clave(k3)+ttl(conVal.length+' de '+NS.length+' jugadores valorados esta temporada',
-      'Cada barra compara una capacidad con lo que se pide en su puesto.'+(ult?' Última valoración: '+fl(ult)+'.':''))
-    +'<div class="bie-cds">'+NS.map(carta).join('')+'</div>'
-    +'<div class="bie-ley bie-ley--nv">'+REF_NIV.map((r,i)=>'<span><i style="background:'+r[1]+'"></i>'+(i===3?'★ ':'')+r[2]+'</span>').join('')+'<span class="bie-mu">· de lo más flojo al listón de un jugador de Champions League · ★ N: pruebas en ese nivel</span>'+(que3?'<span class="bie-ley-q"><b>Qué mide cada barra:</b> '+que3+'.</span>':'')+'</div>'+fasesH});
-
-  /* ── v937 · 4 · Nuestra semana tipo, a fondo ──
-     Daniel, 25/11/2026: *«quita lo de “este microciclo” y profundiza más en
-     Nuestra semana tipo»*. Cada posición del ciclo con los MISMOS días que
-     `calRefMD` (desde el 1 de septiembre, con carga registrada): lo habitual y su
-     rango, lo programado, cómo se reparte entre pista y gimnasio, el RPE, el
-     contacto, la intensidad de las sesiones, el pulso y cómo se levanta la
-     plantilla esa mañana (`bieSemTipoDatos`). */
-  let R={filas:[]};try{R=calRefMD();}catch(e){}
-  let p4='';
-  if(!R.partidos)p4=ttl('Nuestra semana tipo','Para sacar la semana tipo hacen falta los partidos metidos en el calendario.');
-  else{
-    const P=bieSemTipoDatos(R);
-    const ok=P.filter(p=>p.md!=='MD'&&p.n>=MDH_MIN&&p.ua);
-    const dia=md=>md==='MD'?'el día del partido':BIE_MDH[md].toLowerCase()+' del partido';
-    const k4=['<b>Cada columna es un día, contado desde el partido.</b> Si se juega el sábado, «3 días antes» es el miércoles y «la víspera», el viernes.'];
-    if(ok.length){const mx=ok.reduce((a,b)=>b.ua.m>a.ua.m?b:a),v1=ok.find(p=>p.md==='MD-1');
-      k4.push('<b>El día más duro suele ser '+dia(mx.md)+'</b> ('+n0(mx.ua.m)+' UA)'+(v1&&v1.md!==mx.md?'; la víspera bajamos a '+n0(v1.ua.m)+' UA':'')+'.');}
-    const rs=P.filter(p=>p.rec!=null&&(p.n>=MDH_MIN||p.md==='MD'));
-    if(rs.length>1){const lo=rs.reduce((a,b)=>b.rec<a.rec?b:a),hi=rs.reduce((a,b)=>b.rec>a.rec?b:a);
-      k4.push('<b>Se levantan peor '+dia(lo.md)+'</b> ('+Math.round(lo.rec)+' % de recuperación) <b>y mejor '+dia(hi.md)+'</b> ('+Math.round(hi.rec)+' %).');}
-    const fr='La barra es lo habitual ese día, en el color de su nivel: verde, baja; ámbar, media; rojo, alta.';
-    const poco=p=>p.n<MDH_MIN&&p.md!=='MD';
-    const fila=(lab,sub,fn)=>{const v=P.map(fn);if(!v.some(x=>x!=null&&x!==''))return '';
-      return '<div class="bie-stl">'+lab+(sub?'<small>'+sub+'</small>':'')+'</div>'+P.map((p,i)=>'<div class="'+(poco(p)?'bie-st-poco':'')+'">'+(v[i]==null||v[i]===''?'<span class="bie-mu">—</span>':v[i])+'</div>').join('');};
-    const grupo=t=>'<div class="bie-stg">'+t+'</div>';
-    const cab='<div class="bie-stl"></div>'+P.map(p=>{const lv=p.md!=='MD'&&p.ua?nivelUA(Math.round(p.ua.m)):null;
-      return '<div class="bie-sth"><b>'+E(BIE_MDH[p.md])+'</b><span>'+p.md+(p.n?' · '+p.n+(p.n===1?' día':' días'):'')+'</span>'+(lv!=null?'<em style="color:'+['var(--ok-text)','var(--warn-text)','var(--bad-text)'][lv]+'">'+['Baja','Media','Alta'][lv]+'</em>':p.md==='MD'?'<em class="bie-mu">partido</em>':'<em class="bie-mu">sin datos</em>')+'</div>';}).join('');
-    const nivH=a=>{const t=a[0]+a[1]+a[2];if(!t)return null;
-      return '<i class="bie-nb">'+a.map((v,i)=>v?'<i style="flex:'+v+';background:'+LV[i][1]+'"></i>':'').join('')+'</i><span class="bie-nbn">'+[2,1,0].map(i=>'<b style="color:var(--'+['ok','warn','bad'][i]+'-text)">'+a[i]+'</b>').join(' · ')+'</span>';};
-    p4=clave(k4)+ttl('De un partido al siguiente',fr)
-      +'<div class="bie-fig">'+bieSemTipoSVG(P)
-      +'<div class="bie-ley bie-ley--st"><span><i class="bie-l-niv"></i>lo habitual (la media), en el color de su nivel</span><span><i class="bie-l-rg"></i>del día más suave al más duro</span><span><i class="bie-l-r"></i>lo programado, de media</span></div>'
-      +'<div class="bie-st bie-st2">'+cab
-      +grupo('Qué hacemos')
-      +fila('Carga','UA de la sesión',p=>p.ua?'<b>'+n0(p.ua.m)+'</b>'+(p.n>1?'<small>'+n0(p.ua.min)+'–'+n0(p.ua.max)+'</small>':''):null)
-      +fila('Programado','UA en el calendario',p=>p.plan!=null?n0(p.plan):null)
-      +fila('Pista','minutos',p=>p.pista!=null?n0(p.pista)+'′':null)
-      +fila('Gimnasio','minutos · días',p=>p.gymN?(p.gym!=null?n0(p.gym)+'′':'')+'<small>'+p.gymN+' de '+p.n+'</small>':null)
-      +fila('Esfuerzo (RPE)','de 0 a 10',p=>p.rpe!=null?fmt(p.rpe,1):null)
-      +fila('Contacto','de 1 a 5',p=>p.ct!=null?fmt(p.ct,1):null)
-      +fila('Intensidad programada','altas · medias · bajas',p=>nivH(p.nivP))
-      +fila('Intensidad que salió','altas · medias · bajas',p=>nivH(p.niv))
-      +fila('Pulsaciones altas','% en zonas 4 y 5',p=>p.z45!=null?n0(p.z45)+' %<small>Z5 '+fmt(p.z5,1)+' % · '+p.zn+(p.zn===1?' día':' días')+'</small>':null)
-      +grupo('Cómo se levantan esa mañana')
-      +fila('Recuperación',mj('alto')+'de 0 a 100',p=>p.rec!=null?'<b style="color:var(--'+recSev(Math.round(p.rec))+'-text)">'+Math.round(p.rec)+' %</b>':null)
-      +fila('Fatiga',mj('bajo')+'de 1 a 5',p=>p.fat!=null?fmt(p.fat,1):null)
-      +fila('Dolor muscular',mj('bajo')+'de 1 a 5',p=>p.doms!=null?fmt(p.doms,1):null)
-      +fila('Horas de sueño',mj('alto')+'la noche',p=>p.sue!=null?fmt(p.sue,1)+' h':null)
-      +'</div></div>';
-  }
-  pags.push({tit:'Nuestra semana tipo',sub:'Cómo repartimos el trabajo entre un partido y el siguiente · desde el 1 de septiembre',cuerpo:p4
-    +'<p class="bie-pie">La carga es la de la sesión, en la unidad en la que se programa. Cuenta los días registrados desde el 1 de septiembre; con menos de '+MDH_MIN+', la columna va en gris. El partido no lleva nivel: su cuestionario no recoge lo que pesa.</p>'});
+    const L=[];if(top.length)L.push('<b>Los más completos: '+top.map(n=>E(corto(n))).join(', ').replace(/, ([^,]*)$/,' y $1')+'</b>');
+    if(ks.length&&cs[ks[0]].f)L.push('<b>lo que más nos falta, la '+E(ks[0].toLowerCase())+'</b> ('+cs[ks[0]].f+' de '+cs[ks[0]].n+' aún no llegan a lo que pide su puesto)');
+    lead3=L.join('; ')+(L.length?'.':'');}
+  let p3=lead(lead3)
+    +sec('Su nivel físico','Cada barra es una capacidad contra lo que se pide en su puesto: cuantos más bloques, mejor.'+(ult?' Última valoración: '+fl(ult)+'.':''))
+    +'<div class="bv-cds">'+NS.map(card).join('')+'</div>'
+    +'<div class="bv-ley bv-ley--nv">'+[0,1,2,3].map(lv=>'<span>'+met(lv)+'<em>'+['lejos de lo que pide su puesto','cerca','lo que pide su puesto','nivel de Champions League'][lv]+'</em></span>').join('')+'</div>';
+  /* en qué ha mejorado el equipo: las pruebas con más jugadores medidos en las dos fases */
+  const F=bieFases();
+  if(F&&F.tests.length){const FL=F.fases;
+    const tl=o=>{const mejor=o.t.lowerBetter?o.d<0:o.d>0,u=o.t.unit?' '+o.t.unit:'';
+      const dA=(x=>x>=100?0:x>=10?1:2)(Math.abs(o.ahora));let dC=Math.max(1,dA);while(dC<3&&o.d!==0&&Math.round(Math.abs(o.d)*Math.pow(10,dC))===0)dC++;
+      return '<div class="bv-f">'+bieAro(o.suben/o.n,'var(--ok)',58,'<b>'+o.suben+'</b><small>de '+o.n+'</small>')
+        +'<b>'+E(bieLlano(o.t))+'</b><span class="'+(o.d===0?'':mejor?'bie-up':'bie-dn')+'">'+(o.d===0?'= igual':(o.d>0?'▲ +':'▼ −')+fmt(Math.abs(o.d),dC)+E(u)+' · '+(mejor?'mejor':'peor'))+'</span></div>';};
+    p3+=sec('En qué hemos mejorado desde «'+E(FL[0].fase)+'»','<b>En '+F.mejoran+' de '+F.tests.length+' pruebas mejoran más jugadores de los que empeoran.</b> El aro: cuántos mejoran, de los que se midieron las dos veces.')
+      +'<div class="bv-fs">'+F.tests.slice(0,5).map(tl).join('')+'</div>';}
+  pags.push({tit:'Cada jugador',sub:'Su nivel físico frente a lo que pide su puesto · valoraciones de esta temporada',cuerpo:p3});
 
   const tot=pags.length;
-  /* en el móvil, la barra corta de los documentos (bil-lg / bil-co, v921) */
   return '<div class="bmit-bar"><b>'+BIE_TIT+'</b><span>'+tot+' páginas A4 · para el cuerpo técnico</span><button type="button" class="btn" data-bmit="print"><span class="bil-lg">Imprimir o guardar en PDF</span><span class="bil-co">PDF</span></button><button type="button" class="btn ghost" data-bmit="x">Cerrar</button></div>'
-    +'<div class="bmit-pages">'+pags.map((p,i)=>'<section class="bmit-p bie'+(p.portada?' bie-p1':'')+'">'+(p.portada?'':hd(p.tit,p.sub))
+    +'<div class="bmit-pages">'+pags.map((p,i)=>'<section class="bmit-p bie bv">'+hd(p.tit,p.sub)
       +'<div class="bmit-c"><div class="bie-in">'+p.cuerpo+'</div></div><div class="bmit-ft"><span>BM Nava · '+BIE_TIT+' · temporada '+tem+'</span><span>'+(i+1)+' / '+tot+'</span></div></section>').join('')+'</div>';
 }
 window.bmInformeEntrenador=bmInformeEntrenador;
@@ -25631,13 +25513,13 @@ function bmNovedades(){
    la lista (`BMNM.id`, que hay que cambiar a mano cuando cambie la lista) y se
    vuelve a abrir desde «⋯» y la búsqueda. Cada novedad lleva su «Probar», que
    abre esa función. Lo visto es de este ordenador (`bmnava-novedades-mac`). */
-const BMNM={k:'bmnava-novedades-mac',id:'2026-11-27b'};
+const BMNM={k:'bmnava-novedades-mac',id:'2026-11-27c'};
 function bmNovedadesMac(){
   const I=k=>(SB_ICONS[k]||SB_ICONS._||'');
   const hoyK=dkey(new Date());
   const L=[
     ['Lo último'],
-    ['_','El informe para el entrenador, con el cuadrante','En «⋯» › Informe para el entrenador: la hoja 2 dice cómo llega hoy cada jugador, en palabras y con su cara. Las valoraciones pasan a la hoja del perfil físico.',()=>{try{bmInformeEntrenador();}catch(e){}}],
+    ['_','El informe para el entrenador, en 3 hojas','En «⋯» › Informe para el entrenador: cómo trabajamos, cómo está el equipo y cada jugador, con caras, semáforos y sin tecnicismos.',()=>{try{bmInformeEntrenador();}catch(e){}}],
     ['hr','La sesión contra el partido','En Pulsómetros › Sesión: el tiempo en zonas altas, en Z5 y la FC media de la sesión contra vuestros partidos medidos, y quién llegó a su pulso de partido.',()=>{go('hr');try{hrModo('equipo');}catch(e){}}],
     ['hr','Pulso contra esfuerzo','En Pulsómetros › Sesión, con caras: lo que dice su pulso contra el RPE que declaró. Sustituye a «Eficiencia interna × externa».',()=>{go('hr');try{hrModo('equipo');}catch(e){}}],
     ['medico','Vigilancia tras la vuelta','En Médico › Resumen: quién ha vuelto de una lesión o molestia en los últimos 21 días, con su carga, su ACWR y su recuperación.',()=>go('medico')],
@@ -62063,6 +61945,125 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .bie-ft td{padding:3px 6px}
 .bie-ley-q b{font-weight:600;color:#1d1d1f}
 </style>
+<style id="bm-v964">
+/* v964 · el informe para el entrenador, en 3 hojas y ultra visual (documento: fijado a claro) */
+.bv .bmit-hd{margin-bottom:16px}
+.bv-lead{margin:0 0 16px;font-size:16px;line-height:1.4;color:#3a3a3c;letter-spacing:-.005em}
+.bv-lead b{color:#1d1d1f;font-weight:700}
+.bv-sec{margin:22px 0 10px}
+.bv-sec h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.01em;color:#1d1d1f}
+.bv-sec p{margin:3px 0 0;font-size:12.5px;line-height:1.45;color:#3a3a3c}
+.bv-sec p b{color:#1d1d1f;font-weight:600}
+.bv-nada{margin:6px 0 0;font-size:12px;color:#6e6e73}
+.bv-ic{display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border-radius:9px;font-style:normal}
+.bv-ic svg{width:19px;height:19px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+/* hoja 1 · las cuatro cifras */
+.bv-ts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.bv-t{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px 14px 13px;border-radius:16px;background:#f5f5f7}
+.bv-t .bv-ic{margin-bottom:8px}
+.bv-t>b{font-size:36px;line-height:1;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:#1d1d1f}
+.bv-t>span{font-size:12px;line-height:1.3;color:#3a3a3c}
+/* la temporada */
+.bv-fig{margin:2px 0 0}
+.bv-sb{fill:#a9b9e6}.bv-sb--top{fill:var(--accent)}.bv-sb--p{fill:#d8deef}
+.bv-base{stroke:#d1d1d6;stroke-width:1}
+.bv-norm{stroke:#1d1d1f;stroke-width:1.4;stroke-dasharray:5 4}
+.bv-pt{fill:#6e56cf}
+.bv-top{font-size:10.5px;font-weight:700;fill:var(--accent)}
+.bv-mes{font-size:10.5px;fill:#6e6e73}
+.bv-ley{display:flex;flex-wrap:wrap;align-items:center;gap:5px 16px;margin-top:7px;font-size:11px;color:#6e6e73}
+.bv-ley>span{display:inline-flex;align-items:center;gap:6px}
+.bv-ley>span>i{display:inline-block;width:11px;height:11px;border-radius:3px}
+.bv-ley .bv-l-b{background:#a9b9e6}.bv-ley .bv-l-p{background:#d8deef}
+.bv-ley .bv-l-n{width:18px;height:0;border-radius:0;border-top:1.5px dashed #1d1d1f}
+.bv-ley .bv-l-pt{width:7px;height:7px;border-radius:50%;background:#6e56cf}
+.bv-ley .bv-l-rec{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:5px 0 0 var(--warn)}
+.bv-ley-r{margin-left:auto}
+/* la semana tipo */
+.bv-wk{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}
+.bv-dc{display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 6px 10px;border-radius:14px;background:#f5f5f7;text-align:center}
+.bv-dn{font-size:12px;font-weight:700;line-height:1.2;color:#1d1d1f;min-height:29px;display:flex;align-items:center}
+.bv-dw{font-size:10.5px;color:#6e6e73;margin-top:-2px}
+.bv-dbar{position:relative;width:34px;height:150px;margin-top:7px;border-radius:9px;background:#e9e9ee;overflow:hidden}
+.bv-dbar>i{position:absolute;left:0;right:0;bottom:0;border-radius:9px}
+.bv-dbar--md{display:grid;place-items:center;background:transparent;width:auto;overflow:visible}
+.bv-pc{font-size:14px;font-weight:600}
+.bv-dbar--md .bv-ic{width:38px;height:38px;border-radius:50%}
+.bv-dbar--md .bv-ic svg{width:24px;height:24px}
+.bv-dl{font-style:normal;font-size:13px;font-weight:700;color:#3a3a3c;margin-top:2px}
+.bv-dp{display:flex;flex-direction:column;gap:3px;min-height:40px;margin-top:3px}
+.bv-dm{display:inline-flex;align-items:center;justify-content:center;gap:4px;font-size:10.5px;line-height:1.2;color:#3a3a3c}
+.bv-dm .bv-ic{width:16px;height:16px;border-radius:5px}
+.bv-dm .bv-ic svg{width:11px;height:11px;stroke-width:2.2}
+.bv-dr{display:inline-flex;align-items:center;gap:5px;margin-top:2px;padding:3px 8px;border-radius:999px;background:#fff;font-size:11.5px;font-weight:700;color:#1d1d1f;font-variant-numeric:tabular-nums}
+.bv-dr i{width:9px;height:9px;border-radius:50%}
+.bv-dc--poco{opacity:.5}
+/* hoja 2 · los tres aros */
+.bv-gs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.bv-g{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:16px;background:#f5f5f7}
+.bv-g>div{min-width:0}
+.bv-g>div>b{display:block;font-size:15px;font-weight:700;color:#1d1d1f}
+.bv-g>div>span{display:block;margin-top:2px;font-size:11.5px;line-height:1.35;color:#3a3a3c}
+.bv-g em{font-style:normal;font-weight:700}
+.bv-aro{position:relative;display:inline-grid;place-items:center;flex:none}
+.bv-aro>svg{position:absolute;inset:0}
+.bv-aro>span{position:relative;display:flex;flex-direction:column;align-items:center;line-height:1}
+.bv-aro>span>b{font-size:22px;font-weight:700;letter-spacing:-.02em;color:#1d1d1f;font-variant-numeric:tabular-nums}
+.bv-aro>span>small{font-size:9.5px;color:#6e6e73;margin-top:1px}
+.bv-gn{display:inline-flex;align-items:center;gap:10px;width:84px;justify-content:center;flex:none}
+.bv-gn .bv-ic{width:34px;height:34px;border-radius:10px}
+.bv-gn>b{font-size:36px;font-weight:700;line-height:1;color:#1d1d1f;font-variant-numeric:tabular-nums}
+/* mes a mes */
+.bv-mt{display:grid;align-items:center;row-gap:0;border-radius:16px;background:#f5f5f7;padding:6px 14px 8px}
+.bv-mt>div{min-height:40px;display:flex;align-items:center;justify-content:center;border-top:1px solid #e5e5ea}
+.bv-mt>.bv-mh,.bv-mt>.bv-mh0{border-top:none}
+.bv-mh{flex-direction:column;font-size:12.5px;font-weight:700;color:#1d1d1f;text-transform:capitalize;min-height:30px!important}
+.bv-mh small{font-size:9.5px;font-weight:500;color:#6e6e73;text-transform:none}
+.bv-ml{justify-content:flex-start!important;gap:9px}
+.bv-ml .bv-ic{width:24px;height:24px;border-radius:7px}
+.bv-ml .bv-ic svg{width:15px;height:15px}
+.bv-ml b{font-size:12px;font-weight:600;color:#1d1d1f}
+.bv-mc{flex-direction:column;gap:3px}
+.bv-dot{display:inline-grid;place-items:center;min-width:36px;height:26px;padding:0 7px;border-radius:13px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.bv-dot--ok{background:rgba(30,168,99,.16);color:var(--ok-text)}
+.bv-dot--warn{background:rgba(224,168,0,.22);color:var(--warn-text)}
+.bv-dot--bad{background:rgba(226,59,50,.14);color:var(--bad-text)}
+.bv-mv{font-size:13px;font-weight:700;color:#1d1d1f;font-variant-numeric:tabular-nums}
+.bv-mb{display:block;width:52px;height:4px;border-radius:2px;background:#e1e1e6;overflow:hidden}
+.bv-mb i{display:block;height:100%;background:var(--accent)}
+.bv-cx{display:inline-flex;gap:3px}
+.bv-cx .bv-ic{width:18px;height:18px;border-radius:5px}
+.bv-cx .bv-ic svg{width:12px;height:12px;stroke-width:2.4}
+/* hoja 3 · cada jugador */
+.bv-cds{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.bv-cd{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 9px 9px;border-radius:14px;background:#f5f5f7;min-width:0}
+.bv-cd-h{position:relative;width:54px;height:54px;margin-bottom:3px}
+.bv-cd-h img{display:block;width:54px;height:54px;border-radius:50%;object-fit:cover;object-position:50% 12%;background:#e9e9ee}
+.bv-nt{position:absolute;right:-22px;top:-4px;display:flex;flex-direction:column;align-items:center;min-width:34px;padding:3px 5px 2px;border-radius:10px;background:#1d2836;color:#fff;line-height:1}
+.bv-nt b{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.bv-nt small{font-size:8.5px;font-weight:600;opacity:.85;margin-top:1px}
+.bv-cd-n{font-size:12px;font-weight:700;line-height:1.2;color:#1d1d1f;text-align:center;max-width:100%;text-wrap:balance}
+.bv-cd-p{font-size:10px;color:#6e6e73;margin-bottom:4px}
+.bv-cp{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;font-size:10px;color:#3a3a3c}
+.bv-mw{display:inline-flex;align-items:center;gap:3px;flex:none}
+.bv-me{display:inline-flex;gap:2px;flex:none}
+.bv-ley>span>.bv-mw i.bv-me{display:inline-flex;width:auto;height:auto;border-radius:0}
+.bv-me>i{display:block;width:9px;height:9px;border-radius:2.5px;background:#dcdce1}
+.bv-st{font-size:10px;color:var(--champ);line-height:1}
+.bv-mt0{font-style:normal;font-size:9.5px;color:#8e8e93}
+.bv-cd--x p{margin:6px 0 0;font-size:10.5px;color:#6e6e73;text-align:center}
+.bv-ley--nv{gap:5px 18px;margin-top:9px}
+.bv-ley--nv>span{gap:6px}
+.bv-ley--nv em{font-style:normal}
+/* en qué hemos mejorado */
+.bv-fs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.bv-f{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 8px 11px;border-radius:14px;background:#f5f5f7;text-align:center}
+.bv-f .bv-aro>span>b{font-size:16px}
+.bv-f>b{font-size:11.5px;font-weight:700;line-height:1.25;color:#1d1d1f;min-height:29px;display:flex;align-items:center}
+.bv-f>span{font-size:10.5px;font-weight:600}
+/* el cuadrante, dentro de esta hoja */
+.bv .bie-cqw{margin-top:2px}
+</style>
 <style id="bm-v934">
 /* v934 · el informe de salida de un jugador (documento: fijado a claro) y su modo */
 .bs-p .bmit-c>.bs-b{margin-bottom:22px}
@@ -69542,8 +69543,8 @@ try{if(window.Chart&&!Chart.registry.plugins.get('bmAcabado'))Chart.register(bmA
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-27.2*/
-const VER_ACTUAL='2026-11-27.2';
+/*BUILD:2026-11-27.3*/
+const VER_ACTUAL='2026-11-27.3';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
