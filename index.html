@@ -19088,6 +19088,7 @@ window.bmInformeTemporada=bmInformeTemporada;
    explican son los de la app: readiness 75/55, ACWR 0,8 · 1,3 · 1,5
    (`CONFIG.load`), carga de sesión 600/900 UA (`NIV_UA`) y el baremo por puesto. */
 const BIE_TIT='Lo que venimos haciendo';
+const BIE_FT_N=5;   /* v963 · cuántas pruebas lleva la tabla de valoraciones en la hoja 3 */
 const BIE_MDH={'MD+1':'Día después','MD+2':'2 días después','MD+3':'3 días después','MD-3':'3 días antes','MD-2':'2 días antes','MD-1':'Víspera','MD':'Partido'};
 /* v940 · El nombre de cada prueba en palabras de cualquiera; el técnico va debajo */
 const BIE_LLANO={cmj:'Salto vertical',cmju:'Salto a una pierna',cmja:'Asimetría del salto',rsi:'Reactividad (salto tras caída)',v7:'Lanzamiento desde 7 m',v9:'Lanzamiento desde 9 m',bench:'Fuerza máxima en banca',benchrel:'Fuerza en banca por kilo de peso',squat:'Fuerza máxima en sentadilla',squatrel:'Fuerza en sentadilla por kilo de peso',grip:'Fuerza de agarre',grasa:'Grasa corporal',masa:'Músculo (% del peso)',masakg:'Músculo (kg)',tobm:'Movilidad de tobillo',toba:'Asimetría de tobillo',vift:'Resistencia (30-15 IFT)',vo2:'Capacidad aeróbica (VO₂máx)',sp10:'Sprint 10 m',sp20:'Sprint 20 m',sp30:'Sprint 30 m',ttest:'Cambio de dirección (T-test)',acc20:'Aceleración 0–20 m',imo:'IMO (composición corporal)'};
@@ -19204,6 +19205,107 @@ function bieSemTipoSVG(P){
     if(p.plan!=null)s+='<line class="bie-cref" x1="'+(cx-bw/2-8).toFixed(1)+'" x2="'+(cx+bw/2+8).toFixed(1)+'" y1="'+y(p.plan).toFixed(1)+'" y2="'+y(p.plan).toFixed(1)+'"/>';
     s+='<text class="bie-val" x="'+cx.toFixed(1)+'" y="'+(Math.min(y(p.ua.m),p.n>1?y(p.ua.max):1e9,p.plan!=null?y(p.plan):1e9)-6).toFixed(1)+'" text-anchor="middle">'+n0(p.ua.m)+'</text>';});
   return s+'</svg>';
+}
+/* v963 · El cuadrante de carga y readiness, en el informe del entrenador.
+   Daniel, 27/11/2026: *«mete los cuadrantes, que creo que son muy interesantes,
+   y vamos a hacerlo dándole una vuelta para hacerlo de manera súper sencilla de
+   interpretar»*. Eligió el de carga y readiness, como plano con caras y en
+   palabras, dentro de las cuatro hojas. Es el del Resumen (`cuaDatos`): los mismos
+   jugadores, los mismos grupos y los mismos cortes —la banda del ACWR y el
+   readiness 75—, del día que se está viendo. Lo que cambia es cómo se dice: los
+   ejes no llevan cifras técnicas («menos carga que lo suyo · su carga de siempre ·
+   más carga que lo suyo», «llega mejor / llega peor»), cada zona lleva su nombre,
+   cuántos hay y qué le pasa, y las cifras van al pie para quien lo explica.
+   **La escala va por tramos**: cada zona ocupa un ancho fijo del plano y dentro de
+   ella la posición es lineal. Sin cifras en el eje, lo que se lee es en qué zona
+   está cada uno y si está cerca del borde; con la escala lineal, la zona de «puede
+   con más» se quedaba en una franja estrecha y sus caras no cabían. */
+const BIE_CQ={
+  mas:{t:'Puede con más',s:'poca carga para lo suyo y llega bien',c:'var(--accent)',ct:'#2a4bb0',f:'rgba(48,86,196,.07)'},
+  bien:{t:'Bien',s:'su carga de siempre y llega bien',c:'var(--ok)',ct:'var(--ok-text)',f:'rgba(30,168,99,.08)'},
+  alta:{t:'Mucha carga y la lleva bien',s:'vigilar que no se pase',c:'var(--warn)',ct:'var(--warn-text)',f:'rgba(224,168,0,.10)'},
+  mirar:{t:'Se levanta peor sin carga alta',s:'preguntarle: no es por la carga',c:'var(--warn)',ct:'var(--warn-text)',f:'rgba(224,168,0,.10)'},
+  bajar:{t:'Bajar la carga',s:'mucha carga y llega peor',c:'var(--bad)',ct:'var(--bad-text)',f:'rgba(226,59,50,.08)'}};
+const BIE_CQ_W=666,BIE_CQ_H=318;   /* el ancho del plano en la hoja (690 de contenido menos la columna del eje) */
+function bieCqMide(t,font){const c=bieCqMide.c||(bieCqMide.c=document.createElement('canvas').getContext('2d'));
+  c.font=font+" -apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif";return c.measureText(t).width;}
+function bieCqParte(t,font,mw){const w=String(t).split(' '),L=[];let cur='';
+  w.forEach(x=>{const n=cur?cur+' '+x:x;if(cur&&bieCqMide(n,font)>mw){L.push(cur);cur=x;}else cur=n;});if(cur)L.push(cur);return L;}
+/* la frase del Resumen de la hoja: cuántos llegan bien y a quién hay que hacer algo */
+function bieCqFrase(D,cuando){
+  const P=D.P;if(!P.length)return '';
+  const corto=n=>{try{return cvCorto(n);}catch(e){return String(n).split(' ')[0];}};
+  const nom=a=>{const s=a.slice(0,3).map(x=>bmEsc(corto(x.n)));const r=a.length-s.length;
+    if(r)return s.join(', ')+' y '+r+(r===1?' más':' más');return s.length>1?s.slice(0,-1).join(', ')+' y '+s[s.length-1]:s[0];};
+  const g=k=>P.filter(x=>x.g===k),nb=P.filter(x=>x.r>=75).length;
+  /* lo que hay que hacer, con nombres; si no hay nada que hacer, quién puede con más y quién va cargado */
+  const pl=a=>a.length>1;
+  const bj=g('bajar'),mi=g('mirar'),al=g('alta'),ma=g('mas');
+  const acc=[];
+  if(bj.length)acc.push('hay que bajar la carga a '+nom(bj));
+  if(mi.length)acc.push((bj.length?'y preguntar a ':'hay que preguntar a ')+nom(mi)+': '+(pl(mi)?'llegan':'llega')+' peor sin tener carga alta');
+  let t=acc.join(', ');
+  if(!acc.length){const o=[];
+    if(al.length)o.push(nom(al)+(pl(al)?' llevan':' lleva')+' mucha carga, pero la '+(pl(al)?'llevan':'lleva')+' bien');
+    if(ma.length)o.push(nom(ma)+(pl(ma)?' pueden':' puede')+' con más');t=o.join('; ');}
+  const nf=(D.fuera||[]).length;
+  return '<b>'+cuando+', '+nb+' de '+P.length+' llegan bien</b>'+(nf?' (y '+nf+(nf===1?' está fuera':' están fuera')+')':'')+'.'+(t?' '+t.charAt(0).toUpperCase()+t.slice(1)+'.':'');
+}
+function bieCqHTML(D,W,H){
+  const P=D.P,L=CONFIG.load,E=bmEsc,{x0,x1,y0,y1}=cuaRango(P);
+  /* por tramos: «menos» 0–22 %, «lo suyo» 22–70 %, «más» 70–100 % del ancho; «llega bien», el 60 % de arriba (es donde suele estar casi toda la plantilla) */
+  const FX=[[x0,0],[L.acwrYellowLo,.22],[L.acwrYellowHi,.70],[x1,1]],FY=[[y0,1],[75,.60],[y1,0]];
+  const tramo=(T,v)=>{v=Math.max(T[0][0],Math.min(T[T.length-1][0],v));for(let i=1;i<T.length;i++){const a=T[i-1],b=T[i];if(v<=b[0]||i===T.length-1){const k=b[0]>a[0]?(v-a[0])/(b[0]-a[0]):0;return a[1]+k*(b[1]-a[1]);}}return T[0][1];};
+  const X=v=>tramo(FX,v)*W,Y=v=>tramo(FY,v)*H;
+  const xl=.22*W,xh=.70*W,y75=.60*H;
+  const Z={mas:[0,0,xl,y75],bien:[xl,0,xh-xl,y75],alta:[xh,0,W-xh,y75],mirar:[0,y75,xh,H-y75],bajar:[xh,y75,W-xh,H-y75]};
+  const cu=k=>P.filter(x=>x.g===k).length;
+  /* los rótulos de cada zona: su nombre con cuántos hay y qué le pasa, partidos a mano al ancho de la zona */
+  const FN='700 12px',FS='500 10px';
+  const LB={};Object.keys(Z).forEach(k=>{const z=Z[k],mw=Math.max(60,z[2]-18),G=BIE_CQ[k];
+    const nl=bieCqParte(G.t+' · '+cu(k),FN,mw),sl=bieCqParte(G.s,FS,mw);
+    const w=Math.max(...nl.map(t=>bieCqMide(t,FN)),...sl.map(t=>bieCqMide(t,FS)))+2,h=nl.length*14.5+sl.length*12.5;
+    const der=k==='alta'||k==='bajar',abajo=k==='mirar'||k==='bajar';
+    const l=der?z[0]+z[2]-9-w:z[0]+9,t=abajo?z[1]+z[3]-7-h:z[1]+7;
+    LB[k]={nl,sl,l,t,w,h,der};});
+  /* caras: cada una en el primer hueco libre más cerca de su sitio y dentro de su zona (regla de la v958) */
+  const corto=n=>{try{return cvCorto(n);}catch(e){return String(n).split(' ')[0];}};
+  const pts=P.map(x=>{const nm=corto(x.n);return {x,nm,px0:X(x.a),py0:Y(x.r),w:Math.max(36,bieCqMide(nm,'600 10px')+8)};});
+  const BX=(px,py,w)=>({l:px-w/2-2,r:px+w/2+2,t:py-21,b:py+32});
+  const choca=(A,B)=>A.l<B.r&&A.r>B.l&&A.t<B.b&&A.b>B.t;
+  const OB=Object.keys(LB).map(k=>{const o=LB[k];return {l:o.l-3,r:o.l+o.w+3,t:o.t-3,b:o.t+o.h+3};});
+  const dentro=(px,py,w)=>px-w/2>=2&&px+w/2<=W-2&&py-21>=2&&py+32<=H-2;
+  const suyo=(o,x,y)=>{const z=Z[o.x.g],A=BX(x,y,o.w);return A.l>=z[0]+3&&A.r<=z[0]+z[2]-3&&A.t>=z[1]+3&&A.b<=z[1]+z[3]-3;};
+  const puestas=[];
+  pts.slice().sort((a,b)=>Math.hypot(a.px0-W/2,a.py0-H/2)-Math.hypot(b.px0-W/2,b.py0-H/2)).forEach(o=>{
+    let best=null;
+    for(const exig of [true,false]){for(let d=0;d<=80&&!best;d++){const r=d*5,N=d===0?1:Math.max(8,Math.round(2*Math.PI*r/12));
+        for(let k=0;k<N;k++){const an=k/N*2*Math.PI,x=o.px0+Math.cos(an)*r,y=o.py0+Math.sin(an)*r*.8;
+          if(!dentro(x,y,o.w)||(exig&&!suyo(o,x,y)))continue;const A=BX(x,y,o.w);
+          if(puestas.some(B=>choca(A,B))||OB.some(B=>choca(A,B)))continue;best=[x,y];break;}}
+      if(best)break;}
+    o.px=best?best[0]:o.px0;o.py=best?best[1]:o.py0;puestas.push(BX(o.px,o.py,o.w));});
+  const f2=v=>v.toFixed(1);
+  let h='<div class="bie-cqw"><div class="bie-cqy"><span><i>← llega peor</i><b>Cómo llega hoy</b><i>llega mejor →</i></span></div>'
+    +'<div class="bie-cq" style="width:'+W+'px;height:'+H+'px">';
+  Object.keys(Z).forEach(k=>{const z=Z[k];h+='<i class="bie-cqz" style="left:'+f2(z[0])+'px;top:'+f2(z[1])+'px;width:'+f2(z[2])+'px;height:'+f2(z[3])+'px;background:'+BIE_CQ[k].f+'"></i>';});
+  h+='<i class="bie-cqv" style="left:'+f2(xl)+'px;top:0;height:'+f2(y75)+'px"></i><i class="bie-cqv" style="left:'+f2(xh)+'px;top:0;height:'+H+'px"></i><i class="bie-cqh" style="top:'+f2(y75)+'px"></i>';
+  Object.keys(LB).forEach(k=>{const o=LB[k],G=BIE_CQ[k];
+    h+='<div class="bie-cql" style="left:'+f2(o.l)+'px;top:'+f2(o.t)+'px;width:'+f2(o.w)+'px;text-align:'+(o.der?'right':'left')+'"><b style="color:'+G.ct+'">'+o.nl.map(E).join('<br>')+'</b><small>'+o.sl.map(E).join('<br>')+'</small></div>';});
+  pts.forEach(o=>{const x=o.x,G=BIE_CQ[x.g];
+    h+='<span class="bie-cqp'+(x.hoy?'':' bie-cqp--viejo')+'" style="left:'+f2(o.px)+'px;top:'+f2(o.py)+'px;--c:'+G.c+'"><span class="bie-cqi"><img src="'+E(bieFoto(x.n))+'" alt="">'+(x.prio?'<i></i>':'')+'</span><em>'+E(o.nm)+'</em></span>';});
+  h+='</div><span></span><div class="bie-cqx"><span style="width:22%">menos carga que lo suyo</span><span style="width:48%">su carga de siempre</span><span style="width:30%">más carga que lo suyo</span></div></div>';
+  return h;
+}
+/* fuera de ese día y sin datos para colocarlo: no desaparecen, se dicen (regla de la v962) */
+function bieCqFueraHTML(D,hoy,ley){
+  const E=bmEsc,corto=n=>{try{return cvCorto(n);}catch(e){return String(n).split(' ')[0];}};
+  const ch=(n,t)=>'<span class="bie-cqc">'+bieAv(n,'s')+'<b>'+E(corto(n))+'</b>'+(t?'<i>'+E(t)+'</i>':'')+'</span>';
+  const g=[];
+  if(D.fuera.length)g.push('<div><em>'+(hoy?'Fuera hoy':'Fuera ese día')+'</em>'+D.fuera.map(x=>ch(x.n,String((PHYSTAT[x.st]||{}).lab||x.st||'').toLowerCase())).join('')+'</div>');
+  if(D.sin.length)g.push('<div><em>Sin datos para colocarlo</em>'+D.sin.map(x=>ch(x.n,x.por==='acwr'?'aún sin tres semanas de carga':'sin parte')).join('')+'</div>');
+  if(ley)g.unshift('<div class="bie-ley">'+ley+'</div>');
+  return g.length?'<div class="bie-cqf">'+g.join('')+'</div>':'';
 }
 async function bmInformeEntrenador(){
   /* con la serie de readiness recorriendo los días, REF() es prestado (§2.1) */
@@ -19396,7 +19498,6 @@ function bieHTML(){
     +'<p class="bie-pie">La carga es la media de la plantilla. Los partidos no entran en los minutos ni en el esfuerzo: su cuestionario no recoge lo que pesa un partido.</p>'});
 
   /* ── v936 · 2 · Cómo ha respondido el equipo ── */
-  const WR=bieRecSemanas(W);
   const F=bieFases();
   const k2=[];
   {const rr=[].concat(...MS.map(o=>o.rec));if(rr.length){const m=Math.round(med(rr)),sv=recSev(m),ms=MS.filter(o=>o.rec.length);
@@ -19405,14 +19506,26 @@ function bieHTML(){
   {const D=MS.D;let dj=0,fu=0;if(D&&D.meses)Object.keys(D.meses).forEach(k=>{const x=D.meses[k];if(x&&x.dj){dj+=x.dj;fu+=x.f;}});
     const les=MS.reduce((a,o)=>a+o.les,0),mol=MS.reduce((a,o)=>a+o.mol,0);
     if(dj)k2.push('<b>Hemos tenido disponible al '+fmt(100*(1-fu/dj),1)+' % de la plantilla</b> (días sin baja), con '+les+(les===1?' lesión nueva':' lesiones nuevas')+(mol?' y '+mol+(mol===1?' molestia':' molestias'):'')+' desde julio.');}
+  /* v963 · la frase de las valoraciones baja a la hoja 3 con su tabla; aquí entra la del cuadrante */
+  let fasesK='';
   if(F&&F.tests.length){const b=F.tests.slice().sort((x,y)=>y.suben/y.n-x.suben/x.n||y.n-x.n)[0];
-    k2.push('<b>En '+F.mejoran+' de '+F.tests.length+' pruebas físicas mejoran más jugadores de los que empeoran</b>'+(b?'; donde más, '+E(bieLlano(b.t).toLowerCase())+' ('+b.suben+' de '+b.n+')':'')+'.');}
+    fasesK='<b>En '+F.mejoran+' de '+F.tests.length+' pruebas físicas mejoran más jugadores de los que empeoran</b>'+(b?'; donde más, '+E(bieLlano(b.t).toLowerCase())+' ('+b.suben+' de '+b.n+')':'')+'.';}
+  let CQ=null;try{CQ=cuaDatos();}catch(e){console.error('bmnava · informe, cuadrante',e);}
+  const cqHoy=refk===hoy;
+  {const fr=CQ&&CQ.P.length?bieCqFrase(CQ,cqHoy?'Hoy':'El '+dm(refk)):'';if(fr)k2.push(fr);}
+  let cqH=ttl('Cómo llega cada jugador '+(cqHoy?'hoy':'el '+fl(refk)),'Cada cara es un jugador: cuanto más a la derecha, más carga lleva esta semana; cuanto más arriba, mejor llega.');
+  if(CQ&&CQ.P.length){
+    const ley=(CQ.P.some(x=>x.prio)?'<span><i class="bie-l-prio"></i>aro rojo: el primero al que mirar</span>':'')+(CQ.P.some(x=>!x.hoy)?'<span><i class="bie-l-viejo"></i>aro de puntos: aún sin el parte de ese día (va con el último)</span>':'');
+    cqH+=bieCqHTML(CQ,BIE_CQ_W,BIE_CQ_H)+bieCqFueraHTML(CQ,cqHoy,ley)
+      +'<p class="bie-pie">Para quien lo explica: la carga es el ACWR (7 días contra las 3 semanas anteriores; «lo suyo», de '+fmt(L.acwrYellowLo,1)+' a '+fmt(L.acwrYellowHi,1)+') y cómo llega, el readiness (parte, carga y dolor; bien con 75 o más). Aro rojo: readiness por debajo de 55 o ACWR por encima de '+fmt(L.acwrRedHi,1)+'.</p>';
+  }else cqH+='<p class="bie-pie">Nadie tiene todavía tres semanas de carga y el parte de ese día: sin las dos cosas no se puede colocar a nadie.</p>';
   let fasesH='';
   if(F&&F.tests.length){
     const FL=F.fases;
-    fasesH=ttl('Las valoraciones físicas, desde «'+E(FL[0].fase)+'»','Entre los que se midieron en las dos fases: dónde está un jugador típico, cuánto ha cambiado y cuántos mejoran.')
+    const nv=Math.min(BIE_FT_N,F.tests.length);
+    fasesH=ttl('Las valoraciones físicas, desde «'+E(FL[0].fase)+'»',fasesK)
       +'<table class="bie-ft"><thead><tr><th>Prueba</th><th>Ahora<small>marca típica en «'+E(FL[1].fase)+'»</small></th><th>Cambio<small>el típico de cada jugador</small></th><th>Mejoran</th></tr></thead><tbody>'
-      +F.tests.slice(0,8).map(o=>{const u=o.t.unit?' '+o.t.unit:'',
+      +F.tests.slice(0,nv).map(o=>{const u=o.t.unit?' '+o.t.unit:'',
         /* los decimales los pone la escala de la prueba (los de la marca de ahora); el cambio lleva
            al menos uno, y uno más si con esos se quedaría en cero */
         dA=(x=>x>=100?0:x>=10?1:2)(Math.abs(o.ahora)),dC=(()=>{let k=Math.max(1,dA);while(k<3&&o.d!==0&&Math.round(Math.abs(o.d)*Math.pow(10,k))===0)k++;return k;})();
@@ -19422,11 +19535,12 @@ function bieHTML(){
         return '<tr><td><b>'+E(ll)+'</b>'+(nq(ll).indexOf(nq(o.t.name))<0?'<small>'+E(o.t.name)+'</small>':'')+'</td><td>'+fmt(o.ahora,dA)+E(u)+'</td>'
           +'<td><b class="'+(o.d===0?'':mejor?'bie-up':'bie-dn')+'">'+(o.d>0?'▲ +':o.d<0?'▼ −':'= ')+fmt(Math.abs(o.d),dC)+E(u)+'</b>'+(o.d===0?'':'<small class="bie-mw">'+(mejor?'mejor':'peor')+'</small>')+'</td>'
           +'<td><i class="bie-f-b"><i class="m" style="width:'+(o.suben/o.n*100).toFixed(1)+'%"></i><i class="p" style="width:'+(o.bajan/o.n*100).toFixed(1)+'%"></i></i><em>'+o.suben+' de '+o.n+'</em></td></tr>';}).join('')+'</tbody></table>'
-      +'<p class="bie-pie">«Ahora»: la marca de un jugador típico (la mediana) en «'+E(FL[1].fase)+'». «Cambio»: lo que ha cambiado un jugador típico. En verde, los que mejoran; en gris, los que empeoran. Peso y talla no entran: no tienen un lado bueno.</p>';
+      +'<p class="bie-pie">'+(F.tests.length>nv?'Las '+nv+' pruebas con más jugadores medidos en las dos fases. ':'')+'En verde, los que mejoran; en gris, los que empeoran.</p>';
   }
-  pags.push({tit:'Cómo ha respondido el equipo',sub:'Bienestar, disponibilidad y valoraciones físicas · mes a mes',cuerpo:
-    clave(k2)+ttl('La recuperación, semana a semana','Cada punto es cómo se levantó la plantilla esa semana, de media: verde de 75 en adelante, ámbar de 55 a 74.')
-    +(WR?'<div class="bie-fig">'+WR+'</div>':'')
+  /* v963 · «La recuperación, semana a semana» sale de la hoja: la recuperación ya va mes a mes en
+     la tabla, y su sitio es para el cuadrante. Las valoraciones pasan a la hoja 3, la del perfil físico. */
+  pags.push({tit:'Cómo ha respondido el equipo',sub:'Bienestar y disponibilidad, mes a mes · y cómo llega hoy cada jugador',cuerpo:
+    clave(k2)
     +ttl('La respuesta, mes a mes','Lo que declaran cada mañana y lo que registró el cuerpo médico.')
     +tabla([
       {lab:'Recuperación',mejor:'alto',barra:true,sub:'de 0 a 100',v:o=>med(o.rec),fmt:v=>Math.round(v)+' %',col:v=>'var(--'+recSev(Math.round(v))+'-text)',bc:v=>'var(--'+recSev(Math.round(v))+')'},
@@ -19436,7 +19550,7 @@ function bieHTML(){
       {lab:'Partes con dolor',mejor:'bajo',sub:'en el cuestionario',v:o=>o.partes?o.dolor/o.partes*100:null,fmt:v=>Math.round(v)+' %'},
       {lab:'Disponibilidad',mejor:'alto',sub:'días sin baja',v:o=>o.disp,fmt:v=>fmt(v,1)+' %',barra:false},
       {lab:'Lesiones nuevas',v:o=>o.les,fmt:v=>String(v)+(v?'':''),html:o=>'<b>'+o.les+'</b>'+(o.mol?'<span class="bie-nbt">'+o.mol+(o.mol===1?' molestia':' molestias')+'</span>':'')}])
-    +fasesH});
+    +cqH});
   /* ── 3 · El perfil físico ── */
   const CJ={};NS.forEach(n=>{try{CJ[n]=cjDatos(n);}catch(e){CJ[n]=null;}});
   const conVal=NS.filter(n=>CJ[n]&&(CJ[n].nota!=null||CJ[n].caps.some(c=>c.lv!=null)));
@@ -19449,21 +19563,23 @@ function bieHTML(){
       const wv=Math.max(4,Math.min(100,(x.v!=null?x.v:x.lv+.5)/3*100));
       return '<div class="bie-cp"><span>'+E(x.c)+'</span><i class="bie-cb"><i style="width:'+wv.toFixed(1)+'%;background:'+nvCol(x.lv)+'"></i></i><em style="color:'+nvTx(x.lv)+'">'+(x.lv===3?'★ ':'')+REF_NIV[x.lv][2]+'</em></div>';}).join('');
     return '<div class="bie-cd"><div class="bie-cd-h">'+bieAv(n,'g')+'<div><b>'+E(n)+'</b><div class="bie-cd-s"><span>'+E(biePuesto(n))+'</span>'
-      +'<span class="bie-nota"><b>'+(C.nota!=null?Math.round(C.nota):'—')+'</b> nota física</span></div></div></div>'+caps
+      +'<span class="bie-nota"><b>'+(C.nota!=null?Math.round(C.nota):'—')+'</b> nota física</span></div>'
       +'<div class="bie-cd-f">'+(C.champ?'<em class="bie-ch">★ '+C.champ+' en Champions</em>':'<span></span>')
-      +(C.julio!=null?'<em class="'+(C.julio>=0?'bie-up':'bie-dn')+'">'+(C.julio>0?'▲ +':C.julio<0?'▼ −':'')+Math.abs(C.julio)+' desde julio</em>':'')+'</div></div>';};
+      +(C.julio!=null?'<em class="'+(C.julio>=0?'bie-up':'bie-dn')+'">'+(C.julio>0?'▲ +':C.julio<0?'▼ −':'')+Math.abs(C.julio)+' desde julio</em>':'')+'</div></div></div>'+caps+'</div>';};
   const k3=[];
   {const top=conVal.filter(n=>CJ[n].nota!=null).sort((a,b)=>CJ[b].nota-CJ[a].nota).slice(0,3);
-    if(top.length)k3.push('<b>Los más completos: '+top.map(n=>E(corto(n))+' ('+Math.round(CJ[n].nota)+')').join(', ').replace(/, ([^,]*)$/,' y $1')+'.</b> La nota física va de 40 a 95 y compara a cada jugador con el resto de la plantilla.');
+    if(top.length)k3.push('<b>Los más completos: '+top.map(n=>E(corto(n))+' ('+Math.round(CJ[n].nota)+')').join(', ').replace(/, ([^,]*)$/,' y $1')+'.</b> La nota física va de 40 a 95.');
     const cs={};conVal.forEach(n=>CJ[n].caps.forEach(x=>{if(x.lv==null)return;const o=(cs[x.c]=cs[x.c]||{n:0,f:0});o.n++;if(x.lv<=1)o.f++;}));
     const ks=Object.keys(cs).sort((a,b)=>cs[b].f/cs[b].n-cs[a].f/cs[a].n);
     if(ks.length&&cs[ks[0]].f)k3.push('<b>Donde la plantilla está más lejos de lo que pide su puesto es la '+E(ks[0].toLowerCase())+'</b>: '+cs[ks[0]].f+' de '+cs[ks[0]].n+' jugadores, en rojo o ámbar.');
-    const que=bieCapQue();if(que)k3.push('<b>Qué mide cada barra</b>: '+que+'.');}
+    }
+  /* v963 · «qué mide cada barra» baja a la leyenda de las tarjetas, que es donde se lee */
+  const que3=bieCapQue();
   pags.push({tit:'El perfil físico',sub:'Las valoraciones de esta temporada · cada jugador contra el baremo de su puesto',cuerpo:
     clave(k3)+ttl(conVal.length+' de '+NS.length+' jugadores valorados esta temporada',
-      'Cada barra compara una capacidad con lo que se pide en su puesto: de rojo, lo más flojo, a ★ Champions, el listón de un jugador de Champions League.'+(ult?' Última valoración: '+fl(ult)+'.':''))
+      'Cada barra compara una capacidad con lo que se pide en su puesto.'+(ult?' Última valoración: '+fl(ult)+'.':''))
     +'<div class="bie-cds">'+NS.map(carta).join('')+'</div>'
-    +'<div class="bie-ley bie-ley--nv">'+REF_NIV.map((r,i)=>'<span><i style="background:'+r[1]+'"></i>'+(i===3?'★ ':'')+r[2]+'</span>').join('')+'<span class="bie-mu">· de lo más flojo al listón de un jugador de Champions League · ★ N: pruebas en ese nivel</span></div>'});
+    +'<div class="bie-ley bie-ley--nv">'+REF_NIV.map((r,i)=>'<span><i style="background:'+r[1]+'"></i>'+(i===3?'★ ':'')+r[2]+'</span>').join('')+'<span class="bie-mu">· de lo más flojo al listón de un jugador de Champions League · ★ N: pruebas en ese nivel</span>'+(que3?'<span class="bie-ley-q"><b>Qué mide cada barra:</b> '+que3+'.</span>':'')+'</div>'+fasesH});
 
   /* ── v937 · 4 · Nuestra semana tipo, a fondo ──
      Daniel, 25/11/2026: *«quita lo de “este microciclo” y profundiza más en
@@ -25515,12 +25631,13 @@ function bmNovedades(){
    la lista (`BMNM.id`, que hay que cambiar a mano cuando cambie la lista) y se
    vuelve a abrir desde «⋯» y la búsqueda. Cada novedad lleva su «Probar», que
    abre esa función. Lo visto es de este ordenador (`bmnava-novedades-mac`). */
-const BMNM={k:'bmnava-novedades-mac',id:'2026-11-27a'};
+const BMNM={k:'bmnava-novedades-mac',id:'2026-11-27b'};
 function bmNovedadesMac(){
   const I=k=>(SB_ICONS[k]||SB_ICONS._||'');
   const hoyK=dkey(new Date());
   const L=[
     ['Lo último'],
+    ['_','El informe para el entrenador, con el cuadrante','En «⋯» › Informe para el entrenador: la hoja 2 dice cómo llega hoy cada jugador, en palabras y con su cara. Las valoraciones pasan a la hoja del perfil físico.',()=>{try{bmInformeEntrenador();}catch(e){}}],
     ['hr','La sesión contra el partido','En Pulsómetros › Sesión: el tiempo en zonas altas, en Z5 y la FC media de la sesión contra vuestros partidos medidos, y quién llegó a su pulso de partido.',()=>{go('hr');try{hrModo('equipo');}catch(e){}}],
     ['hr','Pulso contra esfuerzo','En Pulsómetros › Sesión, con caras: lo que dice su pulso contra el RPE que declaró. Sustituye a «Eficiencia interna × externa».',()=>{go('hr');try{hrModo('equipo');}catch(e){}}],
     ['medico','Vigilancia tras la vuelta','En Médico › Resumen: quién ha vuelto de una lesión o molestia en los últimos 21 días, con su carga, su ACWR y su recuperación.',()=>go('medico')],
@@ -61903,6 +62020,49 @@ html.bmit-on,html.bmit-on body{overflow:hidden}
 .bm-hp-doc--abs{position:absolute;top:40px;right:52px;height:34px;width:auto;z-index:1}
 .bs-por .bs-id{padding-right:140px}   /* el logo de la portada no pisa un nombre largo */
 </style>
+<style id="bm-v963">
+/* v963 · el cuadrante de carga y readiness en el informe del entrenador (documento: fijado a claro) */
+.bie-cqw{display:grid;grid-template-columns:18px 1fr;gap:0 6px;margin:4px 0 0}
+.bie-cqy{position:relative}
+.bie-cqy>span{position:absolute;left:50%;top:50%;width:330px;display:flex;justify-content:space-between;align-items:center;transform:translate(-50%,-50%) rotate(-90deg);white-space:nowrap;font-size:10.5px;color:#6e6e73}
+.bie-cqy i{font-style:normal}
+.bie-cqy b{font-weight:600;color:#3a3a3c}
+.bie-cq{position:relative;overflow:hidden;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px #e5e5ea}
+.bie-cqz{position:absolute;display:block}
+.bie-cqv{position:absolute;display:block;width:0;border-left:1.5px solid rgba(29,29,31,.28);margin-left:-.75px}
+.bie-cqh{position:absolute;display:block;left:0;right:0;height:0;border-top:1.5px solid rgba(29,29,31,.28);margin-top:-.75px}
+.bie-cql{position:absolute;line-height:1}
+.bie-cql b{display:block;font-size:12px;font-weight:700;line-height:14.5px}
+.bie-cql small{display:block;font-size:10px;font-weight:500;line-height:12.5px;color:#3a3a3c}
+.bie-cqp{position:absolute;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-16px);width:0}
+.bie-cqi{position:relative;display:block;flex:none;width:32px;height:32px}
+.bie-cqi img{display:block;box-sizing:border-box;width:32px;height:32px;border-radius:50%;border:2.5px solid var(--c);object-fit:cover;object-position:50% 12%;background:#e9e9ee}
+.bie-cqp--viejo .bie-cqi img{border-style:dashed}
+.bie-cqi i{position:absolute;left:-4px;top:-4px;right:-4px;bottom:-4px;border:2px solid var(--bad);border-radius:50%}
+.bie-cqp em{display:block;margin-top:4px;font-style:normal;font-size:10px;font-weight:600;line-height:12px;color:#1d1d1f;white-space:nowrap;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff}
+.bie-cqx{display:flex;margin-top:5px;font-size:10.5px;font-weight:600;color:#6e6e73}
+.bie-cqx span{text-align:center}
+.bie-cqx span+span{box-shadow:inset 1px 0 0 #d1d1d6}
+.bie-cqf{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:10px}
+.bie-cqf>div{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.bie-cqf>.bie-ley{margin-top:0;gap:4px 14px}
+.bie-cqf em{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6e6e73;margin-right:2px}
+.bie-cqc{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#1d1d1f}
+.bie-cqc b{font-weight:600}
+.bie-cqc i{font-style:normal;color:#6e6e73}
+.bie-av.s{width:20px;height:20px}
+.bie-ley .bie-l-prio{box-sizing:border-box;width:14px;height:14px;border-radius:50%;background:#e9e9ee;border:2px solid var(--bad)}
+.bie-ley .bie-l-viejo{box-sizing:border-box;width:14px;height:14px;border-radius:50%;background:#e9e9ee;border:2px dashed var(--ok)}
+.bie-cd-h .bie-cd-f{margin-top:2px;min-height:0;font-size:9.5px;line-height:11px}
+.bie-cd-h .bie-cd-s{margin-top:0}
+.bie-ley--nv+.bie-tt{margin-top:18px}
+.bie-ley .bie-ley-q{display:block;flex-basis:100%;color:#3a3a3c}
+/* v963 · la hoja 3 lleva ahora también las valoraciones: tarjetas y filas un poco más juntas */
+.bie-cds{gap:5px}
+.bie-cd{padding:6px 11px 6px}
+.bie-ft td{padding:3px 6px}
+.bie-ley-q b{font-weight:600;color:#1d1d1f}
+</style>
 <style id="bm-v934">
 /* v934 · el informe de salida de un jugador (documento: fijado a claro) y su modo */
 .bs-p .bmit-c>.bs-b{margin-bottom:22px}
@@ -69382,8 +69542,8 @@ try{if(window.Chart&&!Chart.registry.plugins.get('bmAcabado'))Chart.register(bmA
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-27.1*/
-const VER_ACTUAL='2026-11-27.1';
+/*BUILD:2026-11-27.2*/
+const VER_ACTUAL='2026-11-27.2';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
