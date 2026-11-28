@@ -2079,6 +2079,17 @@ Daniel, 27/11/2026, preguntado si quedaba algo más de Coubber, ante siete adapt
 
 **Lo que NO está probado**: con los datos reales de Daniel —sobre todo los partidos medidos de esta temporada, de los que depende la v957, y los episodios reales—.
 
+#### 6.44 Los escudos de los rivales (v967)
+
+Daniel, 28/11/2026: *«subir los logos de los equipos de asobal para meterlos en los días de partido… que nos dé más empaque»*. Los pasó él: la carpeta «Logos clubes ASOBAL 26/27», un PNG por equipo con su código de tres letras. Viven en **`escudos/`**, reducidos a 160 px (unos 400 KB los quince); el del Nava no se copia porque la app usa `escudo.png`, el del 50 aniversario.
+
+| Elemento | Regla |
+|---|---|
+| Cómo se reconoce el rival | El rival es texto libre en cada partido del calendario (`evRival`). `escRival(nombre)` lo compara por palabras, sin tildes ni mayúsculas, con una lista de nombres por código (`ESC_RIV`): «Granollers», «Fraikin Granollers» y «BM Granollers» dan GRA; «Frigoríficos» y «Cangas», CNG; «León» y «Ademar», ADE. **Un rival que no se reconoce se queda como estaba**, con el nombre solo. Si se escribe un equipo de otra forma, se añade a su lista |
+| Códigos | ADE Ademar León · ATV Atlético Valladolid · BAR Barça · BID Bidasoa · CAS Caserío Ciudad Real · CNG Cangas · CQN Cuenca (Ciudad Encantada) · EON Eón Alicante · GRA Granollers · LOG Ciudad de Logroño · PGE Puente Genil · PSG Puerto Sagunto · SEV Proin Sevilla · TLV Torrelavega · VDA Villa de Aranda |
+| Dónde sale (`escRivalHTML`) | Casilla del mes, arriba a la derecha y grande (sólo en el ordenador: en la casilla de 46 px del móvil no cabe) · ficha del día · microciclo del calendario · píldora del próximo partido (en lugar del balón) · la previa, **Nava contra rival** con los dos escudos · «el día de un vistazo» de la barra lateral · cabecera de la lámina A4 · informe del partido · la tarjeta de partido de «Últimas sesiones» |
+| Cambiar un escudo | Se sustituye el archivo en `escudos/` con el mismo código y se sube `ESC_VER`: el navegador guarda la imagen y sin eso seguiría enseñando la vieja |
+
 ---
 
 ## 7. Flujo de trabajo

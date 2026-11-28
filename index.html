@@ -6725,6 +6725,22 @@ html.bmit-on #bm-ri-chip{display:none}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
   #v-equipo #team-cuad{display:none!important}
 }
+/* v967 · los escudos de los rivales */
+.esc-r{display:inline-block;flex:none;object-fit:contain;vertical-align:middle;margin-right:5px}
+.cal-match-esc{position:absolute;top:7px;right:8px;width:36px;height:36px;margin:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){.cal-match-esc{display:none}}
+.cal-pt-line .esc-r{margin:0 2px 0 6px;vertical-align:-6px}
+.bm-prox .bpx-esc{background:transparent!important;box-shadow:none!important;overflow:visible}
+.bm-prox .bpx-esc .esc-r{width:100%;height:100%;margin:0}
+#sb-hoy .sbh-par .sbh-esc{width:18px;height:18px;margin:0}
+#sb-hoy .sbh-par.sbh-par--esc{grid-template-columns:20px minmax(0,1fr) auto!important;column-gap:7px!important}
+.pv-vs{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px}
+.pv-vs img{width:56px;height:56px;object-fit:contain;margin:0}
+.pv-vs span{font-size:var(--fs-sm);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sa-esc{margin:0 4px 0 6px;vertical-align:-7px}
+.bmip-cab .bmip-esc{width:48px;height:48px;margin:0 0 0 auto}
+.mc-esc{vertical-align:-6px;margin-right:6px}
+.ult-esc{width:22px;height:22px;margin:0 2px 0 6px}
 /* v966 · «Últimas sesiones»: las tarjetas arriba, las que quepan, y la tira al pie */
 .ult-card--extra{display:none}
 .ult-card--extra.ult-card--ver{display:block}
@@ -18946,7 +18962,7 @@ function bmInformePartido(dk){
   const kpi=(t,v,sub)=>'<div class="bmip-k"><em>'+t+'</em><b>'+v+'</b><span>'+sub+'</span></div>';
   let h='<div class="bmip-nav" data-html2canvas-ignore="true"><button type="button" data-ip="'+(L[ix-1]||'')+'"'+(ix>0?'':' disabled')+' aria-label="Partido anterior">‹</button><span>'+(ix+1)+' de '+L.length+' partidos de la temporada</span><button type="button" data-ip="'+(L[ix+1]||'')+'"'+(ix<L.length-1?'':' disabled')+' aria-label="Partido siguiente">›</button>'
     +'<button type="button" class="btn ghost" data-ip-png="1">Exportar imagen</button></div>';
-  h+='<div class="bmip" id="bmip-doc"><div class="bmip-cab"><img src="escudo.png" alt="" onerror="this.remove()"><div><small>'+E([comp,fecha,ev.time||''].filter(Boolean).join(' · '))+'</small><b>BM Nava · '+E(riv)+'</b></div></div>'
+  h+='<div class="bmip" id="bmip-doc"><div class="bmip-cab"><img src="escudo.png" alt="" onerror="this.remove()"><div><small>'+E([comp,fecha,ev.time||''].filter(Boolean).join(' · '))+'</small><b>BM Nava · '+E(riv)+'</b></div>'+escRivalHTML(riv,48,'bmip-esc')+'</div>'
     +'<div class="bmip-ks">'
       +kpi('Jugaron',String(jug.length),jug.length?n0(jug.reduce((s,f)=>s+f.m,0))+' minutos repartidos':'sin minutos apuntados')
       +kpi('Carga del partido',(()=>{const v=media(filas.map(f=>f.ua));return v!=null?n0(v)+' UA':'—';})(),'media de quien tiene cuestionario')
@@ -20616,7 +20632,7 @@ function bmMenuHoy(){
   const cifra=(x,l)=>x?'<span class="sbh-c"><b style="color:'+E(x.c?colTexto(x.c):'var(--txt)')+'">'+E(x.t)+'</b><small>'+l+'</small></span>':'';
   const h='<div class="sbh-tit"><span>'+E(dia)+'</span></div>'
     +'<div class="sbh-cs">'+cifra(rd,'Readiness')+cifra(di,'Disponibles')+cifra(mo,'Con molestia')+'</div>'
-    +(par?'<button type="button" class="sbh-par" data-dk="'+E(par.dk)+'" title="Abre la previa del partido"><i></i><span>'+E(par.riv)+'</span><b>'+E(par.cuando)+'</b><em>'+E(par.fecha)+'</em></button>':'')
+    +(par?'<button type="button" class="sbh-par'+(escRival(par.riv)?' sbh-par--esc':'')+'" data-dk="'+E(par.dk)+'" title="Abre la previa del partido">'+(escRival(par.riv)?escRivalHTML(par.riv,18,'sbh-esc'):'<i></i>')+'<span>'+E(par.riv)+'</span><b>'+E(par.cuando)+'</b><em>'+E(par.fecha)+'</em></button>':'')
     +(()=>{const c=(typeof notasSinLeer==='function')?notasSinLeer():0;return c?'<button type="button" class="sbh-nota" title="Abre tus notas"><i aria-hidden="true">✎</i><span>'+c+(c===1?' nota para ti':' notas para ti')+'</span></button>':'';})();
   if(w.dataset.h!==h){w.dataset.h=h;w.innerHTML=h;}
   w.setAttribute('role','button');w.tabIndex=0;w.setAttribute('aria-label','El día de un vistazo: abre el Resumen');
@@ -22338,7 +22354,8 @@ function bmProx(){
     if(ph&&ph.nextSibling)v.insertBefore(el,ph.nextSibling);else v.appendChild(el);}
   el.dataset.k=k;el.dataset.dk=sig;
   el.setAttribute('aria-label','Próximo partido: '+(riv?'contra '+riv+', ':'')+dia+', '+cuando+'. Abre la previa del partido');
-  el.innerHTML='<i class="bpx-ic">'+BMPX_IC+'</i><span class="bpx-t"><small>Próximo partido</small><b>'+(riv?esc(riv):'Partido')+'</b></span>'
+  const escR=escRivalHTML(riv,34);
+  el.innerHTML=(escR?'<i class="bpx-ic bpx-esc">'+escR+'</i>':'<i class="bpx-ic">'+BMPX_IC+'</i>')+'<span class="bpx-t"><small>Próximo partido</small><b>'+(riv?esc(riv):'Partido')+'</b></span>'
     +'<span class="bpx-d"><small>'+esc(dia)+'</small><b>'+cuando+'</b></span><i class="bpx-ch" aria-hidden="true">›</i>';
 }
 function bmProxAbre(dk){
@@ -23667,7 +23684,7 @@ function bmPreviaPartido(dk){
     :'<p class="pv-nada">Todos los que pueden jugar tienen el ACWR entre 0,8 y 1,3.</p>';
   const sec=(t,n,body)=>'<section class="pv-sec"><h3>'+t+(n!=null?'<em>'+n+'</em>':'')+'</h3>'+body+'</section>';
   const html='<div class="pv">'
-    +'<div class="pv-hero"><small>'+esc([comp,WD[d.getDay()]+' '+fc(dk),hora].filter(Boolean).join(' · '))+'</small>'
+    +'<div class="pv-hero">'+(escRival(riv)?'<div class="pv-vs"><img src="escudo.png" alt="BM Nava" width="56" height="56"><span>vs</span>'+escRivalHTML(riv,56)+'</div>':'')+'<small>'+esc([comp,WD[d.getDay()]+' '+fc(dk),hora].filter(Boolean).join(' · '))+'</small>'
       +'<b>'+(riv?esc(riv):'Partido')+'</b>'+(cuando?'<span class="pv-cuando">'+cuando+'</span>':'')+'</div>'
     +'<div class="pv-kpis"><div><b style="color:var(--ok-text)">'+dispo.length+'</b><small>Disponibles</small></div>'
       +'<div><b style="color:'+(duda.length?'var(--warn-text)':'var(--muted)')+'">'+duda.length+'</b><small>En duda</small></div>'
@@ -49017,7 +49034,7 @@ function renderTeamUltimas(){
     return '<div class="ult-card'+(idx===0?' ult-card--last':'')+(idx>=3?' ult-card--extra':'')+(sinPulso?' ult-card--nopulso':'')+'">'
      +'<div class="ult-head">'
        +'<div class="ult-when"><b>'+dd[2]+'/'+dd[1]+'</b><span>'+medEsc(s.lab)+'</span></div>'
-       +(partido?'<span class="ult-mtag">partido</span>':'')
+       +(partido?(()=>{let r='';try{const ev=((STATE.calendar||{})[s.dk]||[]).find(evEsPartido);r=ev?evRival(ev):'';}catch(e){}return escRivalHTML(r,24,'ult-esc')+'<span class="ult-mtag">partido</span>';})():'')
        +(lv?'<span class="ult-lv" style="--c:'+lv[1]+';--ct:'+colTexto(lv[1])+'">'+lv[0]+'</span>':'<span class="ult-lv ult-lv--no">SIN NIVEL</span>')
      +'</div>'
      +(sinPulso
@@ -49193,6 +49210,26 @@ function calCalentDia(dk){
 window.evCalent=evCalent;window.calCalentDia=calCalentDia;
 function evEsPartido(e){return !!(e&&e.type==='partido');}
 function evRival(e){return (e&&e.rival||'').trim();}
+/* v967 · Los escudos de los rivales de la ASOBAL 26/27. Daniel, 28/11/2026: *«subir los logos de
+   los equipos de asobal para meterlos en los días de partido… que nos dé más empaque»*. Los pasó él
+   (carpeta «Logos clubes ASOBAL 26/27», uno por código) y viven en `escudos/`, reducidos a 160 px.
+   El rival es texto libre en cada partido del calendario, así que se reconoce por palabras, sin tildes
+   ni mayúsculas: «Granollers», «Fraikin Granollers» o «BM Granollers» dan el mismo escudo. Un rival
+   que no se reconoce se queda como estaba, con el nombre solo. El Nava es `escudo.png`, el de siempre. */
+const ESC_VER=1;
+const ESC_RIV=[['ADE',['ademar','leon']],['ATV',['valladolid','recoletas']],['BAR',['barca','barcelona','fcb']],
+  ['BID',['bidasoa','irun']],['CAS',['caserio','ciudad real']],['CNG',['cangas','morrazo','frigorificos']],
+  ['CQN',['cuenca','ciudad encantada','rebi']],['EON',['eon','alicante','horneo']],['GRA',['granollers','fraikin']],
+  ['LOG',['logrono']],['PGE',['puente genil','ximenez']],['PSG',['sagunto']],['SEV',['sevilla','proin']],
+  ['TLV',['torrelavega','bathco']],['VDA',['aranda']]];
+function escRival(nombre){
+  const t=' '+String(nombre||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()+' ';
+  if(t.trim()==='')return null;
+  const x=ESC_RIV.find(([,al])=>al.some(a=>t.indexOf(' '+a+' ')>=0));return x?x[0]:null;
+}
+function escRivalHTML(nombre,px,cls){const k=escRival(nombre);if(!k)return '';const p=px||18;
+  return '<img class="esc-r'+(cls?' '+cls:'')+'" src="escudos/'+k+'.png?v='+ESC_VER+'" width="'+p+'" height="'+p+'" alt="" onerror="this.remove()">';}
+window.escRival=escRival;window.escRivalHTML=escRivalHTML;
 function evComp(e){return (e&&e.competicion)||PARTIDO_DEF.competicion;}
 function evNivel(e){return (e&&e.nivelRival)||PARTIDO_DEF.nivelRival;}
 function evOrigenHR(e){return (e&&e.origenHR)||PARTIDO_DEF.origenHR;}
@@ -50020,7 +50057,7 @@ function calSemanaA4(opts){
     const riv=ev&&evRival(ev)?evRival(ev):'';
     const dd=dkToDate(sig), falta=Math.round((dd-dkToDate(hoyDk))/86400000);
     partidoTxt='<i class="sa-sub-i"></i><span>Próximo partido · '+WD[(dd.getDay()+6)%7].toLowerCase()+' '+dd.getDate()+'/'+(dd.getMonth()+1)+'</span>'
-      +(riv?'<b>'+esc(riv)+'</b>':'')
+      +(riv?escRivalHTML(riv,26,'sa-esc')+'<b>'+esc(riv)+'</b>':'')
       +'<em>'+(falta===0?'hoy':falta===1?'mañana':'en '+falta+' días')+'</em>';
   }
   const ws=calWeekSummary(mon), mt=calMonoTier(ws.mono);
@@ -50790,7 +50827,7 @@ function renderCalMicro(){
     const ev=((STATE.calendar||{})[ciclo.partidoSig]||[]).find(e=>evEsPartido(e))||{};
     const d=dkToDate(ciclo.partidoSig);
     const faltan=calDiasEntre(dkey(new Date()),ciclo.partidoSig);
-    const rival=evRival(ev)?('vs '+esc(evRival(ev))):(ev.title?esc(ev.title):'Partido');
+    const rival=evRival(ev)?(escRivalHTML(evRival(ev),24,'mc-esc')+'vs '+esc(evRival(ev))):(ev.title?esc(ev.title):'Partido');
     const comp=(PARTIDO_COMP[evComp(ev)]||evComp(ev)||'').toString();
     sub=DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
     hero='<div class="mc-hero">'
@@ -51140,7 +51177,7 @@ function renderCalendar(){
     const corner=hasMatch?'':(dev?`<span class="cal-dev" style="color:${colTexto(dev.col)};border-color:${dev.col}" title="Desviación plan vs real: ${dev.lab}">${dev.arrow}${dev.pct>0?'+':''}${dev.pct}%</span>`:(rv!=null?`<span class="cal-realbadge" title="Carga real (RPE): ${rv} UA">${rv}</span>`:(faltanMinDia?`<span class="cal-nomin" title="Hay cuestionarios de este día pero no hay minutos de sesión, así que no se puede calcular la carga real ni la desviación. Abre el día y escribe los minutos.">min?</span>`:'')));
     cells+=`<div class="cal-cell${dk===todayDk?' cal-today':''}${risk&&!hasMatch?' cal-cell-risk':''}${themeCls}${inMonth?'':' cal-out'}" data-dk="${dk}" onclick="calTocaDia('${dk}')">
       <div class="cal-dnum${hasMatch?' cal-match-dnum':''}">${dn}${dk===todayDk?'<span class="cal-todaytag">hoy</span>':''}${risk&&!hasMatch?`<span class="cal-risk" title="${risk.msg}">⚠</span>`:''}${bajas.length?`<span class="cal-baja" title="No disponibles (${bajas.length}): ${bajas.map(b=>b.name).join(', ')}">⚕ ${bajas.length}</span>`:''}${(citas.length&&(onlyRest||hasMatch))?`<span class="cal-cita${citasPierde?' pierde':''}" title="Citas médicas (${citas.length})">🩺 ${citas.length}</span>`:''}${corner}</div>${calPuntos(dk)}
-      ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body"><span class="cal-match-k">Partido</span>${(evRival(matchEv)||matchEv.title)?`<span class="cal-match-rival">${(evRival(matchEv)?'vs '+evRival(matchEv):matchEv.title).replace(/</g,'&lt;')}</span>`:''}${evRival(matchEv)?`<span class="cal-match-comp">${(PARTIDO_COMP[evComp(matchEv)]||'').toLowerCase()}${evOrigenHR(matchEv)==='medido'?' · FC medida':''}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-bars">
+      ${onlyRest?`<div class="cal-rest-body"><span>Descanso</span></div>`:(hasMatch?`<div class="cal-match-body">${escRivalHTML(evRival(matchEv),36,'cal-match-esc')}<span class="cal-match-k">Partido</span>${(evRival(matchEv)||matchEv.title)?`<span class="cal-match-rival">${(evRival(matchEv)?'vs '+evRival(matchEv):matchEv.title).replace(/</g,'&lt;')}</span>`:''}${evRival(matchEv)?`<span class="cal-match-comp">${(PARTIDO_COMP[evComp(matchEv)]||'').toLowerCase()}${evOrigenHR(matchEv)==='medido'?' · FC medida':''}</span>`:''}${matchEv.time?`<span class="cal-match-h"><span class="cal-clock">◷</span> ${matchEv.time}</span>`:''}</div>${window.__LOGO_ASOBAL__?`<img class="cal-match-logo" src="${window.__LOGO_ASOBAL__}" alt="Liga Nexus Energía ASOBAL">`:''}`:`<div class="cal-bars">
         ${pl.n?`<div class="cal-plan" title="Plan · ${pl.lab} intensidad · contacto ${pl.contacto}/5 · ${pl.totMin}′ (${pl.planUA} UA est.)">${calTraffic(pl.peak,54,'cal-tl')}<div class="cal-plan-tx"><span class="cal-plan-grade" style="color:${colTexto(pl.col)}">${pl.lab}</span><span class="cal-plan-dur"><span class="cal-clock">◷</span> ${pl.totMin}′</span>${pl.contacto>0?`<span class="cal-plan-ct">${calContactBar(pl.contacto)}</span>`:''}${zd?(()=>{
           /* El nivel se saca de la cifra REDONDEADA, la que se ve. Con el valor
              interno, un 0,95% salía coloreado como 1% pero con el nivel del 0:
@@ -51504,7 +51541,7 @@ function calDayBody(dk){
       ? `<div class="small"><span class="cal-sp">sin programar</span> <span class="muted">${t.lab} · falta volumen, intensidad y contacto</span></div>`
       : `<div class="small muted"><span style="color:${colTexto(ci.col)};font-weight:700">●</span> ${t.lab} · ${ci.lab} intensidad${du?` · ${du}′`:''}${e.type!=='descanso'&&e.type!=='evento'?` · contacto ${ct}/5`:''}</div>`
       +calObjHtml(e,true)
-      +(evEsPartido(e)?`<div class="cal-pt-line"><span class="cal-pt-badge">PARTIDO</span>${evRival(e)?`<b>vs ${evRival(e).replace(/</g,'&lt;')}</b>`:'<span class="muted">sin rival</span>'} <span class="muted">· ${PARTIDO_COMP[evComp(e)]} · rival ${PARTIDO_NIVEL[evNivel(e)].toLowerCase()}</span> <span class="cal-pt-hr ${evOrigenHR(e)}">${evOrigenHR(e)==='medido'?'FC medida':'FC estimada'}</span></div>`:'');
+      +(evEsPartido(e)?`<div class="cal-pt-line"><span class="cal-pt-badge">PARTIDO</span>${evRival(e)?`${escRivalHTML(evRival(e),22)}<b>vs ${evRival(e).replace(/</g,'&lt;')}</b>`:'<span class="muted">sin rival</span>'} <span class="muted">· ${PARTIDO_COMP[evComp(e)]} · rival ${PARTIDO_NIVEL[evNivel(e)].toLowerCase()}</span> <span class="cal-pt-hr ${evOrigenHR(e)}">${evOrigenHR(e)==='medido'?'FC medida':'FC estimada'}</span></div>`:'');
     return `<div class="cal-ev-row${CAL_EDIT===e.id?' editing':''}${sp?' sp':''}"><span class="cal-ev-dot" style="background:${t.col}${sp?';opacity:.45':''}"></span><div style="flex:1;min-width:0"><b>${e.title||t.lab}</b>${e.time?` <span class="muted">· ${e.time}</span>`:''}${detalle}${os.length?`<div class="cal-ev-objs">${os.map((o,i)=>`<div class="cal-ev-obj"><span class="cal-ev-obj-n">${i+1}</span>${o.replace(/</g,'&lt;')}</div>`).join('')}</div>`:''}</div><button class="btn ghost cal-ev-btn" title="${sp?'Programar: añadir volumen, intensidad y contacto':'Editar'}" onclick="calEditEvent('${dk}','${e.id}')">${sp?'Programar':'✎'}</button><button class="btn ghost" style="padding:5px 9px" title="Borrar" onclick="calDelEvent('${dk}','${e.id}')">✕</button></div>`;}).join(''):'<p class="small muted">Sin nada planificado este día todavía.</p>';
   /* v241 · si el día tiene sesiones puestas pero sin programar, se dice, para
      que no parezca que falta planificación cuando lo que falta es el detalle. */
@@ -69597,8 +69634,8 @@ try{if(window.Chart&&!Chart.registry.plugins.get('bmAcabado'))Chart.register(bmA
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-28.2*/
-const VER_ACTUAL='2026-11-28.2';
+/*BUILD:2026-11-28.3*/
+const VER_ACTUAL='2026-11-28.3';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
