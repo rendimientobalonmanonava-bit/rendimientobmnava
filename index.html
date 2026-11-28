@@ -6732,15 +6732,34 @@ html.bmit-on #bm-ri-chip{display:none}
 .cal-pt-line .esc-r{margin:0 2px 0 6px;vertical-align:-6px}
 .bm-prox .bpx-esc{background:transparent!important;box-shadow:none!important;overflow:visible}
 .bm-prox .bpx-esc .esc-r{width:100%;height:100%;margin:0}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  html body .bm-prox .bpx-t b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-wrap:balance;line-height:1.2}
+  html body .bm-prox .bpx-d .bpx-pt{display:none}
+  html body .bm-prox .bpx-d .bpx-hh{display:block}
+}
 #sb-hoy .sbh-par .sbh-esc{width:18px;height:18px;margin:0}
 #sb-hoy .sbh-par.sbh-par--esc{grid-template-columns:20px minmax(0,1fr) auto!important;column-gap:7px!important}
 .pv-vs{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px}
 .pv-vs img{width:56px;height:56px;object-fit:contain;margin:0}
 .pv-vs span{font-size:var(--fs-sm);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.sa-esc{margin:0 4px 0 6px;vertical-align:-7px}
+.sa-esc{margin:-3px 0 -3px 4px;width:22px;height:22px}
+.sa-sub--p b{min-width:0;overflow:hidden;text-overflow:ellipsis;margin-right:6px}
+.sa-sub--p em{flex:none}
 .bmip-cab .bmip-esc{width:48px;height:48px;margin:0 0 0 auto}
-.mc-esc{vertical-align:-6px;margin-right:6px}
-.ult-esc{width:22px;height:22px;margin:0 2px 0 6px}
+/* `.mc-top img` es la regla de las fotos (círculo de 38 px recortado con fondo): el escudo no */
+.mc-top img.mc-esc{width:26px;height:26px;border-radius:0;object-fit:contain;background:none;margin:0}
+.mc-hero-r.mc-hero-r--esc{display:inline-flex;align-items:center;gap:7px;min-width:0;white-space:normal}
+.mc-hero-r>.mc-riv{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .mc-hero-r>.mc-riv{white-space:normal;text-wrap:balance}
+}
+.ult-when .ult-riv{display:flex;align-items:center;gap:4px;max-width:190px}
+.ult-when .ult-riv em{font-style:normal;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
+  .ult-when .ult-riv{max-width:none;white-space:normal;align-items:flex-start}
+  .ult-when .ult-riv em{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-wrap:balance}
+}
+.ult-esc{width:16px;height:16px;margin:0}
 /* v966 · «Últimas sesiones»: las tarjetas arriba, las que quepan, y la tira al pie */
 .ult-card--extra{display:none}
 .ult-card--extra.ult-card--ver{display:block}
@@ -22356,7 +22375,7 @@ function bmProx(){
   el.setAttribute('aria-label','Próximo partido: '+(riv?'contra '+riv+', ':'')+dia+', '+cuando+'. Abre la previa del partido');
   const escR=escRivalHTML(riv,34);
   el.innerHTML=(escR?'<i class="bpx-ic bpx-esc">'+escR+'</i>':'<i class="bpx-ic">'+BMPX_IC+'</i>')+'<span class="bpx-t"><small>Próximo partido</small><b>'+(riv?esc(riv):'Partido')+'</b></span>'
-    +'<span class="bpx-d"><small>'+esc(dia)+'</small><b>'+cuando+'</b></span><i class="bpx-ch" aria-hidden="true">›</i>';
+    +'<span class="bpx-d"><small>'+esc(WD[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1))+(hora?'<span class="bpx-pt"> · </span><span class="bpx-hh">'+esc(hora)+'</span>':'')+'</small><b>'+cuando+'</b></span><i class="bpx-ch" aria-hidden="true">›</i>';
 }
 function bmProxAbre(dk){
   if(!dk)return;const d=dkToDate(dk);
@@ -49033,8 +49052,9 @@ function renderTeamUltimas(){
     const sinPulso=!s.tot;
     return '<div class="ult-card'+(idx===0?' ult-card--last':'')+(idx>=3?' ult-card--extra':'')+(sinPulso?' ult-card--nopulso':'')+'">'
      +'<div class="ult-head">'
-       +'<div class="ult-when"><b>'+dd[2]+'/'+dd[1]+'</b><span>'+medEsc(s.lab)+'</span></div>'
-       +(partido?(()=>{let r='';try{const ev=((STATE.calendar||{})[s.dk]||[]).find(evEsPartido);r=ev?evRival(ev):'';}catch(e){}return escRivalHTML(r,24,'ult-esc')+'<span class="ult-mtag">partido</span>';})():'')
+       +(()=>{let r='';if(partido){try{const ev=((STATE.calendar||{})[s.dk]||[]).find(evEsPartido);r=ev?evRival(ev):'';}catch(e){}}
+          return '<div class="ult-when"><b>'+dd[2]+'/'+dd[1]+'</b><span'+(r?' class="ult-riv"':'')+'>'+(r?escRivalHTML(r,16,'ult-esc')+'<em>vs '+medEsc(r)+'</em>':medEsc(s.lab))+'</span></div>';})()
+       +(partido?'<span class="ult-mtag">partido</span>':'')
        +(lv?'<span class="ult-lv" style="--c:'+lv[1]+';--ct:'+colTexto(lv[1])+'">'+lv[0]+'</span>':'<span class="ult-lv ult-lv--no">SIN NIVEL</span>')
      +'</div>'
      +(sinPulso
@@ -49216,7 +49236,7 @@ function evRival(e){return (e&&e.rival||'').trim();}
    El rival es texto libre en cada partido del calendario, así que se reconoce por palabras, sin tildes
    ni mayúsculas: «Granollers», «Fraikin Granollers» o «BM Granollers» dan el mismo escudo. Un rival
    que no se reconoce se queda como estaba, con el nombre solo. El Nava es `escudo.png`, el de siempre. */
-const ESC_VER=1;
+const ESC_VER=2;
 const ESC_RIV=[['ADE',['ademar','leon']],['ATV',['valladolid','recoletas']],['BAR',['barca','barcelona','fcb']],
   ['BID',['bidasoa','irun']],['CAS',['caserio','ciudad real']],['CNG',['cangas','morrazo','frigorificos']],
   ['CQN',['cuenca','ciudad encantada','rebi']],['EON',['eon','alicante','horneo']],['GRA',['granollers','fraikin']],
@@ -50057,7 +50077,7 @@ function calSemanaA4(opts){
     const riv=ev&&evRival(ev)?evRival(ev):'';
     const dd=dkToDate(sig), falta=Math.round((dd-dkToDate(hoyDk))/86400000);
     partidoTxt='<i class="sa-sub-i"></i><span>Próximo partido · '+WD[(dd.getDay()+6)%7].toLowerCase()+' '+dd.getDate()+'/'+(dd.getMonth()+1)+'</span>'
-      +(riv?escRivalHTML(riv,26,'sa-esc')+'<b>'+esc(riv)+'</b>':'')
+      +(riv?escRivalHTML(riv,22,'sa-esc')+'<b>'+esc(riv)+'</b>':'')
       +'<em>'+(falta===0?'hoy':falta===1?'mañana':'en '+falta+' días')+'</em>';
   }
   const ws=calWeekSummary(mon), mt=calMonoTier(ws.mono);
@@ -50827,11 +50847,11 @@ function renderCalMicro(){
     const ev=((STATE.calendar||{})[ciclo.partidoSig]||[]).find(e=>evEsPartido(e))||{};
     const d=dkToDate(ciclo.partidoSig);
     const faltan=calDiasEntre(dkey(new Date()),ciclo.partidoSig);
-    const rival=evRival(ev)?(escRivalHTML(evRival(ev),24,'mc-esc')+'vs '+esc(evRival(ev))):(ev.title?esc(ev.title):'Partido');
+    const rival=evRival(ev)?(escRivalHTML(evRival(ev),26,'mc-esc')+'<span class="mc-riv">vs '+esc(evRival(ev))+'</span>'):(ev.title?esc(ev.title):'Partido');
     const comp=(PARTIDO_COMP[evComp(ev)]||evComp(ev)||'').toString();
     sub=DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
     hero='<div class="mc-hero">'
-      +'<span class="mc-hero-r">'+rival+'</span>'
+      +'<span class="mc-hero-r'+(rival.indexOf('mc-esc')>=0?' mc-hero-r--esc':'')+'">'+rival+'</span>'
       +'<span class="mc-hero-m">'+(comp?esc(comp)+' · ':'')+DIAS_L[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1)
         +(ev.time?' · '+esc(ev.time):'')+'</span>'
       +'<span class="mc-hero-d">'+(faltan<=0?'hoy':(faltan===1?'mañana':'en '+faltan+' días'))+'</span>'
@@ -69634,8 +69654,8 @@ try{if(window.Chart&&!Chart.registry.plugins.get('bmAcabado'))Chart.register(bmA
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-28.3*/
-const VER_ACTUAL='2026-11-28.3';
+/*BUILD:2026-11-28.4*/
+const VER_ACTUAL='2026-11-28.4';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
