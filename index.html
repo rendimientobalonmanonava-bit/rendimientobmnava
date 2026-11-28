@@ -6725,6 +6725,23 @@ html.bmit-on #bm-ri-chip{display:none}
 @media (max-width:760px),(max-height:500px) and (orientation:landscape) and (pointer:coarse){
   #v-equipo #team-cuad{display:none!important}
 }
+/* v966 · «Últimas sesiones»: las tarjetas arriba, las que quepan, y la tira al pie */
+.ult-card--extra{display:none}
+.ult-card--extra.ult-card--ver{display:block}
+@media (min-width:1201px) and (min-height:501px),(min-width:1201px) and (pointer:fine),(min-width:1201px) and (orientation:portrait){
+  #v-equipo .eq-r3 #team-ultimas{justify-content:flex-start}
+  #v-equipo .eq-r3 #team-ultimas>#eq-ultimas{flex:1 1 auto;display:flex;flex-direction:column}
+  #v-equipo .eq-r3 #team-ultimas .ult-tira{margin-top:auto}
+}
+/* v966 · «Resumen de pulso»: las cuatro cifras en 2 × 2. En cuatro columnas de 96 px se cortaban
+   «Jugadores» y «con pulsómetro» y el texto partía en tres líneas */
+@media (min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine),(min-width:761px) and (orientation:portrait){
+  #team-hr>.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px!important}
+  #team-hr>.kpis>.kpi{padding:13px 16px 12px;min-width:0}
+  #team-hr>.kpis>.kpi .lab{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #team-hr>.kpis>.kpi .val{font-size:30px;margin-top:6px}
+  #team-hr>.kpis>.kpi .sub{margin-top:4px;line-height:1.3}
+}
 /* el cuadrante */
 #team-cuad h2{margin-bottom:12px}
 .cua-map{padding-left:34px;display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
@@ -48982,7 +48999,8 @@ function renderTeamUltimas(){
   const box=document.getElementById('eq-ultimas');if(!box)return;
   /* si algo se adelanta al arranque, que al menos esta tira no pinte de menos */
   try{hrEnsure();}catch(e){}
-  const ses=ultimasSesiones(3);
+  /* v966 · en el ordenador se preparan hasta seis y se enseñan las que quepan (`ultAjusta`) */
+  const ses=ultimasSesiones(esMovil()?3:6);
   if(!ses.length){
     box.innerHTML='<p class="hint">Sin sesiones registradas todavía. Aquí aparecerán las últimas con su nivel, sus zonas y su contacto.</p>';
     return;
@@ -48996,7 +49014,7 @@ function renderTeamUltimas(){
     /* v389 · Un día sin captura de Polar se pinta igual, con lo que sí hay: la
        barra de zonas se sustituye por el aviso y el %Z4+Z5 va a raya. */
     const sinPulso=!s.tot;
-    return '<div class="ult-card'+(idx===0?' ult-card--last':'')+(sinPulso?' ult-card--nopulso':'')+'">'
+    return '<div class="ult-card'+(idx===0?' ult-card--last':'')+(idx>=3?' ult-card--extra':'')+(sinPulso?' ult-card--nopulso':'')+'">'
      +'<div class="ult-head">'
        +'<div class="ult-when"><b>'+dd[2]+'/'+dd[1]+'</b><span>'+medEsc(s.lab)+'</span></div>'
        +(partido?'<span class="ult-mtag">partido</span>':'')
@@ -49025,7 +49043,26 @@ function renderTeamUltimas(){
       +'<span class="ult-tira-r">hoy</span></div>'
     : '';
   box.innerHTML=tarjetas+tira;
+  ultAjustaPronto();
 }
+/* v966 · Daniel, 28/11/2026, con el Resumen del ordenador delante: *«ajústame estos dos módulos,
+   que visualmente quedan un poco regular»*. «Últimas sesiones» se estira hasta la altura de
+   «A vigilar» (v955) y sus tres tarjetas se iban al fondo, con un hueco grande encima. Ahora van
+   arriba y, si sobra sitio, entran más sesiones —de las seis preparadas, las que quepan sin hacer
+   crecer la fila—; la tira de las diez últimas se queda al pie. */
+function ultAjusta(){
+  const p=document.getElementById('team-ultimas');if(!p||esMovil()||!p.checkVisibility())return;
+  const ex=[...p.querySelectorAll('.ult-card--extra')];if(!ex.length)return;
+  ex.forEach(c=>c.classList.remove('ult-card--ver'));
+  const H=p.getBoundingClientRect().height;if(!(H>0))return;
+  for(const c of ex){c.classList.add('ult-card--ver');
+    if(p.getBoundingClientRect().height>H+1||p.scrollHeight>p.clientHeight+1){c.classList.remove('ult-card--ver');break;}}
+}
+function ultAjustaPronto(){clearTimeout(ultAjustaPronto.t);ultAjustaPronto.t=setTimeout(()=>{try{ultAjusta();}catch(e){}},60);}
+(function(){let ro=null;const engancha=()=>{const r=document.getElementById('team-rings');if(!r||ro||typeof ResizeObserver==='undefined')return;
+    ro=new ResizeObserver(()=>ultAjustaPronto());ro.observe(r);};
+  window.addEventListener('resize',ultAjustaPronto,{passive:true});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',engancha);else engancha();})();
 function renderTeamHR(){
   const box=document.getElementById('team-hr');if(!box)return;
   if(!STATE.hr.length){box.innerHTML='<p class="hint">Sin sesiones de pulso aún. Cárgalas en la pestaña <b>Pulso · Polar</b>.</p>';return;}
@@ -69560,8 +69597,8 @@ try{if(window.Chart&&!Chart.registry.plugins.get('bmAcabado'))Chart.register(bmA
    ============================================================ */
 (function(){
 'use strict';
-/*BUILD:2026-11-28.1*/
-const VER_ACTUAL='2026-11-28.1';
+/*BUILD:2026-11-28.2*/
+const VER_ACTUAL='2026-11-28.2';
 window.__BUILD=VER_ACTUAL;
 /* v791 · La marca de ESTE archivo, leída de su propio texto. El 17/11/2026 se
    subió la versión cambiando VER_ACTUAL y no la marca de arriba: el servidor
